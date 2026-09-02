@@ -3,6 +3,9 @@ package com.vayana.feature.reader
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.AnnotationType
+import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.SettingsRegistry
@@ -18,6 +21,8 @@ import com.vayana.reader.api.Locator
 import com.vayana.reader.api.NavTarget
 import com.vayana.reader.api.OpenBook
 import com.vayana.reader.api.ReadTheme
+import com.vayana.reader.api.ReaderAnnotation
+import com.vayana.reader.api.ReaderAnnotationType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +39,7 @@ sealed interface ReaderUiState {
         val bookTitle: String,
         val toc: List<com.vayana.reader.api.TocEntry>,
         val currentLocator: Locator?,
+        val annotations: List<Annotation> = emptyList(),
     ) : ReaderUiState
     data class Failed(val message: String) : ReaderUiState
 }
@@ -42,6 +48,7 @@ sealed interface ReaderUiState {
 class ReaderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val bookRepository: BookRepository,
+    private val annotationRepository: AnnotationRepository,
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
@@ -79,6 +86,7 @@ class ReaderViewModel @Inject constructor(
                     bookOpen = true
                     applyReaderStyle(engine, settings.value)
                     _uiState.value = ReaderUiState.Loaded(bookTitle = openBook.title, toc = openBook.toc, currentLocator = resumeLocator)
+                    observeAnnotations(engine)
                 }
                 .onFailure { throwable ->
                     _uiState.value = ReaderUiState.Failed(throwable.message ?: "Could not open book")
@@ -107,6 +115,19 @@ class ReaderViewModel @Inject constructor(
     fun openTocEntry(href: String) = dispatch(NavTarget.ToHref(href))
 
     fun goToProgress(fraction: Float) = dispatch(NavTarget.ToFraction(fraction.coerceIn(0f, 1f)))
+
+    fun openAnnotation(annotation: Annotation) {
+        dispatch(
+            NavTarget.ToLocator(
+                Locator(
+                    cfi = annotation.locator,
+                    href = annotation.chapterHref,
+                    progression = 0f,
+                    chapterTitle = annotation.chapterTitle,
+                ),
+            ),
+        )
+    }
 
     fun updateFontSize(percent: Int) {
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontSize, percent) }
@@ -137,6 +158,17 @@ class ReaderViewModel @Inject constructor(
             )
         }
     }
+
+    private fun observeAnnotations(engine: BookEngine) {
+        viewModelScope.launch {
+            annotationRepository.observeForBook(bookId).collect { annotations ->
+                engine.renderAnnotations(annotations.mapNotNull { it.toReaderAnnotation() })
+                _uiState.update { current ->
+                    if (current is ReaderUiState.Loaded) current.copy(annotations = annotations) else current
+                }
+            }
+        }
+    }
 }
 
 private val ReaderFontFamily.cssFamily: String
@@ -152,3 +184,21 @@ private val SettingsSnapshot.readTheme: ReadTheme
         themeMode == ThemeMode.DARK -> ReadTheme(backgroundColorArgb = 0xFF111827.toInt(), textColorArgb = 0xFFF8F4EC.toInt())
         else -> ReadTheme(backgroundColorArgb = 0xFFFFFBF3.toInt(), textColorArgb = 0xFF172033.toInt())
     }
+
+private fun Annotation.toReaderAnnotation(): ReaderAnnotation? {
+    val cfi = locator.takeIf { it.isNotBlank() } ?: return null
+    return ReaderAnnotation(
+        id = id.toString(),
+        type = type.toReaderAnnotationType(),
+        cfi = cfi,
+        colorKey = colorKey,
+        note = readerNote,
+    )
+}
+
+private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when (this) {
+    AnnotationType.HIGHLIGHT -> ReaderAnnotationType.HIGHLIGHT
+    AnnotationType.UNDERLINE -> ReaderAnnotationType.UNDERLINE
+    AnnotationType.BOOKMARK -> ReaderAnnotationType.BOOKMARK
+    AnnotationType.NOTE -> ReaderAnnotationType.NOTE
+}

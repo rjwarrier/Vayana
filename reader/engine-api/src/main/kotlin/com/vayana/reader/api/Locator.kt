@@ -19,6 +19,18 @@ data class OpenBook(
     val toc: List<TocEntry>,
 )
 
+enum class ReaderAnnotationType {
+    HIGHLIGHT, UNDERLINE, BOOKMARK, NOTE
+}
+
+data class ReaderAnnotation(
+    val id: String,
+    val type: ReaderAnnotationType,
+    val cfi: String,
+    val colorKey: String,
+    val note: String?,
+)
+
 /** Source handed to [BookEngine.open] — a resolved local file path, never a domain `Book` (§0.5: no cross-layer coupling). */
 data class BookSource(val absoluteFilePath: String)
 

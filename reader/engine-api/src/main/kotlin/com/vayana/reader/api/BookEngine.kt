@@ -17,6 +17,7 @@ interface BookEngine {
     val location: StateFlow<Locator?>
     suspend fun goTo(target: NavTarget)
     suspend fun applyStyle(style: BookStyle, theme: ReadTheme)
+    suspend fun renderAnnotations(annotations: List<ReaderAnnotation>)
     fun events(): Flow<EngineEvent>
     fun close()
 }

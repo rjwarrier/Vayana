@@ -18,6 +18,8 @@ import com.vayana.reader.api.Locator
 import com.vayana.reader.api.NavTarget
 import com.vayana.reader.api.OpenBook
 import com.vayana.reader.api.ReadTheme
+import com.vayana.reader.api.ReaderAnnotation
+import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.TocEntry
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -132,6 +134,15 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)})", null)
     }
 
+    override suspend fun renderAnnotations(annotations: List<ReaderAnnotation>) {
+        val payload = JSONArray().apply {
+            annotations
+                .filter { it.cfi.isNotBlank() }
+                .forEach { annotation -> put(annotation.toJson()) }
+        }
+        webView.evaluateJavascript("window.VayanaReader.renderAnnotations($payload)", null)
+    }
+
     override fun events(): Flow<EngineEvent> = _events
 
     override fun close() {
@@ -200,3 +211,26 @@ private fun JSONObject.optStringOrNull(name: String): String? =
     if (has(name) && !isNull(name)) getString(name) else null
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
+
+private fun ReaderAnnotation.toJson(): JSONObject = JSONObject()
+    .put("id", id)
+    .put("value", cfi)
+    .put("type", type.toFoliateType())
+    .put("color", colorKey.toAnnotationColor())
+    .put("note", note)
+
+private fun ReaderAnnotationType.toFoliateType(): String = when (this) {
+    ReaderAnnotationType.HIGHLIGHT,
+    ReaderAnnotationType.NOTE,
+    ReaderAnnotationType.BOOKMARK,
+    -> "highlight"
+    ReaderAnnotationType.UNDERLINE -> "underline"
+}
+
+private fun String.toAnnotationColor(): String = when (lowercase()) {
+    "yellow" -> "#F6C453"
+    "green" -> "#7BAE7F"
+    "blue" -> "#5B8DEF"
+    "pink" -> "#D77FA1"
+    else -> "#F6C453"
+}

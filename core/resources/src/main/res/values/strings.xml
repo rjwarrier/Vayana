@@ -119,6 +119,7 @@
 
     <string name="reader_contents">Contents</string>
     <string name="reader_notes">Notes</string>
+    <string name="reader_notes_empty">No notes or highlights in this book yet.</string>
     <string name="reader_progress">Progress</string>
     <string name="reader_style">Style</string>
     <string name="reader_read_aloud">Read aloud</string>

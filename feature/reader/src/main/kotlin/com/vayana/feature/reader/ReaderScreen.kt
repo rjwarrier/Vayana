@@ -52,6 +52,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.vayana.core.database.model.Annotation
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.tokens.Paddings
@@ -78,6 +79,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onTapNext = viewModel::nextPage,
         onOpenTocEntry = viewModel::openTocEntry,
         onProgressChange = viewModel::goToProgress,
+        onAnnotationClick = viewModel::openAnnotation,
         onFontSizeChange = viewModel::updateFontSize,
         onLineHeightChange = viewModel::updateLineHeight,
         onFontFamilyChange = viewModel::updateFontFamily,
@@ -97,6 +99,7 @@ private fun ReaderScreen(
     onTapNext: () -> Unit,
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
+    onAnnotationClick: (Annotation) -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -183,6 +186,10 @@ private fun ReaderScreen(
                     onOpenTocEntry(it)
                 },
                 onProgressChange = onProgressChange,
+                onAnnotationClick = {
+                    chromeVisible = false
+                    onAnnotationClick(it)
+                },
                 onFontSizeChange = onFontSizeChange,
                 onLineHeightChange = onLineHeightChange,
                 onFontFamilyChange = onFontFamilyChange,
@@ -201,6 +208,7 @@ private fun ReaderChrome(
     onBack: () -> Unit,
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
+    onAnnotationClick: (Annotation) -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -259,7 +267,8 @@ private fun ReaderChrome(
                     onLineHeightChange = onLineHeightChange,
                     onFontFamilyChange = onFontFamilyChange,
                 )
-                ReaderPanel.NOTES, ReaderPanel.READ_ALOUD, ReaderPanel.SEARCH -> ComingSoonPanel()
+                ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
+                ReaderPanel.READ_ALOUD, ReaderPanel.SEARCH -> ComingSoonPanel()
             }
         }
     }
@@ -301,6 +310,42 @@ private fun ProgressPanel(uiState: ReaderUiState, onProgressChange: (Float) -> U
             style = MaterialTheme.typography.titleMedium,
         )
         Slider(value = progress, onValueChange = onProgressChange, valueRange = 0f..1f)
+    }
+}
+
+@Composable
+private fun NotesPanel(uiState: ReaderUiState, onAnnotationClick: (Annotation) -> Unit) {
+    val annotations = (uiState as? ReaderUiState.Loaded)?.annotations.orEmpty()
+    if (annotations.isEmpty()) {
+        Text(
+            text = stringResource(R.string.reader_notes_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(Spacing.lg),
+        )
+        return
+    }
+
+    LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
+        items(annotations, key = { it.id }) { annotation ->
+            TextButton(onClick = { onAnnotationClick(annotation) }) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = annotation.selectedText.ifBlank { stringResource(R.string.notes_bookmark_without_text) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = annotation.chapterTitle ?: annotation.type.name.lowercase().replaceFirstChar { it.titlecase() },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
     }
 }
 

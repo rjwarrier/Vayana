@@ -2,8 +2,10 @@
 // evaluateJavascript, and forwards foliate-js events to Android via the injected
 // `AndroidBridge` @JavascriptInterface (see FoliateBookEngine.kt).
 import './foliate/view.js'
+import { Overlayer } from './foliate/overlayer.js'
 
 let view = null
+const renderedAnnotations = new Set()
 
 function post(type, payload) {
     if (window.AndroidBridge) window.AndroidBridge.onEvent(type, JSON.stringify(payload ?? {}))
@@ -38,6 +40,23 @@ async function open(bookUrl, lastLocatorCfi) {
             post('relocate', { cfi, fraction, tocLabel: tocItem?.label?.trim?.() ?? null })
         })
         view.addEventListener('load', () => post('pageLoaded', {}))
+        view.addEventListener('draw-annotation', e => {
+            const { draw, annotation } = e.detail
+            const color = annotation.color ?? '#f6c453'
+            if (annotation.type === 'underline') {
+                draw((range, options) => {
+                    const g = Overlayer.underline(range, options)
+                    g.style.stroke = color
+                    return g
+                })
+            } else {
+                draw((range, options) => {
+                    const g = Overlayer.highlight(range, options)
+                    g.style.fill = color
+                    return g
+                })
+            }
+        })
 
         post('log', { step: 'view.open' })
         await view.open(bookUrl)
@@ -62,5 +81,20 @@ function applyStyle(css) {
     if (view?.renderer?.setStyles) view.renderer.setStyles(css)
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle }
+async function renderAnnotations(annotations) {
+    if (!view) return
+    const nextValues = new Set(annotations.map(annotation => annotation.value))
+    for (const value of renderedAnnotations) {
+        if (!nextValues.has(value)) await view.deleteAnnotation({ value })
+    }
+    for (const annotation of annotations) {
+        await view.addAnnotation(annotation)
+        renderedAnnotations.add(annotation.value)
+    }
+    for (const value of Array.from(renderedAnnotations)) {
+        if (!nextValues.has(value)) renderedAnnotations.delete(value)
+    }
+}
+
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, renderAnnotations }
 post('ready', {})
