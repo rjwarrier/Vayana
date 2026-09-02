@@ -30,8 +30,24 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Result of one import batch — surfaced as a one-line summary (PROMPT2appbuild.md §4.1's fuller per-file sheet is a later pass). */
+/** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
+
+enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
+
+data class ImportProgressRow(
+    val id: String,
+    val fileName: String,
+    val status: ImportRowStatus,
+)
+
+data class ImportProgressState(
+    val rows: List<ImportProgressRow> = emptyList(),
+    val isRunning: Boolean = false,
+) {
+    val summary: ImportSummary
+        get() = rows.summarize()
+}
 
 enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
 
@@ -80,6 +96,9 @@ class LibraryViewModel @Inject constructor(
     private val _importSummary = MutableStateFlow<ImportSummary?>(null)
     val importSummary: StateFlow<ImportSummary?> = _importSummary
 
+    private val _importProgress = MutableStateFlow<ImportProgressState?>(null)
+    val importProgress: StateFlow<ImportProgressState?> = _importProgress
+
     fun updateQuery(query: String) {
         controls.update { it.copy(query = query) }
     }
@@ -100,41 +119,79 @@ class LibraryViewModel @Inject constructor(
         _importSummary.value = null
     }
 
+    fun onImportProgressDismissed() {
+        if (_importProgress.value?.isRunning == false) {
+            _importProgress.value = null
+        }
+    }
+
     fun importFiles(contentResolver: ContentResolver, uris: List<Uri>) {
         viewModelScope.launch {
+            val candidates = uris.map { uri -> ImportCandidate(uri, displayNameOf(contentResolver, uri)) }
+            startImportProgress(candidates)
             val results = withContext(dispatchers.io) {
-                uris.map { uri -> importOne(contentResolver, uri, displayNameOf(contentResolver, uri)) }
+                candidates.map { candidate -> importOne(contentResolver, candidate) }
             }
             _importSummary.value = results.summarize()
+            markImportComplete()
         }
     }
 
     fun importFolder(contentResolver: ContentResolver, treeUri: Uri) {
         viewModelScope.launch {
+            val candidates = withContext(dispatchers.io) {
+                DocumentFile.fromTreeUri(appContext, treeUri)
+                    ?.listFiles()
+                    ?.filter { it.isFile }
+                    ?.map { doc -> ImportCandidate(doc.uri, doc.name.orEmpty()) }
+                    .orEmpty()
+            }
+            startImportProgress(candidates)
             val results = withContext(dispatchers.io) {
-                val root = DocumentFile.fromTreeUri(appContext, treeUri)
-                val files = root?.listFiles()?.filter { it.isFile } ?: emptyList()
-                files.map { doc -> importOne(contentResolver, doc.uri, doc.name.orEmpty()) }
+                candidates.map { candidate -> importOne(contentResolver, candidate) }
             }
             _importSummary.value = results.summarize()
+            markImportComplete()
         }
     }
 
-    private sealed interface ImportResult {
-        data object Imported : ImportResult
-        data object Duplicate : ImportResult
-        data object Unsupported : ImportResult
-        data object Failed : ImportResult
+    private data class ImportCandidate(val uri: Uri, val displayName: String) {
+        val id: String = "${uri}#${displayName}"
+        val rowName: String = displayName.ifBlank { uri.lastPathSegment.orEmpty() }
     }
 
-    private suspend fun importOne(contentResolver: ContentResolver, uri: Uri, displayName: String): ImportResult {
+    private sealed interface ImportResult {
+        val status: ImportRowStatus
+
+        data object Imported : ImportResult {
+            override val status = ImportRowStatus.IMPORTED
+        }
+
+        data object Duplicate : ImportResult {
+            override val status = ImportRowStatus.DUPLICATE
+        }
+
+        data object Unsupported : ImportResult {
+            override val status = ImportRowStatus.UNSUPPORTED
+        }
+
+        data object Failed : ImportResult {
+            override val status = ImportRowStatus.FAILED
+        }
+    }
+
+    private suspend fun importOne(contentResolver: ContentResolver, candidate: ImportCandidate): ImportResult {
+        val uri = candidate.uri
+        val displayName = candidate.displayName
         val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
         val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
-            ?: return ImportResult.Unsupported
-        if (format != BookFormat.EPUB) return ImportResult.Unsupported // only EPUB is parsed natively so far
+            ?: return finishImportRow(candidate.id, ImportResult.Unsupported)
+        if (format != BookFormat.EPUB) return finishImportRow(candidate.id, ImportResult.Unsupported)
 
         return runCatching {
+            updateImportRow(candidate.id, ImportRowStatus.COPYING)
             val imported = bookFileImporter.import(uri, extension)
+            updateImportRow(candidate.id, ImportRowStatus.PARSING)
             val metadata = EpubParser.parse(imported.file)
             val coverPath = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
 
@@ -149,6 +206,39 @@ class LibraryViewModel @Inject constructor(
             )
             if (book != null) ImportResult.Imported else ImportResult.Duplicate
         }.getOrElse { ImportResult.Failed }
+            .also { result -> updateImportRow(candidate.id, result.status) }
+    }
+
+    private fun finishImportRow(rowId: String, result: ImportResult): ImportResult {
+        updateImportRow(rowId, result.status)
+        return result
+    }
+
+    private fun startImportProgress(candidates: List<ImportCandidate>) {
+        _importProgress.value = ImportProgressState(
+            rows = candidates.map { candidate ->
+                ImportProgressRow(
+                    id = candidate.id,
+                    fileName = candidate.rowName,
+                    status = ImportRowStatus.QUEUED,
+                )
+            },
+            isRunning = candidates.isNotEmpty(),
+        )
+    }
+
+    private fun markImportComplete() {
+        _importProgress.update { state -> state?.copy(isRunning = false) }
+    }
+
+    private fun updateImportRow(rowId: String, status: ImportRowStatus) {
+        _importProgress.update { state ->
+            state?.copy(
+                rows = state.rows.map { row ->
+                    if (row.id == rowId) row.copy(status = status) else row
+                },
+            )
+        }
     }
 
     private fun Book.withAbsolutePaths(): Book = copy(
@@ -179,6 +269,13 @@ class LibraryViewModel @Inject constructor(
         failed = count { it is ImportResult.Failed },
     )
 }
+
+private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(
+    imported = count { it.status == ImportRowStatus.IMPORTED },
+    duplicates = count { it.status == ImportRowStatus.DUPLICATE },
+    unsupported = count { it.status == ImportRowStatus.UNSUPPORTED },
+    failed = count { it.status == ImportRowStatus.FAILED },
+)
 
 private fun List<Book>.filterBy(filter: LibraryFilter): List<Book> = when (filter) {
     LibraryFilter.ALL -> this

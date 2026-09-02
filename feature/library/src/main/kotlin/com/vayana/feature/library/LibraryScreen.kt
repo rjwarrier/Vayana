@@ -19,9 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +31,9 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -38,18 +41,23 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -57,6 +65,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -87,17 +96,21 @@ import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryRoute(onBookClick: (Long) -> Unit, onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val importSummary by viewModel.importSummary.collectAsState()
+    val importProgress by viewModel.importProgress.collectAsState()
 
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
         importSummary = importSummary,
+        importProgress = importProgress,
         onImportSummaryShown = viewModel::onImportSummaryShown,
+        onImportProgressDismissed = viewModel::onImportProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
         onBookClick = onBookClick,
@@ -136,7 +149,9 @@ private fun LibraryScreen(
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
     importSummary: ImportSummary?,
+    importProgress: ImportProgressState?,
     onImportSummaryShown: () -> Unit,
+    onImportProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     onBookClick: (Long) -> Unit,
@@ -194,6 +209,97 @@ private fun LibraryScreen(
         } else {
             LibraryGrid(books = uiState.books, contentPadding = innerPadding, onBookClick = onBookClick)
         }
+    }
+
+    if (importProgress != null) {
+        ImportProgressSheet(
+            progress = importProgress,
+            onDismissRequest = onImportProgressDismissed,
+        )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ImportProgressSheet(progress: ImportProgressState, onDismissRequest: () -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = { if (!progress.isRunning) onDismissRequest() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Paddings.screenHorizontal)
+                .padding(bottom = Spacing.lg),
+        ) {
+            Text(text = stringResource(R.string.library_import_progress_title), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = progress.summary.label(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            if (progress.isRunning) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
+            }
+            if (progress.rows.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.library_import_no_files),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = Spacing.lg),
+                )
+            } else {
+                LazyColumn(modifier = Modifier.padding(top = Spacing.md)) {
+                    items(progress.rows, key = { it.id }) { row ->
+                        ImportProgressRow(row = row)
+                        HorizontalDivider()
+                    }
+                }
+            }
+            if (!progress.isRunning) {
+                Button(
+                    onClick = onDismissRequest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.md),
+                ) {
+                    Text(stringResource(R.string.library_import_done))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImportProgressRow(row: ImportProgressRow) {
+    ListItem(
+        headlineContent = {
+            Text(
+                text = row.fileName,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        supportingContent = { Text(row.status.label()) },
+        leadingContent = { ImportStatusIcon(row.status) },
+    )
+}
+
+@Composable
+private fun ImportStatusIcon(status: ImportRowStatus) {
+    when (status) {
+        ImportRowStatus.COPYING,
+        ImportRowStatus.PARSING,
+        -> CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+        ImportRowStatus.IMPORTED,
+        ImportRowStatus.DUPLICATE,
+        -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+        ImportRowStatus.UNSUPPORTED,
+        ImportRowStatus.FAILED,
+        -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+        ImportRowStatus.QUEUED -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = Modifier.size(Sizes.icon))
     }
 }
 
@@ -319,7 +425,7 @@ private fun LibraryGrid(books: List<Book>, contentPadding: PaddingValues, onBook
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        items(books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
+        gridItems(books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
     }
 }
 
@@ -587,6 +693,26 @@ private fun LibraryFilter.label(): String = when (this) {
     LibraryFilter.READING -> stringResource(R.string.library_filter_reading)
     LibraryFilter.FINISHED -> stringResource(R.string.library_filter_finished)
     LibraryFilter.NOT_STARTED -> stringResource(R.string.library_filter_not_started)
+}
+
+@Composable
+private fun ImportSummary.label(): String = stringResource(
+    R.string.library_import_summary,
+    imported,
+    duplicates,
+    unsupported,
+    failed,
+)
+
+@Composable
+private fun ImportRowStatus.label(): String = when (this) {
+    ImportRowStatus.QUEUED -> stringResource(R.string.library_import_status_queued)
+    ImportRowStatus.COPYING -> stringResource(R.string.library_import_status_copying)
+    ImportRowStatus.PARSING -> stringResource(R.string.library_import_status_parsing)
+    ImportRowStatus.IMPORTED -> stringResource(R.string.library_import_status_imported)
+    ImportRowStatus.DUPLICATE -> stringResource(R.string.library_import_status_duplicate)
+    ImportRowStatus.UNSUPPORTED -> stringResource(R.string.library_import_status_unsupported)
+    ImportRowStatus.FAILED -> stringResource(R.string.library_import_status_failed)
 }
 
 private fun android.content.Context.shareBookFile(book: Book) {

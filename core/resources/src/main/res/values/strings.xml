@@ -20,6 +20,16 @@
     <string name="library_import_folder">Import folder</string>
     <string name="library_book_cover_content_description">Cover of %1$s</string>
     <string name="library_import_summary">Imported %1$d · %2$d duplicates skipped · %3$d unsupported · %4$d failed</string>
+    <string name="library_import_progress_title">Importing books</string>
+    <string name="library_import_no_files">No files found in this folder.</string>
+    <string name="library_import_done">Done</string>
+    <string name="library_import_status_queued">Queued</string>
+    <string name="library_import_status_copying">Copying into library</string>
+    <string name="library_import_status_parsing">Reading metadata</string>
+    <string name="library_import_status_imported">Imported</string>
+    <string name="library_import_status_duplicate">Duplicate skipped</string>
+    <string name="library_import_status_unsupported">Unsupported format</string>
+    <string name="library_import_status_failed">Failed</string>
     <string name="library_settings_content_description">Open settings</string>
     <string name="library_book_detail_title">Book details</string>
     <string name="library_book_not_found">Book not found.</string>
