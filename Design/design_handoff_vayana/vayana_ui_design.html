@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Google+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,300,0,0">
+<style>
+:root{
+  --color-forest-900:#2A3F23;--color-forest-700:#3D5C33;--color-forest-500:#4A7041;--color-forest-300:#6F9A64;--color-forest-100:#C8DCC3;
+  --color-teal-700:#00A89E;--color-teal-500:#00D4C8;--color-teal-300:#5DE8E0;--color-teal-100:#B8F5F2;
+  --color-navy-950:#080D13;--color-navy-900:#0D1520;--color-navy-800:#131C27;--color-navy-700:#1E2A38;--color-navy-600:#253447;--color-navy-500:#2E4058;--color-navy-400:#3F5470;
+  --color-cream-50:#FDFCFA;--color-cream-100:#F5F0E8;--color-cream-200:#EDE9E0;--color-cream-300:#E0D8CB;--color-cream-400:#C8BCAA;
+  --color-white:#FFFFFF;--color-warm-white:#E8E0D0;
+  --color-text-muted-dark:#8A9BB0;--color-text-muted-light:#6B7280;
+  --color-amoled:#000000;--color-near-black:#0A0A0A;
+  --color-gold-500:#C9A84C;--color-gold-300:#E2C97E;--color-gold-700:#A0832A;
+  --bg-primary-dark:var(--color-navy-800);--bg-primary-light:var(--color-cream-100);
+  --bg-surface-dark:var(--color-navy-700);--bg-surface-light:var(--color-white);
+  --bg-elevated-dark:var(--color-navy-600);--bg-elevated-light:var(--color-cream-50);
+  --fg-primary-dark:var(--color-warm-white);--fg-primary-light:#1A1A1A;
+  --fg-secondary-dark:var(--color-text-muted-dark);--fg-secondary-light:var(--color-text-muted-light);
+  --accent:var(--color-teal-500);--accent-hover:var(--color-teal-300);--accent-dim:var(--color-teal-700);
+  --brand-green:var(--color-forest-500);
+  --border-dark:rgba(255,255,255,0.08);--border-light:rgba(0,0,0,0.10);
+  --font-display:'Playfair Display',Georgia,serif;--font-serif:'Lora',Georgia,serif;--font-ui:'Google Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono','Courier New',monospace;
+}
+body{margin:0;-webkit-font-smoothing:antialiased;}
+*{box-sizing:border-box;}
+a{color:var(--accent-dim);text-decoration:none;}
+a:hover{color:var(--accent);}
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-cream-200);padding:56px 56px 120px;display:flex;flex-direction:column;gap:72px;font-family:var(--font-ui);">
+
+  <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:24px;border-bottom:1px solid var(--border-light);">
+    <span style="font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent-dim);">Android · Material 3 Expressive · Offline-first e-reader</span>
+    <h1 style="margin:0;font-family:var(--font-display);font-weight:700;font-size:57px;color:var(--fg-primary-light);letter-spacing:-0.01em;">vayana</h1>
+    <p style="margin:0;font-family:var(--font-serif);font-style:italic;font-size:18px;color:var(--fg-secondary-light);">read, undisturbed.</p>
+    <div style="display:flex;gap:24px;margin-top:16px;">
+      <div style="display:flex;align-items:center;gap:8px;"><div style="width:14px;height:14px;border-radius:4px;background:var(--bg-primary-light);border:1px solid var(--border-light);"></div><span style="font-size:12px;color:var(--fg-secondary-light);">Light</span></div>
+      <div style="display:flex;align-items:center;gap:8px;"><div style="width:14px;height:14px;border-radius:4px;background:var(--bg-primary-dark);"></div><span style="font-size:12px;color:var(--fg-secondary-light);">Dark</span></div>
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:'Material Symbols Outlined';font-size:16px;color:var(--fg-secondary-light);">phone_iphone</span><span style="font-size:12px;color:var(--fg-secondary-light);">Phone, 412×915</span></div>
+    </div>
+  </div>
+
+  <!-- ===================== 01 FOUNDATIONS ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">01</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Foundations</h2>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:32px;">
+      <!-- palette light -->
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:10px;">ColorScheme — Light</span>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--bg-primary-light);border:1px solid var(--border-light);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--bg-primary<br/>#F5F0E8</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--bg-surface-light);border:1px solid var(--border-light);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--bg-surface<br/>#FFFFFF</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--bg-elevated-light);border:1px solid var(--border-light);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--bg-elevated<br/>#FDFCFA</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--fg-primary-light);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--fg-primary<br/>#1A1A1A</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--fg-secondary-light);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--fg-secondary<br/>#6B7280</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--accent);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--accent<br/>#00D4C8</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--accent-hover);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--accent-hover<br/>#5DE8E0</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--accent-dim);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--accent-dim<br/>#00A89E</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--brand-green);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--brand-green<br/>#4A7041</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--color-gold-500);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--color-gold-500<br/>#C9A84C (ratings)</span></div>
+        </div>
+      </div>
+      <!-- palette dark -->
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:10px;">ColorScheme — Dark (+ Softer Dark / True Black variants)</span>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--bg-primary-dark);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--bg-primary-dark<br/>#131C27</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--bg-surface-dark);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--bg-surface-dark<br/>#1E2A38</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--bg-elevated-dark);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--bg-elevated-dark<br/>#253447</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--fg-primary-dark);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--fg-primary-dark<br/>#E8E0D0</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--fg-secondary-dark);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">--fg-secondary-dark<br/>#8A9BB0</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--color-navy-900);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">softer-dark<br/>#0D1520 (raised black pt.)</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--color-amoled);border:1px solid var(--border-dark);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">true-black<br/>#000000 (OLED)</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;"><div style="width:96px;height:64px;border-radius:12px;background:var(--color-teal-300);"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-primary-light);">accent on dark<br/>#5DE8E0</span></div>
+        </div>
+      </div>
+
+      <!-- type scale -->
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:10px;">Type scale — M3 Expressive, emphasized</span>
+        <div style="background:var(--bg-surface-light);border-radius:20px;padding:24px 28px;display:flex;flex-direction:column;gap:14px;max-width:720px;">
+          <div style="display:flex;align-items:baseline;gap:16px;"><span style="width:150px;font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);flex:0 0 auto;">--text-display-lg / 57</span><span style="font-family:var(--font-display);font-size:57px;font-weight:700;color:var(--fg-primary-light);">Aa</span></div>
+          <div style="display:flex;align-items:baseline;gap:16px;"><span style="width:150px;font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);flex:0 0 auto;">--text-headline-lg / 32</span><span style="font-family:var(--font-display);font-size:32px;font-weight:600;color:var(--fg-primary-light);">Continue reading</span></div>
+          <div style="display:flex;align-items:baseline;gap:16px;"><span style="width:150px;font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);flex:0 0 auto;">--text-title-lg / 22</span><span style="font-family:var(--font-display);font-size:22px;font-weight:500;color:var(--fg-primary-light);">The Quiet Hours</span></div>
+          <div style="display:flex;align-items:baseline;gap:16px;"><span style="width:150px;font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);flex:0 0 auto;">--text-body-lg / 16</span><span style="font-family:var(--font-serif);font-size:16px;color:var(--fg-primary-light);">The lamp had gone out an hour before she noticed.</span></div>
+          <div style="display:flex;align-items:baseline;gap:16px;"><span style="width:150px;font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);flex:0 0 auto;">--text-label-lg / 14</span><span style="font-family:var(--font-ui);font-size:14px;font-weight:500;color:var(--fg-primary-light);">CONTINUE READING</span></div>
+          <div style="display:flex;align-items:baseline;gap:16px;"><span style="width:150px;font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);flex:0 0 auto;">--text-label-sm / 11</span><span style="font-family:var(--font-ui);font-size:11px;color:var(--fg-secondary-light);">Ch. 4 · 68% · 12 pages left</span></div>
+        </div>
+      </div>
+
+      <!-- shape scale -->
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:10px;">Shape scale — contrast, not uniform roundness</span>
+        <div style="display:flex;gap:20px;align-items:flex-end;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:44px;height:44px;border-radius:0px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">0</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:44px;height:44px;border-radius:4px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">4</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:44px;height:44px;border-radius:8px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">8 · sm</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:44px;height:44px;border-radius:12px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">12 · md</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:44px;height:44px;border-radius:16px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">16</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:44px;height:44px;border-radius:20px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">20 · lg</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:52px;height:52px;border-radius:28px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">28 · xl</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:56px;height:56px;border-radius:32px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">32 · sheets</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:60px;height:60px;border-radius:48px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">48</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div style="width:56px;height:56px;border-radius:9999px;background:var(--accent-dim);"></div><span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);">full</span></div>
+        </div>
+      </div>
+
+      <!-- spacing scale -->
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:10px;">Spacing scale — 4dp base</span>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:4px;height:14px;background:var(--brand-green);"></div><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);">--space-1 · 4</span></div>
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:16px;height:14px;background:var(--brand-green);"></div><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);">--space-4 · 16</span></div>
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:32px;height:14px;background:var(--brand-green);"></div><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);">--space-8 · 32</span></div>
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:64px;height:14px;background:var(--brand-green);"></div><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-secondary-light);">--space-16 · 64</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 02 COMPONENTS ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">02</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Components</h2>
+    </div>
+    <div style="background:var(--bg-surface-light);border-radius:20px;padding:32px;display:flex;flex-direction:column;gap:32px;max-width:1180px;">
+
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:12px;">Buttons</span>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+          <div style="padding:10px 24px;border-radius:9999px;background:var(--accent-dim);color:#fff;font-size:14px;font-weight:600;">Filled</div>
+          <div style="padding:10px 24px;border-radius:9999px;background:var(--color-teal-100);color:var(--accent-dim);font-size:14px;font-weight:600;">Tonal</div>
+          <div style="padding:10px 24px;border-radius:9999px;border:1.5px solid var(--fg-secondary-light);color:var(--fg-primary-light);font-size:14px;font-weight:600;">Outlined</div>
+          <div style="padding:10px 20px;border-radius:9999px;color:var(--accent-dim);font-size:14px;font-weight:600;">Text</div>
+          <div style="padding:10px 24px;border-radius:9999px;background:var(--bg-elevated-light);box-shadow:var(--shadow-sm);color:var(--fg-primary-light);font-size:14px;font-weight:600;">Elevated</div>
+          <div style="width:56px;height:56px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';font-size:24px;color:var(--color-navy-900);">add</span></div>
+          <div style="height:56px;padding:0 20px;border-radius:16px;background:var(--accent);display:flex;align-items:center;gap:8px;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--color-navy-900);">edit</span><span style="font-size:14px;font-weight:600;color:var(--color-navy-900);">Note</span></div>
+        </div>
+      </div>
+
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:12px;">Chips &amp; segmented control</span>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div style="padding:7px 16px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-primary-light);font-size:13px;">Assist</div>
+          <div style="padding:7px 16px 7px 12px;border-radius:9999px;background:var(--color-teal-100);color:var(--accent-dim);font-size:13px;display:flex;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:16px;">check</span>Reading</div>
+          <div style="padding:7px 16px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:13px;">Finished</div>
+          <div style="padding:7px 8px 7px 16px;border-radius:9999px;background:var(--color-cream-200);color:var(--fg-primary-light);font-size:13px;display:flex;align-items:center;gap:4px;">Sci-Fi<span style="font-family:'Material Symbols Outlined';font-size:16px;">close</span></div>
+          <div style="margin-left:24px;display:flex;background:var(--color-cream-200);border-radius:9999px;padding:3px;">
+            <div style="padding:6px 16px;border-radius:9999px;background:var(--bg-surface-light);box-shadow:var(--shadow-sm);font-size:12px;font-weight:600;color:var(--fg-primary-light);">Week</div>
+            <div style="padding:6px 16px;border-radius:9999px;font-size:12px;color:var(--fg-secondary-light);">Month</div>
+            <div style="padding:6px 16px;border-radius:9999px;font-size:12px;color:var(--fg-secondary-light);">Year</div>
+            <div style="padding:6px 16px;border-radius:9999px;font-size:12px;color:var(--fg-secondary-light);">All</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:12px;">List rows — density</span>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div style="width:280px;border-radius:12px;border:1px solid var(--border-light);overflow:hidden;">
+            <div style="padding:16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border-light);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">auto_stories</span><span style="font-size:14px;color:var(--fg-primary-light);">Comfortable</span></div>
+            <div style="padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border-light);"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">auto_stories</span><span style="font-size:13px;color:var(--fg-primary-light);">Standard</span></div>
+            <div style="padding:6px 16px;display:flex;align-items:center;gap:10px;"><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-light);">auto_stories</span><span style="font-size:12px;color:var(--fg-primary-light);">Compact</span></div>
+          </div>
+          <div style="width:280px;display:flex;flex-direction:column;gap:8px;">
+            <div style="padding:14px;border-radius:12px;background:var(--bg-elevated-light);font-size:11px;color:var(--fg-secondary-light);">surfaceContainerLow</div>
+            <div style="padding:14px;border-radius:12px;background:var(--color-cream-200);font-size:11px;color:var(--fg-secondary-light);margin-left:12px;">surfaceContainer</div>
+            <div style="padding:14px;border-radius:12px;background:var(--color-cream-300);font-size:11px;color:var(--fg-primary-light);margin-left:24px;">surfaceContainerHigh</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:12px;">Nav bar — shape-morph on select · FAB → FAB menu morph</span>
+        <div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">
+          <div style="width:280px;border-radius:20px;background:var(--bg-elevated-light);padding:10px;display:flex;justify-content:space-around;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 18px;border-radius:9999px;background:var(--color-teal-100);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent-dim);">auto_stories</span><span style="font-size:10px;font-weight:600;color:var(--accent-dim);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">edit_note</span><span style="font-size:10px;color:var(--fg-secondary-light);">Notes</span></div>
+          </div>
+          <span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">arrow_forward</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:56px;height:56px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';font-size:24px;color:var(--color-navy-900);">add</span></div>
+            <span style="font-family:'Material Symbols Outlined';font-size:16px;color:var(--fg-secondary-light);">arrow_forward</span>
+            <div style="width:200px;border-radius:28px;background:var(--bg-elevated-light);box-shadow:var(--shadow-md);padding:8px;display:flex;flex-direction:column;gap:2px;">
+              <div style="padding:8px 12px;font-size:12px;color:var(--fg-primary-light);">Import file</div>
+              <div style="padding:8px 12px;font-size:12px;color:var(--fg-primary-light);">Receive share</div>
+            </div>
+          </div>
+          <span style="font-size:10px;font-family:var(--font-mono);color:var(--fg-secondary-light);max-width:180px;">spring: fast-spatial · 350ms · emphasized-decelerate</span>
+        </div>
+      </div>
+
+      <div>
+        <span style="font-size:12px;font-weight:500;color:var(--fg-secondary-light);display:block;margin-bottom:12px;">Snackbar · Tile (1×1 / 2×1)</span>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+          <div style="padding:14px 16px;border-radius:12px;background:var(--color-navy-900);color:var(--fg-primary-dark);font-size:13px;display:flex;align-items:center;gap:24px;">Note deleted<span style="color:var(--color-teal-300);font-weight:600;">UNDO</span></div>
+          <div style="width:120px;height:120px;border-radius:20px;background:var(--bg-elevated-light);padding:16px;display:flex;flex-direction:column;justify-content:space-between;">
+            <span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--brand-green);">local_fire_department</span>
+            <div><div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--fg-primary-light);">14</div><div style="font-size:10px;color:var(--fg-secondary-light);">day streak</div></div>
+          </div>
+          <div style="width:252px;height:120px;border-radius:20px;background:var(--bg-elevated-light);padding:16px;display:flex;flex-direction:column;justify-content:space-between;">
+            <span style="font-size:10px;color:var(--fg-secondary-light);letter-spacing:0.08em;text-transform:uppercase;">Reading time</span>
+            <div style="display:flex;align-items:flex-end;gap:4px;height:36px;">
+              <div style="width:10px;height:40%;background:var(--accent);border-radius:2px;"></div><div style="width:10px;height:60%;background:var(--accent);border-radius:2px;"></div><div style="width:10px;height:30%;background:var(--accent);border-radius:2px;"></div><div style="width:10px;height:80%;background:var(--accent);border-radius:2px;"></div><div style="width:10px;height:55%;background:var(--accent);border-radius:2px;"></div><div style="width:10px;height:90%;background:var(--accent);border-radius:2px;"></div><div style="width:10px;height:70%;background:var(--accent-dim);border-radius:2px;"></div>
+            </div>
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--fg-primary-light);">3h 42m <span style="font-size:11px;font-weight:400;color:var(--fg-secondary-light);font-family:var(--font-ui);">this week</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== 03 ONBOARDING ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">03</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Onboarding</h2>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:28px;">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:10px;"><span style="font-size:11px;color:var(--fg-secondary-light);">1 · Welcome</span>
+          <div style="width:220px;height:488px;border-radius:32px;background:var(--bg-primary-light);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;overflow:hidden;">
+            <span style="font-family:'Material Symbols Outlined';font-size:48px;color:var(--brand-green);">auto_stories</span>
+            <span style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--fg-primary-light);text-align:center;">vayana</span>
+            <span style="font-family:var(--font-serif);font-size:13px;color:var(--fg-secondary-light);text-align:center;">Every book, entirely on your device.</span>
+            <div style="margin-top:auto;display:flex;gap:6px;"><div style="width:20px;height:6px;border-radius:3px;background:var(--accent-dim);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;"><span style="font-size:11px;color:var(--fg-secondary-light);">2 · Appearance</span>
+          <div style="width:220px;height:488px;border-radius:32px;background:var(--bg-primary-light);display:flex;flex-direction:column;padding:24px;overflow:hidden;">
+            <span style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--fg-primary-light);margin-bottom:16px;">Pick a look</span>
+            <div style="display:flex;gap:8px;margin-bottom:16px;"><div style="flex:1;height:64px;border-radius:12px;background:var(--bg-primary-light);border:2px solid var(--accent-dim);"></div><div style="flex:1;height:64px;border-radius:12px;background:var(--color-navy-800);"></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:12px;background:var(--bg-elevated-light);"><span style="font-size:12px;color:var(--fg-primary-light);">E-Ink mode</span><div style="width:36px;height:20px;border-radius:10px;background:var(--border-light);position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;left:2px;"></div></div></div>
+            <div style="margin-top:auto;display:flex;gap:6px;justify-content:center;"><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:20px;height:6px;border-radius:3px;background:var(--accent-dim);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;"><span style="font-size:11px;color:var(--fg-secondary-light);">3 · Import your first book</span>
+          <div style="width:220px;height:488px;border-radius:32px;background:var(--bg-primary-light);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;overflow:hidden;">
+            <div style="width:120px;height:120px;border-radius:20px;border:2px dashed var(--fg-secondary-light);display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';font-size:36px;color:var(--fg-secondary-light);">upload_file</span></div>
+            <span style="font-family:var(--font-ui);font-size:13px;color:var(--fg-primary-light);text-align:center;">Drop an EPUB or PDF,<br/>or browse your device</span>
+            <div style="margin-top:auto;display:flex;gap:6px;"><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:20px;height:6px;border-radius:3px;background:var(--accent-dim);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;"><span style="font-size:11px;color:var(--fg-secondary-light);">4 · Done</span>
+          <div style="width:220px;height:488px;border-radius:32px;background:var(--bg-primary-light);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;overflow:hidden;">
+            <span style="font-family:'Material Symbols Outlined';font-size:48px;color:var(--accent-dim);">check_circle</span>
+            <span style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--fg-primary-light);text-align:center;">You're set</span>
+            <div style="padding:10px 24px;border-radius:9999px;background:var(--accent-dim);color:#fff;font-size:13px;font-weight:600;">Start reading</div>
+            <div style="margin-top:auto;display:flex;gap:6px;"><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--border-light);"></div><div style="width:20px;height:6px;border-radius:3px;background:var(--accent-dim);"></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:10px;"><span style="font-size:11px;color:var(--fg-secondary-light);">2 · Appearance — dark</span>
+          <div style="width:220px;height:488px;border-radius:32px;background:var(--bg-primary-dark);display:flex;flex-direction:column;padding:24px;overflow:hidden;">
+            <span style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--fg-primary-dark);margin-bottom:16px;">Pick a look</span>
+            <div style="display:flex;gap:8px;margin-bottom:16px;"><div style="flex:1;height:64px;border-radius:12px;background:var(--bg-primary-light);"></div><div style="flex:1;height:64px;border-radius:12px;background:var(--color-navy-800);border:2px solid var(--accent);"></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:12px;background:var(--bg-elevated-dark);"><span style="font-size:12px;color:var(--fg-primary-dark);">E-Ink mode</span><div style="width:36px;height:20px;border-radius:10px;background:var(--color-navy-500);position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;left:2px;"></div></div></div>
+            <div style="margin-top:auto;display:flex;gap:6px;justify-content:center;"><div style="width:6px;height:6px;border-radius:3px;background:var(--color-navy-500);"></div><div style="width:20px;height:6px;border-radius:3px;background:var(--accent);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--color-navy-500);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--color-navy-500);"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;"><span style="font-size:11px;color:var(--fg-secondary-light);">4 · Done — dark</span>
+          <div style="width:220px;height:488px;border-radius:32px;background:var(--bg-primary-dark);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;overflow:hidden;">
+            <span style="font-family:'Material Symbols Outlined';font-size:48px;color:var(--accent);">check_circle</span>
+            <span style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--fg-primary-dark);text-align:center;">You're set</span>
+            <div style="padding:10px 24px;border-radius:9999px;background:var(--accent);color:var(--color-navy-900);font-size:13px;font-weight:600;">Start reading</div>
+            <div style="margin-top:auto;display:flex;gap:6px;"><div style="width:6px;height:6px;border-radius:3px;background:var(--color-navy-500);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--color-navy-500);"></div><div style="width:6px;height:6px;border-radius:3px;background:var(--color-navy-500);"></div><div style="width:20px;height:6px;border-radius:3px;background:var(--accent);"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 04 LIBRARY ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">04</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Library</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-light);">
+            <span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span>
+          </div>
+          <div style="padding:8px 20px 12px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--fg-primary-light);">Library</span>
+            <span style="font-family:'Material Symbols Outlined';font-size:24px;color:var(--fg-primary-light);">search</span>
+          </div>
+          <div style="display:flex;gap:8px;padding:0 20px 14px;overflow:hidden;">
+            <div style="padding:6px 14px;border-radius:9999px;background:var(--accent-dim);color:#fff;font-size:12px;font-weight:600;flex:0 0 auto;">All</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:12px;flex:0 0 auto;">Reading</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:12px;flex:0 0 auto;">Finished</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:12px;flex:0 0 auto;">Not started</div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-content:start;">
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-forest-500);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff;line-height:1.15;">The Quiet Hours</span><span style="font-size:8px;color:rgba(255,255,255,.75);margin-top:2px;">M. Ferro</span></div><div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,.15);"><div style="width:64%;height:100%;background:var(--accent);"></div></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-teal-700);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff;line-height:1.15;">Marginalia</span><span style="font-size:8px;color:rgba(255,255,255,.75);margin-top:2px;">R. Okafor</span></div><div style="position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:9999px;background:#fff;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';font-size:12px;color:var(--accent-dim);">check</span></div></div>
+            <div style="grid-row:span 2;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;border-radius:8px;overflow:hidden;background:var(--color-cream-300);padding:3px;position:relative;">
+              <div style="background:var(--color-gold-500);border-radius:4px;"></div><div style="background:var(--color-forest-300);border-radius:4px;"></div><div style="background:var(--color-navy-500);border-radius:4px;"></div><div style="background:var(--color-teal-300);border-radius:4px;"></div>
+              <div style="position:absolute;bottom:6px;left:6px;right:6px;background:rgba(0,0,0,.55);border-radius:6px;padding:3px 6px;"><span style="font-size:8px;color:#fff;">Sci-Fi · 4</span></div>
+            </div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-gold-500);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--color-navy-900);line-height:1.15;">Field Notes</span><span style="font-size:8px;color:rgba(0,0,0,.6);margin-top:2px;">L. Adeyemi</span></div><div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,.15);"><div style="width:22%;height:100%;background:var(--accent-dim);"></div></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-navy-500);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff;line-height:1.15;">Autumn Light</span><span style="font-size:8px;color:rgba(255,255,255,.75);margin-top:2px;">S. Vance</span></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-forest-300);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--color-navy-900);line-height:1.15;">Small Gods</span><span style="font-size:8px;color:rgba(0,0,0,.6);margin-top:2px;">D. Nakamura</span></div><div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,.15);"><div style="width:91%;height:100%;background:var(--accent-dim);"></div></div></div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+          <div style="height:80px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-light);background:var(--bg-surface-light);position:relative;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 20px;border-radius:9999px;background:var(--color-teal-100);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent-dim);">auto_stories</span><span style="font-size:10px;font-weight:600;color:var(--accent-dim);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">edit_note</span><span style="font-size:10px;color:var(--fg-secondary-light);">Notes</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">bar_chart</span><span style="font-size:10px;color:var(--fg-secondary-light);">Stats</span></div>
+            <div style="position:absolute;right:16px;bottom:36px;width:56px;height:56px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-md);"><span style="font-family:'Material Symbols Outlined';font-size:24px;color:var(--color-navy-900);">add</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-dark);">
+            <span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span>
+          </div>
+          <div style="padding:8px 20px 12px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--fg-primary-dark);">Library</span>
+            <span style="font-family:'Material Symbols Outlined';font-size:24px;color:var(--fg-primary-dark);">search</span>
+          </div>
+          <div style="display:flex;gap:8px;padding:0 20px 14px;overflow:hidden;">
+            <div style="padding:6px 14px;border-radius:9999px;background:var(--accent);color:var(--color-navy-900);font-size:12px;font-weight:600;flex:0 0 auto;">All</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-dark);color:var(--fg-secondary-dark);font-size:12px;flex:0 0 auto;">Reading</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-dark);color:var(--fg-secondary-dark);font-size:12px;flex:0 0 auto;">Finished</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-dark);color:var(--fg-secondary-dark);font-size:12px;flex:0 0 auto;">Not started</div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-content:start;">
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-forest-500);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff;line-height:1.15;">The Quiet Hours</span><span style="font-size:8px;color:rgba(255,255,255,.75);margin-top:2px;">M. Ferro</span></div><div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,.3);"><div style="width:64%;height:100%;background:var(--accent);"></div></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-teal-700);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff;line-height:1.15;">Marginalia</span><span style="font-size:8px;color:rgba(255,255,255,.75);margin-top:2px;">R. Okafor</span></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-gold-500);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--color-navy-900);line-height:1.15;">Field Notes</span><span style="font-size:8px;color:rgba(0,0,0,.6);margin-top:2px;">L. Adeyemi</span></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-navy-500);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff;line-height:1.15;">Autumn Light</span><span style="font-size:8px;color:rgba(255,255,255,.75);margin-top:2px;">S. Vance</span></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-forest-300);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--color-navy-900);line-height:1.15;">Small Gods</span><span style="font-size:8px;color:rgba(0,0,0,.6);margin-top:2px;">D. Nakamura</span></div></div>
+            <div style="position:relative;"><div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--color-teal-300);display:flex;flex-direction:column;justify-content:flex-end;padding:8px;"><span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--color-navy-900);line-height:1.15;">The Last Cartographer</span><span style="font-size:8px;color:rgba(0,0,0,.55);margin-top:2px;">A. Bello</span></div></div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+          <div style="height:80px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-dark);background:var(--bg-surface-dark);position:relative;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 20px;border-radius:9999px;background:rgba(0,212,200,.16);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent);">auto_stories</span><span style="font-size:10px;font-weight:600;color:var(--accent);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-dark);">edit_note</span><span style="font-size:10px;color:var(--fg-secondary-dark);">Notes</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-dark);">bar_chart</span><span style="font-size:10px;color:var(--fg-secondary-dark);">Stats</span></div>
+            <div style="position:absolute;right:16px;bottom:36px;width:56px;height:56px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';font-size:24px;color:var(--color-navy-900);">add</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Long-press → bottom sheet</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:rgba(0,0,0,.35);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;">
+          <div style="border-radius:32px 32px 0 0;background:var(--bg-surface-light);padding:12px 8px 24px;">
+            <div style="width:36px;height:4px;border-radius:2px;background:var(--border-light);margin:0 auto 16px;"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:0 20px 16px;"><div style="width:40px;height:56px;border-radius:6px;background:var(--color-forest-500);"></div><div><div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--fg-primary-light);">The Quiet Hours</div><div style="font-size:11px;color:var(--fg-secondary-light);">M. Ferro · 64%</div></div></div>
+            <div style="height:1px;background:var(--border-light);margin-bottom:8px;"></div>
+            <div style="display:flex;flex-direction:column;">
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">auto_stories</span><span style="font-size:14px;color:var(--fg-primary-light);">Read</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">info</span><span style="font-size:14px;color:var(--fg-primary-light);">Details</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">edit</span><span style="font-size:14px;color:var(--fg-primary-light);">Edit metadata</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">find_replace</span><span style="font-size:14px;color:var(--fg-primary-light);">Replace file</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">ios_share</span><span style="font-size:14px;color:var(--fg-primary-light);">Share file</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">create_new_folder</span><span style="font-size:14px;color:var(--fg-primary-light);">Add to group</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">sell</span><span style="font-size:14px;color:var(--fg-primary-light);">Tags</span></div>
+              <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#B3413A;">delete</span><span style="font-size:14px;color:#B3413A;">Delete…</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== 05 READER ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">05</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Reader — clean state</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="flex:1;padding:64px 40px 0;overflow:hidden;">
+            <p style="font-family:var(--font-serif);font-size:19px;line-height:1.75;color:var(--fg-primary-light);margin:0;">The lamp had gone out an hour before she noticed. It didn't matter — the page had long since stopped needing light. She read the way her grandmother used to describe prayer: not for an answer, but for the shape of asking.</p>
+            <p style="font-family:var(--font-serif);font-size:19px;line-height:1.75;color:var(--fg-primary-light);margin:20px 0 0;">Outside, the harbor lights blurred into a single low wash of amber. She turned the page anyway.</p>
+          </div>
+          <div style="flex:0 0 auto;padding:12px 24px;display:flex;justify-content:space-between;font-size:11px;color:var(--fg-secondary-light);font-family:var(--font-ui);">
+            <span>Ch. 4 — The Harbor</span><span>68% · 12 pages left</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="flex:1;padding:64px 40px 0;overflow:hidden;">
+            <p style="font-family:var(--font-serif);font-size:19px;line-height:1.75;color:var(--fg-primary-dark);margin:0;">The lamp had gone out an hour before she noticed. It didn't matter — the page had long since stopped needing light. She read the way her grandmother used to describe prayer: not for an answer, but for the shape of asking.</p>
+            <p style="font-family:var(--font-serif);font-size:19px;line-height:1.75;color:var(--fg-primary-dark);margin:20px 0 0;">Outside, the harbor lights blurred into a single low wash of amber. She turned the page anyway.</p>
+          </div>
+          <div style="flex:0 0 auto;padding:12px 24px;display:flex;justify-content:space-between;font-size:11px;color:var(--fg-secondary-dark);font-family:var(--font-ui);">
+            <span>Ch. 4 — The Harbor</span><span>68% · 12 pages left</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Tap center → revealed chrome</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:56px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--bg-surface-light);border-bottom:1px solid var(--border-light);">
+            <span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);padding:8px;">arrow_back</span>
+            <div style="display:flex;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-primary-light);padding:8px;">content_copy</span><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--accent-dim);padding:8px;">bookmark</span><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-primary-light);padding:8px;">more_vert</span></div>
+          </div>
+          <div style="flex:1;padding:32px 40px 0;overflow:hidden;opacity:.5;">
+            <p style="font-family:var(--font-serif);font-size:19px;line-height:1.75;color:var(--fg-primary-light);margin:0;">The lamp had gone out an hour before she noticed. It didn't matter — the page had long since stopped needing light.</p>
+          </div>
+          <div style="flex:0 0 auto;padding:0 12px 28px;">
+            <div style="background:var(--bg-elevated-light);border-radius:32px 32px 0 0;box-shadow:var(--shadow-lg);padding:16px 8px 20px;display:flex;justify-content:space-around;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent-dim);">list</span><span style="font-size:10px;color:var(--accent-dim);">Contents</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">edit_note</span><span style="font-size:10px;color:var(--fg-secondary-light);">Notes</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">donut_large</span><span style="font-size:10px;color:var(--fg-secondary-light);">Progress</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">text_fields</span><span style="font-size:10px;color:var(--fg-secondary-light);">Style</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">graphic_eq</span><span style="font-size:10px;color:var(--fg-secondary-light);">Read aloud</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">search</span><span style="font-size:10px;color:var(--fg-secondary-light);">Search</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display:flex;gap:24px;margin-top:24px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:8px;"><span style="font-size:11px;color:var(--fg-secondary-light);">Config A — minimal</span><div style="width:340px;height:36px;border-radius:8px;background:var(--bg-surface-light);display:flex;align-items:center;justify-content:flex-end;padding:0 16px;font-size:10px;color:var(--fg-secondary-light);">68%</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px;"><span style="font-size:11px;color:var(--fg-secondary-light);">Config B — chapter</span><div style="width:340px;height:36px;border-radius:8px;background:var(--bg-surface-light);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:10px;color:var(--fg-secondary-light);"><span>Ch. 4 — The Harbor</span><span>12 pages left</span></div></div>
+      <div style="display:flex;flex-direction:column;gap:8px;"><span style="font-size:11px;color:var(--fg-secondary-light);">Config C — battery + clock</span><div style="width:340px;height:36px;border-radius:8px;background:var(--bg-surface-light);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:10px;color:var(--fg-secondary-light);"><span>9:41</span><span>82% battery</span></div></div>
+    </div>
+  </div>
+
+  <!-- ===================== 06 BOOK DETAIL ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">06</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Book detail</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-light);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="flex:1;overflow:hidden;padding:8px 28px 0;display:flex;flex-direction:column;align-items:center;">
+            <div style="width:132px;aspect-ratio:2/3;border-radius:10px;background:var(--color-forest-500);display:flex;flex-direction:column;justify-content:flex-end;padding:12px;box-shadow:var(--shadow-md);"><span style="font-family:var(--font-display);font-size:15px;font-weight:700;color:#fff;line-height:1.2;">The Quiet Hours</span><span style="font-size:10px;color:rgba(255,255,255,.75);margin-top:3px;">M. Ferro</span></div>
+            <span style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--fg-primary-light);margin-top:16px;text-align:center;">The Quiet Hours</span>
+            <span style="font-family:var(--font-ui);font-size:13px;color:var(--fg-secondary-light);margin-top:2px;">M. Ferro</span>
+            <div style="display:flex;gap:3px;margin-top:10px;">
+              <span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--border-light);">star</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:12px;"><div style="padding:4px 12px;border-radius:9999px;background:var(--color-cream-200);font-size:10px;color:var(--fg-primary-light);">Literary Fiction</div><div style="padding:4px 12px;border-radius:9999px;background:var(--color-cream-200);font-size:10px;color:var(--fg-primary-light);">Coastal</div></div>
+            <p style="font-family:var(--font-serif);font-size:12.5px;line-height:1.55;color:var(--fg-secondary-light);text-align:center;margin:12px 0 0;">A lighthouse keeper's daughter inherits her mother's log of the harbor's slow disappearances. <span style="color:var(--accent-dim);font-weight:600;">More</span></p>
+            <div style="display:flex;gap:16px;margin-top:10px;font-size:10px;color:var(--fg-secondary-light);"><span>EPUB · 4.2 MB</span><span>Imported Aug 3</span><span>12th of 48</span></div>
+            <div style="display:flex;align-items:center;gap:16px;margin-top:20px;">
+              <div style="width:64px;height:64px;border-radius:9999px;background:conic-gradient(var(--accent-dim) 0% 68%, var(--color-cream-300) 68% 100%);display:flex;align-items:center;justify-content:center;"><div style="width:50px;height:50px;border-radius:9999px;background:var(--bg-primary-light);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--fg-primary-light);">68%</div></div>
+              <div style="padding:12px 28px;border-radius:9999px;background:var(--accent-dim);color:#fff;font-size:13px;font-weight:600;">Continue reading</div>
+            </div>
+            <div style="width:100%;margin-top:18px;display:flex;flex-direction:column;gap:6px;">
+              <span style="font-size:10px;color:var(--fg-secondary-light);letter-spacing:0.06em;text-transform:uppercase;">Reading time · this book</span>
+              <div style="display:flex;align-items:flex-end;gap:5px;height:34px;"><div style="width:14px;height:30%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:55%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:40%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:80%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:60%;background:var(--accent-dim);border-radius:2px;"></div></div>
+            </div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-dark);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="flex:1;overflow:hidden;padding:8px 28px 0;display:flex;flex-direction:column;align-items:center;">
+            <div style="width:132px;aspect-ratio:2/3;border-radius:10px;background:var(--color-forest-500);display:flex;flex-direction:column;justify-content:flex-end;padding:12px;"><span style="font-family:var(--font-display);font-size:15px;font-weight:700;color:#fff;line-height:1.2;">The Quiet Hours</span><span style="font-size:10px;color:rgba(255,255,255,.75);margin-top:3px;">M. Ferro</span></div>
+            <span style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--fg-primary-dark);margin-top:16px;text-align:center;">The Quiet Hours</span>
+            <span style="font-family:var(--font-ui);font-size:13px;color:var(--fg-secondary-dark);margin-top:2px;">M. Ferro</span>
+            <div style="display:flex;gap:3px;margin-top:10px;">
+              <span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-gold-500);">star</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--color-navy-500);">star</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:12px;"><div style="padding:4px 12px;border-radius:9999px;background:var(--bg-elevated-dark);font-size:10px;color:var(--fg-primary-dark);">Literary Fiction</div><div style="padding:4px 12px;border-radius:9999px;background:var(--bg-elevated-dark);font-size:10px;color:var(--fg-primary-dark);">Coastal</div></div>
+            <p style="font-family:var(--font-serif);font-size:12.5px;line-height:1.55;color:var(--fg-secondary-dark);text-align:center;margin:12px 0 0;">A lighthouse keeper's daughter inherits her mother's log of the harbor's slow disappearances. <span style="color:var(--accent);font-weight:600;">More</span></p>
+            <div style="display:flex;gap:16px;margin-top:10px;font-size:10px;color:var(--fg-secondary-dark);"><span>EPUB · 4.2 MB</span><span>Imported Aug 3</span><span>12th of 48</span></div>
+            <div style="display:flex;align-items:center;gap:16px;margin-top:20px;">
+              <div style="width:64px;height:64px;border-radius:9999px;background:conic-gradient(var(--accent) 0% 68%, var(--color-navy-500) 68% 100%);display:flex;align-items:center;justify-content:center;"><div style="width:50px;height:50px;border-radius:9999px;background:var(--bg-primary-dark);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--fg-primary-dark);">68%</div></div>
+              <div style="padding:12px 28px;border-radius:9999px;background:var(--accent);color:var(--color-navy-900);font-size:13px;font-weight:600;">Continue reading</div>
+            </div>
+            <div style="width:100%;margin-top:18px;display:flex;flex-direction:column;gap:6px;">
+              <span style="font-size:10px;color:var(--fg-secondary-dark);letter-spacing:0.06em;text-transform:uppercase;">Reading time · this book</span>
+              <div style="display:flex;align-items:flex-end;gap:5px;height:34px;"><div style="width:14px;height:30%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:55%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:40%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:80%;background:var(--accent);border-radius:2px;"></div><div style="width:14px;height:60%;background:var(--accent);border-radius:2px;"></div></div>
+            </div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== 07 NOTES ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">07</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Notes</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-light);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="padding:8px 20px 12px;"><span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--fg-primary-light);">Notes</span></div>
+          <div style="display:flex;gap:8px;padding:0 20px 14px;overflow:hidden;">
+            <div style="padding:6px 14px;border-radius:9999px;background:var(--accent-dim);color:#fff;font-size:12px;font-weight:600;flex:0 0 auto;">By book</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:12px;flex:0 0 auto;">By date</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:12px;flex:0 0 auto;">Color</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-light);color:var(--fg-secondary-light);font-size:12px;flex:0 0 auto;">Tag</div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:flex;flex-direction:column;gap:12px;">
+            <span style="font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-secondary-light);">The Quiet Hours</span>
+            <div style="display:flex;gap:12px;background:var(--bg-surface-light);border-radius:12px;padding:14px;">
+              <div style="width:4px;border-radius:2px;background:var(--color-gold-500);flex:0 0 auto;"></div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <span style="font-family:var(--font-serif);font-style:italic;font-size:13px;color:var(--fg-primary-light);line-height:1.5;">"not for an answer, but for the shape of asking."</span>
+                <span style="font-family:var(--font-ui);font-size:12px;color:var(--fg-primary-light);">Rereading this after my mother's diagnosis.</span>
+                <span style="font-family:var(--font-ui);font-size:10px;color:var(--fg-secondary-light);">Ch. 4 · 2 days ago</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;background:var(--bg-surface-light);border-radius:12px;padding:14px;position:relative;">
+              <div style="width:4px;border-radius:2px;background:var(--color-teal-500);flex:0 0 auto;"></div>
+              <div style="display:flex;flex-direction:column;gap:6px;flex:1;padding-right:40px;">
+                <span style="font-family:var(--font-serif);font-style:italic;font-size:13px;color:var(--fg-primary-light);line-height:1.5;">"the harbor lights blurred into a single low wash of amber."</span>
+                <span style="font-family:var(--font-ui);font-size:10px;color:var(--fg-secondary-light);">Ch. 4 · 2 days ago</span>
+              </div>
+              <div style="position:absolute;right:14px;top:14px;display:flex;gap:8px;"><span style="font-family:'Material Symbols Outlined';font-size:16px;color:var(--fg-secondary-light);">edit</span><span style="font-family:'Material Symbols Outlined';font-size:16px;color:#B3413A;">delete</span></div>
+            </div>
+            <span style="font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-secondary-light);margin-top:6px;">Marginalia</span>
+            <div style="display:flex;gap:12px;background:var(--bg-surface-light);border-radius:12px;padding:14px;">
+              <div style="width:4px;border-radius:2px;background:var(--color-forest-500);flex:0 0 auto;"></div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <span style="font-family:var(--font-serif);font-style:italic;font-size:13px;color:var(--fg-primary-light);line-height:1.5;">"the margin is where the real reading happens."</span>
+                <span style="font-family:var(--font-ui);font-size:10px;color:var(--fg-secondary-light);">Ch. 1 · 1 week ago</span>
+              </div>
+            </div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+          <div style="height:80px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-light);background:var(--bg-surface-light);">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">auto_stories</span><span style="font-size:10px;color:var(--fg-secondary-light);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 20px;border-radius:9999px;background:var(--color-teal-100);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent-dim);">edit_note</span><span style="font-size:10px;font-weight:600;color:var(--accent-dim);">Notes</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">bar_chart</span><span style="font-size:10px;color:var(--fg-secondary-light);">Stats</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-dark);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="padding:8px 20px 12px;"><span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--fg-primary-dark);">Notes</span></div>
+          <div style="display:flex;gap:8px;padding:0 20px 14px;overflow:hidden;">
+            <div style="padding:6px 14px;border-radius:9999px;background:var(--accent);color:var(--color-navy-900);font-size:12px;font-weight:600;flex:0 0 auto;">By book</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-dark);color:var(--fg-secondary-dark);font-size:12px;flex:0 0 auto;">By date</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-dark);color:var(--fg-secondary-dark);font-size:12px;flex:0 0 auto;">Color</div>
+            <div style="padding:6px 14px;border-radius:9999px;border:1px solid var(--border-dark);color:var(--fg-secondary-dark);font-size:12px;flex:0 0 auto;">Tag</div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:flex;flex-direction:column;gap:12px;">
+            <span style="font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-secondary-dark);">The Quiet Hours</span>
+            <div style="display:flex;gap:12px;background:var(--bg-surface-dark);border-radius:12px;padding:14px;">
+              <div style="width:4px;border-radius:2px;background:var(--color-gold-500);flex:0 0 auto;"></div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <span style="font-family:var(--font-serif);font-style:italic;font-size:13px;color:var(--fg-primary-dark);line-height:1.5;">"not for an answer, but for the shape of asking."</span>
+                <span style="font-family:var(--font-ui);font-size:12px;color:var(--fg-primary-dark);">Rereading this after my mother's diagnosis.</span>
+                <span style="font-family:var(--font-ui);font-size:10px;color:var(--fg-secondary-dark);">Ch. 4 · 2 days ago</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;background:var(--bg-surface-dark);border-radius:12px;padding:14px;">
+              <div style="width:4px;border-radius:2px;background:var(--color-teal-500);flex:0 0 auto;"></div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <span style="font-family:var(--font-serif);font-style:italic;font-size:13px;color:var(--fg-primary-dark);line-height:1.5;">"the harbor lights blurred into a single low wash of amber."</span>
+                <span style="font-family:var(--font-ui);font-size:10px;color:var(--fg-secondary-dark);">Ch. 4 · 2 days ago</span>
+              </div>
+            </div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+          <div style="height:80px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-dark);background:var(--bg-surface-dark);">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-dark);">auto_stories</span><span style="font-size:10px;color:var(--fg-secondary-dark);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 20px;border-radius:9999px;background:rgba(0,212,200,.16);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent);">edit_note</span><span style="font-size:10px;font-weight:600;color:var(--accent);">Notes</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-dark);">bar_chart</span><span style="font-size:10px;color:var(--fg-secondary-dark);">Stats</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Per-book detail + export bar</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:56px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:0 16px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">arrow_back</span><span style="font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--fg-primary-light);">The Quiet Hours — Notes</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:flex;flex-direction:column;gap:10px;">
+            <div style="background:var(--bg-surface-light);border-radius:12px;padding:12px;font-family:var(--font-serif);font-style:italic;font-size:12px;color:var(--fg-primary-light);">"not for an answer, but for the shape of asking."</div>
+            <div style="background:var(--bg-surface-light);border-radius:12px;padding:12px;font-family:var(--font-serif);font-style:italic;font-size:12px;color:var(--fg-primary-light);">"the harbor lights blurred into a single low wash of amber."</div>
+          </div>
+          <div style="flex:0 0 auto;padding:16px 20px 28px;background:var(--bg-elevated-light);border-radius:32px 32px 0 0;display:flex;flex-direction:column;gap:12px;">
+            <span style="font-size:11px;color:var(--fg-secondary-light);">Export</span>
+            <div style="display:flex;gap:8px;"><div style="padding:8px 16px;border-radius:9999px;border:1.5px solid var(--fg-secondary-light);font-size:12px;color:var(--fg-primary-light);">Markdown</div><div style="padding:8px 16px;border-radius:9999px;border:1.5px solid var(--fg-secondary-light);font-size:12px;color:var(--fg-primary-light);">CSV</div><div style="padding:8px 16px;border-radius:9999px;border:1.5px solid var(--fg-secondary-light);font-size:12px;color:var(--fg-primary-light);">TXT</div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12px;color:var(--fg-primary-light);">Merge by chapter</span><div style="width:36px;height:20px;border-radius:10px;background:var(--accent-dim);position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;right:2px;"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== 08 STATISTICS ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">08</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Statistics</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-light);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="padding:8px 20px 12px;"><span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--fg-primary-light);">Statistics</span></div>
+          <div style="padding:0 20px 14px;display:flex;background:var(--color-cream-200);border-radius:9999px;padding:3px;margin:0 20px 14px;width:fit-content;">
+            <div style="padding:6px 14px;border-radius:9999px;background:var(--bg-surface-light);box-shadow:var(--shadow-sm);font-size:11px;font-weight:600;color:var(--fg-primary-light);">Week</div>
+            <div style="padding:6px 14px;border-radius:9999px;font-size:11px;color:var(--fg-secondary-light);">Month</div>
+            <div style="padding:6px 14px;border-radius:9999px;font-size:11px;color:var(--fg-secondary-light);">Year</div>
+            <div style="padding:6px 14px;border-radius:9999px;font-size:11px;color:var(--fg-secondary-light);">All</div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;">
+            <div style="grid-column:span 2;background:var(--bg-elevated-light);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:8px;">
+              <span style="font-size:10px;color:var(--fg-secondary-light);letter-spacing:0.06em;text-transform:uppercase;">Reading time</span>
+              <div style="display:flex;align-items:flex-end;gap:5px;height:44px;"><div style="width:12px;height:40%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:60%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:30%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:80%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:55%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:90%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:70%;background:var(--accent-dim);border-radius:2px;"></div></div>
+              <span style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--fg-primary-light);">3h 42m</span>
+            </div>
+            <div style="background:var(--bg-elevated-light);border-radius:20px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;height:100px;">
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--brand-green);">local_fire_department</span>
+              <div><div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--fg-primary-light);">14</div><div style="font-size:10px;color:var(--fg-secondary-light);">day streak · best 21</div></div>
+            </div>
+            <div style="background:var(--bg-elevated-light);border-radius:20px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;height:100px;">
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--accent-dim);">menu_book</span>
+              <div><div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--fg-primary-light);">6</div><div style="font-size:10px;color:var(--fg-secondary-light);">books finished</div></div>
+            </div>
+            <div style="grid-column:span 2;background:var(--bg-elevated-light);border-radius:20px;padding:16px;">
+              <span style="font-size:10px;color:var(--fg-secondary-light);letter-spacing:0.06em;text-transform:uppercase;">Year in reading</span>
+              <div style="display:grid;grid-template-columns:repeat(20,1fr);gap:3px;margin-top:10px;">
+                <div style="aspect-ratio:1;border-radius:2px;background:var(--color-cream-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-100);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-cream-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-500);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-700);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-cream-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-700);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-100);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-500);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-700);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-cream-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-500);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-700);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-cream-300);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-100);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-500);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-700);"></div><div style="aspect-ratio:1;border-radius:2px;background:var(--color-teal-300);"></div>
+              </div>
+            </div>
+            <div style="grid-column:span 2;background:var(--bg-elevated-light);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:6px;">
+              <span style="font-size:10px;color:var(--fg-secondary-light);letter-spacing:0.06em;text-transform:uppercase;">Random highlight</span>
+              <span style="font-family:var(--font-serif);font-style:italic;font-size:12px;color:var(--fg-primary-light);">"the margin is where the real reading happens."</span>
+              <span style="font-size:10px;color:var(--fg-secondary-light);">Marginalia · 3 weeks ago</span>
+            </div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+          <div style="height:80px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-light);background:var(--bg-surface-light);">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">auto_stories</span><span style="font-size:10px;color:var(--fg-secondary-light);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-light);">edit_note</span><span style="font-size:10px;color:var(--fg-secondary-light);">Notes</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 20px;border-radius:9999px;background:var(--color-teal-100);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent-dim);">bar_chart</span><span style="font-size:10px;font-weight:600;color:var(--accent-dim);">Stats</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-dark);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="padding:8px 20px 12px;"><span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--fg-primary-dark);">Statistics</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;">
+            <div style="grid-column:span 2;background:var(--bg-elevated-dark);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:8px;">
+              <span style="font-size:10px;color:var(--fg-secondary-dark);letter-spacing:0.06em;text-transform:uppercase;">Reading time</span>
+              <div style="display:flex;align-items:flex-end;gap:5px;height:44px;"><div style="width:12px;height:40%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:60%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:30%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:80%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:55%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:90%;background:var(--accent);border-radius:2px;"></div><div style="width:12px;height:70%;background:var(--accent);border-radius:2px;"></div></div>
+              <span style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--fg-primary-dark);">3h 42m</span>
+            </div>
+            <div style="background:var(--bg-elevated-dark);border-radius:20px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;height:100px;">
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--color-forest-300);">local_fire_department</span>
+              <div><div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--fg-primary-dark);">14</div><div style="font-size:10px;color:var(--fg-secondary-dark);">day streak · best 21</div></div>
+            </div>
+            <div style="background:var(--bg-elevated-dark);border-radius:20px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;height:100px;">
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--accent);">menu_book</span>
+              <div><div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--fg-primary-dark);">6</div><div style="font-size:10px;color:var(--fg-secondary-dark);">books finished</div></div>
+            </div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+          <div style="height:80px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-dark);background:var(--bg-surface-dark);">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-dark);">auto_stories</span><span style="font-size:10px;color:var(--fg-secondary-dark);">Library</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-secondary-dark);">edit_note</span><span style="font-size:10px;color:var(--fg-secondary-dark);">Notes</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 20px;border-radius:9999px;background:rgba(0,212,200,.16);"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--accent);">bar_chart</span><span style="font-size:10px;font-weight:600;color:var(--accent);">Stats</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Tile detail — expanded</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:56px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:0 16px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">arrow_back</span><span style="font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--fg-primary-light);">Reading time</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:flex;flex-direction:column;gap:16px;">
+            <div style="display:flex;align-items:flex-end;gap:10px;height:120px;background:var(--bg-elevated-light);border-radius:20px;padding:16px;">
+              <div style="width:24px;height:40%;background:var(--accent);border-radius:4px;"></div><div style="width:24px;height:60%;background:var(--accent);border-radius:4px;"></div><div style="width:24px;height:30%;background:var(--accent);border-radius:4px;"></div><div style="width:24px;height:80%;background:var(--accent);border-radius:4px;"></div><div style="width:24px;height:55%;background:var(--accent);border-radius:4px;"></div><div style="width:24px;height:90%;background:var(--accent);border-radius:4px;"></div><div style="width:24px;height:70%;background:var(--accent-dim);border-radius:4px;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;">
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--border-light);font-size:12px;color:var(--fg-primary-light);"><span>Mon Aug 26</span><span>42 min</span></div>
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--border-light);font-size:12px;color:var(--fg-primary-light);"><span>Tue Aug 27</span><span>58 min</span></div>
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--border-light);font-size:12px;color:var(--fg-primary-light);"><span>Wed Aug 28</span><span>21 min</span></div>
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;font-size:12px;color:var(--fg-primary-light);"><span>Thu Aug 29</span><span>1h 10m</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== 09 SEARCH ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">09</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Search</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light — results</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-light);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="padding:12px 20px;"><div style="display:flex;align-items:center;gap:10px;background:var(--bg-surface-light);border-radius:9999px;padding:12px 16px;box-shadow:var(--shadow-sm);"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">search</span><span style="font-size:14px;color:var(--fg-primary-light);">harbor</span></div></div>
+          <div style="display:flex;gap:20px;padding:0 20px 14px;border-bottom:1px solid var(--border-light);">
+            <span style="font-size:12px;font-weight:600;color:var(--accent-dim);padding-bottom:8px;border-bottom:2px solid var(--accent-dim);">Books · 2</span>
+            <span style="font-size:12px;color:var(--fg-secondary-light);padding-bottom:8px;">Notes · 5</span>
+            <span style="font-size:12px;color:var(--fg-secondary-light);padding-bottom:8px;">In this book</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:14px 20px;display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:12px;align-items:center;"><div style="width:40px;height:56px;border-radius:6px;background:var(--color-forest-500);flex:0 0 auto;"></div><div><div style="font-size:13px;color:var(--fg-primary-light);">The Quiet <span style="background:var(--color-teal-100);color:var(--accent-dim);font-weight:600;">Harbor</span>s</div><div style="font-size:11px;color:var(--fg-secondary-light);">M. Ferro</div></div></div>
+            <div style="display:flex;gap:12px;align-items:center;"><div style="width:40px;height:56px;border-radius:6px;background:var(--color-navy-500);flex:0 0 auto;"></div><div><div style="font-size:13px;color:var(--fg-primary-light);">Autumn Light: A <span style="background:var(--color-teal-100);color:var(--accent-dim);font-weight:600;">Harbor</span> Diary</div><div style="font-size:11px;color:var(--fg-secondary-light);">S. Vance</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark — start typing</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-dark);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="padding:12px 20px;"><div style="display:flex;align-items:center;gap:10px;background:var(--bg-surface-dark);border-radius:9999px;padding:12px 16px;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-dark);">search</span><span style="font-size:14px;color:var(--fg-secondary-dark);">Search books and notes</span></div></div>
+          <div style="flex:1;overflow:hidden;padding:20px;display:flex;flex-direction:column;gap:14px;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-secondary-dark);">Recent</span>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;align-items:center;gap:10px;"><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">history</span><span style="font-size:13px;color:var(--fg-primary-dark);">lighthouse keeper</span></div>
+              <div style="display:flex;align-items:center;gap:10px;"><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">history</span><span style="font-size:13px;color:var(--fg-primary-dark);">Okafor</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== 10 SETTINGS ===================== -->
+  <div>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+      <span style="font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent-dim);">10</span>
+      <h2 style="margin:0;font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--fg-primary-light);">Settings</h2>
+    </div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Light — Appearance expanded</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-light);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-light);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="height:56px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:0 16px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-light);">arrow_back</span><span style="font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--fg-primary-light);">Settings</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent-dim);padding:8px 0;">Appearance</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">Theme</span><div style="display:flex;background:var(--color-cream-200);border-radius:9999px;padding:2px;"><span style="padding:4px 10px;border-radius:9999px;background:var(--bg-surface-light);font-size:11px;font-weight:600;">System</span><span style="padding:4px 10px;font-size:11px;color:var(--fg-secondary-light);">Light</span><span style="padding:4px 10px;font-size:11px;color:var(--fg-secondary-light);">Dark</span></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">Seed color</span><div style="display:flex;gap:6px;"><div style="width:20px;height:20px;border-radius:9999px;background:var(--brand-green);border:2px solid var(--fg-primary-light);"></div><div style="width:20px;height:20px;border-radius:9999px;background:var(--color-teal-500);"></div><div style="width:20px;height:20px;border-radius:9999px;background:var(--color-gold-500);"></div></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">Softer dark</span><div style="width:36px;height:20px;border-radius:10px;background:var(--border-light);position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;left:2px;"></div></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">True black (OLED)</span><div style="width:36px;height:20px;border-radius:10px;background:var(--border-light);position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;left:2px;"></div></div></div>
+            <div style="padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">Color intensity</span><div style="height:4px;border-radius:2px;background:var(--border-light);margin-top:10px;position:relative;"><div style="width:60%;height:100%;background:var(--accent-dim);border-radius:2px;"></div><div style="width:16px;height:16px;border-radius:9999px;background:var(--accent-dim);position:absolute;top:-6px;left:57%;"></div></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">Motion</span><span style="font-size:12px;color:var(--fg-secondary-light);">Full ›</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-light);">List density</span><span style="font-size:12px;color:var(--fg-secondary-light);">Standard ›</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin:6px 0;border-radius:16px;border:1.5px solid var(--accent-dim);background:var(--color-teal-100);"><div><span style="font-size:13px;font-weight:600;color:var(--accent-dim);">E-Ink mode</span><div style="font-size:10px;color:var(--accent-dim);">Flattens color, motion &amp; shadows for e-ink panels</div></div><div style="width:36px;height:20px;border-radius:10px;background:var(--border-light);flex:0 0 auto;position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;left:2px;"></div></div></div>
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-secondary-light);padding:10px 0 4px;">Library</span>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">grid_view</span><span style="font-size:13px;color:var(--fg-primary-light);flex:1;">Cover width &amp; aspect</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-light);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">tune</span><span style="font-size:13px;color:var(--fg-primary-light);flex:1;">Reading defaults</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-light);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">graphic_eq</span><span style="font-size:13px;color:var(--fg-primary-light);flex:1;">Read aloud</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-light);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">menu_book</span><span style="font-size:13px;color:var(--fg-primary-light);flex:1;">Dictionary</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-light);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-light);">storage</span><span style="font-size:13px;color:var(--fg-primary-light);flex:1;">Storage &amp; backup</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-light);">chevron_right</span></div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <span style="font-size:11px;color:var(--fg-secondary-light);">Dark</span>
+        <div style="width:412px;height:915px;border-radius:40px;background:var(--bg-primary-dark);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:var(--fg-primary-dark);"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px;">battery_full</span></div>
+          <div style="height:56px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:0 16px;"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:var(--fg-primary-dark);">arrow_back</span><span style="font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--fg-primary-dark);">Settings</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 20px;display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent);padding:8px 0;">Appearance</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;"><span style="font-size:13px;color:var(--fg-primary-dark);">Theme</span><div style="display:flex;background:var(--color-navy-600);border-radius:9999px;padding:2px;"><span style="padding:4px 10px;border-radius:9999px;background:var(--color-navy-500);font-size:11px;font-weight:600;color:var(--fg-primary-dark);">System</span><span style="padding:4px 10px;font-size:11px;color:var(--fg-secondary-dark);">Light</span><span style="padding:4px 10px;font-size:11px;color:var(--fg-secondary-dark);">Dark</span></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin:6px 0;border-radius:16px;border:1.5px solid var(--accent);background:rgba(0,212,200,.1);"><div><span style="font-size:13px;font-weight:600;color:var(--accent);">E-Ink mode</span><div style="font-size:10px;color:var(--accent);">Flattens color, motion &amp; shadows for e-ink panels</div></div><div style="width:36px;height:20px;border-radius:10px;background:var(--color-navy-500);flex:0 0 auto;position:relative;"><div style="width:16px;height:16px;border-radius:8px;background:#fff;position:absolute;top:2px;left:2px;"></div></div></div>
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-secondary-dark);padding:10px 0 4px;">Reading</span>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-dark);">tune</span><span style="font-size:13px;color:var(--fg-primary-dark);flex:1;">Page-turn &amp; tap zones</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-dark);">graphic_eq</span><span style="font-size:13px;color:var(--fg-primary-dark);flex:1;">Read aloud</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-dark);">code</span><span style="font-size:13px;color:var(--fg-primary-dark);flex:1;">Content processing</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-dark);">bug_report</span><span style="font-size:13px;color:var(--fg-primary-dark);flex:1;">Advanced</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">chevron_right</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 0;"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:var(--fg-secondary-dark);">info</span><span style="font-size:13px;color:var(--fg-primary-dark);flex:1;">About</span><span style="font-family:'Material Symbols Outlined';font-size:18px;color:var(--fg-secondary-dark);">chevron_right</span></div>
+          </div>
+          <div style="height:24px;flex:0 0 auto;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+</body>
+</html>

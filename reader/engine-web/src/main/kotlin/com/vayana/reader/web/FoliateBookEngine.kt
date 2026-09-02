@@ -1,0 +1,202 @@
+package com.vayana.reader.web
+
+import android.content.Context
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewClientCompat
+import com.vayana.reader.api.BookEngine
+import com.vayana.reader.api.BookSource
+import com.vayana.reader.api.BookStyle
+import com.vayana.reader.api.EngineEvent
+import com.vayana.reader.api.Locator
+import com.vayana.reader.api.NavTarget
+import com.vayana.reader.api.OpenBook
+import com.vayana.reader.api.ReadTheme
+import com.vayana.reader.api.TocEntry
+import java.io.File
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.json.JSONArray
+import org.json.JSONObject
+
+private const val ORIGIN = "https://appassets.androidplatform.net"
+private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
+private const val BOOK_URL = "$ORIGIN/book/current"
+
+/**
+ * `:reader:engine-api`'s default implementation: foliate-js running inside a [WebView], driven
+ * through a JS bridge (PROMPT2appbuild.md §3). One instance per [WebView] — construct it right
+ * after the WebView is created (e.g. in the `AndroidView` factory) and [close] it when the
+ * screen leaves composition.
+ */
+class FoliateBookEngine(private val webView: WebView, context: Context) : BookEngine {
+
+    private var currentBookFile: File? = null
+    private var jsReady = false
+    private var pendingOpen: Pair<String, String?>? = null
+    private var openResult: CompletableDeferred<Result<OpenBook>>? = null
+
+    private val _location = MutableStateFlow<Locator?>(null)
+    override val location: StateFlow<Locator?> = _location
+
+    private val _events = MutableSharedFlow<EngineEvent>(extraBufferCapacity = 16)
+
+    private val appContext = context.applicationContext
+
+    // NOT WebViewAssetLoader.AssetsPathHandler: its automatic MIME-type lookup often can't
+    // resolve ".js" -> "text/javascript" on-device (MimeTypeMap has no default mapping for it),
+    // and WebView's <script type="module"> loader silently refuses to run a module served with
+    // the wrong (or no) MIME type — the exact "blank white screen, no thrown error" symptom.
+    // Serving assets ourselves with an explicit extension->MIME map sidesteps that entirely.
+    private val assetLoader = WebViewAssetLoader.Builder()
+        .addPathHandler("/assets/") { path -> serveAsset(path) }
+        .addPathHandler("/book/") { path ->
+            val file = currentBookFile ?: return@addPathHandler null
+            WebResourceResponse("application/epub+zip", null, file.inputStream())
+        }
+        .build()
+
+    private fun serveAsset(path: String): WebResourceResponse? {
+        val stream = runCatching { appContext.assets.open(path) }.getOrNull() ?: return null
+        val mimeType = when (path.substringAfterLast('.', "")) {
+            "js" -> "text/javascript"
+            "html" -> "text/html"
+            "json" -> "application/json"
+            "css" -> "text/css"
+            else -> "application/octet-stream"
+        }
+        return WebResourceResponse(mimeType, "utf-8", stream)
+    }
+
+    init {
+        webView.setBackgroundColor(android.graphics.Color.WHITE)
+        webView.settings.javaScriptEnabled = true
+        webView.settings.allowFileAccess = false
+        webView.settings.allowContentAccess = false
+        webView.webViewClient = object : WebViewClientCompat() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                assetLoader.shouldInterceptRequest(request.url)
+        }
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                Log.d("FoliateReader", "[${message.messageLevel()}] ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                return true
+            }
+        }
+        webView.addJavascriptInterface(JsBridge(), "AndroidBridge")
+        webView.loadUrl(READER_HTML_URL)
+    }
+
+    override suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook> {
+        currentBookFile = File(source.absoluteFilePath)
+        val deferred = CompletableDeferred<Result<OpenBook>>()
+        openResult = deferred
+
+        val request = BOOK_URL to resumeLocator?.cfi
+        if (jsReady) evaluateOpen(request.first, request.second) else pendingOpen = request
+
+        return deferred.await()
+    }
+
+    override suspend fun goTo(target: NavTarget) {
+        val js = when (target) {
+            is NavTarget.NextPage -> "window.VayanaReader.next()"
+            is NavTarget.PreviousPage -> "window.VayanaReader.prev()"
+            is NavTarget.ToFraction -> "window.VayanaReader.goToFraction(${target.fraction})"
+            is NavTarget.ToHref -> "window.VayanaReader.goToHref(${JSONObject.quote(target.href)})"
+            is NavTarget.ToLocator -> target.locator.cfi
+                ?.let { "window.VayanaReader.goToHref(${JSONObject.quote(it)})" }
+        } ?: return
+        webView.evaluateJavascript(js, null)
+    }
+
+    override suspend fun applyStyle(style: BookStyle, theme: ReadTheme) {
+        val css = buildString {
+            append("html,body{")
+            append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
+            append("color:${theme.textColorArgb.toCssColor()} !important;")
+            append("font-size:${style.fontSizePercent}% !important;")
+            append("line-height:${style.lineHeight} !important;")
+            style.fontFamily?.let { append("font-family:${it} !important;") }
+            append("}")
+        }
+        webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)})", null)
+    }
+
+    override fun events(): Flow<EngineEvent> = _events
+
+    override fun close() {
+        webView.destroy()
+    }
+
+    private fun evaluateOpen(bookUrl: String, lastLocatorCfi: String?) {
+        val cfiArg = lastLocatorCfi?.let { JSONObject.quote(it) } ?: "null"
+        webView.evaluateJavascript("window.VayanaReader.open(${JSONObject.quote(bookUrl)}, $cfiArg)", null)
+    }
+
+    private inner class JsBridge {
+        @JavascriptInterface
+        fun onEvent(type: String, jsonPayload: String) {
+            webView.post { handleEvent(type, JSONObject(jsonPayload)) }
+        }
+    }
+
+    private fun handleEvent(type: String, payload: JSONObject) {
+        Log.d("FoliateReader", "event: $type $payload")
+        when (type) {
+            "ready" -> {
+                jsReady = true
+                pendingOpen?.let { (url, cfi) -> evaluateOpen(url, cfi) }
+                pendingOpen = null
+            }
+            "opened" -> {
+                val toc = payload.optJSONArray("toc")?.toTocEntries() ?: emptyList()
+                openResult?.complete(Result.success(OpenBook(title = payload.optString("title"), toc = toc)))
+                openResult = null
+            }
+            "relocate" -> {
+                val locator = Locator(
+                    cfi = payload.optStringOrNull("cfi"),
+                    href = null,
+                    progression = payload.optDouble("fraction", 0.0).toFloat(),
+                    chapterTitle = payload.optStringOrNull("tocLabel"),
+                )
+                _location.value = locator
+                _events.tryEmit(EngineEvent.Relocated(locator))
+            }
+            "error" -> {
+                val message = payload.optString("message", "Unknown reader error")
+                openResult?.complete(Result.failure(IllegalStateException(message)))
+                openResult = null
+                _events.tryEmit(EngineEvent.Error(message))
+            }
+        }
+    }
+}
+
+private fun JSONArray.toTocEntries(): List<TocEntry> = buildList {
+    for (i in 0 until length()) {
+        val obj = getJSONObject(i)
+        add(
+            TocEntry(
+                title = obj.optString("label"),
+                href = obj.optString("href"),
+                children = obj.optJSONArray("children")?.toTocEntries() ?: emptyList(),
+            ),
+        )
+    }
+}
+
+private fun JSONObject.optStringOrNull(name: String): String? =
+    if (has(name) && !isNull(name)) getString(name) else null
+
+private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)

@@ -1,0 +1,19 @@
+package com.vayana.core.datastore.settings
+
+import kotlinx.coroutines.flow.Flow
+
+interface SettingsRepository {
+    val snapshot: Flow<SettingsSnapshot>
+
+    fun <T : Any> observe(setting: Setting<T>): Flow<T>
+
+    suspend fun <T : Any> update(setting: Setting<T>, value: T)
+
+    suspend fun reset(setting: Setting<out Any>)
+
+    suspend fun resetAll()
+
+    suspend fun exportToMap(): Map<String, String>
+
+    suspend fun importFromMap(values: Map<String, String>)
+}

@@ -1,0 +1,17 @@
+plugins {
+    id("vayana.android.feature")
+}
+
+android {
+    namespace = "com.vayana.feature.library"
+}
+
+dependencies {
+    implementation(project(":core:database"))
+    implementation(project(":core:filesystem"))
+    implementation(project(":format:epub"))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.documentfile)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.core)
+}
