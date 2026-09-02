@@ -1,5 +1,7 @@
 package com.vayana.core.database.di
 
+import com.vayana.core.database.repository.AnnotationRepository
+import com.vayana.core.database.repository.AnnotationRepositoryImpl
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.BookRepositoryImpl
 import dagger.Binds
@@ -14,4 +16,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindBookRepository(impl: BookRepositoryImpl): BookRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAnnotationRepository(impl: AnnotationRepositoryImpl): AnnotationRepository
 }

@@ -58,6 +58,7 @@
     <string name="notes_title">Notes</string>
     <string name="notes_empty_title">No notes yet</string>
     <string name="notes_empty_body">Highlights and notes you make while reading will show up here.</string>
+    <string name="notes_bookmark_without_text">Bookmark</string>
 
     <string name="statistics_title">Statistics</string>
     <string name="statistics_empty_title">Nothing to show yet</string>

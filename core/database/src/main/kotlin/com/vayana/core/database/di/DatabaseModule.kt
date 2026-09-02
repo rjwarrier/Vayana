@@ -2,7 +2,9 @@ package com.vayana.core.database.di
 
 import android.content.Context
 import androidx.room.Room
+import com.vayana.core.database.ALL_MIGRATIONS
 import com.vayana.core.database.VayanaDatabase
+import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookDao
 import dagger.Module
 import dagger.Provides
@@ -18,8 +20,13 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideVayanaDatabase(@ApplicationContext context: Context): VayanaDatabase =
-        Room.databaseBuilder(context, VayanaDatabase::class.java, "vayana.db").build()
+        Room.databaseBuilder(context, VayanaDatabase::class.java, "vayana.db")
+            .addMigrations(*ALL_MIGRATIONS)
+            .build()
 
     @Provides
     fun provideBookDao(database: VayanaDatabase): BookDao = database.bookDao()
+
+    @Provides
+    fun provideAnnotationDao(database: VayanaDatabase): AnnotationDao = database.annotationDao()
 }
