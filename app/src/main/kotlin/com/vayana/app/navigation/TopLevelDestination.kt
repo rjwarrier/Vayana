@@ -28,6 +28,9 @@ sealed interface TopLevelRoute {
 @Serializable
 data object SettingsRoute
 
+@Serializable
+data class BookDetailRoute(val bookId: Long)
+
 enum class TopLevelDestination(
     val route: TopLevelRoute,
     val routeClass: KClass<out TopLevelRoute>,

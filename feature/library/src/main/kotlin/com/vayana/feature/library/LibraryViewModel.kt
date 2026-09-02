@@ -19,16 +19,34 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Result of one import batch — surfaced as a one-line summary (PROMPT2appbuild.md §4.1's fuller per-file sheet is a later pass). */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
+
+enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
+
+enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
+
+data class LibraryControls(
+    val query: String = "",
+    val sort: LibrarySort = LibrarySort.IMPORT_DATE,
+    val filter: LibraryFilter = LibraryFilter.ALL,
+)
+
+data class LibraryUiState(
+    val books: List<Book> = emptyList(),
+    val controls: LibraryControls = LibraryControls(),
+)
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -39,19 +57,44 @@ class LibraryViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
-    /** [Book.coverPath] comes back root-relative from the repository — resolved to an absolute
-     * path here so the UI (Coil) can load it directly without depending on [StorageRoots] itself. */
-    val books: StateFlow<List<Book>> = bookRepository.observeAll()
-        .map { books -> books.map { it.withAbsoluteCoverPath() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val controls = MutableStateFlow(LibraryControls())
 
-    private fun Book.withAbsoluteCoverPath(): Book {
-        val relativePath = coverPath ?: return this
-        return copy(coverPath = storageRoots.resolve(relativePath).absolutePath)
-    }
+    /** [Book.coverPath] and [Book.filePath] come back root-relative; resolve both before UI use. */
+    private val allBooks: Flow<List<Book>> = bookRepository.observeAll()
+        .map { books -> books.map { it.withAbsolutePaths() } }
+
+    val uiState: StateFlow<LibraryUiState> = combine(allBooks, controls) { books, controls ->
+        LibraryUiState(
+            books = books
+                .filterBy(controls.filter)
+                .filterByQuery(controls.query)
+                .sortedBy(controls.sort),
+            controls = controls,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
+
+    fun observeBook(bookId: Long): StateFlow<Book?> = allBooks
+        .map { books -> books.firstOrNull { it.id == bookId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _importSummary = MutableStateFlow<ImportSummary?>(null)
     val importSummary: StateFlow<ImportSummary?> = _importSummary
+
+    fun updateQuery(query: String) {
+        controls.update { it.copy(query = query) }
+    }
+
+    fun updateSort(sort: LibrarySort) {
+        controls.update { it.copy(sort = sort) }
+    }
+
+    fun updateFilter(filter: LibraryFilter) {
+        controls.update { it.copy(filter = filter) }
+    }
+
+    fun deleteBook(bookId: Long) {
+        viewModelScope.launch { bookRepository.softDelete(bookId) }
+    }
 
     fun onImportSummaryShown() {
         _importSummary.value = null
@@ -108,6 +151,11 @@ class LibraryViewModel @Inject constructor(
         }.getOrElse { ImportResult.Failed }
     }
 
+    private fun Book.withAbsolutePaths(): Book = copy(
+        coverPath = coverPath?.let { storageRoots.resolve(it).absolutePath },
+        filePath = storageRoots.resolve(filePath).absolutePath,
+    )
+
     private fun saveCover(bytes: ByteArray): File {
         val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.jpg")
         coverFile.writeBytes(bytes)
@@ -131,3 +179,30 @@ class LibraryViewModel @Inject constructor(
         failed = count { it is ImportResult.Failed },
     )
 }
+
+private fun List<Book>.filterBy(filter: LibraryFilter): List<Book> = when (filter) {
+    LibraryFilter.ALL -> this
+    LibraryFilter.READING -> filter { it.readingPercent > 0f && it.readingPercent < FinishedThreshold }
+    LibraryFilter.FINISHED -> filter { it.readingPercent >= FinishedThreshold }
+    LibraryFilter.NOT_STARTED -> filter { it.readingPercent <= 0f }
+}
+
+private fun List<Book>.filterByQuery(query: String): List<Book> {
+    val normalizedQuery = query.trim()
+    if (normalizedQuery.isEmpty()) return this
+    return filter { book ->
+        book.title.contains(normalizedQuery, ignoreCase = true) ||
+            book.author.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
+            book.description.orEmpty().contains(normalizedQuery, ignoreCase = true)
+    }
+}
+
+private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
+    LibrarySort.IMPORT_DATE -> sortedWith(compareByDescending<Book> { it.createdAt }.thenBy { it.title.lowercase() })
+    LibrarySort.TITLE -> sortedWith(compareBy<Book> { it.title.lowercase() }.thenByDescending { it.createdAt })
+    LibrarySort.AUTHOR -> sortedWith(compareBy<Book> { it.author.orEmpty().lowercase() }.thenBy { it.title.lowercase() })
+    LibrarySort.LAST_READ -> sortedWith(compareByDescending<Book> { it.lastReadAt ?: 0L }.thenBy { it.title.lowercase() })
+    LibrarySort.PROGRESS -> sortedWith(compareByDescending<Book> { it.readingPercent }.thenBy { it.title.lowercase() })
+}
+
+private const val FinishedThreshold = 0.98f

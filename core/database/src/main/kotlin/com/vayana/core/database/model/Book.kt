@@ -21,5 +21,7 @@ data class Book(
     val readingPercent: Float,
     val rating: Float,
     val createdAt: Long,
+    val updatedAt: Long,
+    val lastReadAt: Long?,
     val lastLocator: String?,
 )

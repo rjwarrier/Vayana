@@ -73,5 +73,7 @@ private fun BookEntity.toDomain(): Book = Book(
     readingPercent = readingPercent,
     rating = rating,
     createdAt = createdAt,
+    updatedAt = updatedAt,
+    lastReadAt = lastReadAt,
     lastLocator = lastLocator,
 )
