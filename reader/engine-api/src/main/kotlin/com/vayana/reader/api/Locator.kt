@@ -40,6 +40,7 @@ data class ReaderAnnotation(
     val cfi: String,
     val colorKey: String,
     val note: String?,
+    val text: String? = null,
 )
 
 /** Source handed to [BookEngine.open] — a resolved local file path, never a domain `Book` (§0.5: no cross-layer coupling). */

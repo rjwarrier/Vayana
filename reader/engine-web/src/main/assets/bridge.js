@@ -112,15 +112,41 @@ async function open(bookUrl, lastLocatorCfi) {
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
             wireSelection(doc, index)
+            matchTextAnnotationsForDoc(doc, index)
             post('pageLoaded', {})
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
-            const color = annotation.color ?? '#f6c453'
+            const color = annotation.color ?? '#888888'
             if (annotation.type === 'underline') {
                 draw((range, options) => {
-                    const g = Overlayer.underline(range, options)
-                    g.setAttribute('fill', color)
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+                    g.classList.add('vayana-dotted-underline')
+                    const rects = range.getClientRects()
+                    const strokeWidth = 1.5
+                    for (const { left, bottom, width } of rects) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+                        line.setAttribute('x1', left)
+                        line.setAttribute('y1', bottom - strokeWidth)
+                        line.setAttribute('x2', left + width)
+                        line.setAttribute('y2', bottom - strokeWidth)
+                        line.setAttribute('stroke', color)
+                        line.setAttribute('stroke-width', strokeWidth)
+                        line.setAttribute('stroke-dasharray', '3,3')
+                        g.append(line)
+                    }
+                    if (annotation.note && rects.length > 0) {
+                        const lastRect = rects[rects.length - 1]
+                        const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+                        badge.setAttribute('x', lastRect.right + 4)
+                        badge.setAttribute('y', lastRect.bottom - 1)
+                        badge.setAttribute('fill', color)
+                        badge.setAttribute('font-size', '9px')
+                        badge.setAttribute('font-family', 'sans-serif')
+                        badge.setAttribute('opacity', '0.75')
+                        badge.textContent = `· ${annotation.note}`
+                        g.append(badge)
+                    }
                     return g
                 })
             } else {
@@ -202,19 +228,99 @@ function clearSelection() {
     post('selection', null)
 }
 
+let activeAnnotationsList = []
+
 async function renderAnnotations(annotations) {
     if (!view) return
+    activeAnnotationsList = annotations || []
     const nextValues = new Set(annotations.map(annotation => annotation.value))
     for (const value of renderedAnnotations) {
         if (!nextValues.has(value)) await view.deleteAnnotation({ value })
     }
     for (const annotation of annotations) {
-        await view.addAnnotation(annotation)
-        renderedAnnotations.add(annotation.value)
+        if (annotation.value && !annotation.value.startsWith('text:')) {
+            await view.addAnnotation(annotation)
+            renderedAnnotations.add(annotation.value)
+        }
     }
     for (const value of Array.from(renderedAnnotations)) {
         if (!nextValues.has(value)) renderedAnnotations.delete(value)
     }
+    // Also match any active documents
+    for (const { doc, index } of view.renderer.getContents()) {
+        if (doc) matchTextAnnotationsForDoc(doc, index)
+    }
+}
+
+function matchTextAnnotationsForDoc(doc, index) {
+    if (!activeAnnotationsList || !activeAnnotationsList.length || !view) return
+    for (const ann of activeAnnotationsList) {
+        const textToFind = ann.text || (ann.value.startsWith('text:') ? null : null)
+        if (!textToFind || textToFind.length < 5) continue
+        const range = findTextRangeInDoc(doc, textToFind)
+        if (range) {
+            try {
+                const cfi = view.getCFI(index, range)
+                view.addAnnotation({
+                    value: cfi,
+                    type: ann.type || 'underline',
+                    color: ann.color || '#888888',
+                    note: ann.note,
+                })
+                renderedAnnotations.add(cfi)
+            } catch (_) {}
+        }
+    }
+}
+
+function findTextRangeInDoc(doc, text) {
+    try {
+        const target = text.replace(/\s+/g, ' ').trim().toLowerCase()
+        const bodyText = (doc.body?.innerText || doc.body?.textContent || '').replace(/\s+/g, ' ').toLowerCase()
+        const searchSample = target.substring(0, Math.min(30, target.length))
+        if (!bodyText.includes(searchSample)) return null
+
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false)
+        const textNodes = []
+        let fullDocText = ''
+        let node
+        while ((node = walker.nextNode())) {
+            const str = node.textContent
+            const start = fullDocText.length
+            fullDocText += str
+            textNodes.push({ node, start, end: fullDocText.length })
+        }
+
+        const normDoc = fullDocText.replace(/\s+/g, ' ').toLowerCase()
+        let matchIdx = normDoc.indexOf(target)
+        let matchLen = target.length
+        if (matchIdx === -1) {
+            const sample = target.substring(0, Math.min(50, target.length))
+            matchIdx = normDoc.indexOf(sample)
+            matchLen = sample.length
+        }
+        if (matchIdx === -1) return null
+
+        let startNode = null, startOffset = 0, endNode = null, endOffset = 0
+        for (const { node, start, end } of textNodes) {
+            if (!startNode && matchIdx >= start && matchIdx < end) {
+                startNode = node
+                startOffset = Math.min(matchIdx - start, node.textContent.length)
+            }
+            if (startNode && matchIdx + matchLen <= end) {
+                endNode = node
+                endOffset = Math.min((matchIdx + matchLen) - start, node.textContent.length)
+                break
+            }
+        }
+        if (startNode && endNode) {
+            const range = doc.createRange()
+            range.setStart(startNode, startOffset)
+            range.setEnd(endNode, endOffset)
+            return range
+        }
+    } catch (_) {}
+    return null
 }
 
 window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, renderAnnotations, clearSelection }

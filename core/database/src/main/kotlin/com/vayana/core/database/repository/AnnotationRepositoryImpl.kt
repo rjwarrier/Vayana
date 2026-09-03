@@ -47,6 +47,19 @@ class AnnotationRepositoryImpl @Inject constructor(
         return entity.copy(id = id).toDomain()
     }
 
+    override suspend fun createAll(items: List<Annotation>): List<Annotation> {
+        if (items.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val entities = items.map { item ->
+            item.toEntity(updatedAt = now).copy(
+                createdAt = if (item.createdAt > 0L) item.createdAt else now,
+                updatedAt = now,
+            )
+        }
+        val ids = annotationDao.insertAll(entities)
+        return entities.zip(ids) { entity, id -> entity.copy(id = id).toDomain() }
+    }
+
     override suspend fun update(annotation: Annotation) {
         annotationDao.update(annotation.toEntity(updatedAt = System.currentTimeMillis()))
     }

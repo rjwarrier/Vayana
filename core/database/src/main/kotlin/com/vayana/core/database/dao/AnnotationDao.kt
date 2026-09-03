@@ -23,6 +23,9 @@ interface AnnotationDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(annotation: AnnotationEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(annotations: List<AnnotationEntity>): List<Long>
+
     @Update
     suspend fun update(annotation: AnnotationEntity)
 

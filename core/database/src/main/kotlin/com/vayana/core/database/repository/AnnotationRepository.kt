@@ -18,6 +18,7 @@ interface AnnotationRepository {
         selectedText: String,
         readerNote: String?,
     ): Annotation
+    suspend fun createAll(items: List<Annotation>): List<Annotation>
     suspend fun update(annotation: Annotation)
     suspend fun delete(id: Long)
 }

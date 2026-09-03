@@ -87,9 +87,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.vayana.core.common.QuoteParser
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -155,6 +157,7 @@ fun BookDetailRoute(
     onContinueReading: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val viewModel: LibraryViewModel = hiltViewModel()
     val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
     val book by bookFlow.collectAsState()
@@ -179,6 +182,12 @@ fun BookDetailRoute(
         },
         onRemoveCover = {
             viewModel.removeCover(bookId)
+        },
+        onImportQuotes = { text ->
+            viewModel.importQuotes(bookId, text)
+        },
+        onImportQuotesFile = { uri ->
+            viewModel.importQuotesFromFile(bookId, context.contentResolver, uri)
         },
         onDetailMessageShown = viewModel::onBookDetailMessageShown,
         onDeleteBook = {
@@ -659,6 +668,8 @@ private fun BookDetailScreen(
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onRemoveCover: () -> Unit,
+    onImportQuotes: (String) -> Unit,
+    onImportQuotesFile: (Uri) -> Unit,
     onDetailMessageShown: () -> Unit,
     onDeleteBook: () -> Unit,
 ) {
@@ -667,6 +678,7 @@ private fun BookDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showCoverPreview by remember { mutableStateOf(false) }
+    var showImportQuotesDialog by remember { mutableStateOf(false) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
@@ -864,6 +876,13 @@ private fun BookDetailScreen(
                 }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        ElevatedButton(
+                            onClick = { showImportQuotesDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Outlined.EditNote, contentDescription = null)
+                            Text(text = stringResource(R.string.library_import_quotes), modifier = Modifier.padding(start = Spacing.sm))
+                        }
                         ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
@@ -920,6 +939,20 @@ private fun BookDetailScreen(
         CoverPreviewDialog(
             book = book,
             onDismiss = { showCoverPreview = false },
+        )
+    }
+
+    if (showImportQuotesDialog && book != null) {
+        ImportQuotesDialog(
+            onDismiss = { showImportQuotesDialog = false },
+            onImportText = { text ->
+                showImportQuotesDialog = false
+                onImportQuotes(text)
+            },
+            onImportFile = { uri ->
+                showImportQuotesDialog = false
+                onImportQuotesFile(uri)
+            },
         )
     }
 }
@@ -1423,6 +1456,7 @@ private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.SOURCE_DUPLICATE -> stringResource(R.string.library_source_duplicate)
     BookDetailMessage.SOURCE_UNSUPPORTED -> stringResource(R.string.library_source_unsupported)
     BookDetailMessage.SOURCE_FAILED -> stringResource(R.string.library_source_failed)
+    is BookDetailMessage.QUOTES_IMPORTED -> stringResource(R.string.library_quotes_imported_message, count)
 }
 
 private fun android.content.Context.shareBookFile(book: Book) {
@@ -1639,5 +1673,160 @@ private fun String.cleanHtml(): String {
         this.replace(Regex("<[^>]*>"), "")
     }
     return unescaped.replace(Regex("\n{3,}"), "\n\n").trim()
+}
+
+@Composable
+private fun ImportQuotesDialog(
+    onDismiss: () -> Unit,
+    onImportText: (String) -> Unit,
+    onImportFile: (Uri) -> Unit,
+) {
+    var rawText by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val parsedQuotes = remember(rawText) { QuoteParser.parse(rawText) }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            onImportFile(uri)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.library_import_quotes_dialog_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Text(
+                    text = stringResource(R.string.library_import_quotes_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    FilterChip(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        label = { Text(stringResource(R.string.library_import_quotes_tab_paste)) },
+                    )
+                    FilterChip(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        label = { Text(stringResource(R.string.library_import_quotes_tab_file)) },
+                    )
+                }
+
+                if (selectedTab == 0) {
+                    OutlinedTextField(
+                        value = rawText,
+                        onValueChange = { rawText = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = Sizes.coverWidthMin, max = Sizes.coverWidthMax),
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.library_import_quotes_placeholder),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                    )
+
+                    if (parsedQuotes.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(Radii.medium),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.md)) {
+                                Text(
+                                    text = stringResource(R.string.library_import_quotes_detected, parsedQuotes.size),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                parsedQuotes.take(3).forEach { quote ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = Spacing.xs),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "“${quote.quoteText.take(45)}…”",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(Radii.small),
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ) {
+                                            Text(
+                                                text = "${quote.highlightsCount}★",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xs),
+                                            )
+                                        }
+                                    }
+                                }
+                                if (parsedQuotes.size > 3) {
+                                    Text(
+                                        text = "+ ${parsedQuotes.size - 3} more",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = Spacing.xs),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    ElevatedButton(
+                        onClick = { filePicker.launch(arrayOf("text/plain", "*/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Outlined.Image, contentDescription = null)
+                        Text(
+                            text = stringResource(R.string.library_import_quotes_file_button),
+                            modifier = Modifier.padding(start = Spacing.sm),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (selectedTab == 0) {
+                Button(
+                    onClick = {
+                        onImportText(rawText)
+                    },
+                    enabled = parsedQuotes.isNotEmpty(),
+                ) {
+                    Text(stringResource(R.string.library_import_quotes_confirm, parsedQuotes.size))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
+            }
+        },
+    )
 }
 

@@ -68,6 +68,16 @@
     <string name="library_cover_updated">Cover updated</string>
     <string name="library_cover_removed">Custom cover removed</string>
     <string name="library_cover_failed">Could not update the cover.</string>
+    <string name="library_import_quotes">Import quotes &amp; highlights</string>
+    <string name="library_import_quotes_dialog_title">Import quotes &amp; highlights</string>
+    <string name="library_import_quotes_subtitle">Paste Goodreads quotes or pick a text file to mark sentences with dotted underlines and highlight counts.</string>
+    <string name="library_import_quotes_tab_paste">Paste text</string>
+    <string name="library_import_quotes_tab_file">Pick text file</string>
+    <string name="library_import_quotes_file_button">Select text file (.txt)</string>
+    <string name="library_import_quotes_placeholder">Paste Goodreads quotes here…\n\n“Quote text…”\n― Author, Title\n20 likes</string>
+    <string name="library_import_quotes_detected">%1$d quotes detected</string>
+    <string name="library_import_quotes_confirm">Import %1$d quotes</string>
+    <string name="library_quotes_imported_message">Successfully imported %1$d quotes as highlights</string>
     <string name="library_share_file">Share file</string>
     <string name="library_replace_source_file">Replace source file</string>
     <string name="library_source_replaced">Source file replaced</string>

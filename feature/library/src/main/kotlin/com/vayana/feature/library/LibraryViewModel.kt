@@ -8,8 +8,12 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.DispatcherProvider
+import com.vayana.core.common.QuoteParser
+import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.StorageRoots
@@ -35,15 +39,16 @@ data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported
 
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
-enum class BookDetailMessage {
-    METADATA_SAVED,
-    COVER_UPDATED,
-    COVER_REMOVED,
-    COVER_FAILED,
-    SOURCE_REPLACED,
-    SOURCE_DUPLICATE,
-    SOURCE_UNSUPPORTED,
-    SOURCE_FAILED,
+sealed interface BookDetailMessage {
+    data object METADATA_SAVED : BookDetailMessage
+    data object COVER_UPDATED : BookDetailMessage
+    data object COVER_REMOVED : BookDetailMessage
+    data object COVER_FAILED : BookDetailMessage
+    data object SOURCE_REPLACED : BookDetailMessage
+    data object SOURCE_DUPLICATE : BookDetailMessage
+    data object SOURCE_UNSUPPORTED : BookDetailMessage
+    data object SOURCE_FAILED : BookDetailMessage
+    data class QUOTES_IMPORTED(val count: Int) : BookDetailMessage
 }
 
 data class ImportProgressRow(
@@ -81,6 +86,7 @@ data class LibraryUiState(
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val bookRepository: BookRepository,
+    private val annotationRepository: AnnotationRepository,
     private val bookFileImporter: BookFileImporter,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
@@ -170,6 +176,49 @@ class LibraryViewModel @Inject constructor(
     fun removeCover(bookId: Long) {
         viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) { removeCoverFromLibrary(bookId) }
+        }
+    }
+
+    fun importQuotes(bookId: Long, quotesText: String) {
+        viewModelScope.launch {
+            val quotes = withContext(dispatchers.default) {
+                QuoteParser.parse(quotesText)
+            }
+            if (quotes.isEmpty()) return@launch
+
+            val now = System.currentTimeMillis()
+            val annotations = quotes.mapIndexed { index, quote ->
+                Annotation(
+                    id = 0,
+                    bookId = bookId,
+                    type = AnnotationType.UNDERLINE,
+                    colorKey = "popular",
+                    locator = "quote:$index:${UUID.randomUUID()}",
+                    chapterTitle = quote.sourceTitle ?: quote.author,
+                    chapterHref = null,
+                    selectedText = quote.quoteText,
+                    readerNote = "${quote.highlightsCount} highlights",
+                    createdAt = now,
+                    updatedAt = now,
+                )
+            }
+            withContext(dispatchers.io) {
+                annotationRepository.createAll(annotations)
+            }
+            _bookDetailMessage.value = BookDetailMessage.QUOTES_IMPORTED(quotes.size)
+        }
+    }
+
+    fun importQuotesFromFile(bookId: Long, contentResolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            val text = withContext(dispatchers.io) {
+                try {
+                    contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                } catch (_: Throwable) {
+                    null
+                }
+            } ?: return@launch
+            importQuotes(bookId, text)
         }
     }
 

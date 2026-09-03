@@ -367,13 +367,14 @@ private fun androidx.compose.ui.graphics.Color.toReadTheme(textColor: androidx.c
 
 private fun Annotation.toReaderAnnotation(): ReaderAnnotation? {
     if (type == AnnotationType.BOOKMARK) return null
-    val cfi = locator.takeIf { it.isNotBlank() } ?: return null
+    val cfi = locator.ifBlank { "text:${id}" }
     return ReaderAnnotation(
         id = id.toString(),
         type = type.toReaderAnnotationType(),
         cfi = cfi,
         colorKey = colorKey,
         note = readerNote,
+        text = selectedText,
     )
 }
 

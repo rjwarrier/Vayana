@@ -296,6 +296,7 @@ private fun ReaderAnnotation.toJson(): JSONObject = JSONObject()
     .put("type", type.toFoliateType())
     .put("color", colorKey.toAnnotationColor())
     .put("note", note)
+    .put("text", text)
 
 private fun ReaderAnnotationType.toFoliateType(): String = when (this) {
     ReaderAnnotationType.HIGHLIGHT,
