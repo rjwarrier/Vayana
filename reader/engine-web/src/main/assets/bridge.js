@@ -7,6 +7,7 @@ import { Overlayer } from './foliate/overlayer.js'
 let view = null
 const renderedAnnotations = new Set()
 const selectionTimers = new WeakMap()
+let readerSideMarginPercent = 10
 
 function post(type, payload) {
     if (window.AndroidBridge) window.AndroidBridge.onEvent(type, JSON.stringify(payload ?? {}))
@@ -82,8 +83,18 @@ function goRight() { view?.goRight() }
 function goToFraction(fraction) { view?.goToFraction(fraction) }
 function goToHref(href) { view?.goTo(href) }
 
-function applyStyle(css) {
+function applyReaderMargin(percent) {
+    readerSideMarginPercent = Math.max(0, Math.min(24, Number(percent) || 0))
+    const marginPx = Math.round(innerWidth * readerSideMarginPercent / 100)
+    if (view?.renderer) {
+        view.renderer.setAttribute('margin', `${marginPx}px`)
+        view.renderer.render?.()
+    }
+}
+
+function applyStyle(css, sideMarginPercent) {
     if (view?.renderer?.setStyles) view.renderer.setStyles(css)
+    applyReaderMargin(sideMarginPercent)
 }
 
 function wireSelection(doc, index) {
@@ -134,4 +145,5 @@ async function renderAnnotations(annotations) {
 }
 
 window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, renderAnnotations, clearSelection }
+addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

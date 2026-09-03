@@ -142,9 +142,6 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val margin = style.sideMarginPercent.coerceIn(0, 24)
         val lineHeight = style.lineHeight.coerceIn(1.2f, 4.0f)
         val css = buildString {
-            append(":host{")
-            append("--_margin:${margin}vw !important;")
-            append("}")
             append("html{")
             append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
             append("}")
@@ -156,11 +153,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             append("box-sizing:border-box !important;")
             style.fontFamily?.let { append("font-family:${it} !important;") }
             append("}")
-            append("body *{")
+            append("body p,body div,body span,body li,body blockquote,body dd,body dt,body a,body em,body strong{")
             append("line-height:inherit !important;")
             append("}")
         }
-        webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)})", null)
+        webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin)", null)
     }
 
     override suspend fun renderAnnotations(annotations: List<ReaderAnnotation>) {

@@ -58,6 +58,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,8 +87,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.datastore.settings.FloatSetting
+import com.vayana.core.datastore.settings.IntSetting
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
+import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -651,6 +655,23 @@ private fun StylePanel(
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepAwakeChange: (Boolean) -> Unit,
 ) {
+    val fontSizeSetting = SettingsRegistry.ReaderFontSize
+    val lineHeightSetting = SettingsRegistry.ReaderLineHeight
+    val sideMarginSetting = SettingsRegistry.ReaderSideMargin
+    var pendingFontSize by remember { mutableIntStateOf(settings.readerFontSizePercent) }
+    var pendingLineHeight by remember { mutableFloatStateOf(settings.readerLineHeight) }
+    var pendingSideMargin by remember { mutableIntStateOf(settings.readerSideMarginPercent) }
+
+    LaunchedEffect(settings.readerFontSizePercent) {
+        pendingFontSize = settings.readerFontSizePercent
+    }
+    LaunchedEffect(settings.readerLineHeight) {
+        pendingLineHeight = settings.readerLineHeight
+    }
+    LaunchedEffect(settings.readerSideMarginPercent) {
+        pendingSideMargin = settings.readerSideMarginPercent
+    }
+
     Column(
         modifier = Modifier
             .padding(horizontal = Spacing.lg, vertical = Spacing.md)
@@ -674,33 +695,36 @@ private fun StylePanel(
 
         ReaderStyleLabel(
             title = stringResource(R.string.settings_reader_font_size_title),
-            value = "${settings.readerFontSizePercent}%",
+            value = "$pendingFontSize%",
         )
         Slider(
-            value = settings.readerFontSizePercent.toFloat(),
-            onValueChange = { onFontSizeChange((it / 5f).roundToInt() * 5) },
-            valueRange = 80f..250f,
-            steps = 33,
+            value = pendingFontSize.toFloat(),
+            onValueChange = { pendingFontSize = it.roundToStep(fontSizeSetting) },
+            onValueChangeFinished = { onFontSizeChange(pendingFontSize) },
+            valueRange = fontSizeSetting.sliderRange(),
+            steps = fontSizeSetting.sliderSteps(),
         )
         ReaderStyleLabel(
             title = stringResource(R.string.settings_reader_line_height_title),
-            value = "${(settings.readerLineHeight * 10).roundToInt() / 10f}x",
+            value = "${pendingLineHeight.roundToTenth()}x",
         )
         Slider(
-            value = settings.readerLineHeight,
-            onValueChange = { onLineHeightChange(((it / 0.1f).roundToInt() * 0.1f).coerceIn(1.2f, 4.0f)) },
-            valueRange = 1.2f..4.0f,
-            steps = 27,
+            value = pendingLineHeight,
+            onValueChange = { pendingLineHeight = it.roundToStep(lineHeightSetting) },
+            onValueChangeFinished = { onLineHeightChange(pendingLineHeight) },
+            valueRange = lineHeightSetting.range,
+            steps = lineHeightSetting.sliderSteps(),
         )
         ReaderStyleLabel(
             title = stringResource(R.string.settings_reader_side_margin_title),
-            value = "${settings.readerSideMarginPercent}%",
+            value = "$pendingSideMargin%",
         )
         Slider(
-            value = settings.readerSideMarginPercent.toFloat(),
-            onValueChange = { onSideMarginChange((it / 2f).roundToInt() * 2) },
-            valueRange = 0f..24f,
-            steps = 11,
+            value = pendingSideMargin.toFloat(),
+            onValueChange = { pendingSideMargin = it.roundToStep(sideMarginSetting) },
+            onValueChangeFinished = { onSideMarginChange(pendingSideMargin) },
+            valueRange = sideMarginSetting.sliderRange(),
+            steps = sideMarginSetting.sliderSteps(),
         )
 
         Text(text = stringResource(R.string.settings_reader_font_family_title), style = MaterialTheme.typography.labelLarge)
@@ -819,6 +843,19 @@ private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 
 private fun List<TocEntry>.flattenToc(depth: Int = 0): List<TocDisplayItem> =
     flatMap { entry -> listOf(TocDisplayItem(entry, depth)) + entry.children.flattenToc(depth + 1) }
+
+private fun IntSetting.sliderRange(): ClosedFloatingPointRange<Float> = range.first.toFloat()..range.last.toFloat()
+
+private fun IntSetting.sliderSteps(): Int = ((range.last - range.first) / step - 1).coerceAtLeast(0)
+
+private fun FloatSetting.sliderSteps(): Int = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
+
+private fun Float.roundToStep(setting: IntSetting): Int = ((this / setting.step).roundToInt() * setting.step).coerceIn(setting.range)
+
+private fun Float.roundToStep(setting: FloatSetting): Float =
+    ((this / setting.step).roundToInt() * setting.step).coerceIn(setting.range.start, setting.range.endInclusive)
+
+private fun Float.roundToTenth(): Float = (this * 10).roundToInt() / 10f
 
 private fun Context.copyTextToClipboard(text: String) {
     val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
