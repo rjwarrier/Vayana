@@ -71,15 +71,22 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         .build()
 
     private fun serveAsset(path: String): WebResourceResponse? {
-        val stream = runCatching { appContext.assets.open(path) }.getOrNull() ?: return null
-        val mimeType = when (path.substringAfterLast('.', "")) {
+        val assetPath = path.trimStart('/')
+        val stream = runCatching { appContext.assets.open(assetPath) }.getOrNull() ?: return null
+        val mimeType = when (assetPath.substringAfterLast('.', "")) {
             "js" -> "text/javascript"
             "html" -> "text/html"
             "json" -> "application/json"
             "css" -> "text/css"
+            "svg" -> "image/svg+xml"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "woff2" -> "font/woff2"
+            "wasm" -> "application/wasm"
             else -> "application/octet-stream"
         }
-        return WebResourceResponse(mimeType, "utf-8", stream)
+        val encoding = if (mimeType.startsWith("text/") || mimeType == "application/json") "utf-8" else null
+        return WebResourceResponse(mimeType, encoding, stream)
     }
 
     init {
@@ -210,6 +217,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val selection = payload.toSelectionOrNull()
                 _events.tryEmit(EngineEvent.SelectionChanged(selection))
             }
+            "log" -> Log.d("FoliateReader", "bridge: $payload")
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")
                 openResult?.complete(Result.failure(IllegalStateException(message)))
