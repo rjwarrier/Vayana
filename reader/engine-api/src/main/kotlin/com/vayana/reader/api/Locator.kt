@@ -44,5 +44,12 @@ sealed interface NavTarget {
 
 sealed interface EngineEvent {
     data class Relocated(val locator: Locator) : EngineEvent
+    data class SelectionChanged(val selection: ReaderSelection?) : EngineEvent
     data class Error(val message: String) : EngineEvent
 }
+
+data class ReaderSelection(
+    val cfi: String,
+    val selectedText: String,
+    val chapterTitle: String?,
+)

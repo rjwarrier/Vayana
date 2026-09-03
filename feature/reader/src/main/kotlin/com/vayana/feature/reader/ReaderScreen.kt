@@ -3,6 +3,7 @@ package com.vayana.feature.reader
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Article
@@ -22,11 +24,14 @@ import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -80,6 +85,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onOpenTocEntry = viewModel::openTocEntry,
         onProgressChange = viewModel::goToProgress,
         onAnnotationClick = viewModel::openAnnotation,
+        onCreateHighlight = viewModel::createHighlight,
+        onCreateUnderline = viewModel::createUnderline,
+        onCreateNote = viewModel::createNote,
         onFontSizeChange = viewModel::updateFontSize,
         onLineHeightChange = viewModel::updateLineHeight,
         onFontFamilyChange = viewModel::updateFontFamily,
@@ -100,6 +108,9 @@ private fun ReaderScreen(
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
     onAnnotationClick: (Annotation) -> Unit,
+    onCreateHighlight: () -> Unit,
+    onCreateUnderline: () -> Unit,
+    onCreateNote: (String) -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -107,6 +118,7 @@ private fun ReaderScreen(
 ) {
     var chromeVisible by remember { mutableStateOf(false) }
     var selectedPanel by remember { mutableStateOf(ReaderPanel.CONTENTS) }
+    var noteDialogVisible by remember { mutableStateOf(false) }
     var containerWidthPx by remember { mutableIntStateOf(0) }
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -195,7 +207,98 @@ private fun ReaderScreen(
                 onFontFamilyChange = onFontFamilyChange,
             )
         }
+
+        (uiState as? ReaderUiState.Loaded)?.selection?.let { selection ->
+            SelectionActions(
+                modifier = Modifier.align(Alignment.TopCenter),
+                selectedText = selection.selectedText,
+                onHighlight = onCreateHighlight,
+                onUnderline = onCreateUnderline,
+                onNote = { noteDialogVisible = true },
+            )
+        }
     }
+
+    if (noteDialogVisible) {
+        NoteDialog(
+            onDismiss = { noteDialogVisible = false },
+            onConfirm = { note ->
+                noteDialogVisible = false
+                onCreateNote(note)
+            },
+        )
+    }
+}
+
+@Composable
+private fun SelectionActions(
+    modifier: Modifier = Modifier,
+    selectedText: String,
+    onHighlight: () -> Unit,
+    onUnderline: () -> Unit,
+    onNote: () -> Unit,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(Paddings.screenHorizontal, Spacing.md),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.medium,
+        tonalElevation = Spacing.xs,
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Text(
+                text = selectedText,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Button(onClick = onHighlight) {
+                    Text(stringResource(R.string.reader_selection_highlight))
+                }
+                Button(onClick = onUnderline) {
+                    Text(stringResource(R.string.reader_selection_underline))
+                }
+                Button(onClick = onNote) {
+                    Text(stringResource(R.string.reader_selection_note))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var note by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.reader_note_dialog_title)) },
+        text = {
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text(stringResource(R.string.reader_note_dialog_label)) },
+                minLines = 3,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(note) }) {
+                Text(stringResource(R.string.reader_note_dialog_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
+            }
+        },
+    )
 }
 
 @Composable

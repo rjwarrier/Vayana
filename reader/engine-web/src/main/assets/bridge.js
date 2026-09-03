@@ -6,6 +6,7 @@ import { Overlayer } from './foliate/overlayer.js'
 
 let view = null
 const renderedAnnotations = new Set()
+const selectionTimers = new WeakMap()
 
 function post(type, payload) {
     if (window.AndroidBridge) window.AndroidBridge.onEvent(type, JSON.stringify(payload ?? {}))
@@ -39,14 +40,18 @@ async function open(bookUrl, lastLocatorCfi) {
             const { cfi, fraction, tocItem } = e.detail
             post('relocate', { cfi, fraction, tocLabel: tocItem?.label?.trim?.() ?? null })
         })
-        view.addEventListener('load', () => post('pageLoaded', {}))
+        view.addEventListener('load', e => {
+            const { doc, index } = e.detail
+            wireSelection(doc, index)
+            post('pageLoaded', {})
+        })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
             const color = annotation.color ?? '#f6c453'
             if (annotation.type === 'underline') {
                 draw((range, options) => {
                     const g = Overlayer.underline(range, options)
-                    g.style.stroke = color
+                    g.setAttribute('fill', color)
                     return g
                 })
             } else {
@@ -81,6 +86,38 @@ function applyStyle(css) {
     if (view?.renderer?.setStyles) view.renderer.setStyles(css)
 }
 
+function wireSelection(doc, index) {
+    doc.addEventListener('selectionchange', () => {
+        clearTimeout(selectionTimers.get(doc))
+        selectionTimers.set(doc, setTimeout(() => postSelection(doc, index), 150))
+    })
+}
+
+function postSelection(doc, index) {
+    const selection = doc.getSelection()
+    if (!selection || !selection.rangeCount || selection.isCollapsed) {
+        post('selection', null)
+        return
+    }
+    const selectedText = selection.toString().trim()
+    if (!selectedText) {
+        post('selection', null)
+        return
+    }
+    const range = selection.getRangeAt(0).cloneRange()
+    post('selection', {
+        cfi: view.getCFI(index, range),
+        selectedText,
+        tocLabel: view.getProgressOf(index, range)?.tocItem?.label?.trim?.() ?? null,
+    })
+}
+
+function clearSelection() {
+    if (!view) return
+    for (const { doc } of view.renderer.getContents()) doc.getSelection()?.removeAllRanges()
+    post('selection', null)
+}
+
 async function renderAnnotations(annotations) {
     if (!view) return
     const nextValues = new Set(annotations.map(annotation => annotation.value))
@@ -96,5 +133,5 @@ async function renderAnnotations(annotations) {
     }
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, renderAnnotations }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, renderAnnotations, clearSelection }
 post('ready', {})

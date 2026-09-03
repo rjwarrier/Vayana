@@ -120,6 +120,12 @@
     <string name="reader_contents">Contents</string>
     <string name="reader_notes">Notes</string>
     <string name="reader_notes_empty">No notes or highlights in this book yet.</string>
+    <string name="reader_selection_highlight">Highlight</string>
+    <string name="reader_selection_underline">Underline</string>
+    <string name="reader_selection_note">Note</string>
+    <string name="reader_note_dialog_title">Add note</string>
+    <string name="reader_note_dialog_label">Note</string>
+    <string name="reader_note_dialog_save">Save</string>
     <string name="reader_progress">Progress</string>
     <string name="reader_style">Style</string>
     <string name="reader_read_aloud">Read aloud</string>

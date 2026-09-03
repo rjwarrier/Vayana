@@ -23,6 +23,7 @@ import com.vayana.reader.api.OpenBook
 import com.vayana.reader.api.ReadTheme
 import com.vayana.reader.api.ReaderAnnotation
 import com.vayana.reader.api.ReaderAnnotationType
+import com.vayana.reader.api.ReaderSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ sealed interface ReaderUiState {
         val toc: List<com.vayana.reader.api.TocEntry>,
         val currentLocator: Locator?,
         val annotations: List<Annotation> = emptyList(),
+        val selection: ReaderSelection? = null,
     ) : ReaderUiState
     data class Failed(val message: String) : ReaderUiState
 }
@@ -103,6 +105,21 @@ class ReaderViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            engine.events().collect { event ->
+                when (event) {
+                    is com.vayana.reader.api.EngineEvent.SelectionChanged -> {
+                        _uiState.update { current ->
+                            if (current is ReaderUiState.Loaded) current.copy(selection = event.selection) else current
+                        }
+                    }
+                    is com.vayana.reader.api.EngineEvent.Error,
+                    is com.vayana.reader.api.EngineEvent.Relocated,
+                    -> Unit
+                }
+            }
+        }
+
+        viewModelScope.launch {
             settings.collect { snapshot ->
                 if (bookOpen) applyReaderStyle(engine, snapshot)
             }
@@ -141,6 +158,18 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontFamily, fontFamily) }
     }
 
+    fun createHighlight() {
+        createAnnotation(type = AnnotationType.HIGHLIGHT, readerNote = null)
+    }
+
+    fun createUnderline() {
+        createAnnotation(type = AnnotationType.UNDERLINE, readerNote = null)
+    }
+
+    fun createNote(note: String) {
+        createAnnotation(type = AnnotationType.NOTE, readerNote = note)
+    }
+
     private fun dispatch(target: NavTarget) {
         val engine = boundEngine ?: return
         viewModelScope.launch { engine.goTo(target) }
@@ -166,6 +195,27 @@ class ReaderViewModel @Inject constructor(
                 _uiState.update { current ->
                     if (current is ReaderUiState.Loaded) current.copy(annotations = annotations) else current
                 }
+            }
+        }
+    }
+
+    private fun createAnnotation(type: AnnotationType, readerNote: String?) {
+        val engine = boundEngine ?: return
+        val selection = (uiState.value as? ReaderUiState.Loaded)?.selection ?: return
+        viewModelScope.launch {
+            annotationRepository.create(
+                bookId = bookId,
+                type = type,
+                colorKey = DefaultAnnotationColor,
+                locator = selection.cfi,
+                chapterTitle = selection.chapterTitle,
+                chapterHref = null,
+                selectedText = selection.selectedText,
+                readerNote = readerNote?.takeIf { it.isNotBlank() },
+            )
+            engine.clearSelection()
+            _uiState.update { current ->
+                if (current is ReaderUiState.Loaded) current.copy(selection = null) else current
             }
         }
     }
@@ -202,3 +252,5 @@ private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when
     AnnotationType.BOOKMARK -> ReaderAnnotationType.BOOKMARK
     AnnotationType.NOTE -> ReaderAnnotationType.NOTE
 }
+
+private const val DefaultAnnotationColor = "yellow"

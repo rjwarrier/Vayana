@@ -18,6 +18,7 @@ interface BookEngine {
     suspend fun goTo(target: NavTarget)
     suspend fun applyStyle(style: BookStyle, theme: ReadTheme)
     suspend fun renderAnnotations(annotations: List<ReaderAnnotation>)
+    suspend fun clearSelection()
     fun events(): Flow<EngineEvent>
     fun close()
 }

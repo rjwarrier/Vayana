@@ -20,6 +20,7 @@ import com.vayana.reader.api.OpenBook
 import com.vayana.reader.api.ReadTheme
 import com.vayana.reader.api.ReaderAnnotation
 import com.vayana.reader.api.ReaderAnnotationType
+import com.vayana.reader.api.ReaderSelection
 import com.vayana.reader.api.TocEntry
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -143,6 +144,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.evaluateJavascript("window.VayanaReader.renderAnnotations($payload)", null)
     }
 
+    override suspend fun clearSelection() {
+        webView.evaluateJavascript("window.VayanaReader.clearSelection()", null)
+    }
+
     override fun events(): Flow<EngineEvent> = _events
 
     override fun close() {
@@ -184,6 +189,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 _location.value = locator
                 _events.tryEmit(EngineEvent.Relocated(locator))
             }
+            "selection" -> {
+                val selection = payload.toSelectionOrNull()
+                _events.tryEmit(EngineEvent.SelectionChanged(selection))
+            }
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")
                 openResult?.complete(Result.failure(IllegalStateException(message)))
@@ -211,6 +220,16 @@ private fun JSONObject.optStringOrNull(name: String): String? =
     if (has(name) && !isNull(name)) getString(name) else null
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
+
+private fun JSONObject.toSelectionOrNull(): ReaderSelection? {
+    val cfi = optStringOrNull("cfi") ?: return null
+    val selectedText = optStringOrNull("selectedText")?.takeIf { it.isNotBlank() } ?: return null
+    return ReaderSelection(
+        cfi = cfi,
+        selectedText = selectedText,
+        chapterTitle = optStringOrNull("tocLabel"),
+    )
+}
 
 private fun ReaderAnnotation.toJson(): JSONObject = JSONObject()
     .put("id", id)
