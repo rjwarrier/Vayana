@@ -1,11 +1,22 @@
 package com.vayana.reader.api
 
-/** A position within a book. [cfi] is the durable, reflow-safe locator; the rest is display-only. */
+/**
+ * A position within a book. [cfi] is the durable, reflow-safe locator; the rest is display-only.
+ * [currentPage] and [totalPages] are an estimate derived from the current font size, line
+ * height, and margins — they shift whenever those settings change and are null until the engine
+ * has measured at least one chapter under the active layout. [chapterMinutesLeft] and
+ * [bookMinutesLeft] use a fixed reading-speed assumption over remaining text, so — unlike page
+ * count — they don't depend on font size or margins.
+ */
 data class Locator(
     val cfi: String?,
     val href: String?,
     val progression: Float,
     val chapterTitle: String?,
+    val currentPage: Int? = null,
+    val totalPages: Int? = null,
+    val chapterMinutesLeft: Int? = null,
+    val bookMinutesLeft: Int? = null,
 )
 
 data class TocEntry(

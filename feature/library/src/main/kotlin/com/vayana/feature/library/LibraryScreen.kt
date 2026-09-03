@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
@@ -34,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -128,6 +130,7 @@ fun LibraryRoute(onBookClick: (Long) -> Unit, onSettingsClick: () -> Unit, modif
         onQueryChange = viewModel::updateQuery,
         onSortChange = viewModel::updateSort,
         onFilterChange = viewModel::updateFilter,
+        onGroupByChange = viewModel::updateGroupBy,
     )
 }
 
@@ -141,11 +144,13 @@ fun BookDetailRoute(
     val viewModel: LibraryViewModel = hiltViewModel()
     val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
     val book by bookFlow.collectAsState()
+    val libraryBooks by viewModel.libraryBooks.collectAsState()
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
 
     BookDetailScreen(
         modifier = modifier,
         book = book,
+        libraryBooks = libraryBooks,
         detailMessage = detailMessage,
         onBack = onBack,
         onContinueReading = onContinueReading,
@@ -184,6 +189,7 @@ private fun LibraryScreen(
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
+    onGroupByChange: (LibraryGroupBy) -> Unit,
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -219,6 +225,7 @@ private fun LibraryScreen(
                 onQueryChange = onQueryChange,
                 onSortChange = onSortChange,
                 onFilterChange = onFilterChange,
+                onGroupByChange = onGroupByChange,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -232,7 +239,12 @@ private fun LibraryScreen(
         if (uiState.books.isEmpty()) {
             LibraryEmptyState(contentPadding = innerPadding, hasControls = uiState.controls != LibraryControls())
         } else {
-            LibraryGrid(books = uiState.books, contentPadding = innerPadding, onBookClick = onBookClick)
+            LibraryGrid(
+                books = uiState.books,
+                groupBy = uiState.controls.groupBy,
+                contentPadding = innerPadding,
+                onBookClick = onBookClick,
+            )
         }
     }
 
@@ -335,8 +347,10 @@ private fun LibraryTopBar(
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
+    onGroupByChange: (LibraryGroupBy) -> Unit,
 ) {
     var filterExpanded by remember { mutableStateOf(false) }
+    var groupExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -364,6 +378,24 @@ private fun LibraryTopBar(
                             onClick = {
                                 filterExpanded = false
                                 onSortChange(sort)
+                            },
+                        )
+                    }
+                }
+                IconButton(onClick = { groupExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Category,
+                        contentDescription = stringResource(R.string.library_group_content_description),
+                        modifier = Modifier.size(Sizes.icon),
+                    )
+                }
+                DropdownMenu(expanded = groupExpanded, onDismissRequest = { groupExpanded = false }) {
+                    LibraryGroupBy.entries.forEach { groupBy ->
+                        DropdownMenuItem(
+                            text = { Text(groupBy.label()) },
+                            onClick = {
+                                groupExpanded = false
+                                onGroupByChange(groupBy)
                             },
                         )
                     }
@@ -485,8 +517,16 @@ private fun LibraryAddMenuIcon(icon: ImageVector) {
     }
 }
 
+private data class LibraryGroupSection(val label: String, val books: List<Book>)
+
 @Composable
-private fun LibraryGrid(books: List<Book>, contentPadding: PaddingValues, onBookClick: (Long) -> Unit) {
+private fun LibraryGrid(
+    books: List<Book>,
+    groupBy: LibraryGroupBy,
+    contentPadding: PaddingValues,
+    onBookClick: (Long) -> Unit,
+) {
+    val sections = books.toGroupSections(groupBy)
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
         modifier = Modifier.fillMaxSize(),
@@ -499,9 +539,53 @@ private fun LibraryGrid(books: List<Book>, contentPadding: PaddingValues, onBook
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        gridItems(books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
+        if (sections == null) {
+            gridItems(books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
+        } else {
+            sections.forEach { section ->
+                item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = section.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.xs),
+                    )
+                }
+                gridItems(section.books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
+            }
+        }
     }
 }
+
+/** Null when [mode] is [LibraryGroupBy.NONE] — callers fall back to the flat, ungrouped grid. */
+@Composable
+private fun List<Book>.toGroupSections(mode: LibraryGroupBy): List<LibraryGroupSection>? {
+    if (mode == LibraryGroupBy.NONE) return null
+    val unknownLabel = when (mode) {
+        LibraryGroupBy.AUTHOR -> stringResource(R.string.library_group_unknown_author)
+        LibraryGroupBy.SERIES -> stringResource(R.string.library_group_unknown_series)
+        LibraryGroupBy.NONE -> ""
+    }
+    return remember(this, mode, unknownLabel) {
+        val keyOf: (Book) -> String? = when (mode) {
+            LibraryGroupBy.AUTHOR -> { book -> book.author }
+            LibraryGroupBy.SERIES -> { book -> book.series }
+            LibraryGroupBy.NONE -> { _ -> null }
+        }
+        groupBy { book -> keyOf(book)?.trim()?.takeIf(String::isNotBlank) }
+            .entries
+            .sortedWith(compareBy(nullsLast(String.CASE_INSENSITIVE_ORDER)) { it.key })
+            .map { (key, groupBooks) ->
+                LibraryGroupSection(
+                    label = key ?: unknownLabel,
+                    books = if (mode == LibraryGroupBy.SERIES) groupBooks.sortedBySeriesNumber() else groupBooks,
+                )
+            }
+    }
+}
+
+private fun List<Book>.sortedBySeriesNumber(): List<Book> = sortedWith(
+    compareBy<Book, Double?>(nullsLast()) { it.seriesNumber?.toDoubleOrNull() }.thenBy { it.title.lowercase() },
+)
 
 @Composable
 private fun BookCoverCell(book: Book, onClick: () -> Unit) {
@@ -529,6 +613,7 @@ private fun BookCoverCell(book: Book, onClick: () -> Unit) {
 private fun BookDetailScreen(
     modifier: Modifier = Modifier,
     book: Book?,
+    libraryBooks: List<Book>,
     detailMessage: BookDetailMessage?,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
@@ -732,6 +817,7 @@ private fun BookDetailScreen(
     if (showEditDialog && book != null) {
         EditMetadataDialog(
             book = book,
+            libraryBooks = libraryBooks,
             onDismiss = { showEditDialog = false },
             onSave = { title, author, series, seriesNumber, description ->
                 showEditDialog = false
@@ -770,6 +856,7 @@ private fun CoverPreviewDialog(book: Book, onDismiss: () -> Unit) {
 @Composable
 private fun EditMetadataDialog(
     book: Book,
+    libraryBooks: List<Book>,
     onDismiss: () -> Unit,
     onSave: (String, String, String, String, String) -> Unit,
 ) {
@@ -778,7 +865,16 @@ private fun EditMetadataDialog(
     var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
     var seriesNumber by remember(book.id) { mutableStateOf(book.seriesNumber.orEmpty()) }
     var description by remember(book.id) { mutableStateOf(book.description.orEmpty()) }
-    val canSave = title.isNotBlank()
+    val authorSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.author } }
+    val seriesSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.series } }
+    val duplicateSeriesNumber = remember(book.id, libraryBooks, series, seriesNumber) {
+        libraryBooks.hasSeriesNumberCollision(
+            currentBookId = book.id,
+            series = series,
+            seriesNumber = seriesNumber,
+        )
+    }
+    val canSave = title.isNotBlank() && !duplicateSeriesNumber
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -823,19 +919,17 @@ private fun EditMetadataDialog(
                     singleLine = true,
                     isError = !canSave,
                 )
-                OutlinedTextField(
+                MetadataSuggestionField(
                     value = author,
                     onValueChange = { author = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.library_edit_metadata_author_label)) },
-                    singleLine = true,
+                    suggestions = authorSuggestions,
+                    label = stringResource(R.string.library_edit_metadata_author_label),
                 )
-                OutlinedTextField(
+                MetadataSuggestionField(
                     value = series,
                     onValueChange = { series = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.library_edit_metadata_series_label)) },
-                    singleLine = true,
+                    suggestions = seriesSuggestions,
+                    label = stringResource(R.string.library_edit_metadata_series_label),
                 )
                 OutlinedTextField(
                     value = seriesNumber,
@@ -843,6 +937,12 @@ private fun EditMetadataDialog(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_series_number_label)) },
                     singleLine = true,
+                    isError = duplicateSeriesNumber,
+                    supportingText = {
+                        if (duplicateSeriesNumber) {
+                            Text(stringResource(R.string.library_edit_metadata_series_number_taken))
+                        }
+                    },
                 )
                 OutlinedTextField(
                     value = description,
@@ -870,6 +970,52 @@ private fun EditMetadataDialog(
                         Text(stringResource(R.string.library_edit_metadata_save))
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetadataSuggestionField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    suggestions: List<String>,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val matches = remember(value, suggestions) { suggestions.matchingMetadataSuggestions(value) }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                onValueChange(it)
+                expanded = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(label) },
+            singleLine = true,
+        )
+        DropdownMenu(
+            expanded = expanded && matches.isNotEmpty(),
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            matches.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = suggestion,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    onClick = {
+                        onValueChange(suggestion)
+                        expanded = false
+                    },
+                )
             }
         }
     }
@@ -1001,6 +1147,13 @@ private fun LibrarySort.label(): String = when (this) {
 }
 
 @Composable
+private fun LibraryGroupBy.label(): String = when (this) {
+    LibraryGroupBy.NONE -> stringResource(R.string.library_group_none)
+    LibraryGroupBy.AUTHOR -> stringResource(R.string.library_group_author)
+    LibraryGroupBy.SERIES -> stringResource(R.string.library_group_series)
+}
+
+@Composable
 private fun LibraryFilter.label(): String = when (this) {
     LibraryFilter.ALL -> stringResource(R.string.library_filter_all)
     LibraryFilter.READING -> stringResource(R.string.library_filter_reading)
@@ -1061,6 +1214,34 @@ private fun BookFormat.shareMimeType(): String = when (this) {
     -> "application/octet-stream"
 }
 
+private fun List<Book>.metadataSuggestions(selector: (Book) -> String?): List<String> =
+    mapNotNull { book -> selector(book)?.trim()?.takeIf { it.isNotEmpty() } }
+        .distinctBy { it.metadataKey() }
+        .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
+private fun List<String>.matchingMetadataSuggestions(value: String): List<String> {
+    val query = value.trim()
+    return filter { suggestion ->
+        query.isEmpty() || suggestion.contains(query, ignoreCase = true)
+    }.filterNot { suggestion ->
+        suggestion.equals(query, ignoreCase = true)
+    }.take(MetadataSuggestionLimit)
+}
+
+private fun List<Book>.hasSeriesNumberCollision(currentBookId: Long, series: String, seriesNumber: String): Boolean {
+    val normalizedSeries = series.metadataKey()
+    val normalizedNumber = seriesNumber.metadataKey()
+    if (normalizedNumber.isEmpty()) return false
+
+    return any { book ->
+        book.id != currentBookId &&
+            book.series.orEmpty().metadataKey() == normalizedSeries &&
+            book.seriesNumber.orEmpty().metadataKey() == normalizedNumber
+    }
+}
+
+private fun String.metadataKey(): String = trim().lowercase()
+
 @Composable
 private fun Book.seriesDisplay(): String = listOfNotNull(
     series?.takeIf { it.isNotBlank() },
@@ -1072,5 +1253,6 @@ private fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.ME
 private val LibraryAddFabSize = 64.dp
 private val LibraryAddMenuMinWidth = 232.dp
 private val LibraryAddMenuItemMinHeight = 64.dp
+private const val MetadataSuggestionLimit = 5
 private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f

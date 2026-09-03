@@ -23,6 +23,7 @@ import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.ReaderSelection
 import com.vayana.reader.api.TocEntry
 import java.io.File
+import kotlin.math.ceil
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,6 +37,8 @@ private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
 private const val ReaderOpenTimeoutMillis = 15_000L
+private const val EinkBackgroundArgb = -0x1
+private const val EinkForegroundArgb = -0x1000000
 
 /**
  * `:reader:engine-api`'s default implementation: foliate-js running inside a [WebView], driven
@@ -141,6 +144,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     override suspend fun applyStyle(style: BookStyle, theme: ReadTheme) {
         val margin = style.sideMarginPercent.coerceIn(0, 24)
         val lineHeight = style.lineHeight.coerceIn(1.2f, 4.0f)
+        val isEinkTheme = theme.backgroundColorArgb == EinkBackgroundArgb && theme.textColorArgb == EinkForegroundArgb
         val css = buildString {
             append("html{")
             append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
@@ -156,6 +160,22 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             append("body p,body div,body span,body li,body blockquote,body dd,body dt,body a,body em,body strong{")
             append("line-height:inherit !important;")
             append("}")
+            if (isEinkTheme) {
+                append("*,*::before,*::after{")
+                append("animation:none !important;")
+                append("transition:none !important;")
+                append("text-shadow:none !important;")
+                append("box-shadow:none !important;")
+                append("filter:none !important;")
+                append("}")
+                append("a{")
+                append("color:${theme.textColorArgb.toCssColor()} !important;")
+                append("text-decoration:underline !important;")
+                append("}")
+                append("img,svg,video,canvas{")
+                append("filter:grayscale(1) contrast(1.15) !important;")
+                append("}")
+            }
         }
         webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin)", null)
     }
@@ -213,6 +233,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                     href = null,
                     progression = payload.optDouble("fraction", 0.0).toFloat(),
                     chapterTitle = payload.optStringOrNull("tocLabel"),
+                    currentPage = payload.optIntOrNull("currentPage"),
+                    totalPages = payload.optIntOrNull("totalPages"),
+                    chapterMinutesLeft = payload.optMinutesOrNull("chapterMinutesLeft"),
+                    bookMinutesLeft = payload.optMinutesOrNull("bookMinutesLeft"),
                 )
                 _location.value = locator
                 _events.tryEmit(EngineEvent.Relocated(locator))
@@ -247,6 +271,12 @@ private fun JSONArray.toTocEntries(): List<TocEntry> = buildList {
 
 private fun JSONObject.optStringOrNull(name: String): String? =
     if (has(name) && !isNull(name)) getString(name) else null
+
+private fun JSONObject.optIntOrNull(name: String): Int? =
+    if (has(name) && !isNull(name)) getInt(name) else null
+
+private fun JSONObject.optMinutesOrNull(name: String): Int? =
+    if (has(name) && !isNull(name)) ceil(getDouble(name)).toInt().coerceAtLeast(0) else null
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
 

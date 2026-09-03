@@ -9,6 +9,61 @@ const renderedAnnotations = new Set()
 const selectionTimers = new WeakMap()
 let readerSideMarginPercent = 10
 
+// Dynamic page-count estimate: foliate's paginator lays out each chapter into CSS columns
+// sized by the live font-size/line-height/margin, so `renderer.pages` for the chapter you're
+// on is already a real, current measurement. We sample it per chapter into `bytesPerPage` and
+// extrapolate a whole-book estimate from each section's known byte size — no extra rendering,
+// just arithmetic over numbers the renderer already computed for the current page turn.
+let sectionByteSizes = null
+const bytesPerPage = new Map()
+
+function resetPageEstimate() {
+    bytesPerPage.clear()
+}
+
+function bookPageStats(sectionIndex) {
+    const renderer = view?.renderer
+    if (!renderer || typeof renderer.pages !== 'number') return null
+    const pages = renderer.pages
+    const page = renderer.page
+    if (!Number.isFinite(pages) || pages <= 0 || !Number.isFinite(page)) return null
+
+    if (!sectionByteSizes) {
+        sectionByteSizes = view.book.sections.map(s => s.linear !== 'no' && s.size > 0 ? s.size : 0)
+    }
+    // paginator reserves one blank column at each end for the header/footer margins.
+    const pagesInSection = Math.max(1, pages - 2)
+    const pageInSection = Math.min(pagesInSection, Math.max(1, page - 1))
+
+    const sectionSize = sectionByteSizes[sectionIndex] || 0
+    if (sectionSize > 0) bytesPerPage.set(sectionIndex, sectionSize / pagesInSection)
+
+    let knownSize = 0
+    let knownPages = 0
+    for (const [i, bpp] of bytesPerPage) {
+        knownSize += sectionByteSizes[i]
+        knownPages += sectionByteSizes[i] / bpp
+    }
+    const avgBytesPerPage = knownPages > 0 ? knownSize / knownPages : (sectionSize / pagesInSection || 1600)
+
+    const estimatePages = (fromIndex, toIndex) => {
+        let total = 0
+        for (let i = fromIndex; i < toIndex; i++) {
+            const size = sectionByteSizes[i]
+            if (!size) continue
+            total += size / (bytesPerPage.get(i) ?? avgBytesPerPage)
+        }
+        return total
+    }
+
+    const pagesBefore = Math.round(estimatePages(0, sectionIndex))
+    const pagesAfter = Math.round(estimatePages(sectionIndex + 1, sectionByteSizes.length))
+    return {
+        currentPage: pagesBefore + pageInSection,
+        totalPages: pagesBefore + pagesInSection + pagesAfter,
+    }
+}
+
 function post(type, payload) {
     if (window.AndroidBridge) window.AndroidBridge.onEvent(type, JSON.stringify(payload ?? {}))
 }
@@ -37,9 +92,22 @@ async function open(bookUrl, lastLocatorCfi) {
 
         view = document.createElement('foliate-view')
         document.body.append(view)
+        sectionByteSizes = null
+        resetPageEstimate()
         view.addEventListener('relocate', e => {
-            const { cfi, fraction, tocItem } = e.detail
-            post('relocate', { cfi, fraction, tocLabel: tocItem?.label?.trim?.() ?? null })
+            const { cfi, fraction, tocItem, section, time } = e.detail
+            const pageStats = bookPageStats(section?.current ?? 0)
+            post('relocate', {
+                cfi,
+                fraction,
+                tocLabel: tocItem?.label?.trim?.() ?? null,
+                currentPage: pageStats?.currentPage ?? null,
+                totalPages: pageStats?.totalPages ?? null,
+                // Minutes remaining at foliate's fixed reading-speed assumption (chars/min) —
+                // text remaining to read, so unlike page count this is independent of font size.
+                chapterMinutesLeft: Number.isFinite(time?.section) ? time.section : null,
+                bookMinutesLeft: Number.isFinite(time?.total) ? time.total : null,
+            })
         })
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
@@ -85,14 +153,19 @@ function goToHref(href) { view?.goTo(href) }
 
 function applyReaderMargin(percent) {
     readerSideMarginPercent = Math.max(0, Math.min(24, Number(percent) || 0))
-    const marginPx = Math.round(innerWidth * readerSideMarginPercent / 100)
+    const viewportWidth = window.visualViewport?.width || innerWidth
+    const marginPx = Math.round(viewportWidth * readerSideMarginPercent / 100)
+    const maxInlineSizePx = Math.max(240, Math.round(viewportWidth - marginPx * 2))
     if (view?.renderer) {
-        view.renderer.setAttribute('margin', `${marginPx}px`)
+        view.renderer.setAttribute('max-inline-size', `${maxInlineSizePx}px`)
         view.renderer.render?.()
     }
 }
 
 function applyStyle(css, sideMarginPercent) {
+    // Font/line-height changes invalidate every sampled bytes-per-page density: a chapter
+    // measured under the old layout no longer reflects how many pages it takes now.
+    resetPageEstimate()
     if (view?.renderer?.setStyles) view.renderer.setStyles(css)
     applyReaderMargin(sideMarginPercent)
 }

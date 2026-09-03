@@ -1,5 +1,6 @@
 package com.vayana.feature.reader
 
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.filesystem.StorageRoots
@@ -183,6 +185,14 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderKeepAwake, enabled) }
     }
 
+    fun updateShowHeaders(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderShowHeaders, enabled) }
+    }
+
+    fun updateShowFooter(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderShowFooter, enabled) }
+    }
+
     fun createHighlight(colorKey: String = DefaultAnnotationColor) {
         createAnnotation(type = AnnotationType.HIGHLIGHT, colorKey = colorKey, readerNote = null)
     }
@@ -294,15 +304,24 @@ private val ReaderFontFamily.cssFamily: String
 
 private val SettingsSnapshot.readTheme: ReadTheme
     get() = when {
-        readerTheme == ReaderTheme.LIGHT -> ReadTheme(backgroundColorArgb = 0xFFFFFFFF.toInt(), textColorArgb = 0xFF172033.toInt())
-        readerTheme == ReaderTheme.SEPIA -> ReadTheme(backgroundColorArgb = 0xFFFFFBF3.toInt(), textColorArgb = 0xFF172033.toInt())
-        readerTheme == ReaderTheme.DARK -> ReadTheme(backgroundColorArgb = 0xFF111827.toInt(), textColorArgb = 0xFFF8F4EC.toInt())
-        displayProfile == DisplayProfile.E_INK -> ReadTheme(backgroundColorArgb = 0xFFFFFFFF.toInt(), textColorArgb = 0xFF000000.toInt())
-        themeMode == ThemeMode.DARK -> ReadTheme(backgroundColorArgb = 0xFF111827.toInt(), textColorArgb = 0xFFF8F4EC.toInt())
-        else -> ReadTheme(backgroundColorArgb = 0xFFFFFBF3.toInt(), textColorArgb = 0xFF172033.toInt())
+        displayProfile == DisplayProfile.E_INK -> Palette.EinkBackground.toReadTheme(Palette.EinkForeground)
+        readerTheme == ReaderTheme.LIGHT -> Palette.ReaderLightBackground.toReadTheme(Palette.ReaderLightText)
+        readerTheme == ReaderTheme.PAPER -> Palette.ReaderPaperBackground.toReadTheme(Palette.ReaderPaperText)
+        readerTheme == ReaderTheme.SEPIA -> Palette.ReaderSepiaBackground.toReadTheme(Palette.ReaderSepiaText)
+        readerTheme == ReaderTheme.MINT -> Palette.ReaderMintBackground.toReadTheme(Palette.ReaderMintText)
+        readerTheme == ReaderTheme.SKY -> Palette.ReaderSkyBackground.toReadTheme(Palette.ReaderSkyText)
+        readerTheme == ReaderTheme.ROSE -> Palette.ReaderRoseBackground.toReadTheme(Palette.ReaderRoseText)
+        readerTheme == ReaderTheme.DARK -> Palette.ReaderDarkBackground.toReadTheme(Palette.ReaderDarkText)
+        readerTheme == ReaderTheme.OLED -> Palette.ReaderOledBackground.toReadTheme(Palette.ReaderOledText)
+        themeMode == ThemeMode.DARK -> Palette.ReaderDarkBackground.toReadTheme(Palette.ReaderDarkText)
+        else -> Palette.ReaderPaperBackground.toReadTheme(Palette.ReaderPaperText)
     }
 
+private fun androidx.compose.ui.graphics.Color.toReadTheme(textColor: androidx.compose.ui.graphics.Color): ReadTheme =
+    ReadTheme(backgroundColorArgb = toArgb(), textColorArgb = textColor.toArgb())
+
 private fun Annotation.toReaderAnnotation(): ReaderAnnotation? {
+    if (type == AnnotationType.BOOKMARK) return null
     val cfi = locator.takeIf { it.isNotBlank() } ?: return null
     return ReaderAnnotation(
         id = id.toString(),

@@ -38,12 +38,28 @@ object Palette {
     val WarmWhite = Color(0xFFE8E0D0)
     val SepiaSurface = Color(0xFFFFE8BF)
     val DarkReaderSurface = Color(0xFF111827)
+    val ReaderLightBackground = White
+    val ReaderLightText = Color(0xFF172033)
+    val ReaderPaperBackground = Color(0xFFF7F1E6)
+    val ReaderPaperText = Color(0xFF231F1A)
+    val ReaderSepiaBackground = Color(0xFFEED3A3)
+    val ReaderSepiaText = Color(0xFF2B2115)
+    val ReaderMintBackground = Color(0xFFE5F3EA)
+    val ReaderMintText = Color(0xFF14251D)
+    val ReaderSkyBackground = Color(0xFFE7F0FA)
+    val ReaderSkyText = Color(0xFF142133)
+    val ReaderRoseBackground = Color(0xFFF7E8EA)
+    val ReaderRoseText = Color(0xFF2B181D)
+    val ReaderDarkBackground = DarkReaderSurface
+    val ReaderDarkText = Color(0xFFF8F4EC)
 
     val TextMutedDark = Color(0xFF8A9BB0)
     val TextMutedLight = Color(0xFF6B7280)
 
     val Amoled = Color(0xFF000000)
     val NearBlack = Color(0xFF0A0A0A)
+    val ReaderOledBackground = Amoled
+    val ReaderOledText = Color(0xFFEDEDED)
 
     val Gold500 = Color(0xFFC9A84C)
     val Gold300 = Color(0xFFE2C97E)

@@ -64,10 +64,13 @@ enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
 
 enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
 
+enum class LibraryGroupBy { NONE, AUTHOR, SERIES }
+
 data class LibraryControls(
     val query: String = "",
     val sort: LibrarySort = LibrarySort.IMPORT_DATE,
     val filter: LibraryFilter = LibraryFilter.ALL,
+    val groupBy: LibraryGroupBy = LibraryGroupBy.NONE,
 )
 
 data class LibraryUiState(
@@ -90,7 +93,10 @@ class LibraryViewModel @Inject constructor(
     private val allBooks: Flow<List<Book>> = bookRepository.observeAll()
         .map { books -> books.map { it.withAbsolutePaths() } }
 
-    val uiState: StateFlow<LibraryUiState> = combine(allBooks, controls) { books, controls ->
+    val libraryBooks: StateFlow<List<Book>> =
+        allBooks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val uiState: StateFlow<LibraryUiState> = combine(libraryBooks, controls) { books, controls ->
         LibraryUiState(
             books = books
                 .filterBy(controls.filter)
@@ -100,7 +106,7 @@ class LibraryViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
-    fun observeBook(bookId: Long): StateFlow<Book?> = allBooks
+    fun observeBook(bookId: Long): StateFlow<Book?> = libraryBooks
         .map { books -> books.firstOrNull { it.id == bookId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -123,6 +129,10 @@ class LibraryViewModel @Inject constructor(
 
     fun updateFilter(filter: LibraryFilter) {
         controls.update { it.copy(filter = filter) }
+    }
+
+    fun updateGroupBy(groupBy: LibraryGroupBy) {
+        controls.update { it.copy(groupBy = groupBy) }
     }
 
     fun deleteBook(bookId: Long) {

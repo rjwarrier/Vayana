@@ -3,17 +3,19 @@ package com.vayana.feature.reader
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.text.format.DateFormat
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,6 +62,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -75,8 +78,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
@@ -87,12 +88,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.datastore.settings.FloatSetting
 import com.vayana.core.datastore.settings.IntSetting
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
@@ -101,10 +106,12 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import com.vayana.reader.api.BookEngine
+import com.vayana.reader.api.Locator
 import com.vayana.reader.api.TocEntry
 import com.vayana.reader.web.FoliateBookEngine
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 @Composable
 fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -134,11 +141,13 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onSideMarginChange = viewModel::updateSideMargin,
         onVolumeKeysChange = viewModel::updateVolumeKeys,
         onKeepAwakeChange = viewModel::updateKeepAwake,
+        onShowHeadersChange = viewModel::updateShowHeaders,
+        onShowFooterChange = viewModel::updateShowFooter,
         onBack = onBack,
     )
 }
 
-private enum class ReaderPanel { CONTENTS, NOTES, PROGRESS, STYLE }
+private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE }
 
 private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
     YELLOW("yellow", R.string.reader_selection_highlight_yellow, Color(0xFFF6C453)),
@@ -170,12 +179,16 @@ private fun ReaderScreen(
     onSideMarginChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepAwakeChange: (Boolean) -> Unit,
+    onShowHeadersChange: (Boolean) -> Unit,
+    onShowFooterChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var chromeVisible by remember { mutableStateOf(false) }
     var selectedPanel by remember { mutableStateOf(ReaderPanel.CONTENTS) }
     var noteDialogVisible by remember { mutableStateOf(false) }
-    var containerWidthPx by remember { mutableIntStateOf(0) }
+    var footerShowsBookTime by remember { mutableStateOf(false) }
+    val sessionStartMillis = remember { System.currentTimeMillis() }
+    var nowMillis by remember { mutableLongStateOf(sessionStartMillis) }
     val context = LocalContext.current
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -183,10 +196,11 @@ private fun ReaderScreen(
     val focusRequester = remember { FocusRequester() }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
-        val third = width / 3f
+        val menuStart = width / 3f
+        val menuEnd = menuStart * 2f
         when {
-            x < third -> onTapPrevious()
-            x > third * 2 -> onTapNext()
+            x < menuStart -> onTapPrevious()
+            x > menuEnd -> onTapNext()
             chromeVisible -> chromeVisible = false
             else -> {
                 selectedPanel = ReaderPanel.STYLE
@@ -235,6 +249,13 @@ private fun ReaderScreen(
         focusRequester.requestFocus()
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -254,12 +275,7 @@ private fun ReaderScreen(
                     else -> false
                 }
             }
-            .onSizeChanged { size -> containerWidthPx = size.width }
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    onReaderTapState.value(offset.x, containerWidthPx)
-                }
-            },
+            .background(settings.readerBackgroundColor()),
     ) {
         AndroidView(
             modifier = Modifier
@@ -271,6 +287,9 @@ private fun ReaderScreen(
                 var downY = 0f
                 val webView = WebView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    overScrollMode = View.OVER_SCROLL_NEVER
+                    isHorizontalScrollBarEnabled = false
+                    isVerticalScrollBarEnabled = false
                     setOnKeyListener { _, keyCode, event -> onHardwarePageKeyState.value(keyCode, event.action) }
                     setOnTouchListener { view, event ->
                         when (event.actionMasked) {
@@ -300,6 +319,38 @@ private fun ReaderScreen(
                 container.removeAllViews()
             },
         )
+
+        if (settings.readerShowHeaders) {
+            ReaderClockHeader(
+                modifier = Modifier.align(Alignment.TopCenter),
+                nowMillis = nowMillis,
+            )
+            ReaderSessionHeader(
+                modifier = Modifier.align(Alignment.TopStart),
+                nowMillis = nowMillis,
+                sessionStartMillis = sessionStartMillis,
+            )
+        }
+
+        if (uiState is ReaderUiState.Loaded && settings.readerShowHeaders) {
+            ReaderTimeLeftHeader(
+                modifier = Modifier.align(Alignment.TopEnd),
+                locator = uiState.currentLocator,
+                showBookTime = footerShowsBookTime,
+                onToggle = { footerShowsBookTime = !footerShowsBookTime },
+            )
+        }
+
+        if (uiState is ReaderUiState.Loaded && settings.readerShowFooter) {
+            ReaderPageNumberFooter(
+                modifier = Modifier.align(Alignment.BottomStart),
+                locator = uiState.currentLocator,
+            )
+            ReaderBookProgressFooter(
+                modifier = Modifier.align(Alignment.BottomEnd),
+                locator = uiState.currentLocator,
+            )
+        }
 
         if (uiState is ReaderUiState.Loading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -338,6 +389,8 @@ private fun ReaderScreen(
                 onSideMarginChange = onSideMarginChange,
                 onVolumeKeysChange = onVolumeKeysChange,
                 onKeepAwakeChange = onKeepAwakeChange,
+                onShowHeadersChange = onShowHeadersChange,
+                onShowFooterChange = onShowFooterChange,
                 onCreateBookmark = onCreateBookmark,
             )
         }
@@ -369,6 +422,164 @@ private fun ReaderScreen(
 }
 
 @Composable
+private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long) {
+    val clockText = remember(nowMillis) { DateFormat.format("hh:mm a", nowMillis).toString() }
+    Surface(
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(top = Spacing.sm),
+        color = readerHudSurfaceColor(),
+        shape = MaterialTheme.shapes.extraLarge,
+        tonalElevation = readerHudElevation(),
+    ) {
+        Text(
+            text = clockText,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun ReaderSessionHeader(
+    modifier: Modifier = Modifier,
+    nowMillis: Long,
+    sessionStartMillis: Long,
+) {
+    val sessionMinutes = ((nowMillis - sessionStartMillis) / 60_000L).coerceAtLeast(0L).toInt()
+    Surface(
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(start = Spacing.md, top = Spacing.sm),
+        color = readerHudSurfaceColor(),
+        shape = MaterialTheme.shapes.extraLarge,
+        tonalElevation = readerHudElevation(),
+    ) {
+        Text(
+            text = stringResource(R.string.reader_header_session_minutes, sessionMinutes),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun ReaderTimeLeftHeader(
+    modifier: Modifier = Modifier,
+    locator: Locator?,
+    showBookTime: Boolean,
+    onToggle: () -> Unit,
+) {
+    val minutesLeft = if (showBookTime) locator?.bookMinutesLeft else locator?.chapterMinutesLeft
+    if (minutesLeft == null) return
+    val labelRes = if (showBookTime) R.string.reader_footer_time_left_book else R.string.reader_footer_time_left_chapter
+    Surface(
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(end = Spacing.md, top = Spacing.sm)
+            .clickable(onClick = onToggle),
+        color = readerHudSurfaceColor(),
+        shape = MaterialTheme.shapes.extraLarge,
+        tonalElevation = readerHudElevation(),
+    ) {
+        Text(
+            text = stringResource(labelRes, formatMinutes(minutesLeft)),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun ReaderPageNumberFooter(
+    modifier: Modifier = Modifier,
+    locator: Locator?,
+) {
+    val currentPage = locator?.currentPage
+    val totalPages = locator?.totalPages
+    if (currentPage == null || totalPages == null) return
+    Surface(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(start = Spacing.md, bottom = Spacing.sm),
+        color = readerHudSurfaceColor(),
+        shape = MaterialTheme.shapes.extraLarge,
+        tonalElevation = readerHudElevation(),
+    ) {
+        Text(
+            text = stringResource(R.string.reader_progress_page_of, currentPage, totalPages),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun ReaderBookProgressFooter(
+    modifier: Modifier = Modifier,
+    locator: Locator?,
+) {
+    val progress = locator?.progression ?: return
+    Surface(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(end = Spacing.md, bottom = Spacing.sm),
+        color = readerHudSurfaceColor(),
+        shape = MaterialTheme.shapes.extraLarge,
+        tonalElevation = readerHudElevation(),
+    ) {
+        Text(
+            text = stringResource(R.string.reader_progress_percent, (progress * 100).roundToInt()),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun readerHudSurfaceColor(): Color =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = ReaderHudStandardAlpha)
+    }
+
+@Composable
+private fun readerHudElevation() =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs
+
+@Composable
+private fun readerChromeSurfaceColor(): Color =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+
+@Composable
+private fun readerChromeElevation() =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm
+
+@Composable
+private fun readerChromeHandleColor(): Color =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+        MaterialTheme.colorScheme.outline
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    }
+
+@Composable
+private fun formatMinutes(totalMinutes: Int): String {
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) {
+        stringResource(R.string.reader_duration_hours_minutes, hours, minutes)
+    } else {
+        stringResource(R.string.reader_duration_minutes, minutes)
+    }
+}
+
+@Composable
 private fun SelectionActions(
     modifier: Modifier = Modifier,
     selectedText: String,
@@ -382,10 +593,10 @@ private fun SelectionActions(
             .statusBarsPadding()
             .fillMaxWidth()
             .padding(Paddings.screenHorizontal, Spacing.md),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
-        tonalElevation = Spacing.sm,
-        shadowElevation = Spacing.xs,
+        tonalElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm,
+        shadowElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs,
     ) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             Text(
@@ -478,16 +689,18 @@ private fun ReaderChrome(
     onSideMarginChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepAwakeChange: (Boolean) -> Unit,
+    onShowHeadersChange: (Boolean) -> Unit,
+    onShowFooterChange: (Boolean) -> Unit,
     onCreateBookmark: () -> Unit,
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = readerChromeSurfaceColor(),
         shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
-        tonalElevation = Spacing.md,
-        shadowElevation = Spacing.sm,
+        tonalElevation = readerChromeElevation(),
+        shadowElevation = readerChromeElevation(),
     ) {
         Column(
             modifier = Modifier
@@ -500,7 +713,7 @@ private fun ReaderChrome(
                     .align(Alignment.CenterHorizontally)
                     .size(width = Sizes.touchTarget, height = Spacing.xs)
                     .background(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                        color = readerChromeHandleColor(),
                         shape = CircleShape,
                     ),
             )
@@ -534,6 +747,9 @@ private fun ReaderChrome(
                 ReaderPanelButton(Icons.Outlined.Article, R.string.reader_contents, selectedPanel == ReaderPanel.CONTENTS) {
                     onPanelSelected(ReaderPanel.CONTENTS)
                 }
+                ReaderPanelButton(Icons.Outlined.BookmarkAdd, R.string.notes_filter_bookmarks, selectedPanel == ReaderPanel.BOOKMARKS) {
+                    onPanelSelected(ReaderPanel.BOOKMARKS)
+                }
                 ReaderPanelButton(Icons.Outlined.EditNote, R.string.reader_notes, selectedPanel == ReaderPanel.NOTES) {
                     onPanelSelected(ReaderPanel.NOTES)
                 }
@@ -546,6 +762,11 @@ private fun ReaderChrome(
             }
             when (selectedPanel) {
                 ReaderPanel.CONTENTS -> ContentsPanel(uiState = uiState, onOpenTocEntry = onOpenTocEntry)
+                ReaderPanel.BOOKMARKS -> BookmarksPanel(
+                    uiState = uiState,
+                    onCreateBookmark = onCreateBookmark,
+                    onBookmarkClick = onAnnotationClick,
+                )
                 ReaderPanel.PROGRESS -> ProgressPanel(uiState = uiState, onProgressChange = onProgressChange)
                 ReaderPanel.STYLE -> StylePanel(
                     settings = settings,
@@ -556,6 +777,8 @@ private fun ReaderChrome(
                     onSideMarginChange = onSideMarginChange,
                     onVolumeKeysChange = onVolumeKeysChange,
                     onKeepAwakeChange = onKeepAwakeChange,
+                    onShowHeadersChange = onShowHeadersChange,
+                    onShowFooterChange = onShowFooterChange,
                 )
                 ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
             }
@@ -565,11 +788,22 @@ private fun ReaderChrome(
 
 @Composable
 private fun ReaderPanelButton(icon: ImageVector, labelRes: Int, selected: Boolean, onClick: () -> Unit) {
+    val isEink = LocalDisplayProfile.current == DisplayProfile.E_INK
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        tonalElevation = if (selected) Elevations.shadowSmall else Elevations.none,
+        color = when {
+            isEink && selected -> MaterialTheme.colorScheme.inverseSurface
+            isEink -> MaterialTheme.colorScheme.surface
+            selected -> MaterialTheme.colorScheme.primaryContainer
+            else -> MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        contentColor = when {
+            isEink && selected -> MaterialTheme.colorScheme.inverseOnSurface
+            isEink -> MaterialTheme.colorScheme.onSurface
+            selected -> MaterialTheme.colorScheme.onPrimaryContainer
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        tonalElevation = if (selected && !isEink) Elevations.shadowSmall else Elevations.none,
     ) {
         IconButton(onClick = onClick, modifier = Modifier.size(Sizes.touchTarget)) {
             Icon(
@@ -597,13 +831,77 @@ private fun ContentsPanel(uiState: ReaderUiState, onOpenTocEntry: (String) -> Un
 }
 
 @Composable
+private fun BookmarksPanel(
+    uiState: ReaderUiState,
+    onCreateBookmark: () -> Unit,
+    onBookmarkClick: (Annotation) -> Unit,
+) {
+    val bookmarks = (uiState as? ReaderUiState.Loaded)
+        ?.annotations
+        .orEmpty()
+        .filter { it.type == AnnotationType.BOOKMARK }
+        .sortedByDescending { it.createdAt }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = Sizes.contentMaxWidth)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        FilledTonalButton(onClick = onCreateBookmark) {
+            Text(stringResource(R.string.reader_bookmarks_add_current))
+        }
+        if (bookmarks.isEmpty()) {
+            Text(
+                text = stringResource(R.string.reader_bookmarks_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Column
+        }
+        LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
+            items(bookmarks, key = { it.id }) { bookmark ->
+                TextButton(onClick = { onBookmarkClick(bookmark) }) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = bookmark.chapterTitle ?: stringResource(R.string.notes_bookmark_without_text),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = stringResource(R.string.reader_bookmarks_location_saved),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProgressPanel(uiState: ReaderUiState, onProgressChange: (Float) -> Unit) {
-    val progress = (uiState as? ReaderUiState.Loaded)?.currentLocator?.progression ?: 0f
+    val locator = (uiState as? ReaderUiState.Loaded)?.currentLocator
+    val progress = locator?.progression ?: 0f
     Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
         Text(
             text = stringResource(R.string.reader_progress_percent, (progress * 100).roundToInt()),
             style = MaterialTheme.typography.titleMedium,
         )
+        val currentPage = locator?.currentPage
+        val totalPages = locator?.totalPages
+        if (currentPage != null && totalPages != null) {
+            Text(
+                text = stringResource(R.string.reader_progress_page_of, currentPage, totalPages),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = stringResource(R.string.reader_progress_pages_left, (totalPages - currentPage).coerceAtLeast(0)),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Slider(value = progress, onValueChange = onProgressChange, valueRange = 0f..1f)
     }
 }
@@ -654,6 +952,8 @@ private fun StylePanel(
     onSideMarginChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepAwakeChange: (Boolean) -> Unit,
+    onShowHeadersChange: (Boolean) -> Unit,
+    onShowFooterChange: (Boolean) -> Unit,
 ) {
     val fontSizeSetting = SettingsRegistry.ReaderFontSize
     val lineHeightSetting = SettingsRegistry.ReaderLineHeight
@@ -765,6 +1065,20 @@ private fun StylePanel(
             )
         }
 
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.settings_reader_show_headers_title),
+            subtitle = stringResource(R.string.settings_reader_show_headers_subtitle),
+            checked = settings.readerShowHeaders,
+            onCheckedChange = onShowHeadersChange,
+        )
+
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.settings_reader_show_footer_title),
+            subtitle = stringResource(R.string.settings_reader_show_footer_subtitle),
+            checked = settings.readerShowFooter,
+            onCheckedChange = onShowFooterChange,
+        )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -788,6 +1102,38 @@ private fun StylePanel(
                 onCheckedChange = onKeepAwakeChange,
             )
         }
+    }
+}
+
+@Composable
+private fun ReaderSettingsSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Spacing.xs),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }
 
@@ -818,8 +1164,13 @@ private fun ReaderFontFamily.label(): String = when (this) {
 private fun ReaderTheme.label(): String = when (this) {
     ReaderTheme.SYSTEM -> stringResource(R.string.settings_reader_theme_system)
     ReaderTheme.LIGHT -> stringResource(R.string.settings_reader_theme_light)
+    ReaderTheme.PAPER -> stringResource(R.string.settings_reader_theme_paper)
     ReaderTheme.SEPIA -> stringResource(R.string.settings_reader_theme_sepia)
+    ReaderTheme.MINT -> stringResource(R.string.settings_reader_theme_mint)
+    ReaderTheme.SKY -> stringResource(R.string.settings_reader_theme_sky)
+    ReaderTheme.ROSE -> stringResource(R.string.settings_reader_theme_rose)
     ReaderTheme.DARK -> stringResource(R.string.settings_reader_theme_dark)
+    ReaderTheme.OLED -> stringResource(R.string.settings_reader_theme_oled)
 }
 
 @Composable
@@ -834,10 +1185,32 @@ private fun ReaderThemeSwatch(theme: ReaderTheme) {
 @Composable
 private fun ReaderTheme.swatchColor(): Color = when (this) {
     ReaderTheme.SYSTEM -> MaterialTheme.colorScheme.primary
-    ReaderTheme.LIGHT -> Palette.White
-    ReaderTheme.SEPIA -> Palette.SepiaSurface
-    ReaderTheme.DARK -> Palette.DarkReaderSurface
+    ReaderTheme.LIGHT -> Palette.ReaderLightBackground
+    ReaderTheme.PAPER -> Palette.ReaderPaperBackground
+    ReaderTheme.SEPIA -> Palette.ReaderSepiaBackground
+    ReaderTheme.MINT -> Palette.ReaderMintBackground
+    ReaderTheme.SKY -> Palette.ReaderSkyBackground
+    ReaderTheme.ROSE -> Palette.ReaderRoseBackground
+    ReaderTheme.DARK -> Palette.ReaderDarkBackground
+    ReaderTheme.OLED -> Palette.ReaderOledBackground
 }
+
+@Composable
+private fun SettingsSnapshot.readerBackgroundColor(): Color = when {
+    displayProfile == DisplayProfile.E_INK -> Palette.EinkBackground
+    readerTheme == ReaderTheme.LIGHT -> Palette.ReaderLightBackground
+    readerTheme == ReaderTheme.PAPER -> Palette.ReaderPaperBackground
+    readerTheme == ReaderTheme.SEPIA -> Palette.ReaderSepiaBackground
+    readerTheme == ReaderTheme.MINT -> Palette.ReaderMintBackground
+    readerTheme == ReaderTheme.SKY -> Palette.ReaderSkyBackground
+    readerTheme == ReaderTheme.ROSE -> Palette.ReaderRoseBackground
+    readerTheme == ReaderTheme.DARK -> Palette.ReaderDarkBackground
+    readerTheme == ReaderTheme.OLED -> Palette.ReaderOledBackground
+    themeMode == ThemeMode.DARK -> Palette.ReaderDarkBackground
+    else -> Palette.ReaderPaperBackground
+}
+
+private const val ReaderHudStandardAlpha = 0.9f
 
 private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 

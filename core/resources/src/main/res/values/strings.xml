@@ -46,6 +46,7 @@
     <string name="library_edit_metadata_author_label">Author</string>
     <string name="library_edit_metadata_series_label">Series</string>
     <string name="library_edit_metadata_series_number_label">Book number</string>
+    <string name="library_edit_metadata_series_number_taken">Book number already used in this series.</string>
     <string name="library_edit_metadata_description_label">Description</string>
     <string name="library_edit_metadata_save">Save</string>
     <string name="library_edit_metadata_cancel">Cancel</string>
@@ -74,6 +75,12 @@
     <string name="library_filter_reading">Reading</string>
     <string name="library_filter_finished">Finished</string>
     <string name="library_filter_not_started">Not started</string>
+    <string name="library_group_content_description">Group by</string>
+    <string name="library_group_none">No grouping</string>
+    <string name="library_group_author">Author</string>
+    <string name="library_group_series">Series</string>
+    <string name="library_group_unknown_author">Unknown author</string>
+    <string name="library_group_unknown_series">No series</string>
 
     <string name="notes_title">Notes</string>
     <string name="notes_empty_title">No notes yet</string>
@@ -171,12 +178,21 @@
     <string name="settings_reader_theme_subtitle">Choose the page colors used while reading.</string>
     <string name="settings_reader_theme_system">System</string>
     <string name="settings_reader_theme_light">Light</string>
+    <string name="settings_reader_theme_paper">Paper</string>
     <string name="settings_reader_theme_sepia">Sepia</string>
+    <string name="settings_reader_theme_mint">Mint</string>
+    <string name="settings_reader_theme_sky">Sky</string>
+    <string name="settings_reader_theme_rose">Rose</string>
     <string name="settings_reader_theme_dark">Dark</string>
+    <string name="settings_reader_theme_oled">OLED</string>
     <string name="settings_reader_side_margin_title">Side margin</string>
     <string name="settings_reader_side_margin_subtitle">Reserve space at the left and right of pages.</string>
     <string name="settings_reader_publisher_styles_title">Publisher styles</string>
     <string name="settings_reader_publisher_styles_subtitle">Respect book-provided typography where possible.</string>
+    <string name="settings_reader_show_headers_title">Show headers</string>
+    <string name="settings_reader_show_headers_subtitle">Show the clock, session minutes, and time left while reading.</string>
+    <string name="settings_reader_show_footer_title">Show footer</string>
+    <string name="settings_reader_show_footer_subtitle">Show page count and book progress while reading.</string>
     <string name="settings_reader_tap_zone_title">Tap zones</string>
     <string name="settings_reader_tap_zone_subtitle">Current reader page-turn layout.</string>
     <string name="settings_reader_tap_zone_three_zone">Previous, chrome, next</string>
@@ -197,10 +213,21 @@
     <string name="reader_selection_copy">Copy</string>
     <string name="reader_selection_note">Note</string>
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
+    <string name="reader_bookmarks_add_current">Add bookmark at current position</string>
+    <string name="reader_bookmarks_empty">No bookmarks in this book yet.</string>
+    <string name="reader_bookmarks_location_saved">Saved position</string>
     <string name="reader_note_dialog_title">Add note</string>
     <string name="reader_note_dialog_label">Note</string>
     <string name="reader_note_dialog_save">Save</string>
     <string name="reader_progress">Progress</string>
     <string name="reader_style">Style</string>
     <string name="reader_progress_percent">%1$d%%</string>
+    <string name="reader_progress_page_of">Page %1$d of %2$d</string>
+    <string name="reader_progress_pages_left">%1$d pages left</string>
+    <string name="reader_header_clock_session">%1$s (Session - %2$d mts)</string>
+    <string name="reader_header_session_minutes">%1$d mts</string>
+    <string name="reader_footer_time_left_chapter">%1$s left in chapter</string>
+    <string name="reader_footer_time_left_book">%1$s left in book</string>
+    <string name="reader_duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="reader_duration_minutes">%1$dm</string>
 </resources>

@@ -528,6 +528,8 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderTapZoneMode -> readerTapZoneMode
     SettingsRegistry.ReaderVolumeKeys -> readerVolumeKeys
     SettingsRegistry.ReaderKeepAwake -> readerKeepAwake
+    SettingsRegistry.ReaderShowHeaders -> readerShowHeaders
+    SettingsRegistry.ReaderShowFooter -> readerShowFooter
     else -> setting.defaultValue
 }
 
@@ -554,6 +556,8 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderTapZoneMode -> "tap zone page turn navigation gestures"
         SettingsRegistry.ReaderVolumeKeys -> "volume keys buttons page turn"
         SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
+        SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"
+        SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
         else -> ""
     }
     return "${key} ${group.name} $synonyms"
