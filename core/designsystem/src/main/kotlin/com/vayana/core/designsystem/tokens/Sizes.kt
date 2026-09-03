@@ -23,4 +23,9 @@ object Sizes {
 
     val coverWidthMin = 72.dp
     val coverWidthMax = 160.dp
+
+    val chartHeight = 112.dp
+    val chartBarMaxHeight = 72.dp
+    val chartBarMinWidth = 28.dp
+    val chartBarMaxWidth = 56.dp
 }

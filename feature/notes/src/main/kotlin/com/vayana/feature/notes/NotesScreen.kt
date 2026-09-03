@@ -8,10 +8,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -19,12 +23,13 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,7 +45,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.designsystem.tokens.Paddings
+import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
@@ -69,9 +76,10 @@ private fun NotesScreen(
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf(NotesFilter.ALL) }
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
-    val visibleAnnotations = remember(annotations, query) { annotations.filterByQuery(query) }
+    val visibleAnnotations = remember(annotations, query, filter) { annotations.filterByQuery(query, filter) }
 
     Scaffold(
         modifier = modifier,
@@ -103,6 +111,20 @@ private fun NotesScreen(
                         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                         placeholder = { Text(stringResource(R.string.notes_search_placeholder)) },
                     )
+                    Row(
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = Spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        NotesFilter.entries.forEach { option ->
+                            FilterChip(
+                                selected = filter == option,
+                                onClick = { filter = option },
+                                label = { Text(option.label()) },
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -174,7 +196,7 @@ private fun NotesList(
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(annotations, key = { it.id }) { annotation ->
-            AnnotationRow(
+            AnnotationCard(
                 annotation = annotation,
                 onEdit = { onEdit(annotation) },
                 onDelete = { onDelete(annotation) },
@@ -184,56 +206,84 @@ private fun NotesList(
 }
 
 @Composable
-private fun AnnotationRow(annotation: Annotation, onEdit: () -> Unit, onDelete: () -> Unit) {
-    ListItem(
+private fun AnnotationCard(annotation: Annotation, onEdit: () -> Unit, onDelete: () -> Unit) {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        headlineContent = {
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
             Text(
                 text = annotation.selectedText.ifBlank { stringResource(R.string.notes_bookmark_without_text) },
-                maxLines = 2,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
-        },
-        supportingContent = {
-            Column {
-                annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
-                    Text(
-                        text = note,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+            annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
                 Text(
-                    text = annotation.chapterTitle ?: annotation.updatedAt.formatDate(),
-                    style = MaterialTheme.typography.labelMedium,
+                    text = note,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.sm),
                 )
             }
-        },
-        leadingContent = {
-            Icon(
-                imageVector = Icons.Outlined.EditNote,
-                contentDescription = null,
-                modifier = Modifier.size(Sizes.icon),
-            )
-        },
-        trailingContent = {
-            Row {
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = stringResource(R.string.notes_edit_content_description),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.md),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.heightIn(min = Sizes.icon)) {
+                    Text(
+                        text = annotation.type.label(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = annotation.chapterTitle ?: annotation.updatedAt.formatDate(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Outlined.Delete,
-                        contentDescription = stringResource(R.string.notes_delete_content_description),
-                    )
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = stringResource(R.string.notes_edit_content_description),
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = stringResource(R.string.notes_delete_content_description),
+                        )
+                    }
                 }
             }
-        },
-    )
+        }
+    }
+}
+
+private enum class NotesFilter { ALL, HIGHLIGHTS, NOTES, BOOKMARKS, UNDERLINES }
+
+@Composable
+private fun NotesFilter.label(): String = when (this) {
+    NotesFilter.ALL -> stringResource(R.string.notes_filter_all)
+    NotesFilter.HIGHLIGHTS -> stringResource(R.string.notes_filter_highlights)
+    NotesFilter.NOTES -> stringResource(R.string.notes_filter_notes)
+    NotesFilter.BOOKMARKS -> stringResource(R.string.notes_filter_bookmarks)
+    NotesFilter.UNDERLINES -> stringResource(R.string.notes_filter_underlines)
+}
+
+@Composable
+private fun AnnotationType.label(): String = when (this) {
+    AnnotationType.HIGHLIGHT -> stringResource(R.string.notes_filter_highlights)
+    AnnotationType.NOTE -> stringResource(R.string.notes_filter_notes)
+    AnnotationType.BOOKMARK -> stringResource(R.string.notes_filter_bookmarks)
+    AnnotationType.UNDERLINE -> stringResource(R.string.notes_filter_underlines)
 }
 
 @Composable
@@ -333,13 +383,21 @@ private fun NotesNoMatchesState(contentPadding: PaddingValues) {
 
 private fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(this))
 
-private fun List<Annotation>.filterByQuery(query: String): List<Annotation> {
+private fun List<Annotation>.filterByQuery(query: String, filter: NotesFilter): List<Annotation> {
     val normalizedQuery = query.trim()
-    if (normalizedQuery.isEmpty()) return this
     return filter { annotation ->
-        annotation.selectedText.contains(normalizedQuery, ignoreCase = true) ||
+        val matchesFilter = when (filter) {
+            NotesFilter.ALL -> true
+            NotesFilter.HIGHLIGHTS -> annotation.type == AnnotationType.HIGHLIGHT
+            NotesFilter.NOTES -> annotation.type == AnnotationType.NOTE
+            NotesFilter.BOOKMARKS -> annotation.type == AnnotationType.BOOKMARK
+            NotesFilter.UNDERLINES -> annotation.type == AnnotationType.UNDERLINE
+        }
+        val matchesQuery = normalizedQuery.isEmpty() ||
+            annotation.selectedText.contains(normalizedQuery, ignoreCase = true) ||
             annotation.readerNote.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
             annotation.chapterTitle.orEmpty().contains(normalizedQuery, ignoreCase = true)
+        matchesFilter && matchesQuery
     }
 }
 

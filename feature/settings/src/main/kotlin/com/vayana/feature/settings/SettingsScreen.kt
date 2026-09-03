@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.RestartAlt
@@ -22,6 +23,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +49,7 @@ import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.tokens.Paddings
+import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
@@ -163,37 +166,39 @@ private fun SettingRow(
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
         ListItem(
             headlineContent = { Text(stringResource(setting.titleRes)) },
             supportingContent = setting.subtitleRes?.let { subtitleRes -> ({ Text(stringResource(subtitleRes)) }) },
             trailingContent = {
-                IconButton(onClick = { onReset(setting) }) {
-                    Icon(Icons.Outlined.RestartAlt, contentDescription = stringResource(R.string.settings_reset_one_content_description))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (setting is BooleanSetting) {
+                        Switch(checked = value as Boolean, onCheckedChange = { onUpdate(setting.asAny(), it) })
+                    }
+                    IconButton(onClick = { onReset(setting) }) {
+                        Icon(Icons.Outlined.RestartAlt, contentDescription = stringResource(R.string.settings_reset_one_content_description))
+                    }
                 }
             },
         )
         when (setting) {
-            is BooleanSetting -> {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.lg),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Switch(checked = value as Boolean, onCheckedChange = { onUpdate(setting.asAny(), it) })
-                }
-            }
+            is BooleanSetting -> Unit
             is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
             is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
             is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
+        }
         }
     }
 }
 
 @Composable
 private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -> Unit) {
-    Column(modifier = Modifier.padding(horizontal = Spacing.lg)) {
+    Column(modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md)) {
         Text(text = value.toString(), style = MaterialTheme.typography.labelLarge)
         Slider(
             value = value.toFloat(),
@@ -206,7 +211,7 @@ private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -
 
 @Composable
 private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (Float) -> Unit) {
-    Column(modifier = Modifier.padding(horizontal = Spacing.lg)) {
+    Column(modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md)) {
         Text(text = "%.1f".format(value), style = MaterialTheme.typography.labelLarge)
         Slider(
             value = value,
@@ -225,7 +230,7 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.lg),
+            .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm),
     ) {
         TextButton(onClick = { expanded = true }) {
             Text(text = stringResource(selectedLabel), style = MaterialTheme.typography.bodyLarge)

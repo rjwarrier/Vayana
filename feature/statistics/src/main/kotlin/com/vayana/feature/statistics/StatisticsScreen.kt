@@ -1,19 +1,24 @@
 package com.vayana.feature.statistics
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -23,6 +28,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +81,9 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item {
+            ReadingMixCard(summary = summary)
+        }
+        item {
             StatisticTile(
                 icon = Icons.Outlined.AutoStories,
                 title = stringResource(R.string.statistics_library_total_title),
@@ -105,7 +115,7 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShapeCompat,
+                    shape = RoundedCornerShape(Radii.medium),
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 ) {
@@ -140,22 +150,114 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
 private fun StatisticTile(icon: ImageVector, title: String, value: String, supportingText: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShapeCompat,
+        shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
-        ListItem(
-            headlineContent = { Text(title) },
-            supportingContent = { Text(supportingText) },
-            leadingContent = {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Paddings.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(Radii.small),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(Sizes.icon),
+                    modifier = Modifier
+                        .padding(Spacing.sm)
+                        .size(Sizes.icon),
                 )
-            },
-            trailingContent = {
-                Text(text = value, style = MaterialTheme.typography.titleLarge)
-            },
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(text = value, style = MaterialTheme.typography.headlineSmall)
+        }
+    }
+}
+
+@Composable
+private fun ReadingMixCard(summary: StatisticsSummary) {
+    val maxValue = listOf(summary.readingBooks, summary.finishedBooks, summary.totalAnnotations).maxOrNull()?.coerceAtLeast(1) ?: 1
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Text(
+                text = stringResource(R.string.statistics_chart_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.lg)
+                    .height(Sizes.chartHeight),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                ChartBar(
+                    label = stringResource(R.string.statistics_chart_reading),
+                    value = summary.readingBooks,
+                    maxValue = maxValue,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                ChartBar(
+                    label = stringResource(R.string.statistics_chart_finished),
+                    value = summary.finishedBooks,
+                    maxValue = maxValue,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.weight(1f),
+                )
+                ChartBar(
+                    label = stringResource(R.string.statistics_chart_notes),
+                    value = summary.totalAnnotations,
+                    maxValue = maxValue,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChartBar(label: String, value: Int, maxValue: Int, color: Color, modifier: Modifier = Modifier) {
+    val fraction = (value.toFloat() / maxValue).coerceIn(0.08f, 1f)
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom,
+    ) {
+        Text(text = value.toString(), style = MaterialTheme.typography.labelLarge)
+        Box(
+            modifier = Modifier
+                .padding(top = Spacing.xs)
+                .widthIn(min = Sizes.chartBarMinWidth, max = Sizes.chartBarMaxWidth)
+                .fillMaxWidth()
+                .height(Sizes.chartBarMaxHeight * fraction)
+                .clip(RoundedCornerShape(topStart = Radii.small, topEnd = Radii.small))
+                .background(color),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = Spacing.xs),
         )
     }
 }
@@ -188,6 +290,3 @@ private fun StatisticsEmptyState(contentPadding: PaddingValues) {
         )
     }
 }
-
-private val RoundedCornerShapeCompat
-    @Composable get() = androidx.compose.foundation.shape.RoundedCornerShape(Radii.large)

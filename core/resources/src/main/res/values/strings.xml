@@ -71,6 +71,11 @@
     <string name="notes_empty_body">Highlights and notes you make while reading will show up here.</string>
     <string name="notes_bookmark_without_text">Bookmark</string>
     <string name="notes_search_placeholder">Search notes and highlights</string>
+    <string name="notes_filter_all">All</string>
+    <string name="notes_filter_highlights">Highlights</string>
+    <string name="notes_filter_notes">Notes</string>
+    <string name="notes_filter_bookmarks">Bookmarks</string>
+    <string name="notes_filter_underlines">Underlines</string>
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>
@@ -96,6 +101,10 @@
     <string name="statistics_notes_total_value">%1$d</string>
     <string name="statistics_notes_total_support">%1$d with your own notes</string>
     <string name="statistics_highlight_revisit_title">Revisit this highlight</string>
+    <string name="statistics_chart_title">Library mix</string>
+    <string name="statistics_chart_reading">Reading</string>
+    <string name="statistics_chart_finished">Finished</string>
+    <string name="statistics_chart_notes">Notes</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_back_content_description">Back</string>
