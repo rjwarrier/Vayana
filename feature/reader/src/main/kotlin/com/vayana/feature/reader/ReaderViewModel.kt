@@ -27,6 +27,10 @@ import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.ReaderSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -66,13 +70,17 @@ class ReaderViewModel @Inject constructor(
 
     private var boundEngine: BookEngine? = null
     private var bookOpen = false
+    private val engineJobs = mutableListOf<Job>()
 
     /** Called once the [BookEngine] exists (i.e. once the WebView has been created by the Compose factory). */
+    @OptIn(FlowPreview::class)
     fun bindEngine(engine: BookEngine) {
         if (boundEngine === engine) return
+        cancelEngineJobs()
         boundEngine = engine
+        bookOpen = false
 
-        viewModelScope.launch {
+        engineJobs += viewModelScope.launch {
             val book = bookRepository.getById(bookId)
             if (book == null) {
                 _uiState.value = ReaderUiState.Failed("Book not found")
@@ -96,7 +104,7 @@ class ReaderViewModel @Inject constructor(
                 }
         }
 
-        viewModelScope.launch {
+        engineJobs += viewModelScope.launch {
             engine.location.filterNotNull().collect { locator ->
                 locator.cfi?.let { cfi -> bookRepository.updateLocator(bookId, cfi, locator.progression) }
                 _uiState.update { current ->
@@ -105,7 +113,7 @@ class ReaderViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
+        engineJobs += viewModelScope.launch {
             engine.events().collect { event ->
                 when (event) {
                     is com.vayana.reader.api.EngineEvent.SelectionChanged -> {
@@ -120,8 +128,8 @@ class ReaderViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            settings.collect { snapshot ->
+        engineJobs += viewModelScope.launch {
+            settings.debounce(StyleUpdateDebounceMillis).collectLatest { snapshot ->
                 if (bookOpen) applyReaderStyle(engine, snapshot)
             }
         }
@@ -184,22 +192,20 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { engine.goTo(target) }
     }
 
-    private fun applyReaderStyle(engine: BookEngine, snapshot: SettingsSnapshot) {
-        viewModelScope.launch {
-            engine.applyStyle(
-                style = BookStyle(
-                    fontSizePercent = snapshot.readerFontSizePercent,
-                    lineHeight = snapshot.readerLineHeight,
-                    fontFamily = snapshot.readerFontFamily.cssFamily,
-                    sideMarginPercent = snapshot.readerSideMarginPercent,
-                ),
-                theme = snapshot.readTheme,
-            )
-        }
+    private suspend fun applyReaderStyle(engine: BookEngine, snapshot: SettingsSnapshot) {
+        engine.applyStyle(
+            style = BookStyle(
+                fontSizePercent = snapshot.readerFontSizePercent,
+                lineHeight = snapshot.readerLineHeight,
+                fontFamily = snapshot.readerFontFamily.cssFamily,
+                sideMarginPercent = snapshot.readerSideMarginPercent,
+            ),
+            theme = snapshot.readTheme,
+        )
     }
 
     private fun observeAnnotations(engine: BookEngine) {
-        viewModelScope.launch {
+        engineJobs += viewModelScope.launch {
             annotationRepository.observeForBook(bookId).collect { annotations ->
                 engine.renderAnnotations(annotations.mapNotNull { it.toReaderAnnotation() })
                 _uiState.update { current ->
@@ -207,6 +213,16 @@ class ReaderViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    override fun onCleared() {
+        cancelEngineJobs()
+        boundEngine = null
+    }
+
+    private fun cancelEngineJobs() {
+        engineJobs.forEach { it.cancel() }
+        engineJobs.clear()
     }
 
     private fun createAnnotation(type: AnnotationType, readerNote: String?) {
@@ -267,3 +283,4 @@ private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when
 }
 
 private const val DefaultAnnotationColor = "yellow"
+private const val StyleUpdateDebounceMillis = 80L

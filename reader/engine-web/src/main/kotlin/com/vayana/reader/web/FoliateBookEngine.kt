@@ -28,12 +28,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
 private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
+private const val ReaderOpenTimeoutMillis = 15_000L
 
 /**
  * `:reader:engine-api`'s default implementation: foliate-js running inside a [WebView], driven
@@ -100,6 +102,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     }
 
     override suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook> {
+        openResult?.complete(Result.failure(IllegalStateException("Reader open was replaced by a newer request")))
         currentBookFile = File(source.absoluteFilePath)
         val deferred = CompletableDeferred<Result<OpenBook>>()
         openResult = deferred
@@ -107,7 +110,13 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val request = BOOK_URL to resumeLocator?.cfi
         if (jsReady) evaluateOpen(request.first, request.second) else pendingOpen = request
 
-        return deferred.await()
+        return withTimeoutOrNull(ReaderOpenTimeoutMillis) { deferred.await() }
+            ?: Result.failure<OpenBook>(IllegalStateException("Timed out while opening reader")).also {
+                if (openResult === deferred) {
+                    openResult = null
+                    pendingOpen = null
+                }
+            }
     }
 
     override suspend fun goTo(target: NavTarget) {
@@ -156,6 +165,9 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     override fun events(): Flow<EngineEvent> = _events
 
     override fun close() {
+        openResult?.complete(Result.failure(IllegalStateException("Reader closed before the book opened")))
+        openResult = null
+        pendingOpen = null
         webView.destroy()
     }
 

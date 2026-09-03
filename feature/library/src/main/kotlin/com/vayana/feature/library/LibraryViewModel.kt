@@ -70,7 +70,7 @@ class LibraryViewModel @Inject constructor(
     private val bookFileImporter: BookFileImporter,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
-    @ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val controls = MutableStateFlow(LibraryControls())
@@ -188,24 +188,39 @@ class LibraryViewModel @Inject constructor(
             ?: return finishImportRow(candidate.id, ImportResult.Unsupported)
         if (format != BookFormat.EPUB) return finishImportRow(candidate.id, ImportResult.Unsupported)
 
+        var importedFile: File? = null
+        var coverFile: File? = null
         return runCatching {
             updateImportRow(candidate.id, ImportRowStatus.COPYING)
             val imported = bookFileImporter.import(uri, extension)
+            importedFile = imported.file
             updateImportRow(candidate.id, ImportRowStatus.PARSING)
             val metadata = EpubParser.parse(imported.file)
-            val coverPath = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
+            coverFile = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
 
             val book = bookRepository.insertIfNew(
                 title = metadata.title,
                 author = metadata.author,
                 description = metadata.description,
-                coverPath = coverPath?.let { storageRoots.relativize(it) },
+                coverPath = coverFile?.let { storageRoots.relativize(it) },
                 filePath = storageRoots.relativize(imported.file),
                 format = format,
                 fileHash = imported.sha256,
             )
-            if (book != null) ImportResult.Imported else ImportResult.Duplicate
+            if (book != null) {
+                importedFile = null
+                coverFile = null
+                ImportResult.Imported
+            } else {
+                ImportResult.Duplicate
+            }
         }.getOrElse { ImportResult.Failed }
+            .also { result ->
+                if (result != ImportResult.Imported) {
+                    importedFile?.delete()
+                    coverFile?.delete()
+                }
+            }
             .also { result -> updateImportRow(candidate.id, result.status) }
     }
 
