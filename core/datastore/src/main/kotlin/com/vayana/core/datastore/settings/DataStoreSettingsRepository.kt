@@ -79,6 +79,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot = SettingsSnapshot(
     readerFontSizePercent = read(SettingsRegistry.ReaderFontSize),
     readerLineHeight = read(SettingsRegistry.ReaderLineHeight),
     readerFontFamily = read(SettingsRegistry.ReaderFontFamily),
+    readerTheme = read(SettingsRegistry.ReaderTheme),
     readerSideMarginPercent = read(SettingsRegistry.ReaderSideMargin),
     readerUsePublisherStyles = read(SettingsRegistry.ReaderPublisherStyles),
     readerTapZoneMode = read(SettingsRegistry.ReaderTapZoneMode),

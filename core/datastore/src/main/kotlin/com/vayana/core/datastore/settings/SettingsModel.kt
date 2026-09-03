@@ -70,6 +70,7 @@ data class SettingsSnapshot(
     val readerFontSizePercent: Int = 100,
     val readerLineHeight: Float = 1.5f,
     val readerFontFamily: ReaderFontFamily = ReaderFontFamily.SERIF,
+    val readerTheme: ReaderTheme = ReaderTheme.SYSTEM,
     val readerSideMarginPercent: Int = 10,
     val readerUsePublisherStyles: Boolean = true,
     val readerTapZoneMode: TapZoneMode = TapZoneMode.THREE_ZONE,
@@ -78,6 +79,8 @@ data class SettingsSnapshot(
 )
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
+
+enum class ReaderTheme { SYSTEM, LIGHT, SEPIA, DARK }
 
 enum class TapZoneMode { THREE_ZONE }
 
@@ -159,6 +162,19 @@ object SettingsRegistry {
             ChoiceOption(com.vayana.core.datastore.settings.ReaderFontFamily.MONO, R.string.settings_reader_font_family_mono),
         ),
     )
+    val ReaderTheme = ChoiceSetting(
+        key = "reader.theme",
+        defaultValue = com.vayana.core.datastore.settings.ReaderTheme.SYSTEM,
+        titleRes = R.string.settings_reader_theme_title,
+        subtitleRes = R.string.settings_reader_theme_subtitle,
+        group = SettingsGroup.READER_TYPOGRAPHY,
+        options = listOf(
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTheme.SYSTEM, R.string.settings_reader_theme_system),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTheme.LIGHT, R.string.settings_reader_theme_light),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTheme.SEPIA, R.string.settings_reader_theme_sepia),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTheme.DARK, R.string.settings_reader_theme_dark),
+        ),
+    )
     val ReaderSideMargin = IntSetting(
         key = "reader.side_margin_percent",
         defaultValue = 10,
@@ -206,6 +222,7 @@ object SettingsRegistry {
         ReaderFontSize,
         ReaderLineHeight,
         ReaderFontFamily,
+        ReaderTheme,
         ReaderSideMargin,
         ReaderPublisherStyles,
         ReaderTapZoneMode,

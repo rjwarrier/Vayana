@@ -8,6 +8,7 @@ import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.datastore.settings.ReaderFontFamily
+import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
@@ -158,6 +159,14 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontFamily, fontFamily) }
     }
 
+    fun updateReaderTheme(theme: ReaderTheme) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderTheme, theme) }
+    }
+
+    fun updateSideMargin(percent: Int) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderSideMargin, percent) }
+    }
+
     fun createHighlight() {
         createAnnotation(type = AnnotationType.HIGHLIGHT, readerNote = null)
     }
@@ -182,6 +191,7 @@ class ReaderViewModel @Inject constructor(
                     fontSizePercent = snapshot.readerFontSizePercent,
                     lineHeight = snapshot.readerLineHeight,
                     fontFamily = snapshot.readerFontFamily.cssFamily,
+                    sideMarginPercent = snapshot.readerSideMarginPercent,
                 ),
                 theme = snapshot.readTheme,
             )
@@ -230,6 +240,9 @@ private val ReaderFontFamily.cssFamily: String
 
 private val SettingsSnapshot.readTheme: ReadTheme
     get() = when {
+        readerTheme == ReaderTheme.LIGHT -> ReadTheme(backgroundColorArgb = 0xFFFFFFFF.toInt(), textColorArgb = 0xFF172033.toInt())
+        readerTheme == ReaderTheme.SEPIA -> ReadTheme(backgroundColorArgb = 0xFFFFFBF3.toInt(), textColorArgb = 0xFF172033.toInt())
+        readerTheme == ReaderTheme.DARK -> ReadTheme(backgroundColorArgb = 0xFF111827.toInt(), textColorArgb = 0xFFF8F4EC.toInt())
         displayProfile == DisplayProfile.E_INK -> ReadTheme(backgroundColorArgb = 0xFFFFFFFF.toInt(), textColorArgb = 0xFF000000.toInt())
         themeMode == ThemeMode.DARK -> ReadTheme(backgroundColorArgb = 0xFF111827.toInt(), textColorArgb = 0xFFF8F4EC.toInt())
         else -> ReadTheme(backgroundColorArgb = 0xFFFFFBF3.toInt(), textColorArgb = 0xFF172033.toInt())

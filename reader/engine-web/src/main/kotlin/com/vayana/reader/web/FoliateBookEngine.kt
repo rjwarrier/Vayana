@@ -124,11 +124,16 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override suspend fun applyStyle(style: BookStyle, theme: ReadTheme) {
         val css = buildString {
-            append("html,body{")
+            append("html{")
+            append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
+            append("}")
+            append("body{")
             append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
             append("color:${theme.textColorArgb.toCssColor()} !important;")
             append("font-size:${style.fontSizePercent}% !important;")
             append("line-height:${style.lineHeight} !important;")
+            append("margin-inline:${style.sideMarginPercent}% !important;")
+            append("box-sizing:border-box !important;")
             style.fontFamily?.let { append("font-family:${it} !important;") }
             append("}")
         }
