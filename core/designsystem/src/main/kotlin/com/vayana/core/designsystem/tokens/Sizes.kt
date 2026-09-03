@@ -3,6 +3,7 @@ package com.vayana.core.designsystem.tokens
 import androidx.compose.ui.unit.dp
 
 object Sizes {
+    val swatchSmall = 12.dp
     val iconSmall = 18.dp
     val icon = 24.dp
     val iconLarge = 32.dp

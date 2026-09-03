@@ -175,6 +175,14 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderSideMargin, percent) }
     }
 
+    fun updateVolumeKeys(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderVolumeKeys, enabled) }
+    }
+
+    fun updateKeepAwake(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderKeepAwake, enabled) }
+    }
+
     fun createHighlight() {
         createAnnotation(type = AnnotationType.HIGHLIGHT, readerNote = null)
     }

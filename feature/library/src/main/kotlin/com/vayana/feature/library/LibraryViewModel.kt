@@ -35,7 +35,16 @@ data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported
 
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
-enum class BookDetailMessage { METADATA_SAVED, SOURCE_REPLACED, SOURCE_DUPLICATE, SOURCE_UNSUPPORTED, SOURCE_FAILED }
+enum class BookDetailMessage {
+    METADATA_SAVED,
+    COVER_UPDATED,
+    COVER_REMOVED,
+    COVER_FAILED,
+    SOURCE_REPLACED,
+    SOURCE_DUPLICATE,
+    SOURCE_UNSUPPORTED,
+    SOURCE_FAILED,
+}
 
 data class ImportProgressRow(
     val id: String,
@@ -120,7 +129,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { bookRepository.softDelete(bookId) }
     }
 
-    fun updateMetadata(bookId: Long, title: String, author: String, description: String) {
+    fun updateMetadata(bookId: Long, title: String, author: String, series: String, description: String) {
         val normalizedTitle = title.trim()
         if (normalizedTitle.isBlank()) return
         viewModelScope.launch {
@@ -128,6 +137,7 @@ class LibraryViewModel @Inject constructor(
                 id = bookId,
                 title = normalizedTitle,
                 author = author.trim().ifBlank { null },
+                series = series.trim().ifBlank { null },
                 description = description.trim().ifBlank { null },
             )
             _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
@@ -137,6 +147,18 @@ class LibraryViewModel @Inject constructor(
     fun replaceSource(bookId: Long, contentResolver: ContentResolver, uri: Uri) {
         viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) { replaceSourceInLibrary(bookId, contentResolver, uri) }
+        }
+    }
+
+    fun replaceCover(bookId: Long, contentResolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { replaceCoverInLibrary(bookId, contentResolver, uri) }
+        }
+    }
+
+    fun removeCover(bookId: Long) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { removeCoverFromLibrary(bookId) }
         }
     }
 
@@ -272,6 +294,7 @@ class LibraryViewModel @Inject constructor(
                 id = bookId,
                 title = metadata.title,
                 author = metadata.author,
+                series = existingBook.series,
                 description = metadata.description,
                 coverPath = coverFile?.let { storageRoots.relativize(it) },
                 filePath = storageRoots.relativize(imported.file),
@@ -294,6 +317,33 @@ class LibraryViewModel @Inject constructor(
                     coverFile?.delete()
                 }
             }
+    }
+
+    private suspend fun replaceCoverInLibrary(bookId: Long, contentResolver: ContentResolver, uri: Uri): BookDetailMessage {
+        val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.COVER_FAILED
+        var coverFile: File? = null
+        return runCatching {
+            val pickedCover = savePickedCover(contentResolver, uri)
+            coverFile = pickedCover
+            bookRepository.updateCover(bookId, storageRoots.relativize(pickedCover))
+            existingBook.coverPath?.let { File(it).delete() }
+            coverFile = null
+            BookDetailMessage.COVER_UPDATED
+        }.getOrElse { BookDetailMessage.COVER_FAILED }
+            .also { result ->
+                if (result != BookDetailMessage.COVER_UPDATED) {
+                    coverFile?.delete()
+                }
+            }
+    }
+
+    private suspend fun removeCoverFromLibrary(bookId: Long): BookDetailMessage {
+        val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.COVER_FAILED
+        return runCatching {
+            bookRepository.updateCover(bookId, null)
+            existingBook.coverPath?.let { File(it).delete() }
+            BookDetailMessage.COVER_REMOVED
+        }.getOrElse { BookDetailMessage.COVER_FAILED }
     }
 
     private fun finishImportRow(rowId: String, result: ImportResult): ImportResult {
@@ -336,6 +386,19 @@ class LibraryViewModel @Inject constructor(
     private fun saveCover(bytes: ByteArray): File {
         val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.jpg")
         coverFile.writeBytes(bytes)
+        return coverFile
+    }
+
+    private fun savePickedCover(contentResolver: ContentResolver, uri: Uri): File {
+        val extension = displayNameOf(contentResolver, uri)
+            .substringAfterLast('.', missingDelimiterValue = "")
+            .lowercase()
+            .takeIf { it in SupportedCoverExtensions }
+            ?: "jpg"
+        val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.$extension")
+        contentResolver.openInputStream(uri)?.use { input ->
+            coverFile.outputStream().use { output -> input.copyTo(output) }
+        } ?: error("Cover image could not be opened")
         return coverFile
     }
 
@@ -390,3 +453,5 @@ private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
 }
 
 private const val FinishedThreshold = 0.98f
+
+private val SupportedCoverExtensions = setOf("jpg", "jpeg", "png", "webp")

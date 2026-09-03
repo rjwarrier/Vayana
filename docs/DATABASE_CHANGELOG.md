@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 3
+Adds editable book series metadata:
+
+- Nullable `series` text column on `books`.
+- Existing books migrate with `series = NULL`.
+- Book Details can view and edit the series name with the rest of the editable metadata.
+
 ## Version 2
 Adds `annotations` for Phase 4's annotation foundation:
 

@@ -11,7 +11,9 @@ interface BookRepository {
 
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
 
-    suspend fun updateMetadata(id: Long, title: String, author: String?, description: String?)
+    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, description: String?)
+
+    suspend fun updateCover(id: Long, coverPath: String?)
 
     /** Returns null if a book with the same [fileHash] already exists (import-time dedupe, PROMPT2appbuild.md §4.1). */
     suspend fun insertIfNew(
@@ -29,6 +31,7 @@ interface BookRepository {
         id: Long,
         title: String,
         author: String?,
+        series: String?,
         description: String?,
         coverPath: String?,
         filePath: String,

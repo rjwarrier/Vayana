@@ -7,12 +7,15 @@ import com.vayana.core.designsystem.theme.MotionSetting
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.resources.R
 
-enum class SettingsGroup(@param:StringRes val titleRes: Int) {
-    APPEARANCE(R.string.settings_group_appearance),
-    READER_TYPOGRAPHY(R.string.settings_group_reader_typography),
-    READER_LAYOUT(R.string.settings_group_reader_layout),
-    READER_BEHAVIOR(R.string.settings_group_reader_behavior),
-    MAINTENANCE(R.string.settings_group_maintenance),
+enum class SettingsGroup(
+    @param:StringRes val titleRes: Int,
+    @param:StringRes val subtitleRes: Int,
+) {
+    APPEARANCE(R.string.settings_group_appearance, R.string.settings_group_appearance_subtitle),
+    READER_TYPOGRAPHY(R.string.settings_group_reader_typography, R.string.settings_group_reader_typography_subtitle),
+    READER_LAYOUT(R.string.settings_group_reader_layout, R.string.settings_group_reader_layout_subtitle),
+    READER_BEHAVIOR(R.string.settings_group_reader_behavior, R.string.settings_group_reader_behavior_subtitle),
+    MAINTENANCE(R.string.settings_group_maintenance, R.string.settings_group_maintenance_subtitle),
 }
 
 sealed class Setting<T : Any>(

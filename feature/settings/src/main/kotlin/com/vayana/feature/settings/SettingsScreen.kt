@@ -568,9 +568,6 @@ private fun SettingsGroup.icon(): ImageVector = when (this) {
 
 @Composable
 private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
-    SettingsGroup.APPEARANCE -> "Theme, display profile, dark mode, and motion"
-    SettingsGroup.READER_TYPOGRAPHY -> "Font, size, line height, and page theme"
-    SettingsGroup.READER_LAYOUT -> "Margins and publisher styling"
-    SettingsGroup.READER_BEHAVIOR -> "Tap zones, volume keys, and screen wake"
-    SettingsGroup.MAINTENANCE -> "$settingCount local options"
+    SettingsGroup.MAINTENANCE -> stringResource(subtitleRes, settingCount)
+    else -> stringResource(subtitleRes)
 }

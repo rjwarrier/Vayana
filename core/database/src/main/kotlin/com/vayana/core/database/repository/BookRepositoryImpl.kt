@@ -21,8 +21,12 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
     }
 
-    override suspend fun updateMetadata(id: Long, title: String, author: String?, description: String?) {
-        bookDao.updateMetadata(id, title, author, description, System.currentTimeMillis())
+    override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, description: String?) {
+        bookDao.updateMetadata(id, title, author, series, description, System.currentTimeMillis())
+    }
+
+    override suspend fun updateCover(id: Long, coverPath: String?) {
+        bookDao.updateCover(id, coverPath, System.currentTimeMillis())
     }
 
     override suspend fun insertIfNew(
@@ -40,6 +44,7 @@ class BookRepositoryImpl @Inject constructor(
         val entity = BookEntity(
             title = title,
             author = author,
+            series = null,
             description = description,
             coverPath = coverPath,
             filePath = filePath,
@@ -64,6 +69,7 @@ class BookRepositoryImpl @Inject constructor(
         id: Long,
         title: String,
         author: String?,
+        series: String?,
         description: String?,
         coverPath: String?,
         filePath: String,
@@ -76,6 +82,7 @@ class BookRepositoryImpl @Inject constructor(
             id = id,
             title = title,
             author = author,
+            series = series,
             description = description,
             coverPath = coverPath,
             filePath = filePath,
@@ -95,6 +102,7 @@ private fun BookEntity.toDomain(): Book = Book(
     id = id,
     title = title,
     author = author,
+    series = series,
     description = description,
     coverPath = coverPath,
     filePath = filePath,

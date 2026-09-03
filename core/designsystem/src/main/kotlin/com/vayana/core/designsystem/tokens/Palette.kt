@@ -36,6 +36,8 @@ object Palette {
 
     val White = Color(0xFFFFFFFF)
     val WarmWhite = Color(0xFFE8E0D0)
+    val SepiaSurface = Color(0xFFFFE8BF)
+    val DarkReaderSurface = Color(0xFF111827)
 
     val TextMutedDark = Color(0xFF8A9BB0)
     val TextMutedLight = Color(0xFF6B7280)

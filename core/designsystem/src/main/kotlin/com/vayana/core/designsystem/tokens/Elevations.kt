@@ -13,6 +13,9 @@ import androidx.compose.ui.unit.dp
 enum class SurfaceTier { Lowest, Low, Container, High, Highest }
 
 object Elevations {
+    val none = 0.dp
+    val level0 = 0.dp
+    val level1 = 1.dp
     val shadowSmall = 1.dp
     val shadowMedium = 2.dp
     val shadowLarge = 4.dp

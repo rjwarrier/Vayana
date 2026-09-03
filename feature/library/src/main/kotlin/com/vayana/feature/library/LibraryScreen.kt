@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -137,11 +138,17 @@ fun BookDetailRoute(
         detailMessage = detailMessage,
         onBack = onBack,
         onContinueReading = onContinueReading,
-        onUpdateMetadata = { title, author, description ->
-            viewModel.updateMetadata(bookId, title, author, description)
+        onUpdateMetadata = { title, author, series, description ->
+            viewModel.updateMetadata(bookId, title, author, series, description)
         },
         onReplaceSource = { contentResolver, uri ->
             viewModel.replaceSource(bookId, contentResolver, uri)
+        },
+        onReplaceCover = { contentResolver, uri ->
+            viewModel.replaceCover(bookId, contentResolver, uri)
+        },
+        onRemoveCover = {
+            viewModel.removeCover(bookId)
         },
         onDetailMessageShown = viewModel::onBookDetailMessageShown,
         onDeleteBook = {
@@ -465,8 +472,10 @@ private fun BookDetailScreen(
     detailMessage: BookDetailMessage?,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
-    onUpdateMetadata: (String, String, String) -> Unit,
+    onUpdateMetadata: (String, String, String, String) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
+    onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
+    onRemoveCover: () -> Unit,
     onDetailMessageShown: () -> Unit,
     onDeleteBook: () -> Unit,
 ) {
@@ -477,6 +486,9 @@ private fun BookDetailScreen(
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
+    }
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) onReplaceCover(context.contentResolver, uri)
     }
 
     LaunchedEffect(detailMessageText) {
@@ -538,6 +550,14 @@ private fun BookDetailScreen(
                                     modifier = Modifier.padding(top = Spacing.xs),
                                 )
                             }
+                            book.series?.let {
+                                Text(
+                                    text = stringResource(R.string.library_series_value, it),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = Spacing.xs),
+                                )
+                            }
                             Surface(
                                 modifier = Modifier.padding(top = Spacing.md),
                                 shape = MaterialTheme.shapes.small,
@@ -591,6 +611,16 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.Edit, contentDescription = null)
                             Text(text = stringResource(R.string.library_edit_metadata), modifier = Modifier.padding(start = Spacing.sm))
                         }
+                        ElevatedButton(onClick = { coverPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Outlined.Image, contentDescription = null)
+                            Text(text = stringResource(R.string.library_change_cover), modifier = Modifier.padding(start = Spacing.sm))
+                        }
+                        if (book.coverPath != null) {
+                            TextButton(onClick = onRemoveCover, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Outlined.Delete, contentDescription = null)
+                                Text(text = stringResource(R.string.library_remove_cover), modifier = Modifier.padding(start = Spacing.sm))
+                            }
+                        }
                         ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
@@ -635,9 +665,9 @@ private fun BookDetailScreen(
         EditMetadataDialog(
             book = book,
             onDismiss = { showEditDialog = false },
-            onSave = { title, author, description ->
+            onSave = { title, author, series, description ->
                 showEditDialog = false
-                onUpdateMetadata(title, author, description)
+                onUpdateMetadata(title, author, series, description)
             },
         )
     }
@@ -647,17 +677,18 @@ private fun BookDetailScreen(
 private fun EditMetadataDialog(
     book: Book,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String, String, String, String) -> Unit,
 ) {
     var title by remember(book.id) { mutableStateOf(book.title) }
     var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
+    var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
     var description by remember(book.id) { mutableStateOf(book.description.orEmpty()) }
     val canSave = title.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onSave(title, author, description) }, enabled = canSave) {
+            TextButton(onClick = { onSave(title, author, series, description) }, enabled = canSave) {
                 Text(stringResource(R.string.library_edit_metadata_save))
             }
         },
@@ -680,6 +711,12 @@ private fun EditMetadataDialog(
                     value = author,
                     onValueChange = { author = it },
                     label = { Text(stringResource(R.string.library_edit_metadata_author_label)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = series,
+                    onValueChange = { series = it },
+                    label = { Text(stringResource(R.string.library_edit_metadata_series_label)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
@@ -810,6 +847,9 @@ private fun ImportRowStatus.label(): String = when (this) {
 @Composable
 private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.METADATA_SAVED -> stringResource(R.string.library_metadata_saved)
+    BookDetailMessage.COVER_UPDATED -> stringResource(R.string.library_cover_updated)
+    BookDetailMessage.COVER_REMOVED -> stringResource(R.string.library_cover_removed)
+    BookDetailMessage.COVER_FAILED -> stringResource(R.string.library_cover_failed)
     BookDetailMessage.SOURCE_REPLACED -> stringResource(R.string.library_source_replaced)
     BookDetailMessage.SOURCE_DUPLICATE -> stringResource(R.string.library_source_duplicate)
     BookDetailMessage.SOURCE_UNSUPPORTED -> stringResource(R.string.library_source_unsupported)

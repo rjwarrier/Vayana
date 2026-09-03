@@ -28,11 +28,14 @@ interface BookDao {
     @Query("UPDATE books SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long)
 
-    @Query("UPDATE books SET title = :title, author = :author, description = :description, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun updateMetadata(id: Long, title: String, author: String?, description: String?, updatedAt: Long)
+    @Query("UPDATE books SET title = :title, author = :author, series = :series, description = :description, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, description: String?, updatedAt: Long)
+
+    @Query("UPDATE books SET coverPath = :coverPath, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateCover(id: Long, coverPath: String?, updatedAt: Long)
 
     @Query(
-        "UPDATE books SET title = :title, author = :author, description = :description, " +
+        "UPDATE books SET title = :title, author = :author, series = :series, description = :description, " +
             "coverPath = :coverPath, filePath = :filePath, format = :format, fileHash = :fileHash, " +
             "lastLocator = NULL, readingPercent = 0, updatedAt = :updatedAt, lastReadAt = NULL WHERE id = :id",
     )
@@ -40,6 +43,7 @@ interface BookDao {
         id: Long,
         title: String,
         author: String?,
+        series: String?,
         description: String?,
         coverPath: String?,
         filePath: String,

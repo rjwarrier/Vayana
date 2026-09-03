@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,7 +76,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -84,7 +84,9 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
+import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -121,6 +123,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onFontFamilyChange = viewModel::updateFontFamily,
         onReaderThemeChange = viewModel::updateReaderTheme,
         onSideMarginChange = viewModel::updateSideMargin,
+        onVolumeKeysChange = viewModel::updateVolumeKeys,
+        onKeepAwakeChange = viewModel::updateKeepAwake,
         onBack = onBack,
     )
 }
@@ -148,6 +152,8 @@ private fun ReaderScreen(
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
+    onVolumeKeysChange: (Boolean) -> Unit,
+    onKeepAwakeChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var chromeVisible by remember { mutableStateOf(false) }
@@ -173,16 +179,16 @@ private fun ReaderScreen(
         }
     }
     val onHardwarePageKeyState = rememberUpdatedState<(Int, Int) -> Boolean> { keyCode, action ->
-        if (!settings.readerVolumeKeys || action != AndroidKeyEvent.ACTION_UP) {
+        if (!settings.readerVolumeKeys) {
             false
         } else {
             when (keyCode) {
                 AndroidKeyEvent.KEYCODE_VOLUME_UP -> {
-                    onTapPrevious()
+                    if (action == AndroidKeyEvent.ACTION_UP) onTapPrevious()
                     true
                 }
                 AndroidKeyEvent.KEYCODE_VOLUME_DOWN -> {
-                    onTapNext()
+                    if (action == AndroidKeyEvent.ACTION_UP) onTapNext()
                     true
                 }
                 else -> false
@@ -219,14 +225,14 @@ private fun ReaderScreen(
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
-                if (!settings.readerVolumeKeys || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                if (!settings.readerVolumeKeys) return@onPreviewKeyEvent false
                 when (event.key) {
                     Key.VolumeUp -> {
-                        onTapPrevious()
+                        if (event.type == KeyEventType.KeyUp) onTapPrevious()
                         true
                     }
                     Key.VolumeDown -> {
-                        onTapNext()
+                        if (event.type == KeyEventType.KeyUp) onTapNext()
                         true
                     }
                     else -> false
@@ -312,6 +318,8 @@ private fun ReaderScreen(
                 onFontFamilyChange = onFontFamilyChange,
                 onReaderThemeChange = onReaderThemeChange,
                 onSideMarginChange = onSideMarginChange,
+                onVolumeKeysChange = onVolumeKeysChange,
+                onKeepAwakeChange = onKeepAwakeChange,
                 onCreateBookmark = onCreateBookmark,
             )
         }
@@ -439,6 +447,8 @@ private fun ReaderChrome(
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
+    onVolumeKeysChange: (Boolean) -> Unit,
+    onKeepAwakeChange: (Boolean) -> Unit,
     onCreateBookmark: () -> Unit,
 ) {
     Surface(
@@ -513,6 +523,8 @@ private fun ReaderChrome(
                     onFontFamilyChange = onFontFamilyChange,
                     onReaderThemeChange = onReaderThemeChange,
                     onSideMarginChange = onSideMarginChange,
+                    onVolumeKeysChange = onVolumeKeysChange,
+                    onKeepAwakeChange = onKeepAwakeChange,
                 )
                 ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
             }
@@ -526,7 +538,7 @@ private fun ReaderPanelButton(icon: ImageVector, labelRes: Int, selected: Boolea
         shape = MaterialTheme.shapes.extraLarge,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
         contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        tonalElevation = if (selected) Spacing.xs else 0.dp,
+        tonalElevation = if (selected) Elevations.shadowSmall else Elevations.none,
     ) {
         IconButton(onClick = onClick, modifier = Modifier.size(Sizes.touchTarget)) {
             Icon(
@@ -609,6 +621,8 @@ private fun StylePanel(
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
+    onVolumeKeysChange: (Boolean) -> Unit,
+    onKeepAwakeChange: (Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -675,6 +689,54 @@ private fun StylePanel(
                 )
             }
         }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_reader_volume_keys_title),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_reader_volume_keys_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = settings.readerVolumeKeys,
+                onCheckedChange = onVolumeKeysChange,
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.xs),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_reader_keep_awake_title),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_reader_keep_awake_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = settings.readerKeepAwake,
+                onCheckedChange = onKeepAwakeChange,
+            )
+        }
     }
 }
 
@@ -713,7 +775,7 @@ private fun ReaderTheme.label(): String = when (this) {
 private fun ReaderThemeSwatch(theme: ReaderTheme) {
     Box(
         modifier = Modifier
-            .size(12.dp)
+            .size(Sizes.swatchSmall)
             .background(color = theme.swatchColor(), shape = CircleShape),
     )
 }
@@ -721,9 +783,9 @@ private fun ReaderThemeSwatch(theme: ReaderTheme) {
 @Composable
 private fun ReaderTheme.swatchColor(): Color = when (this) {
     ReaderTheme.SYSTEM -> MaterialTheme.colorScheme.primary
-    ReaderTheme.LIGHT -> Color.White
-    ReaderTheme.SEPIA -> Color(0xFFFFE8BF)
-    ReaderTheme.DARK -> Color(0xFF111827)
+    ReaderTheme.LIGHT -> Palette.White
+    ReaderTheme.SEPIA -> Palette.SepiaSurface
+    ReaderTheme.DARK -> Palette.DarkReaderSurface
 }
 
 private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
