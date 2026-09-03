@@ -70,6 +70,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -563,7 +564,12 @@ private fun LibraryGrid(
     contentPadding: PaddingValues,
     onBookClick: (Long) -> Unit,
 ) {
+    val lastOpenedBook = remember(books) {
+        books.filter { (it.lastReadAt ?: 0L) > 0L }
+            .maxByOrNull { it.lastReadAt ?: 0L }
+    }
     val sections = books.toGroupSections(groupBy)
+
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
         modifier = Modifier.fillMaxSize(),
@@ -576,23 +582,140 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
+        if (lastOpenedBook != null) {
+            item(key = "hero:${lastOpenedBook.id}", span = { GridItemSpan(maxLineSpan) }) {
+                LibraryHeroCard(
+                    book = lastOpenedBook,
+                    onClick = { onBookClick(lastOpenedBook.id) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
+
         if (sections == null) {
-            gridItems(books, key = { it.id }) { book ->
+            val gridBooks = if (lastOpenedBook != null) books.filter { it.id != lastOpenedBook.id } else books
+            gridItems(gridBooks, key = { it.id }) { book ->
                 BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
             }
         } else {
             sections.forEach { section ->
-                item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
+                val sectionBooks = if (lastOpenedBook != null) section.books.filter { it.id != lastOpenedBook.id } else section.books
+                if (sectionBooks.isNotEmpty()) {
+                    item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = section.label,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier
+                                .padding(top = Spacing.sm, bottom = Spacing.xs)
+                                .animateItem(),
+                        )
+                    }
+                    gridItems(sectionBooks, key = { it.id }) { book ->
+                        BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryHeroCard(
+    book: Book,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(Radii.extraLargeIncreased),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Row(
+            modifier = Modifier.padding(Paddings.card),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BookCover(
+                book = book,
+                modifier = Modifier
+                    .width(Sizes.coverWidthMin)
+                    .clip(RoundedCornerShape(Radii.small)),
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoStories,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                        Text(
+                            text = stringResource(R.string.library_continue_reading),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+
+                Text(
+                    text = book.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                book.author?.takeIf { it.isNotBlank() }?.let { author ->
                     Text(
-                        text = section.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .padding(top = Spacing.sm, bottom = Spacing.xs)
-                            .animateItem(),
+                        text = author,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                gridItems(section.books, key = { it.id }) { book ->
-                    BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
+
+                if (book.readingPercent > 0f) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { (book.readingPercent / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier.weight(1f),
+                            strokeCap = StrokeCap.Round,
+                        )
+                        Text(
+                            text = "${book.readingPercent.toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                book.lastReadAt?.let { timestamp ->
+                    Text(
+                        text = stringResource(R.string.library_last_read_on, timestamp.formatDate()),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(top = Spacing.xs),
+                    )
                 }
             }
         }
