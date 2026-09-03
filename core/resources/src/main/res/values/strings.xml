@@ -96,8 +96,18 @@
 
     <string name="notes_title">Notes</string>
     <string name="notes_books_title">Books with notes</string>
-    <string name="notes_books_count">%1$d notes</string>
-    <string name="notes_single_note">1 note</string>
+    <string name="notes_books_count">%1$d items</string>
+    <string name="notes_single_note">1 item</string>
+    <string name="notes_stat_highlights">%1$d highlights</string>
+    <string name="notes_stat_single_highlight">1 highlight</string>
+    <string name="notes_stat_user_notes">%1$d notes</string>
+    <string name="notes_stat_single_user_note">1 note</string>
+    <string name="notes_stat_bookmarks">%1$d bookmarks</string>
+    <string name="notes_stat_single_bookmark">1 bookmark</string>
+    <string name="notes_stat_underlines">%1$d underlines</string>
+    <string name="notes_stat_chapters_count">%1$d chapters</string>
+    <string name="notes_stat_single_chapter">1 chapter</string>
+    <string name="notes_stat_last_activity">Updated %1$s</string>
     <string name="notes_book_hero_subtitle">%1$d notes &amp; highlights in this book</string>
     <string name="notes_back_content_description">Back to books</string>
     <string name="notes_empty_title">No notes yet</string>

@@ -340,11 +340,6 @@ private fun BookNotesCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val highlightCount = remember(item.annotations) { item.annotations.count { it.type == AnnotationType.HIGHLIGHT } }
-    val noteCount = remember(item.annotations) { item.annotations.count { it.type == AnnotationType.NOTE } }
-    val bookmarkCount = remember(item.annotations) { item.annotations.count { it.type == AnnotationType.BOOKMARK } }
-    val latestDate = remember(item.annotations) { item.annotations.maxOfOrNull { it.updatedAt } }
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -388,52 +383,10 @@ private fun BookNotesCard(
                     )
                 }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.xs),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(Radii.full),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ) {
-                        Text(
-                            text = if (item.annotations.size == 1) {
-                                stringResource(R.string.notes_single_note)
-                            } else {
-                                stringResource(R.string.notes_books_count, item.annotations.size)
-                            },
-                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-
-                    if (noteCount > 0 && highlightCount > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(Radii.full),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ) {
-                            Text(
-                                text = "$highlightCount hl · $noteCount notes",
-                                modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-                    }
-
-                    latestDate?.let { date ->
-                        Text(
-                            text = date.formatDate(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = Spacing.xs),
-                        )
-                    }
-                }
+                BookNotesStatsSummary(
+                    annotations = item.annotations,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
             }
 
             Icon(
@@ -441,6 +394,137 @@ private fun BookNotesCard(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun BookNotesStatsSummary(
+    annotations: List<Annotation>,
+    modifier: Modifier = Modifier,
+) {
+    val highlightCount = remember(annotations) { annotations.count { it.type == AnnotationType.HIGHLIGHT } }
+    val noteCount = remember(annotations) { annotations.count { it.type == AnnotationType.NOTE || !it.readerNote.isNullOrBlank() } }
+    val bookmarkCount = remember(annotations) { annotations.count { it.type == AnnotationType.BOOKMARK } }
+    val underlineCount = remember(annotations) { annotations.count { it.type == AnnotationType.UNDERLINE } }
+    val chaptersCount = remember(annotations) { annotations.mapNotNull { it.chapterTitle }.distinct().size }
+    val latestDate = remember(annotations) { annotations.maxOfOrNull { it.updatedAt } }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Highlights count pill
+            if (highlightCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Text(
+                        text = if (highlightCount == 1) {
+                            stringResource(R.string.notes_stat_single_highlight)
+                        } else {
+                            stringResource(R.string.notes_stat_highlights, highlightCount)
+                        },
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+
+            // User notes count pill
+            if (noteCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ) {
+                    Text(
+                        text = if (noteCount == 1) {
+                            stringResource(R.string.notes_stat_single_user_note)
+                        } else {
+                            stringResource(R.string.notes_stat_user_notes, noteCount)
+                        },
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+
+            // Bookmarks count pill
+            if (bookmarkCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                ) {
+                    Text(
+                        text = if (bookmarkCount == 1) {
+                            stringResource(R.string.notes_stat_single_bookmark)
+                        } else {
+                            stringResource(R.string.notes_stat_bookmarks, bookmarkCount)
+                        },
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+
+            // Underlines count pill
+            if (underlineCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Text(
+                        text = stringResource(R.string.notes_stat_underlines, underlineCount),
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+        }
+
+        // Secondary metadata line: chapters count & last modified date
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (chaptersCount > 0) {
+                Text(
+                    text = if (chaptersCount == 1) {
+                        stringResource(R.string.notes_stat_single_chapter)
+                    } else {
+                        stringResource(R.string.notes_stat_chapters_count, chaptersCount)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (chaptersCount > 0 && latestDate != null) {
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+            }
+            latestDate?.let { date ->
+                Text(
+                    text = stringResource(R.string.notes_stat_last_activity, date.formatDate()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -552,10 +636,9 @@ private fun BookNotesHero(bookItem: BookNotesItem) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    text = stringResource(R.string.notes_book_hero_subtitle, bookItem.annotations.size),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                BookNotesStatsSummary(
+                    annotations = bookItem.annotations,
+                    modifier = Modifier.padding(top = Spacing.xs),
                 )
             }
         }
