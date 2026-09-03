@@ -38,10 +38,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.HourglassEmpty
@@ -59,6 +61,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -73,6 +76,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -914,6 +918,12 @@ private fun EditMetadataDialog(
         )
     }
     val canSave = title.isNotBlank() && !duplicateSeriesNumber
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    )
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -927,29 +937,45 @@ private fun EditMetadataDialog(
             Column(
                 modifier = Modifier
                     .padding(Spacing.lg)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .vayanaAnimateContentSize(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     Surface(
                         shape = RoundedCornerShape(Radii.large),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tonalElevation = Elevations.level1,
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Edit,
                             contentDescription = null,
-                            modifier = Modifier.padding(Spacing.sm),
+                            modifier = Modifier.padding(Spacing.md),
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.library_edit_metadata_title),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.library_edit_metadata_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = book.title,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -957,48 +983,101 @@ private fun EditMetadataDialog(
                     label = { Text(stringResource(R.string.library_edit_metadata_title_label)) },
                     singleLine = true,
                     isError = !canSave,
+                    shape = RoundedCornerShape(Radii.medium),
+                    colors = textFieldColors,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoStories,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                 )
+
                 MetadataSuggestionField(
                     value = author,
                     onValueChange = { author = it },
                     suggestions = authorSuggestions,
                     label = stringResource(R.string.library_edit_metadata_author_label),
+                    leadingIcon = Icons.Outlined.EditNote,
+                    textFieldColors = textFieldColors,
                 )
-                MetadataSuggestionField(
-                    value = series,
-                    onValueChange = { series = it },
-                    suggestions = seriesSuggestions,
-                    label = stringResource(R.string.library_edit_metadata_series_label),
-                )
-                OutlinedTextField(
-                    value = seriesNumber,
-                    onValueChange = { seriesNumber = it },
+
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.library_edit_metadata_series_number_label)) },
-                    singleLine = true,
-                    isError = duplicateSeriesNumber,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                    supportingText = {
-                        if (duplicateSeriesNumber) {
-                            Text(stringResource(R.string.library_edit_metadata_series_number_taken))
-                        }
-                    },
-                )
+                    shape = RoundedCornerShape(Radii.large),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = Elevations.none,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        MetadataSuggestionField(
+                            value = series,
+                            onValueChange = { series = it },
+                            suggestions = seriesSuggestions,
+                            label = stringResource(R.string.library_edit_metadata_series_label),
+                            leadingIcon = Icons.Outlined.Category,
+                            textFieldColors = textFieldColors,
+                        )
+
+                        OutlinedTextField(
+                            value = seriesNumber,
+                            onValueChange = { seriesNumber = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.library_edit_metadata_series_number_label)) },
+                            singleLine = true,
+                            isError = duplicateSeriesNumber,
+                            shape = RoundedCornerShape(Radii.medium),
+                            colors = textFieldColors,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                )
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                            supportingText = {
+                                if (duplicateSeriesNumber) {
+                                    Text(
+                                        text = stringResource(R.string.library_edit_metadata_series_number_taken),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_description_label)) },
                     minLines = 3,
+                    shape = RoundedCornerShape(Radii.medium),
+                    colors = textFieldColors,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.EditNote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.xs),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(
+                    FilledTonalButton(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(Radii.full),
                     ) {
@@ -1009,6 +1088,11 @@ private fun EditMetadataDialog(
                         enabled = canSave,
                         shape = RoundedCornerShape(Radii.full),
                     ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = Spacing.xs),
+                        )
                         Text(stringResource(R.string.library_edit_metadata_save))
                     }
                 }
@@ -1024,56 +1108,99 @@ private fun MetadataSuggestionField(
     suggestions: List<String>,
     label: String,
     modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    textFieldColors: androidx.compose.material3.TextFieldColors = OutlinedTextFieldDefaults.colors(),
 ) {
     var expanded by remember { mutableStateOf(false) }
     val matches = remember(value, suggestions) { suggestions.matchingMetadataSuggestions(value) }
 
-    Box(modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {
-                onValueChange(it)
-                expanded = it.isNotBlank()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(label) },
-            singleLine = true,
-            trailingIcon = {
-                if (value.isNotEmpty()) {
-                    IconButton(onClick = { onValueChange(""); expanded = false }) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = {
+                    onValueChange(it)
+                    expanded = it.isNotBlank()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(label) },
+                singleLine = true,
+                shape = RoundedCornerShape(Radii.medium),
+                colors = textFieldColors,
+                leadingIcon = leadingIcon?.let { icon ->
+                    {
                         Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = stringResource(R.string.input_clear_content_description),
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
+                },
+                trailingIcon = {
+                    if (value.isNotEmpty()) {
+                        IconButton(onClick = { onValueChange(""); expanded = false }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = stringResource(R.string.input_clear_content_description),
+                            )
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+            )
+            DropdownMenu(
+                expanded = expanded && matches.isNotEmpty(),
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.fillMaxWidth(),
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true,
+                ),
+            ) {
+                matches.forEach { suggestion ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = suggestion,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        onClick = {
+                            onValueChange(suggestion)
+                            expanded = false
+                        },
+                    )
                 }
-            },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
-        )
-        DropdownMenu(
-            expanded = expanded && matches.isNotEmpty(),
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth(),
-            properties = PopupProperties(
-                focusable = false,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = true,
-            ),
-        ) {
-            matches.forEach { suggestion ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = suggestion,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    onClick = {
-                        onValueChange(suggestion)
-                        expanded = false
-                    },
-                )
+            }
+        }
+
+        if (matches.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                matches.take(4).forEach { suggestion ->
+                    SuggestionChip(
+                        onClick = {
+                            onValueChange(suggestion)
+                            expanded = false
+                        },
+                        label = {
+                            Text(
+                                text = suggestion,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        shape = RoundedCornerShape(Radii.full),
+                    )
+                }
             }
         }
     }
