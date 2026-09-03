@@ -117,13 +117,12 @@ async function open(bookUrl, lastLocatorCfi) {
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
-            const color = annotation.color ?? '#888888'
+            const color = annotation.color ?? '#6366f1'
             if (annotation.type === 'underline') {
-                draw((range, options) => {
+                draw((rects, options) => {
                     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
                     g.classList.add('vayana-dotted-underline')
-                    const rects = range.getClientRects()
-                    const strokeWidth = 1.5
+                    const strokeWidth = 2
                     for (const { left, bottom, width } of rects) {
                         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
                         line.setAttribute('x1', left)
@@ -132,26 +131,27 @@ async function open(bookUrl, lastLocatorCfi) {
                         line.setAttribute('y2', bottom - strokeWidth)
                         line.setAttribute('stroke', color)
                         line.setAttribute('stroke-width', strokeWidth)
-                        line.setAttribute('stroke-dasharray', '3,3')
+                        line.setAttribute('stroke-dasharray', '4,3')
                         g.append(line)
                     }
                     if (annotation.note && rects.length > 0) {
                         const lastRect = rects[rects.length - 1]
                         const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text')
                         badge.setAttribute('x', lastRect.right + 4)
-                        badge.setAttribute('y', lastRect.bottom - 1)
+                        badge.setAttribute('y', lastRect.bottom - 2)
                         badge.setAttribute('fill', color)
-                        badge.setAttribute('font-size', '9px')
+                        badge.setAttribute('font-size', '10px')
+                        badge.setAttribute('font-weight', 'bold')
                         badge.setAttribute('font-family', 'sans-serif')
-                        badge.setAttribute('opacity', '0.75')
+                        badge.setAttribute('opacity', '0.85')
                         badge.textContent = `· ${annotation.note}`
                         g.append(badge)
                     }
                     return g
                 })
             } else {
-                draw((range, options) => {
-                    const g = Overlayer.highlight(range, options)
+                draw((rects, options) => {
+                    const g = Overlayer.highlight(rects, options)
                     g.style.fill = color
                     return g
                 })
@@ -313,68 +313,65 @@ function matchTextAnnotationsForDoc(doc, index) {
     }
 }
 
-function normalizeSearchText(str) {
-    if (!str) return ''
-    return str
-        .toLowerCase()
-        .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
-        .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-        .replace(/[\u2014\u2015\u2013]/g, '-')
-        .replace(/\s+/g, ' ')
-        .trim()
-}
-
 function findTextRangeInDoc(doc, text) {
+    if (!doc || !doc.body || !text) return null
     try {
-        const target = normalizeSearchText(text)
-        if (!target) return null
-        const rawBody = (doc.body?.innerText || doc.body?.textContent || '')
-        const bodyText = normalizeSearchText(rawBody)
-        const searchSample = target.substring(0, Math.min(25, target.length))
-        if (!bodyText.includes(searchSample)) return null
+        const cleanTarget = text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+        if (cleanTarget.length < 5) return null
 
         const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false)
-        const textNodes = []
-        let fullDocText = ''
         let node
+        let cleanDoc = ''
+        const charMap = [] // charMap[i] = { node, offset }
+
         while ((node = walker.nextNode())) {
             const str = node.textContent
-            const start = fullDocText.length
-            fullDocText += str
-            textNodes.push({ node, start, end: fullDocText.length })
-        }
-
-        const normDoc = normalizeSearchText(fullDocText)
-        let matchIdx = normDoc.indexOf(target)
-        let matchLen = target.length
-        if (matchIdx === -1) {
-            const sample50 = target.substring(0, Math.min(50, target.length))
-            matchIdx = normDoc.indexOf(sample50)
-            matchLen = sample50.length
-        }
-        if (matchIdx === -1) {
-            const sample30 = target.substring(0, Math.min(30, target.length))
-            matchIdx = normDoc.indexOf(sample30)
-            matchLen = sample30.length
-        }
-        if (matchIdx === -1) return null
-
-        let startNode = null, startOffset = 0, endNode = null, endOffset = 0
-        for (const { node, start, end } of textNodes) {
-            if (!startNode && matchIdx >= start && matchIdx < end) {
-                startNode = node
-                startOffset = Math.min(matchIdx - start, node.textContent.length)
-            }
-            if (startNode && matchIdx + matchLen <= end) {
-                endNode = node
-                endOffset = Math.min((matchIdx + matchLen) - start, node.textContent.length)
-                break
+            for (let offset = 0; offset < str.length; offset++) {
+                const char = str[offset]
+                if (/[\p{L}\p{N}]/u.test(char)) {
+                    cleanDoc += char.toLowerCase()
+                    charMap.push({ node, offset })
+                }
             }
         }
-        if (startNode && endNode) {
+
+        if (cleanDoc.length < 5) return null
+
+        let matchIdx = cleanDoc.indexOf(cleanTarget)
+        let matchLen = cleanTarget.length
+
+        // Progressive fallback for slightly mismatched quotes
+        if (matchIdx === -1 && cleanTarget.length > 50) {
+            const s50 = cleanTarget.substring(0, 50)
+            matchIdx = cleanDoc.indexOf(s50)
+            if (matchIdx !== -1) matchLen = 50
+        }
+        if (matchIdx === -1 && cleanTarget.length > 30) {
+            const s30 = cleanTarget.substring(0, 30)
+            matchIdx = cleanDoc.indexOf(s30)
+            if (matchIdx !== -1) matchLen = 30
+        }
+        if (matchIdx === -1 && cleanTarget.length > 15) {
+            const s18 = cleanTarget.substring(0, 18)
+            matchIdx = cleanDoc.indexOf(s18)
+            if (matchIdx !== -1) matchLen = 18
+        }
+        if (matchIdx === -1 && cleanTarget.length > 8) {
+            const s10 = cleanTarget.substring(0, 10)
+            matchIdx = cleanDoc.indexOf(s10)
+            if (matchIdx !== -1) matchLen = 10
+        }
+
+        if (matchIdx === -1 || matchIdx >= charMap.length) return null
+
+        const start = charMap[matchIdx]
+        const endCharIdx = Math.min(matchIdx + matchLen - 1, charMap.length - 1)
+        const end = charMap[endCharIdx]
+
+        if (start && end) {
             const range = doc.createRange()
-            range.setStart(startNode, startOffset)
-            range.setEnd(endNode, endOffset)
+            range.setStart(start.node, start.offset)
+            range.setEnd(end.node, end.offset + 1)
             return range
         }
     } catch (_) {}
