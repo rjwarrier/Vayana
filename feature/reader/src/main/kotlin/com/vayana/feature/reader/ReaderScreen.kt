@@ -1,5 +1,7 @@
 package com.vayana.feature.reader
 
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
@@ -75,6 +77,7 @@ import com.vayana.core.resources.R
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.TocEntry
 import com.vayana.reader.web.FoliateBookEngine
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -135,6 +138,18 @@ private fun ReaderScreen(
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val lifecycleOwner = LocalLifecycleOwner.current
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
+        val third = width / 3f
+        when {
+            x < third -> onTapPrevious()
+            x > third * 2 -> onTapNext()
+            chromeVisible -> chromeVisible = false
+            else -> {
+                selectedPanel = ReaderPanel.STYLE
+                chromeVisible = true
+            }
+        }
+    }
 
     // Keep WebView lifecycle explicit; Compose disposal is not enough for this hardware surface.
     DisposableEffect(lifecycleOwner) {
@@ -155,24 +170,32 @@ private fun ReaderScreen(
             .onSizeChanged { size -> containerWidthPx = size.width }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    val third = containerWidthPx / 3f
-                    when {
-                        offset.x < third -> onTapPrevious()
-                        offset.x > third * 2 -> onTapNext()
-                        chromeVisible -> chromeVisible = false
-                        else -> {
-                            selectedPanel = ReaderPanel.STYLE
-                            chromeVisible = true
-                        }
-                    }
+                    onReaderTapState.value(offset.x, containerWidthPx)
                 }
             },
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
+                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+                var downX = 0f
+                var downY = 0f
                 val webView = WebView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    setOnTouchListener { view, event ->
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN -> {
+                                downX = event.x
+                                downY = event.y
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                if (abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
+                                    onReaderTapState.value(event.x, view.width)
+                                }
+                            }
+                        }
+                        false
+                    }
                 }
                 webViewRef = webView
                 onEngineReadyState.value(FoliateBookEngine(webView, context.applicationContext))
