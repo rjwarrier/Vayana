@@ -74,6 +74,14 @@
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>
+    <string name="notes_edit_content_description">Edit note</string>
+    <string name="notes_delete_content_description">Delete note</string>
+    <string name="notes_edit_title">Edit note</string>
+    <string name="notes_edit_label">Note</string>
+    <string name="notes_edit_save">Save</string>
+    <string name="notes_delete_title">Delete this note?</string>
+    <string name="notes_delete_body">This removes the saved note or highlight from your library.</string>
+    <string name="notes_delete_confirm">Delete</string>
 
     <string name="statistics_title">Statistics</string>
     <string name="statistics_empty_title">Nothing to show yet</string>
@@ -153,7 +161,9 @@
     <string name="reader_notes_empty">No notes or highlights in this book yet.</string>
     <string name="reader_selection_highlight">Highlight</string>
     <string name="reader_selection_underline">Underline</string>
+    <string name="reader_selection_copy">Copy</string>
     <string name="reader_selection_note">Note</string>
+    <string name="reader_add_bookmark_content_description">Add bookmark</string>
     <string name="reader_note_dialog_title">Add note</string>
     <string name="reader_note_dialog_label">Note</string>
     <string name="reader_note_dialog_save">Save</string>

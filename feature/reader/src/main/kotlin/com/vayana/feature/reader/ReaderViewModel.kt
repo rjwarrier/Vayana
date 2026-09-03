@@ -187,6 +187,36 @@ class ReaderViewModel @Inject constructor(
         createAnnotation(type = AnnotationType.NOTE, readerNote = note)
     }
 
+    fun createBookmark() {
+        val state = uiState.value as? ReaderUiState.Loaded ?: return
+        val locator = state.currentLocator ?: return
+        val cfi = locator.cfi?.takeIf { it.isNotBlank() } ?: return
+        if (state.annotations.any { it.type == AnnotationType.BOOKMARK && it.locator == cfi }) return
+
+        viewModelScope.launch {
+            annotationRepository.create(
+                bookId = bookId,
+                type = AnnotationType.BOOKMARK,
+                colorKey = DefaultBookmarkColor,
+                locator = cfi,
+                chapterTitle = locator.chapterTitle,
+                chapterHref = locator.href,
+                selectedText = "",
+                readerNote = null,
+            )
+        }
+    }
+
+    fun clearSelection() {
+        val engine = boundEngine ?: return
+        viewModelScope.launch {
+            engine.clearSelection()
+            _uiState.update { current ->
+                if (current is ReaderUiState.Loaded) current.copy(selection = null) else current
+            }
+        }
+    }
+
     private fun dispatch(target: NavTarget) {
         val engine = boundEngine ?: return
         viewModelScope.launch { engine.goTo(target) }
@@ -283,4 +313,5 @@ private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when
 }
 
 private const val DefaultAnnotationColor = "yellow"
+private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L

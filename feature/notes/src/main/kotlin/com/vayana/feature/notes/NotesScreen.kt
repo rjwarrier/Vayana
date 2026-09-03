@@ -1,7 +1,7 @@
 package com.vayana.feature.notes
 
-import android.content.Intent
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -23,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,13 +52,25 @@ fun NotesRoute(modifier: Modifier = Modifier) {
     val viewModel: NotesViewModel = hiltViewModel()
     val annotations by viewModel.annotations.collectAsState()
 
-    NotesScreen(modifier = modifier, annotations = annotations)
+    NotesScreen(
+        modifier = modifier,
+        annotations = annotations,
+        onUpdateNote = viewModel::updateNote,
+        onDeleteAnnotation = viewModel::deleteAnnotation,
+    )
 }
 
 @Composable
-private fun NotesScreen(modifier: Modifier = Modifier, annotations: List<Annotation>) {
+private fun NotesScreen(
+    modifier: Modifier = Modifier,
+    annotations: List<Annotation>,
+    onUpdateNote: (Annotation, String) -> Unit,
+    onDeleteAnnotation: (Long) -> Unit,
+) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
+    var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     val visibleAnnotations = remember(annotations, query) { annotations.filterByQuery(query) }
 
     Scaffold(
@@ -96,13 +112,57 @@ private fun NotesScreen(modifier: Modifier = Modifier, annotations: List<Annotat
         } else if (visibleAnnotations.isEmpty()) {
             NotesNoMatchesState(contentPadding = innerPadding)
         } else {
-            NotesList(contentPadding = innerPadding, annotations = visibleAnnotations)
+            NotesList(
+                contentPadding = innerPadding,
+                annotations = visibleAnnotations,
+                onEdit = { editingAnnotation = it },
+                onDelete = { deletingAnnotation = it },
+            )
         }
+    }
+
+    editingAnnotation?.let { annotation ->
+        EditNoteDialog(
+            annotation = annotation,
+            onDismiss = { editingAnnotation = null },
+            onConfirm = { updatedNote ->
+                editingAnnotation = null
+                onUpdateNote(annotation, updatedNote)
+            },
+        )
+    }
+
+    deletingAnnotation?.let { annotation ->
+        AlertDialog(
+            onDismissRequest = { deletingAnnotation = null },
+            title = { Text(stringResource(R.string.notes_delete_title)) },
+            text = { Text(stringResource(R.string.notes_delete_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deletingAnnotation = null
+                        onDeleteAnnotation(annotation.id)
+                    },
+                ) {
+                    Text(stringResource(R.string.notes_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingAnnotation = null }) {
+                    Text(stringResource(R.string.settings_reset_all_cancel))
+                }
+            },
+        )
     }
 }
 
 @Composable
-private fun NotesList(contentPadding: PaddingValues, annotations: List<Annotation>) {
+private fun NotesList(
+    contentPadding: PaddingValues,
+    annotations: List<Annotation>,
+    onEdit: (Annotation) -> Unit,
+    onDelete: (Annotation) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -114,13 +174,17 @@ private fun NotesList(contentPadding: PaddingValues, annotations: List<Annotatio
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(annotations, key = { it.id }) { annotation ->
-            AnnotationRow(annotation = annotation)
+            AnnotationRow(
+                annotation = annotation,
+                onEdit = { onEdit(annotation) },
+                onDelete = { onDelete(annotation) },
+            )
         }
     }
 }
 
 @Composable
-private fun AnnotationRow(annotation: Annotation) {
+private fun AnnotationRow(annotation: Annotation, onEdit: () -> Unit, onDelete: () -> Unit) {
     ListItem(
         modifier = Modifier.fillMaxWidth(),
         headlineContent = {
@@ -152,6 +216,59 @@ private fun AnnotationRow(annotation: Annotation) {
                 contentDescription = null,
                 modifier = Modifier.size(Sizes.icon),
             )
+        },
+        trailingContent = {
+            Row {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = stringResource(R.string.notes_edit_content_description),
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = stringResource(R.string.notes_delete_content_description),
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun EditNoteDialog(annotation: Annotation, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var note by remember(annotation.id) { mutableStateOf(annotation.readerNote.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.notes_edit_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    text = annotation.selectedText.ifBlank { stringResource(R.string.notes_bookmark_without_text) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text(stringResource(R.string.notes_edit_label)) },
+                    minLines = 3,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(note) }) {
+                Text(stringResource(R.string.notes_edit_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
+            }
         },
     )
 }

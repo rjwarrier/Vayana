@@ -1,5 +1,8 @@
 package com.vayana.feature.reader
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -27,6 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
@@ -65,6 +70,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -108,6 +114,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onCreateHighlight = viewModel::createHighlight,
         onCreateUnderline = viewModel::createUnderline,
         onCreateNote = viewModel::createNote,
+        onCreateBookmark = viewModel::createBookmark,
+        onClearSelection = viewModel::clearSelection,
         onFontSizeChange = viewModel::updateFontSize,
         onLineHeightChange = viewModel::updateLineHeight,
         onFontFamilyChange = viewModel::updateFontFamily,
@@ -133,6 +141,8 @@ private fun ReaderScreen(
     onCreateHighlight: () -> Unit,
     onCreateUnderline: () -> Unit,
     onCreateNote: (String) -> Unit,
+    onCreateBookmark: () -> Unit,
+    onClearSelection: () -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -144,6 +154,7 @@ private fun ReaderScreen(
     var selectedPanel by remember { mutableStateOf(ReaderPanel.CONTENTS) }
     var noteDialogVisible by remember { mutableStateOf(false) }
     var containerWidthPx by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val lifecycleOwner = LocalLifecycleOwner.current
     val rootView = LocalView.current
@@ -301,6 +312,7 @@ private fun ReaderScreen(
                 onFontFamilyChange = onFontFamilyChange,
                 onReaderThemeChange = onReaderThemeChange,
                 onSideMarginChange = onSideMarginChange,
+                onCreateBookmark = onCreateBookmark,
             )
         }
 
@@ -310,6 +322,10 @@ private fun ReaderScreen(
                 selectedText = selection.selectedText,
                 onHighlight = onCreateHighlight,
                 onUnderline = onCreateUnderline,
+                onCopy = {
+                    context.copyTextToClipboard(selection.selectedText)
+                    onClearSelection()
+                },
                 onNote = { noteDialogVisible = true },
             )
         }
@@ -332,6 +348,7 @@ private fun SelectionActions(
     selectedText: String,
     onHighlight: () -> Unit,
     onUnderline: () -> Unit,
+    onCopy: () -> Unit,
     onNote: () -> Unit,
 ) {
     Surface(
@@ -361,6 +378,14 @@ private fun SelectionActions(
                 }
                 FilledTonalButton(onClick = onUnderline) {
                     Text(stringResource(R.string.reader_selection_underline))
+                }
+                FilledTonalButton(onClick = onCopy) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconSmall),
+                    )
+                    Text(stringResource(R.string.reader_selection_copy))
                 }
                 FilledTonalButton(onClick = onNote) {
                     Text(stringResource(R.string.reader_selection_note))
@@ -414,6 +439,7 @@ private fun ReaderChrome(
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
+    onCreateBookmark: () -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -437,17 +463,28 @@ private fun ReaderChrome(
                         shape = CircleShape,
                     ),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = null,
+                    )
                 }
                 Text(
                     text = (uiState as? ReaderUiState.Loaded)?.bookTitle.orEmpty(),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = Spacing.sm),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = Sizes.touchTarget),
                 )
+                IconButton(onClick = onCreateBookmark, modifier = Modifier.align(Alignment.CenterEnd)) {
+                    Icon(
+                        imageVector = Icons.Outlined.BookmarkAdd,
+                        contentDescription = stringResource(R.string.reader_add_bookmark_content_description),
+                    )
+                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -693,3 +730,9 @@ private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 
 private fun List<TocEntry>.flattenToc(depth: Int = 0): List<TocDisplayItem> =
     flatMap { entry -> listOf(TocDisplayItem(entry, depth)) + entry.children.flattenToc(depth + 1) }
+
+private fun Context.copyTextToClipboard(text: String) {
+    val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText(getString(R.string.app_name), text)
+    clipboardManager.setPrimaryClip(clip)
+}
