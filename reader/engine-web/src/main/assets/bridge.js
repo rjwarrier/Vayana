@@ -432,8 +432,45 @@ function findBestMatch(cleanDoc, cleanTarget) {
             }
         }
     }
-
     return bestCandidate
+}
+
+function findMultiChunkMatch(cleanDoc, rawText) {
+    if (!cleanDoc || !rawText) return null
+    // Split raw text into natural clauses/phrases by punctuation or ellipses
+    const clauses = rawText
+        .split(/[.,;:!?…\n"]|\.{2,}/)
+        .map(c => normalizeForMatching(c))
+        .filter(c => c.length >= 10)
+
+    if (clauses.length < 2) return null
+
+    let firstMatch = null
+    let lastMatch = null
+    let matchedCount = 0
+    let lastEndIdx = 0
+
+    for (const clause of clauses) {
+        const idx = cleanDoc.indexOf(clause, lastEndIdx)
+        if (idx !== -1 && (lastEndIdx === 0 || idx - lastEndIdx < 800)) {
+            if (!firstMatch) {
+                firstMatch = { matchIdx: idx, matchLen: clause.length }
+            }
+            lastMatch = { matchIdx: idx, matchLen: clause.length }
+            lastEndIdx = idx + clause.length
+            matchedCount++
+        }
+    }
+
+    if (matchedCount >= 2 && firstMatch && lastMatch) {
+        const startIdx = firstMatch.matchIdx
+        const endIdx = lastMatch.matchIdx + lastMatch.matchLen
+        const totalSpan = endIdx - startIdx
+        if (totalSpan > 0 && totalSpan < 2500) {
+            return { matchIdx: startIdx, matchLen: totalSpan, score: 0.92 }
+        }
+    }
+    return null
 }
 
 function findTextRangeInDoc(doc, text) {
@@ -442,7 +479,20 @@ function findTextRangeInDoc(doc, text) {
         const cleanTarget = normalizeForMatching(text)
         if (cleanTarget.length < 5) return null
 
-        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false)
+        const walker = doc.createTreeWalker(
+            doc.body,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode(n) {
+                    const tag = n.parentElement?.tagName?.toUpperCase()
+                    if (tag === 'STYLE' || tag === 'SCRIPT' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') {
+                        return NodeFilter.FILTER_REJECT
+                    }
+                    return NodeFilter.FILTER_ACCEPT
+                }
+            },
+            false
+        )
         let node
         let cleanDoc = ''
         const charMap = [] // charMap[i] = { node, offset }
@@ -466,7 +516,15 @@ function findTextRangeInDoc(doc, text) {
 
         if (cleanDoc.length < 5) return null
 
-        const match = findBestMatch(cleanDoc, cleanTarget)
+        // Strategy 1: Contiguous best match
+        let match = findBestMatch(cleanDoc, cleanTarget)
+
+        // Strategy 2: Multi-chunk sequence match (for quotes with ellipses or omissions)
+        if (!match || (match.score && match.score < 0.85)) {
+            const chunkMatch = findMultiChunkMatch(cleanDoc, text)
+            if (chunkMatch) match = chunkMatch
+        }
+
         if (!match || match.matchIdx === -1 || match.matchIdx >= charMap.length) return null
 
         const { matchIdx, matchLen } = match
