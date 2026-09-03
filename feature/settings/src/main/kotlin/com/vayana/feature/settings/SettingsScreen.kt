@@ -65,6 +65,9 @@ import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import androidx.compose.animation.AnimatedContent
+import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
+import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -128,25 +131,31 @@ private fun SettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        if (selectedGroup == null) {
-            SettingsHub(
-                contentPadding = innerPadding,
-                query = query,
-                visibleSettings = visibleSettings,
-                settings = settings,
-                onQueryChange = { query = it },
-                onGroupSelected = { selectedGroup = it },
-                onUpdate = onUpdate,
-                onReset = onReset,
-            )
-        } else {
-            SettingsGroupDetail(
-                contentPadding = innerPadding,
-                group = selectedGroup,
-                settings = settings,
-                onUpdate = onUpdate,
-                onReset = onReset,
-            )
+        AnimatedContent(
+            targetState = selectedGroup,
+            transitionSpec = vayanaContentTransform(),
+            label = "SettingsNav",
+        ) { group ->
+            if (group == null) {
+                SettingsHub(
+                    contentPadding = innerPadding,
+                    query = query,
+                    visibleSettings = visibleSettings,
+                    settings = settings,
+                    onQueryChange = { query = it },
+                    onGroupSelected = { selectedGroup = it },
+                    onUpdate = onUpdate,
+                    onReset = onReset,
+                )
+            } else {
+                SettingsGroupDetail(
+                    contentPadding = innerPadding,
+                    group = group,
+                    settings = settings,
+                    onUpdate = onUpdate,
+                    onReset = onReset,
+                )
+            }
         }
     }
 

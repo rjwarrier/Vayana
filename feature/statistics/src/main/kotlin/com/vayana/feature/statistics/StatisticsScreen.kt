@@ -1,5 +1,6 @@
 package com.vayana.feature.statistics
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
+import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -190,7 +193,9 @@ private fun StatisticTile(icon: ImageVector, title: String, value: String, suppo
 private fun ReadingMixCard(summary: StatisticsSummary) {
     val maxValue = listOf(summary.readingBooks, summary.finishedBooks, summary.totalAnnotations).maxOrNull()?.coerceAtLeast(1) ?: 1
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .vayanaAnimateContentSize(),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
@@ -235,7 +240,12 @@ private fun ReadingMixCard(summary: StatisticsSummary) {
 
 @Composable
 private fun ChartBar(label: String, value: Int, maxValue: Int, color: Color, modifier: Modifier = Modifier) {
-    val fraction = (value.toFloat() / maxValue).coerceIn(0.08f, 1f)
+    val targetFraction = (value.toFloat() / maxValue).coerceIn(0.08f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = vayanaSpring(),
+        label = "ChartBarFraction",
+    )
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -247,7 +257,7 @@ private fun ChartBar(label: String, value: Int, maxValue: Int, color: Color, mod
                 .padding(top = Spacing.xs)
                 .widthIn(min = Sizes.chartBarMinWidth, max = Sizes.chartBarMaxWidth)
                 .fillMaxWidth()
-                .height(Sizes.chartBarMaxHeight * fraction)
+                .height(Sizes.chartBarMaxHeight * animatedFraction)
                 .clip(RoundedCornerShape(topStart = Radii.small, topEnd = Radii.small))
                 .background(color),
         )

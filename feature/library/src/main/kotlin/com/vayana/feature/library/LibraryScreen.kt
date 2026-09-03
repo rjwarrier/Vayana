@@ -95,6 +95,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
@@ -354,7 +355,8 @@ private fun LibraryTopBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md),
+            .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md)
+            .vayanaAnimateContentSize(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -539,17 +541,23 @@ private fun LibraryGrid(
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
         if (sections == null) {
-            gridItems(books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
+            gridItems(books, key = { it.id }) { book ->
+                BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
+            }
         } else {
             sections.forEach { section ->
                 item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = section.label,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.xs),
+                        modifier = Modifier
+                            .padding(top = Spacing.sm, bottom = Spacing.xs)
+                            .animateItem(),
                     )
                 }
-                gridItems(section.books, key = { it.id }) { book -> BookCoverCell(book, onClick = { onBookClick(book.id) }) }
+                gridItems(section.books, key = { it.id }) { book ->
+                    BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
+                }
             }
         }
     }
@@ -587,8 +595,12 @@ private fun List<Book>.sortedBySeriesNumber(): List<Book> = sortedWith(
 )
 
 @Composable
-private fun BookCoverCell(book: Book, onClick: () -> Unit) {
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
+private fun BookCoverCell(
+    book: Book,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(modifier = modifier.clickable(onClick = onClick)) {
         BookCover(book = book, modifier = Modifier.fillMaxWidth())
         Text(
             text = book.title,

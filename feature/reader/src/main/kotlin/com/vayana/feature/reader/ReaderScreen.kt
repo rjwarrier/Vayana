@@ -11,6 +11,8 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -98,6 +100,13 @@ import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
 import com.vayana.core.designsystem.theme.ThemeMode
+import com.vayana.core.designsystem.theme.vayanaContentTransform
+import com.vayana.core.designsystem.theme.vayanaFadeIn
+import com.vayana.core.designsystem.theme.vayanaFadeOut
+import com.vayana.core.designsystem.theme.vayanaScaleIn
+import com.vayana.core.designsystem.theme.vayanaScaleOut
+import com.vayana.core.designsystem.theme.vayanaSlideInVertically
+import com.vayana.core.designsystem.theme.vayanaSlideOutVertically
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
@@ -380,9 +389,13 @@ private fun ReaderScreen(
             )
         }
 
-        if (chromeVisible) {
+        AnimatedVisibility(
+            visible = chromeVisible,
+            modifier = Modifier.align(Alignment.BottomStart),
+            enter = vayanaSlideInVertically(initialOffsetY = { it }),
+            exit = vayanaSlideOutVertically(targetOffsetY = { it }),
+        ) {
             ReaderChrome(
-                modifier = Modifier.align(Alignment.BottomStart),
                 uiState = uiState,
                 settings = settings,
                 selectedPanel = selectedPanel,
@@ -410,18 +423,25 @@ private fun ReaderScreen(
             )
         }
 
-        (uiState as? ReaderUiState.Loaded)?.selection?.let { selection ->
-            SelectionActions(
-                modifier = Modifier.align(Alignment.TopCenter),
-                selectedText = selection.selectedText,
-                onHighlight = onCreateHighlight,
-                onUnderline = onCreateUnderline,
-                onCopy = {
-                    context.copyTextToClipboard(selection.selectedText)
-                    onClearSelection()
-                },
-                onNote = { noteDialogVisible = true },
-            )
+        val selection = (uiState as? ReaderUiState.Loaded)?.selection
+        AnimatedVisibility(
+            visible = selection != null,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = vayanaScaleIn() + vayanaFadeIn(),
+            exit = vayanaScaleOut() + vayanaFadeOut(),
+        ) {
+            if (selection != null) {
+                SelectionActions(
+                    selectedText = selection.selectedText,
+                    onHighlight = onCreateHighlight,
+                    onUnderline = onCreateUnderline,
+                    onCopy = {
+                        context.copyTextToClipboard(selection.selectedText)
+                        onClearSelection()
+                    },
+                    onNote = { noteDialogVisible = true },
+                )
+            }
         }
     }
 
@@ -775,27 +795,33 @@ private fun ReaderChrome(
                     onPanelSelected(ReaderPanel.STYLE)
                 }
             }
-            when (selectedPanel) {
-                ReaderPanel.CONTENTS -> ContentsPanel(uiState = uiState, onOpenTocEntry = onOpenTocEntry)
-                ReaderPanel.BOOKMARKS -> BookmarksPanel(
-                    uiState = uiState,
-                    onCreateBookmark = onCreateBookmark,
-                    onBookmarkClick = onAnnotationClick,
-                )
-                ReaderPanel.PROGRESS -> ProgressPanel(uiState = uiState, onProgressChange = onProgressChange)
-                ReaderPanel.STYLE -> StylePanel(
-                    settings = settings,
-                    onFontSizeChange = onFontSizeChange,
-                    onLineHeightChange = onLineHeightChange,
-                    onFontFamilyChange = onFontFamilyChange,
-                    onReaderThemeChange = onReaderThemeChange,
-                    onSideMarginChange = onSideMarginChange,
-                    onVolumeKeysChange = onVolumeKeysChange,
-                    onKeepAwakeChange = onKeepAwakeChange,
-                    onShowHeadersChange = onShowHeadersChange,
-                    onShowFooterChange = onShowFooterChange,
-                )
-                ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
+            AnimatedContent(
+                targetState = selectedPanel,
+                transitionSpec = vayanaContentTransform(),
+                label = "ReaderPanelSwitch",
+            ) { panel ->
+                when (panel) {
+                    ReaderPanel.CONTENTS -> ContentsPanel(uiState = uiState, onOpenTocEntry = onOpenTocEntry)
+                    ReaderPanel.BOOKMARKS -> BookmarksPanel(
+                        uiState = uiState,
+                        onCreateBookmark = onCreateBookmark,
+                        onBookmarkClick = onAnnotationClick,
+                    )
+                    ReaderPanel.PROGRESS -> ProgressPanel(uiState = uiState, onProgressChange = onProgressChange)
+                    ReaderPanel.STYLE -> StylePanel(
+                        settings = settings,
+                        onFontSizeChange = onFontSizeChange,
+                        onLineHeightChange = onLineHeightChange,
+                        onFontFamilyChange = onFontFamilyChange,
+                        onReaderThemeChange = onReaderThemeChange,
+                        onSideMarginChange = onSideMarginChange,
+                        onVolumeKeysChange = onVolumeKeysChange,
+                        onKeepAwakeChange = onKeepAwakeChange,
+                        onShowHeadersChange = onShowHeadersChange,
+                        onShowFooterChange = onShowFooterChange,
+                    )
+                    ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
+                }
             }
         }
     }

@@ -200,15 +200,21 @@ private fun NotesList(
                 annotation = annotation,
                 onEdit = { onEdit(annotation) },
                 onDelete = { onDelete(annotation) },
+                modifier = Modifier.animateItem(),
             )
         }
     }
 }
 
 @Composable
-private fun AnnotationCard(annotation: Annotation, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun AnnotationCard(
+    annotation: Annotation,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {

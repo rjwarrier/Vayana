@@ -6,6 +6,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.LocalMotionSetting
+import com.vayana.core.designsystem.theme.vayanaNavEnter
+import com.vayana.core.designsystem.theme.vayanaNavExit
+import com.vayana.core.designsystem.theme.vayanaNavPopEnter
+import com.vayana.core.designsystem.theme.vayanaNavPopExit
 import com.vayana.feature.library.LibraryRoute
 import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
@@ -17,10 +23,17 @@ fun VayanaNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    val displayProfile = LocalDisplayProfile.current
+    val motionSetting = LocalMotionSetting.current
+
     NavHost(
         navController = navController,
         startDestination = TopLevelRoute.Library,
         modifier = modifier,
+        enterTransition = { vayanaNavEnter(displayProfile, motionSetting) },
+        exitTransition = { vayanaNavExit(displayProfile, motionSetting) },
+        popEnterTransition = { vayanaNavPopEnter(displayProfile, motionSetting) },
+        popExitTransition = { vayanaNavPopExit(displayProfile, motionSetting) },
     ) {
         composable<TopLevelRoute.Library> {
             LibraryRoute(
