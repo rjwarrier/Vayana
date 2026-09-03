@@ -107,6 +107,12 @@
     <string name="statistics_chart_notes">Notes</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_search_placeholder">Try “theme”, “font”, or “page”</string>
+    <string name="settings_profile_title">vayana library</string>
+    <string name="settings_profile_subtitle">Offline reader settings for this device</string>
+    <string name="settings_category_open_content_description">Open setting group</string>
+    <string name="settings_no_matches_title">No matching settings</string>
+    <string name="settings_no_matches_body">Try a different word from a setting name or description.</string>
     <string name="settings_back_content_description">Back</string>
     <string name="settings_reset_one_content_description">Reset setting</string>
     <string name="settings_reset_all_content_description">Reset all settings</string>

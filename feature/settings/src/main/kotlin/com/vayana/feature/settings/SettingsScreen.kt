@@ -1,5 +1,7 @@
 package com.vayana.feature.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,19 +10,31 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -38,7 +52,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.datastore.settings.BooleanSetting
 import com.vayana.core.datastore.settings.ChoiceSetting
@@ -50,6 +66,7 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
+import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
@@ -80,15 +97,18 @@ private fun SettingsScreen(
     onResetAll: () -> Unit,
 ) {
     var showResetAllDialog by remember { mutableStateOf(false) }
+    var selectedGroup by remember { mutableStateOf<SettingsGroup?>(null) }
+    var query by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
+    val visibleSettings = remember(query) { SettingsRegistry.all.filterByQuery(query) }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
+                title = { Text(selectedGroup?.let { stringResource(it.titleRes) } ?: stringResource(R.string.settings_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (selectedGroup != null) selectedGroup = null else onBack() }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.settings_back_content_description))
                     }
                 },
@@ -98,42 +118,33 @@ private fun SettingsScreen(
                     }
                 },
                 scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
             )
         },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = Paddings.screenHorizontal,
-                top = innerPadding.calculateTopPadding() + Spacing.sm,
-                end = Paddings.screenHorizontal,
-                bottom = innerPadding.calculateBottomPadding() + Spacing.xl,
-            ),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            SettingsGroup.entries.forEach { group ->
-                val groupSettings = SettingsRegistry.all.filter { it.group == group }
-                if (groupSettings.isNotEmpty()) {
-                    item(key = group.name) {
-                        Text(
-                            text = stringResource(group.titleRes),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = Spacing.lg, bottom = Spacing.xs),
-                        )
-                    }
-                    groupSettings.forEach { setting ->
-                        item(key = setting.key) {
-                            SettingRow(
-                                setting = setting,
-                                value = settings.valueFor(setting),
-                                onUpdate = onUpdate,
-                                onReset = onReset,
-                            )
-                        }
-                    }
-                }
-            }
+        if (selectedGroup == null) {
+            SettingsHub(
+                contentPadding = innerPadding,
+                query = query,
+                visibleSettings = visibleSettings,
+                settings = settings,
+                onQueryChange = { query = it },
+                onGroupSelected = { selectedGroup = it },
+                onUpdate = onUpdate,
+                onReset = onReset,
+            )
+        } else {
+            SettingsGroupDetail(
+                contentPadding = innerPadding,
+                group = selectedGroup,
+                settings = settings,
+                onUpdate = onUpdate,
+                onReset = onReset,
+            )
         }
     }
 
@@ -160,6 +171,237 @@ private fun SettingsScreen(
 }
 
 @Composable
+private fun SettingsHub(
+    contentPadding: PaddingValues,
+    query: String,
+    visibleSettings: List<Setting<out Any>>,
+    settings: SettingsSnapshot,
+    onQueryChange: (String) -> Unit,
+    onGroupSelected: (SettingsGroup) -> Unit,
+    onUpdate: (Setting<Any>, Any) -> Unit,
+    onReset: (Setting<out Any>) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = Paddings.screenHorizontal,
+            top = contentPadding.calculateTopPadding() + Spacing.md,
+            end = Paddings.screenHorizontal,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+    ) {
+        item {
+            SettingsSearchField(query = query, onQueryChange = onQueryChange)
+        }
+        if (query.isBlank()) {
+            item { SettingsProfileCard() }
+            items(SettingsGroup.entries, key = { it.name }) { group ->
+                val groupSettings = SettingsRegistry.all.filter { it.group == group }
+                if (groupSettings.isNotEmpty()) {
+                    SettingsGroupCard(
+                        group = group,
+                        settingCount = groupSettings.size,
+                        onClick = { onGroupSelected(group) },
+                    )
+                }
+            }
+        } else if (visibleSettings.isEmpty()) {
+            item { SettingsNoMatches() }
+        } else {
+            items(visibleSettings, key = { it.key }) { setting ->
+                SettingRow(
+                    setting = setting,
+                    value = settings.valueFor(setting),
+                    onUpdate = onUpdate,
+                    onReset = onReset,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsGroupDetail(
+    contentPadding: PaddingValues,
+    group: SettingsGroup?,
+    settings: SettingsSnapshot,
+    onUpdate: (Setting<Any>, Any) -> Unit,
+    onReset: (Setting<out Any>) -> Unit,
+) {
+    val groupSettings = SettingsRegistry.all.filter { it.group == group }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = Paddings.screenHorizontal,
+            top = contentPadding.calculateTopPadding() + Spacing.md,
+            end = Paddings.screenHorizontal,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        items(groupSettings, key = { it.key }) { setting ->
+            SettingRow(
+                setting = setting,
+                value = settings.valueFor(setting),
+                onUpdate = onUpdate,
+                onReset = onReset,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(Radii.full),
+        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+        placeholder = {
+            Text(
+                text = stringResource(R.string.settings_search_placeholder),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+    )
+}
+
+@Composable
+private fun SettingsProfileCard() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.largeIncreased),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(Paddings.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            SettingsIconBubble(
+                icon = Icons.Outlined.AutoStories,
+                selected = true,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_profile_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.settings_profile_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Text(
+                    text = stringResource(R.string.app_tagline),
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(Radii.largeIncreased),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(Paddings.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            SettingsIconBubble(icon = group.icon(), selected = false)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(group.titleRes),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = group.subtitle(settingCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.settings_category_open_content_description),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsIconBubble(icon: ImageVector, selected: Boolean) {
+    Surface(
+        modifier = Modifier.size(Sizes.touchTarget),
+        shape = CircleShape,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+        }
+    }
+}
+
+@Composable
+private fun SettingsNoMatches() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.largeIncreased),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(
+            modifier = Modifier.padding(Paddings.card),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Search,
+                contentDescription = null,
+                modifier = Modifier.size(Sizes.iconLarge),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.settings_no_matches_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = Spacing.md),
+            )
+            Text(
+                text = stringResource(R.string.settings_no_matches_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+    }
+}
+
+@Composable
 private fun SettingRow(
     setting: Setting<out Any>,
     value: Any,
@@ -168,14 +410,35 @@ private fun SettingRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.medium),
+        shape = RoundedCornerShape(Radii.large),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text(stringResource(setting.titleRes)) },
-            supportingContent = setting.subtitleRes?.let { subtitleRes -> ({ Text(stringResource(subtitleRes)) }) },
-            trailingContent = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Paddings.card),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(icon = setting.group.icon(), selected = false)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(setting.titleRes),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    setting.subtitleRes?.let { subtitleRes ->
+                        Text(
+                            text = stringResource(subtitleRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (setting is BooleanSetting) {
                         Switch(checked = value as Boolean, onCheckedChange = { onUpdate(setting.asAny(), it) })
@@ -184,14 +447,13 @@ private fun SettingRow(
                         Icon(Icons.Outlined.RestartAlt, contentDescription = stringResource(R.string.settings_reset_one_content_description))
                     }
                 }
-            },
-        )
-        when (setting) {
-            is BooleanSetting -> Unit
-            is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
-            is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
-            is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
-        }
+            }
+            when (setting) {
+                is BooleanSetting -> Unit
+                is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
+                is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
+                is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
+            }
         }
     }
 }
@@ -224,27 +486,25 @@ private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (
 
 @Composable
 private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate: (Any) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedLabel = setting.options.firstOrNull { it.value == value }?.labelRes ?: setting.options.first().labelRes
-
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm),
+            .horizontalScroll(rememberScrollState())
+            .padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        TextButton(onClick = { expanded = true }) {
-            Text(text = stringResource(selectedLabel), style = MaterialTheme.typography.bodyLarge)
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            setting.options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(option.labelRes)) },
-                    onClick = {
-                        expanded = false
-                        onUpdate(option.value)
-                    },
-                )
-            }
+        setting.options.forEach { option ->
+            val selected = option.value == value
+            FilterChip(
+                selected = selected,
+                onClick = { onUpdate(option.value) },
+                label = { Text(stringResource(option.labelRes)) },
+                leadingIcon = if (selected) {
+                    { Icon(Icons.Outlined.CheckCircle, contentDescription = null) }
+                } else {
+                    null
+                },
+            )
         }
     }
 }
@@ -267,4 +527,50 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderVolumeKeys -> readerVolumeKeys
     SettingsRegistry.ReaderKeepAwake -> readerKeepAwake
     else -> setting.defaultValue
+}
+
+private fun List<Setting<out Any>>.filterByQuery(query: String): List<Setting<out Any>> {
+    val normalized = query.trim()
+    if (normalized.isEmpty()) return this
+    return filter { setting ->
+        setting.searchTokens().contains(normalized, ignoreCase = true)
+    }
+}
+
+private fun Setting<out Any>.searchTokens(): String {
+    val synonyms = when (this) {
+        SettingsRegistry.ThemeMode -> "theme system light dark appearance display"
+        SettingsRegistry.DisplayProfile -> "display profile eink e ink contrast screen"
+        SettingsRegistry.DarkVariant -> "dark black oled softer night theme"
+        SettingsRegistry.Motion -> "motion animation reduce transitions"
+        SettingsRegistry.ReaderFontSize -> "reader font size text scale typography"
+        SettingsRegistry.ReaderLineHeight -> "reader line height spacing text typography"
+        SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono jetpack typography"
+        SettingsRegistry.ReaderTheme -> "reader page theme light sepia dark book"
+        SettingsRegistry.ReaderSideMargin -> "reader page margin side layout width"
+        SettingsRegistry.ReaderPublisherStyles -> "publisher style css page layout book"
+        SettingsRegistry.ReaderTapZoneMode -> "tap zone page turn navigation gestures"
+        SettingsRegistry.ReaderVolumeKeys -> "volume keys buttons page turn"
+        SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
+        else -> ""
+    }
+    return "${key} ${group.name} $synonyms"
+}
+
+@Composable
+private fun SettingsGroup.icon(): ImageVector = when (this) {
+    SettingsGroup.APPEARANCE -> Icons.Outlined.Palette
+    SettingsGroup.READER_TYPOGRAPHY -> Icons.Outlined.FormatSize
+    SettingsGroup.READER_LAYOUT -> Icons.Outlined.Visibility
+    SettingsGroup.READER_BEHAVIOR -> Icons.Outlined.TouchApp
+    SettingsGroup.MAINTENANCE -> Icons.Outlined.Storage
+}
+
+@Composable
+private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
+    SettingsGroup.APPEARANCE -> "Theme, display profile, dark mode, and motion"
+    SettingsGroup.READER_TYPOGRAPHY -> "Font, size, line height, and page theme"
+    SettingsGroup.READER_LAYOUT -> "Margins and publisher styling"
+    SettingsGroup.READER_BEHAVIOR -> "Tap zones, volume keys, and screen wake"
+    SettingsGroup.MAINTENANCE -> "$settingCount local options"
 }
