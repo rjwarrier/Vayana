@@ -90,6 +90,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
@@ -1009,7 +1010,7 @@ private fun MetadataSuggestionField(
             value = value,
             onValueChange = {
                 onValueChange(it)
-                expanded = true
+                expanded = it.isNotBlank()
             },
             modifier = Modifier.fillMaxWidth(),
             label = { Text(label) },
@@ -1019,6 +1020,11 @@ private fun MetadataSuggestionField(
             expanded = expanded && matches.isNotEmpty(),
             onDismissRequest = { expanded = false },
             modifier = Modifier.fillMaxWidth(),
+            properties = PopupProperties(
+                focusable = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+            ),
         ) {
             matches.forEach { suggestion ->
                 DropdownMenuItem(
@@ -1239,8 +1245,9 @@ private fun List<Book>.metadataSuggestions(selector: (Book) -> String?): List<St
 
 private fun List<String>.matchingMetadataSuggestions(value: String): List<String> {
     val query = value.trim()
+    if (query.isEmpty()) return emptyList()
     return filter { suggestion ->
-        query.isEmpty() || suggestion.contains(query, ignoreCase = true)
+        suggestion.contains(query, ignoreCase = true)
     }.filterNot { suggestion ->
         suggestion.equals(query, ignoreCase = true)
     }.take(MetadataSuggestionLimit)
