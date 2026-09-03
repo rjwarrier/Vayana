@@ -5,3 +5,7 @@ plugins {
 android {
     namespace = "com.vayana.feature.statistics"
 }
+
+dependencies {
+    implementation(project(":core:database"))
+}

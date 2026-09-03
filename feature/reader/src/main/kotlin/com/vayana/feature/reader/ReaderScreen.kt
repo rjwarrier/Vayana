@@ -1,11 +1,13 @@
 package com.vayana.feature.reader
 
+import android.view.KeyEvent as AndroidKeyEvent
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -42,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,11 +54,19 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -135,6 +146,8 @@ private fun ReaderScreen(
     var containerWidthPx by remember { mutableIntStateOf(0) }
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val lifecycleOwner = LocalLifecycleOwner.current
+    val rootView = LocalView.current
+    val focusRequester = remember { FocusRequester() }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
         val third = width / 3f
@@ -145,6 +158,23 @@ private fun ReaderScreen(
             else -> {
                 selectedPanel = ReaderPanel.STYLE
                 chromeVisible = true
+            }
+        }
+    }
+    val onHardwarePageKeyState = rememberUpdatedState<(Int, Int) -> Boolean> { keyCode, action ->
+        if (!settings.readerVolumeKeys || action != AndroidKeyEvent.ACTION_UP) {
+            false
+        } else {
+            when (keyCode) {
+                AndroidKeyEvent.KEYCODE_VOLUME_UP -> {
+                    onTapPrevious()
+                    true
+                }
+                AndroidKeyEvent.KEYCODE_VOLUME_DOWN -> {
+                    onTapNext()
+                    true
+                }
+                else -> false
             }
         }
     }
@@ -162,9 +192,35 @@ private fun ReaderScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    DisposableEffect(settings.readerKeepAwake) {
+        val previous = rootView.keepScreenOn
+        rootView.keepScreenOn = settings.readerKeepAwake
+        onDispose { rootView.keepScreenOn = previous }
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (!settings.readerVolumeKeys || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.VolumeUp -> {
+                        onTapPrevious()
+                        true
+                    }
+                    Key.VolumeDown -> {
+                        onTapNext()
+                        true
+                    }
+                    else -> false
+                }
+            }
             .onSizeChanged { size -> containerWidthPx = size.width }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
@@ -180,6 +236,7 @@ private fun ReaderScreen(
                 var downY = 0f
                 val webView = WebView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    setOnKeyListener { _, keyCode, event -> onHardwarePageKeyState.value(keyCode, event.action) }
                     setOnTouchListener { view, event ->
                         when (event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> {

@@ -70,10 +70,24 @@
     <string name="notes_empty_title">No notes yet</string>
     <string name="notes_empty_body">Highlights and notes you make while reading will show up here.</string>
     <string name="notes_bookmark_without_text">Bookmark</string>
+    <string name="notes_search_placeholder">Search notes and highlights</string>
+    <string name="notes_no_matches_title">No matching notes</string>
+    <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
+    <string name="notes_export_content_description">Share notes</string>
 
     <string name="statistics_title">Statistics</string>
     <string name="statistics_empty_title">Nothing to show yet</string>
     <string name="statistics_empty_body">Start reading and your stats will appear here.</string>
+    <string name="statistics_library_total_title">Library</string>
+    <string name="statistics_library_total_value">%1$d</string>
+    <string name="statistics_library_total_support">%1$d reading · %2$d finished</string>
+    <string name="statistics_average_progress_title">Average progress</string>
+    <string name="statistics_average_progress_value">%1$d%%</string>
+    <string name="statistics_average_progress_support">Across active books in this library.</string>
+    <string name="statistics_notes_total_title">Notes and highlights</string>
+    <string name="statistics_notes_total_value">%1$d</string>
+    <string name="statistics_notes_total_support">%1$d with your own notes</string>
+    <string name="statistics_highlight_revisit_title">Revisit this highlight</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_back_content_description">Back</string>
@@ -130,7 +144,7 @@
     <string name="settings_reader_tap_zone_subtitle">Current reader page-turn layout.</string>
     <string name="settings_reader_tap_zone_three_zone">Previous, chrome, next</string>
     <string name="settings_reader_volume_keys_title">Volume keys turn pages</string>
-    <string name="settings_reader_volume_keys_subtitle">Hardware-key support lands with the full reader controls pass.</string>
+    <string name="settings_reader_volume_keys_subtitle">Use volume up for previous page and volume down for next page.</string>
     <string name="settings_reader_keep_awake_title">Keep screen awake</string>
     <string name="settings_reader_keep_awake_subtitle">Prevent sleep while the reader is open.</string>
 

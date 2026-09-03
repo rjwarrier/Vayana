@@ -255,6 +255,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderFontSize -> readerFontSizePercent
     SettingsRegistry.ReaderLineHeight -> readerLineHeight
     SettingsRegistry.ReaderFontFamily -> readerFontFamily
+    SettingsRegistry.ReaderTheme -> readerTheme
     SettingsRegistry.ReaderSideMargin -> readerSideMarginPercent
     SettingsRegistry.ReaderPublisherStyles -> readerUsePublisherStyles
     SettingsRegistry.ReaderTapZoneMode -> readerTapZoneMode
