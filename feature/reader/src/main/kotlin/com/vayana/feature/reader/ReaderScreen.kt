@@ -26,8 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.GraphicEq
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -108,7 +106,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     )
 }
 
-private enum class ReaderPanel { CONTENTS, NOTES, PROGRESS, STYLE, READ_ALOUD, SEARCH }
+private enum class ReaderPanel { CONTENTS, NOTES, PROGRESS, STYLE }
 
 @Composable
 private fun ReaderScreen(
@@ -410,12 +408,6 @@ private fun ReaderChrome(
                 ReaderPanelButton(Icons.Outlined.TextFields, R.string.reader_style, selectedPanel == ReaderPanel.STYLE) {
                     onPanelSelected(ReaderPanel.STYLE)
                 }
-                ReaderPanelButton(Icons.Outlined.GraphicEq, R.string.reader_read_aloud, selectedPanel == ReaderPanel.READ_ALOUD) {
-                    onPanelSelected(ReaderPanel.READ_ALOUD)
-                }
-                ReaderPanelButton(Icons.Outlined.Search, R.string.reader_search, selectedPanel == ReaderPanel.SEARCH) {
-                    onPanelSelected(ReaderPanel.SEARCH)
-                }
             }
             when (selectedPanel) {
                 ReaderPanel.CONTENTS -> ContentsPanel(uiState = uiState, onOpenTocEntry = onOpenTocEntry)
@@ -429,7 +421,6 @@ private fun ReaderChrome(
                     onSideMarginChange = onSideMarginChange,
                 )
                 ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
-                ReaderPanel.READ_ALOUD, ReaderPanel.SEARCH -> ComingSoonPanel()
             }
         }
     }
@@ -607,16 +598,6 @@ private fun ReaderStyleLabel(title: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
-
-@Composable
-private fun ComingSoonPanel() {
-    Text(
-        text = stringResource(R.string.reader_panel_coming_soon),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(Spacing.lg),
-    )
 }
 
 @Composable

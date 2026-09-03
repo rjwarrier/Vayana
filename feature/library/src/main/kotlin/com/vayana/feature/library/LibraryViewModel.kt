@@ -35,6 +35,8 @@ data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported
 
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
+enum class BookDetailMessage { METADATA_SAVED, SOURCE_REPLACED, SOURCE_DUPLICATE, SOURCE_UNSUPPORTED, SOURCE_FAILED }
+
 data class ImportProgressRow(
     val id: String,
     val fileName: String,
@@ -99,6 +101,9 @@ class LibraryViewModel @Inject constructor(
     private val _importProgress = MutableStateFlow<ImportProgressState?>(null)
     val importProgress: StateFlow<ImportProgressState?> = _importProgress
 
+    private val _bookDetailMessage = MutableStateFlow<BookDetailMessage?>(null)
+    val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
+
     fun updateQuery(query: String) {
         controls.update { it.copy(query = query) }
     }
@@ -113,6 +118,30 @@ class LibraryViewModel @Inject constructor(
 
     fun deleteBook(bookId: Long) {
         viewModelScope.launch { bookRepository.softDelete(bookId) }
+    }
+
+    fun updateMetadata(bookId: Long, title: String, author: String, description: String) {
+        val normalizedTitle = title.trim()
+        if (normalizedTitle.isBlank()) return
+        viewModelScope.launch {
+            bookRepository.updateMetadata(
+                id = bookId,
+                title = normalizedTitle,
+                author = author.trim().ifBlank { null },
+                description = description.trim().ifBlank { null },
+            )
+            _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
+        }
+    }
+
+    fun replaceSource(bookId: Long, contentResolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { replaceSourceInLibrary(bookId, contentResolver, uri) }
+        }
+    }
+
+    fun onBookDetailMessageShown() {
+        _bookDetailMessage.value = null
     }
 
     fun onImportSummaryShown() {
@@ -222,6 +251,49 @@ class LibraryViewModel @Inject constructor(
                 }
             }
             .also { result -> updateImportRow(candidate.id, result.status) }
+    }
+
+    private suspend fun replaceSourceInLibrary(bookId: Long, contentResolver: ContentResolver, uri: Uri): BookDetailMessage {
+        val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.SOURCE_FAILED
+        val displayName = displayNameOf(contentResolver, uri)
+        val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+        val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
+            ?: return BookDetailMessage.SOURCE_UNSUPPORTED
+        if (format != BookFormat.EPUB) return BookDetailMessage.SOURCE_UNSUPPORTED
+
+        var importedFile: File? = null
+        var coverFile: File? = null
+        return runCatching {
+            val imported = bookFileImporter.import(uri, extension)
+            importedFile = imported.file
+            val metadata = EpubParser.parse(imported.file)
+            coverFile = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
+            val replaced = bookRepository.replaceSource(
+                id = bookId,
+                title = metadata.title,
+                author = metadata.author,
+                description = metadata.description,
+                coverPath = coverFile?.let { storageRoots.relativize(it) },
+                filePath = storageRoots.relativize(imported.file),
+                format = format,
+                fileHash = imported.sha256,
+            )
+            if (replaced) {
+                importedFile = null
+                coverFile = null
+                File(existingBook.filePath).delete()
+                existingBook.coverPath?.let { File(it).delete() }
+                BookDetailMessage.SOURCE_REPLACED
+            } else {
+                BookDetailMessage.SOURCE_DUPLICATE
+            }
+        }.getOrElse { BookDetailMessage.SOURCE_FAILED }
+            .also { result ->
+                if (result != BookDetailMessage.SOURCE_REPLACED) {
+                    importedFile?.delete()
+                    coverFile?.delete()
+                }
+            }
     }
 
     private fun finishImportRow(rowId: String, result: ImportResult): ImportResult {

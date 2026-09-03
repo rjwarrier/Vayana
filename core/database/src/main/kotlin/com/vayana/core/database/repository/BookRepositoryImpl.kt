@@ -21,6 +21,10 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
     }
 
+    override suspend fun updateMetadata(id: Long, title: String, author: String?, description: String?) {
+        bookDao.updateMetadata(id, title, author, description, System.currentTimeMillis())
+    }
+
     override suspend fun insertIfNew(
         title: String,
         author: String?,
@@ -54,6 +58,32 @@ class BookRepositoryImpl @Inject constructor(
         )
         val id = bookDao.insert(entity)
         return entity.copy(id = id).toDomain()
+    }
+
+    override suspend fun replaceSource(
+        id: Long,
+        title: String,
+        author: String?,
+        description: String?,
+        coverPath: String?,
+        filePath: String,
+        format: BookFormat,
+        fileHash: String,
+    ): Boolean {
+        val existing = bookDao.findByHash(fileHash)
+        if (existing != null && existing.id != id) return false
+        bookDao.replaceSource(
+            id = id,
+            title = title,
+            author = author,
+            description = description,
+            coverPath = coverPath,
+            filePath = filePath,
+            format = format.name,
+            fileHash = fileHash,
+            updatedAt = System.currentTimeMillis(),
+        )
+        return true
     }
 
     override suspend fun softDelete(id: Long) {

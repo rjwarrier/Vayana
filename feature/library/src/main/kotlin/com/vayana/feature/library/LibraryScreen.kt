@@ -40,10 +40,8 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -131,12 +129,21 @@ fun BookDetailRoute(
     val viewModel: LibraryViewModel = hiltViewModel()
     val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
     val book by bookFlow.collectAsState()
+    val detailMessage by viewModel.bookDetailMessage.collectAsState()
 
     BookDetailScreen(
         modifier = modifier,
         book = book,
+        detailMessage = detailMessage,
         onBack = onBack,
         onContinueReading = onContinueReading,
+        onUpdateMetadata = { title, author, description ->
+            viewModel.updateMetadata(bookId, title, author, description)
+        },
+        onReplaceSource = { contentResolver, uri ->
+            viewModel.replaceSource(bookId, contentResolver, uri)
+        },
+        onDetailMessageShown = viewModel::onBookDetailMessageShown,
         onDeleteBook = {
             viewModel.deleteBook(bookId)
             onBack()
@@ -455,15 +462,32 @@ private fun BookCoverCell(book: Book, onClick: () -> Unit) {
 private fun BookDetailScreen(
     modifier: Modifier = Modifier,
     book: Book?,
+    detailMessage: BookDetailMessage?,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
+    onUpdateMetadata: (String, String, String) -> Unit,
+    onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
+    onDetailMessageShown: () -> Unit,
     onDeleteBook: () -> Unit,
 ) {
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    val detailMessageText = detailMessage?.label()
+    val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) onReplaceSource(context.contentResolver, uri)
+    }
+
+    LaunchedEffect(detailMessageText) {
+        val message = detailMessageText ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        onDetailMessageShown()
+    }
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Row(
                 modifier = Modifier
@@ -514,11 +538,18 @@ private fun BookDetailScreen(
                                     modifier = Modifier.padding(top = Spacing.xs),
                                 )
                             }
-                            AssistChip(
-                                onClick = {},
-                                label = { Text(book.format.name) },
+                            Surface(
                                 modifier = Modifier.padding(top = Spacing.md),
-                            )
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            ) {
+                                Text(
+                                    text = book.format.name,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                                )
+                            }
                         }
                     }
                 }
@@ -556,7 +587,7 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.PlayArrow, contentDescription = null)
                             Text(text = stringResource(R.string.library_continue_reading), modifier = Modifier.padding(start = Spacing.sm))
                         }
-                        ElevatedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                        ElevatedButton(onClick = { showEditDialog = true }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Edit, contentDescription = null)
                             Text(text = stringResource(R.string.library_edit_metadata), modifier = Modifier.padding(start = Spacing.sm))
                         }
@@ -564,8 +595,8 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
                         }
-                        ElevatedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.Sync, contentDescription = null)
+                        ElevatedButton(onClick = { sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Outlined.AutoStories, contentDescription = null)
                             Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
                         }
                         TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
@@ -599,6 +630,67 @@ private fun BookDetailScreen(
             text = { Text(stringResource(R.string.library_delete_body)) },
         )
     }
+
+    if (showEditDialog && book != null) {
+        EditMetadataDialog(
+            book = book,
+            onDismiss = { showEditDialog = false },
+            onSave = { title, author, description ->
+                showEditDialog = false
+                onUpdateMetadata(title, author, description)
+            },
+        )
+    }
+}
+
+@Composable
+private fun EditMetadataDialog(
+    book: Book,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String) -> Unit,
+) {
+    var title by remember(book.id) { mutableStateOf(book.title) }
+    var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
+    var description by remember(book.id) { mutableStateOf(book.description.orEmpty()) }
+    val canSave = title.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onSave(title, author, description) }, enabled = canSave) {
+                Text(stringResource(R.string.library_edit_metadata_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.library_edit_metadata_cancel))
+            }
+        },
+        title = { Text(stringResource(R.string.library_edit_metadata_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.library_edit_metadata_title_label)) },
+                    singleLine = true,
+                    isError = !canSave,
+                )
+                OutlinedTextField(
+                    value = author,
+                    onValueChange = { author = it },
+                    label = { Text(stringResource(R.string.library_edit_metadata_author_label)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.library_edit_metadata_description_label)) },
+                    minLines = 3,
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -713,6 +805,15 @@ private fun ImportRowStatus.label(): String = when (this) {
     ImportRowStatus.DUPLICATE -> stringResource(R.string.library_import_status_duplicate)
     ImportRowStatus.UNSUPPORTED -> stringResource(R.string.library_import_status_unsupported)
     ImportRowStatus.FAILED -> stringResource(R.string.library_import_status_failed)
+}
+
+@Composable
+private fun BookDetailMessage.label(): String = when (this) {
+    BookDetailMessage.METADATA_SAVED -> stringResource(R.string.library_metadata_saved)
+    BookDetailMessage.SOURCE_REPLACED -> stringResource(R.string.library_source_replaced)
+    BookDetailMessage.SOURCE_DUPLICATE -> stringResource(R.string.library_source_duplicate)
+    BookDetailMessage.SOURCE_UNSUPPORTED -> stringResource(R.string.library_source_unsupported)
+    BookDetailMessage.SOURCE_FAILED -> stringResource(R.string.library_source_failed)
 }
 
 private fun android.content.Context.shareBookFile(book: Book) {

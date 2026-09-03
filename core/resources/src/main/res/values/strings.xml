@@ -39,8 +39,19 @@
     <string name="library_last_read_on">Last read %1$s</string>
     <string name="library_continue_reading">Continue reading</string>
     <string name="library_edit_metadata">Edit metadata</string>
+    <string name="library_edit_metadata_title">Edit metadata</string>
+    <string name="library_edit_metadata_title_label">Title</string>
+    <string name="library_edit_metadata_author_label">Author</string>
+    <string name="library_edit_metadata_description_label">Description</string>
+    <string name="library_edit_metadata_save">Save</string>
+    <string name="library_edit_metadata_cancel">Cancel</string>
+    <string name="library_metadata_saved">Metadata saved</string>
     <string name="library_share_file">Share file</string>
     <string name="library_replace_source_file">Replace source file</string>
+    <string name="library_source_replaced">Source file replaced</string>
+    <string name="library_source_duplicate">That file is already in your library.</string>
+    <string name="library_source_unsupported">Only EPUB replacement is supported right now.</string>
+    <string name="library_source_failed">Could not replace the source file.</string>
     <string name="library_delete_book">Delete book</string>
     <string name="library_delete_title">Delete this book?</string>
     <string name="library_delete_body">This removes it from the library. The stored file is kept for maintenance cleanup later.</string>
@@ -134,8 +145,5 @@
     <string name="reader_note_dialog_save">Save</string>
     <string name="reader_progress">Progress</string>
     <string name="reader_style">Style</string>
-    <string name="reader_read_aloud">Read aloud</string>
-    <string name="reader_search">Search</string>
-    <string name="reader_panel_coming_soon">Coming soon</string>
     <string name="reader_progress_percent">%1$d%%</string>
 </resources>
