@@ -95,10 +95,15 @@
     <string name="library_group_unknown_series">No series</string>
 
     <string name="notes_title">Notes</string>
+    <string name="notes_books_title">Books with notes</string>
+    <string name="notes_books_count">%1$d notes</string>
+    <string name="notes_single_note">1 note</string>
+    <string name="notes_book_hero_subtitle">%1$d notes &amp; highlights in this book</string>
+    <string name="notes_back_content_description">Back to books</string>
     <string name="notes_empty_title">No notes yet</string>
     <string name="notes_empty_body">Highlights and notes you make while reading will show up here.</string>
     <string name="notes_bookmark_without_text">Bookmark</string>
-    <string name="notes_search_placeholder">Search notes and highlights</string>
+    <string name="notes_search_placeholder">Search notes, books, and highlights</string>
     <string name="notes_filter_all">All</string>
     <string name="notes_filter_highlights">Highlights</string>
     <string name="notes_filter_notes">Notes</string>
