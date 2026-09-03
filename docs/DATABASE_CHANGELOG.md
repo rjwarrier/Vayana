@@ -2,6 +2,14 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 5
+Adds reading statistics tracking to `books`:
+
+- Nullable `startedReadingAt` integer (epoch millis) column on `books`.
+- Nullable `finishedReadingAt` integer (epoch millis) column on `books`.
+- Non-null `totalReadingSeconds` integer (default 0) column on `books`.
+- Captures when user starts reading, when completed, foreground reading time, and days taken for the book details screen.
+
 ## Version 4
 Adds editable book number metadata for series:
 

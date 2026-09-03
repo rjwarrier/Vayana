@@ -37,7 +37,8 @@ interface BookDao {
     @Query(
         "UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, " +
             "coverPath = :coverPath, filePath = :filePath, format = :format, fileHash = :fileHash, " +
-            "lastLocator = NULL, readingPercent = 0, updatedAt = :updatedAt, lastReadAt = NULL WHERE id = :id",
+            "lastLocator = NULL, readingPercent = 0, startedReadingAt = NULL, finishedReadingAt = NULL, totalReadingSeconds = 0, " +
+            "updatedAt = :updatedAt, lastReadAt = NULL WHERE id = :id",
     )
     suspend fun replaceSource(
         id: Long,
@@ -55,7 +56,22 @@ interface BookDao {
 
     @Query(
         "UPDATE books SET lastLocator = :locator, readingPercent = :readingPercent, " +
+            "startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :updatedAt ELSE startedReadingAt END, " +
+            "finishedReadingAt = CASE WHEN :readingPercent >= 0.99 THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
             "updatedAt = :updatedAt, lastReadAt = :updatedAt WHERE id = :id",
     )
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, updatedAt: Long)
+
+    @Query(
+        "UPDATE books SET totalReadingSeconds = totalReadingSeconds + :addedSeconds, " +
+            "startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :updatedAt ELSE startedReadingAt END, " +
+            "updatedAt = :updatedAt, lastReadAt = :updatedAt WHERE id = :id",
+    )
+    suspend fun addReadingTime(id: Long, addedSeconds: Long, updatedAt: Long)
+
+    @Query(
+        "UPDATE books SET startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :timestamp ELSE startedReadingAt END, " +
+            "lastReadAt = :timestamp, updatedAt = :timestamp WHERE id = :id",
+    )
+    suspend fun recordBookOpened(id: Long, timestamp: Long)
 }

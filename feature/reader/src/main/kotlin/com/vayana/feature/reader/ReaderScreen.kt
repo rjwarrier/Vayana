@@ -143,6 +143,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onKeepAwakeChange = viewModel::updateKeepAwake,
         onShowHeadersChange = viewModel::updateShowHeaders,
         onShowFooterChange = viewModel::updateShowFooter,
+        onPause = viewModel::onPause,
+        onResume = viewModel::onResume,
         onBack = onBack,
     )
 }
@@ -181,6 +183,8 @@ private fun ReaderScreen(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
     onBack: () -> Unit,
 ) {
     var chromeVisible by remember { mutableStateOf(false) }
@@ -191,6 +195,8 @@ private fun ReaderScreen(
     var nowMillis by remember { mutableLongStateOf(sessionStartMillis) }
     val context = LocalContext.current
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
+    val onPauseState = rememberUpdatedState(onPause)
+    val onResumeState = rememberUpdatedState(onResume)
     val lifecycleOwner = LocalLifecycleOwner.current
     val rootView = LocalView.current
     val focusRequester = remember { FocusRequester() }
@@ -230,13 +236,22 @@ private fun ReaderScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> webViewRef?.onPause()
-                Lifecycle.Event.ON_RESUME -> webViewRef?.onResume()
+                Lifecycle.Event.ON_PAUSE -> {
+                    webViewRef?.onPause()
+                    onPauseState.value()
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    webViewRef?.onResume()
+                    onResumeState.value()
+                }
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onPauseState.value()
+        }
     }
 
     DisposableEffect(settings.readerKeepAwake) {

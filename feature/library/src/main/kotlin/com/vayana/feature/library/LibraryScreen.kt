@@ -89,7 +89,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -453,7 +452,7 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
     Column {
         FloatingActionButton(
             onClick = { menuExpanded = true },
-            modifier = Modifier.size(LibraryAddFabSize),
+            modifier = Modifier.size(Sizes.fabLarge),
             shape = RoundedCornerShape(Radii.largeIncreased),
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -473,7 +472,7 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
         DropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
-            modifier = Modifier.widthIn(min = LibraryAddMenuMinWidth),
+            modifier = Modifier.widthIn(min = Sizes.menuMinWidth),
             shape = RoundedCornerShape(Radii.largeIncreased),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = Elevations.shadowLarge,
@@ -482,7 +481,7 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.library_import_files)) },
                 leadingIcon = { LibraryAddMenuIcon(Icons.Outlined.AutoStories) },
-                modifier = Modifier.heightIn(min = LibraryAddMenuItemMinHeight),
+                modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
                 contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
                 onClick = {
                     menuExpanded = false
@@ -492,7 +491,7 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.library_import_folder)) },
                 leadingIcon = { LibraryAddMenuIcon(Icons.Outlined.CreateNewFolder) },
-                modifier = Modifier.heightIn(min = LibraryAddMenuItemMinHeight),
+                modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
                 contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
                 onClick = {
                     menuExpanded = false
@@ -744,6 +743,11 @@ private fun BookDetailScreen(
                         modifier = Modifier.padding(top = Spacing.xs),
                     )
                 }
+                if (book.hasStartedReading()) {
+                    item {
+                        ReadingStatsCard(book = book)
+                    }
+                }
                 val description = book.description
                 if (!description.isNullOrBlank()) {
                     item {
@@ -757,8 +761,10 @@ private fun BookDetailScreen(
                 }
                 item {
                     Text(text = stringResource(R.string.library_imported_on, book.createdAt.formatDate()), style = MaterialTheme.typography.bodyMedium)
-                    book.lastReadAt?.let {
-                        Text(text = stringResource(R.string.library_last_read_on, it.formatDate()), style = MaterialTheme.typography.bodyMedium)
+                    if (!book.hasStartedReading()) {
+                        book.lastReadAt?.let {
+                            Text(text = stringResource(R.string.library_last_read_on, it.formatDate()), style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
                 item {
@@ -1250,9 +1256,151 @@ private fun Book.seriesDisplay(): String = listOfNotNull(
 
 private fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(this))
 
-private val LibraryAddFabSize = 64.dp
-private val LibraryAddMenuMinWidth = 232.dp
-private val LibraryAddMenuItemMinHeight = 64.dp
+@Composable
+private fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val startedAt = book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
+    val isFinished = book.finishedReadingAt != null || book.readingPercent >= 1.0f
+    val daysTaken = remember(startedAt, book.finishedReadingAt) {
+        calculateDaysTaken(startedAt = startedAt, finishedAt = book.finishedReadingAt)
+    }
+    val timeTakenText = remember(book.totalReadingSeconds, context) {
+        formatReadingDuration(book.totalReadingSeconds, context)
+    }
+    val daysTakenText = remember(daysTaken, context) {
+        formatDaysTaken(daysTaken, context)
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.level1,
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(
+                text = stringResource(R.string.library_reading_stats_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.library_stat_started),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = startedAt.formatDate(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            if (isFinished) {
+                val finishedAt = book.finishedReadingAt ?: book.updatedAt
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.library_stat_finished),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = finishedAt.formatDate(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.library_stat_time_taken),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = timeTakenText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.library_stat_days_taken),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = daysTakenText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+private fun formatReadingDuration(totalSeconds: Long, context: android.content.Context): String {
+    if (totalSeconds < 60L) {
+        return context.getString(R.string.reading_time_less_than_minute)
+    }
+    val totalMinutes = totalSeconds / 60L
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return when {
+        hours > 0L && minutes > 0L -> context.getString(R.string.reading_time_hours_and_minutes, hours, minutes)
+        hours > 0L -> context.getString(R.string.reading_time_hours_only, hours)
+        else -> context.getString(R.string.reading_time_minutes_only, minutes)
+    }
+}
+
+private fun calculateDaysTaken(startedAt: Long, finishedAt: Long?): Int {
+    val startCal = java.util.Calendar.getInstance().apply {
+        timeInMillis = startedAt
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }
+    val endCal = java.util.Calendar.getInstance().apply {
+        timeInMillis = finishedAt ?: System.currentTimeMillis()
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }
+    val diffMillis = endCal.timeInMillis - startCal.timeInMillis
+    val days = (diffMillis / (24 * 60 * 60 * 1000L)).toInt() + 1
+    return days.coerceAtLeast(1)
+}
+
+private fun formatDaysTaken(days: Int, context: android.content.Context): String =
+    if (days == 1) {
+        context.getString(R.string.reading_days_single)
+    } else {
+        context.getString(R.string.reading_days_plural, days)
+    }
+
+private fun Book.hasStartedReading(): Boolean =
+    startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
+
 private const val MetadataSuggestionLimit = 5
 private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f

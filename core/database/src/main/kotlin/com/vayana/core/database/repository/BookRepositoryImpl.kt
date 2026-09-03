@@ -21,6 +21,14 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
     }
 
+    override suspend fun addReadingTime(id: Long, addedSeconds: Long) {
+        bookDao.addReadingTime(id, addedSeconds, System.currentTimeMillis())
+    }
+
+    override suspend fun recordBookOpened(id: Long) {
+        bookDao.recordBookOpened(id, System.currentTimeMillis())
+    }
+
     override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?) {
         bookDao.updateMetadata(id, title, author, series, seriesNumber, description, System.currentTimeMillis())
     }
@@ -63,6 +71,9 @@ class BookRepositoryImpl @Inject constructor(
             createdAt = now,
             updatedAt = now,
             lastReadAt = null,
+            startedReadingAt = null,
+            finishedReadingAt = null,
+            totalReadingSeconds = 0L,
         )
         val id = bookDao.insert(entity)
         return entity.copy(id = id).toDomain()
@@ -120,4 +131,7 @@ private fun BookEntity.toDomain(): Book = Book(
     updatedAt = updatedAt,
     lastReadAt = lastReadAt,
     lastLocator = lastLocator,
+    startedReadingAt = startedReadingAt,
+    finishedReadingAt = finishedReadingAt,
+    totalReadingSeconds = totalReadingSeconds,
 )

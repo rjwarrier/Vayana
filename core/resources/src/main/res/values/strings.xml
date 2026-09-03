@@ -39,6 +39,17 @@
     <string name="library_description">Description</string>
     <string name="library_imported_on">Imported %1$s</string>
     <string name="library_last_read_on">Last read %1$s</string>
+    <string name="library_reading_stats_title">Reading statistics</string>
+    <string name="library_stat_started">Started reading</string>
+    <string name="library_stat_finished">Finished reading</string>
+    <string name="library_stat_time_taken">Time taken</string>
+    <string name="library_stat_days_taken">Days taken</string>
+    <string name="reading_time_hours_and_minutes">%1$d hrs %2$d mts</string>
+    <string name="reading_time_hours_only">%1$d hrs</string>
+    <string name="reading_time_minutes_only">%1$d mts</string>
+    <string name="reading_time_less_than_minute">&lt; 1 mt</string>
+    <string name="reading_days_single">1 day</string>
+    <string name="reading_days_plural">%1$d days</string>
     <string name="library_continue_reading">Continue reading</string>
     <string name="library_edit_metadata">Edit metadata</string>
     <string name="library_edit_metadata_title">Edit metadata</string>

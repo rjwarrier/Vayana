@@ -31,6 +31,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -97,6 +98,8 @@ class ReaderViewModel @Inject constructor(
             engine.open(source, resumeLocator)
                 .onSuccess { openBook: OpenBook ->
                     bookOpen = true
+                    viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
+                    onResume()
                     applyReaderStyle(engine, settings.value)
                     _uiState.value = ReaderUiState.Loaded(bookTitle = openBook.title, toc = openBook.toc, currentLocator = resumeLocator)
                     observeAnnotations(engine)
@@ -263,7 +266,49 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    private var activeSessionStart: Long = 0L
+    private var trackingJob: Job? = null
+
+    fun onResume() {
+        if (bookOpen) {
+            activeSessionStart = System.currentTimeMillis()
+            startReadingTimeTicker()
+        }
+    }
+
+    fun onPause() {
+        flushReadingTime()
+        trackingJob?.cancel()
+        trackingJob = null
+    }
+
+    private fun startReadingTimeTicker() {
+        trackingJob?.cancel()
+        trackingJob = viewModelScope.launch {
+            while (true) {
+                delay(10_000L)
+                flushReadingTime()
+            }
+        }
+    }
+
+    private fun flushReadingTime() {
+        if (activeSessionStart > 0L) {
+            val now = System.currentTimeMillis()
+            val elapsedSeconds = ((now - activeSessionStart) / 1000L).coerceAtLeast(0L)
+            if (elapsedSeconds > 0L) {
+                activeSessionStart = now
+                viewModelScope.launch {
+                    bookRepository.addReadingTime(bookId, elapsedSeconds)
+                }
+            }
+        }
+    }
+
     override fun onCleared() {
+        flushReadingTime()
+        trackingJob?.cancel()
+        trackingJob = null
         cancelEngineJobs()
         boundEngine = null
     }

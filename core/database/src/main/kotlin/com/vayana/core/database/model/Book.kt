@@ -26,4 +26,7 @@ data class Book(
     val updatedAt: Long,
     val lastReadAt: Long?,
     val lastLocator: String?,
+    val startedReadingAt: Long? = null,
+    val finishedReadingAt: Long? = null,
+    val totalReadingSeconds: Long = 0L,
 )

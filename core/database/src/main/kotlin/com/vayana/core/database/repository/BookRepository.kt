@@ -11,6 +11,10 @@ interface BookRepository {
 
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
 
+    suspend fun addReadingTime(id: Long, addedSeconds: Long)
+
+    suspend fun recordBookOpened(id: Long)
+
     suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?)
 
     suspend fun updateCover(id: Long, coverPath: String?)

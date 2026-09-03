@@ -30,4 +30,7 @@ data class BookEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val lastReadAt: Long?,
+    val startedReadingAt: Long? = null,
+    val finishedReadingAt: Long? = null,
+    val totalReadingSeconds: Long = 0L,
 )

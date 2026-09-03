@@ -43,4 +43,12 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `startedReadingAt` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `finishedReadingAt` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `totalReadingSeconds` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
