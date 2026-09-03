@@ -143,17 +143,27 @@ async function open(bookUrl, lastLocatorCfi) {
                         line.setAttribute('stroke-linecap', 'round')
                         g.append(line)
                     }
-                    if (annotation.note && rects.length > 0) {
-                        const lastRect = rects[rects.length - 1]
+                    const countMatch = annotation.note ? String(annotation.note).match(/\d+/) : null
+                    const countText = countMatch ? countMatch[0] : (annotation.note || '')
+                    if (countText && rects.length > 0) {
+                        const firstRect = rects[0]
                         const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-                        badge.setAttribute('x', lastRect.right + 6)
-                        badge.setAttribute('y', lastRect.bottom - 2)
+                        if (firstRect.left >= 14) {
+                            badge.setAttribute('text-anchor', 'end')
+                            badge.setAttribute('x', firstRect.left - 6)
+                            badge.setAttribute('y', firstRect.bottom - 2)
+                        } else {
+                            const lastRect = rects[rects.length - 1]
+                            badge.setAttribute('text-anchor', 'start')
+                            badge.setAttribute('x', lastRect.right + 6)
+                            badge.setAttribute('y', lastRect.bottom - 2)
+                        }
                         badge.setAttribute('fill', color)
                         badge.setAttribute('font-size', '11px')
                         badge.setAttribute('font-weight', '600')
                         badge.setAttribute('font-family', 'sans-serif')
-                        badge.setAttribute('opacity', '0.9')
-                        badge.textContent = `· ${annotation.note}`
+                        badge.setAttribute('opacity', '0.75')
+                        badge.textContent = countText
                         g.append(badge)
                     }
                     return g
