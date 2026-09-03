@@ -335,17 +335,23 @@ function matchTextAnnotationsForDoc(doc, index) {
     }
 }
 
-function stripHtmlAndEntities(str) {
+function normalizeForMatching(str) {
     if (!str) return ''
     return str
         .replace(/&[a-z0-9#]+;/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
-}
-
-function cleanToAlpha(str) {
-    if (!str) return ''
-    const stripped = stripHtmlAndEntities(str)
-    return stripped.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Decomposed accents
+        .replace(/\uFB00/g, 'ff')        // Ligatures
+        .replace(/\uFB01/g, 'fi')
+        .replace(/\uFB02/g, 'fl')
+        .replace(/\uFB03/g, 'ffi')
+        .replace(/\uFB04/g, 'ffl')
+        .replace(/[\u2018\u2019\u201A\u201B\u2032`]/g, '') // Apostrophes/single quotes
+        .replace(/[\u201C\u201D\u201E\u201F\u2033"]/g, '') // Double quotes
+        .replace(/[\u2013\u2014\u2015-]/g, ' ')             // Hyphens and dashes
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]/gu, '')  // Letters & digits only
 }
 
 function findBestMatch(cleanDoc, cleanTarget) {
@@ -353,36 +359,66 @@ function findBestMatch(cleanDoc, cleanTarget) {
     const targetLen = cleanTarget.length
     if (cleanDoc.length < 5 || targetLen < 5) return null
 
-    // Prevent false matches on single short common words like "because" or "the"
-    const minRequiredLen = Math.min(targetLen, Math.max(16, Math.floor(targetLen * 0.45)))
+    // High confidence thresholds to completely eliminate false positives
+    const minRequiredLen = targetLen >= 40
+        ? Math.max(28, Math.floor(targetLen * 0.65))
+        : targetLen >= 20
+            ? Math.max(16, Math.floor(targetLen * 0.70))
+            : Math.max(8, Math.floor(targetLen * 0.80))
 
-    // 1. Direct full match
+    // 1. Direct full match (optimal case)
     const fullIdx = cleanDoc.indexOf(cleanTarget)
-    if (fullIdx !== -1) return { matchIdx: fullIdx, matchLen: targetLen }
+    if (fullIdx !== -1) return { matchIdx: fullIdx, matchLen: targetLen, score: 1.0 }
 
-    // 2. Multi-occurrence phrase search (only probe with distinctive 16+ letter phrases)
-    const probeSizes = [60, 45, 35, 28, 20, 16]
-    for (const size of probeSizes) {
+    let bestCandidate = null
+
+    function evaluateCandidate(idx, probeLen, offsetInTarget) {
+        if (idx === -1) return
+        const startIdx = Math.max(0, idx - offsetInTarget)
+
+        // Expand match forward
+        let forwardLen = offsetInTarget + probeLen
+        while (forwardLen < targetLen &&
+               startIdx + forwardLen < cleanDoc.length &&
+               cleanDoc[startIdx + forwardLen] === cleanTarget[forwardLen]) {
+            forwardLen++
+        }
+
+        // Expand match backward if started with offset
+        let backwardIdx = startIdx
+        let targetBackIdx = 0
+        while (backwardIdx > 0 && targetBackIdx < offsetInTarget &&
+               cleanDoc[backwardIdx - 1] === cleanTarget[offsetInTarget - targetBackIdx - 1]) {
+            backwardIdx--
+            targetBackIdx++
+        }
+
+        const totalMatched = forwardLen + targetBackIdx
+        const score = totalMatched / targetLen
+
+        if (totalMatched >= minRequiredLen) {
+            if (!bestCandidate || totalMatched > bestCandidate.matchLen) {
+                bestCandidate = { matchIdx: backwardIdx, matchLen: totalMatched, score }
+            }
+        }
+    }
+
+    // 2. Distinctive prefix probing (searching all occurrences across chapter)
+    const prefixProbes = [70, 50, 36, 26, 20, 16]
+    for (const size of prefixProbes) {
         if (targetLen >= size) {
             const probe = cleanTarget.substring(0, size)
             let searchFrom = 0
             let idx
             while ((idx = cleanDoc.indexOf(probe, searchFrom)) !== -1) {
-                let forwardLen = size
-                while (forwardLen < targetLen &&
-                       idx + forwardLen < cleanDoc.length &&
-                       cleanDoc[idx + forwardLen] === cleanTarget[forwardLen]) {
-                    forwardLen++
-                }
-                if (forwardLen >= minRequiredLen) {
-                    return { matchIdx: idx, matchLen: forwardLen }
-                }
+                evaluateCandidate(idx, size, 0)
+                if (bestCandidate && bestCandidate.score >= 0.95) return bestCandidate
                 searchFrom = idx + 1
             }
         }
     }
 
-    // 3. Sliding probe search across the quote (in case start of quote differs)
+    // 3. Sliding probe search (for quotes with skipped words or introductory variations)
     for (let offset = 8; offset < Math.min(targetLen - 20, 60); offset += 8) {
         const probeLen = Math.min(24, targetLen - offset)
         if (probeLen >= 16) {
@@ -390,27 +426,20 @@ function findBestMatch(cleanDoc, cleanTarget) {
             let searchFrom = 0
             let idx
             while ((idx = cleanDoc.indexOf(probe, searchFrom)) !== -1) {
-                const startIdx = Math.max(0, idx - offset)
-                let forwardLen = offset + probeLen
-                while (forwardLen < targetLen &&
-                       startIdx + forwardLen < cleanDoc.length &&
-                       cleanDoc[startIdx + forwardLen] === cleanTarget[forwardLen]) {
-                    forwardLen++
-                }
-                if (forwardLen >= minRequiredLen) {
-                    return { matchIdx: startIdx, matchLen: forwardLen }
-                }
+                evaluateCandidate(idx, probeLen, offset)
+                if (bestCandidate && bestCandidate.score >= 0.95) return bestCandidate
                 searchFrom = idx + 1
             }
         }
     }
-    return null
+
+    return bestCandidate
 }
 
 function findTextRangeInDoc(doc, text) {
     if (!doc || !doc.body || !text) return null
     try {
-        const cleanTarget = cleanToAlpha(text)
+        const cleanTarget = normalizeForMatching(text)
         if (cleanTarget.length < 5) return null
 
         const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false)
@@ -423,8 +452,14 @@ function findTextRangeInDoc(doc, text) {
             for (let offset = 0; offset < str.length; offset++) {
                 const char = str[offset]
                 if (/[\p{L}\p{N}]/u.test(char)) {
-                    cleanDoc += char.toLowerCase()
-                    charMap.push({ node, offset })
+                    // Normalize accents / ligatures identically
+                    const normChar = char.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                    for (const c of normChar) {
+                        if (/[\p{L}\p{N}]/u.test(c)) {
+                            cleanDoc += c
+                            charMap.push({ node, offset })
+                        }
+                    }
                 }
             }
         }
@@ -451,6 +486,8 @@ function findTextRangeInDoc(doc, text) {
 
 async function findCfiInBook(text) {
     if (!text || !view?.book?.sections) return null
+    let bestSectionResult = null
+
     for (let i = 0; i < view.book.sections.length; i++) {
         const section = view.book.sections[i]
         if (!section.createDocument) continue
@@ -458,7 +495,8 @@ async function findCfiInBook(text) {
             const doc = await section.createDocument()
             const range = findTextRangeInDoc(doc, text)
             if (range) {
-                return view.getCFI(i, range)
+                const cfi = view.getCFI(i, range)
+                return cfi // Found exact valid section
             }
         } catch (_) {}
     }
