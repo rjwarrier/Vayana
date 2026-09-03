@@ -21,6 +21,8 @@ object EpubParser {
 
             var title: String? = null
             var author: String? = null
+            var series: String? = null
+            var seriesNumber: String? = null
             var description: String? = null
             var coverId: String? = null
             var coverHref: String? = null
@@ -42,6 +44,10 @@ object EpubParser {
                             "meta" -> {
                                 if (parser.getAttributeValue(null, "name") == "cover") {
                                     coverId = parser.getAttributeValue(null, "content")
+                                }
+                                when (parser.getAttributeValue(null, "name")) {
+                                    "calibre:series" -> series = parser.getAttributeValue(null, "content")?.trim().orEmpty().ifBlank { null }
+                                    "calibre:series_index" -> seriesNumber = parser.getAttributeValue(null, "content")?.trim().orEmpty().ifBlank { null }
                                 }
                             }
                             "item" -> {
@@ -82,6 +88,8 @@ object EpubParser {
             return EpubMetadata(
                 title = title ?: file.nameWithoutExtension,
                 author = author,
+                series = series,
+                seriesNumber = seriesNumber,
                 description = description,
                 coverBytes = coverBytes,
             )

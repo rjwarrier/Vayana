@@ -183,8 +183,8 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderKeepAwake, enabled) }
     }
 
-    fun createHighlight() {
-        createAnnotation(type = AnnotationType.HIGHLIGHT, readerNote = null)
+    fun createHighlight(colorKey: String = DefaultAnnotationColor) {
+        createAnnotation(type = AnnotationType.HIGHLIGHT, colorKey = colorKey, readerNote = null)
     }
 
     fun createUnderline() {
@@ -263,14 +263,14 @@ class ReaderViewModel @Inject constructor(
         engineJobs.clear()
     }
 
-    private fun createAnnotation(type: AnnotationType, readerNote: String?) {
+    private fun createAnnotation(type: AnnotationType, colorKey: String = DefaultAnnotationColor, readerNote: String?) {
         val engine = boundEngine ?: return
         val selection = (uiState.value as? ReaderUiState.Loaded)?.selection ?: return
         viewModelScope.launch {
             annotationRepository.create(
                 bookId = bookId,
                 type = type,
-                colorKey = DefaultAnnotationColor,
+                colorKey = colorKey,
                 locator = selection.cfi,
                 chapterTitle = selection.chapterTitle,
                 chapterHref = null,

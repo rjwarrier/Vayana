@@ -17,11 +17,16 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -131,6 +136,13 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
 private enum class ReaderPanel { CONTENTS, NOTES, PROGRESS, STYLE }
 
+private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
+    YELLOW("yellow", R.string.reader_selection_highlight_yellow, Color(0xFFF6C453)),
+    GREEN("green", R.string.reader_selection_highlight_green, Color(0xFF7BAE7F)),
+    BLUE("blue", R.string.reader_selection_highlight_blue, Color(0xFF5B8DEF)),
+    PINK("pink", R.string.reader_selection_highlight_pink, Color(0xFFD77FA1)),
+}
+
 @Composable
 private fun ReaderScreen(
     modifier: Modifier = Modifier,
@@ -142,7 +154,7 @@ private fun ReaderScreen(
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
     onAnnotationClick: (Annotation) -> Unit,
-    onCreateHighlight: () -> Unit,
+    onCreateHighlight: (String) -> Unit,
     onCreateUnderline: () -> Unit,
     onCreateNote: (String) -> Unit,
     onCreateBookmark: () -> Unit,
@@ -246,7 +258,9 @@ private fun ReaderScreen(
             },
     ) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
             factory = { context ->
                 val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
                 var downX = 0f
@@ -354,13 +368,14 @@ private fun ReaderScreen(
 private fun SelectionActions(
     modifier: Modifier = Modifier,
     selectedText: String,
-    onHighlight: () -> Unit,
+    onHighlight: (String) -> Unit,
     onUnderline: () -> Unit,
     onCopy: () -> Unit,
     onNote: () -> Unit,
 ) {
     Surface(
         modifier = modifier
+            .statusBarsPadding()
             .fillMaxWidth()
             .padding(Paddings.screenHorizontal, Spacing.md),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -381,8 +396,18 @@ private fun SelectionActions(
                     .padding(top = Spacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                FilledTonalButton(onClick = onHighlight) {
-                    Text(stringResource(R.string.reader_selection_highlight))
+                HighlightColor.entries.forEach { color ->
+                    FilledTonalButton(onClick = { onHighlight(color.key) }) {
+                        Box(
+                            modifier = Modifier
+                                .size(Sizes.swatchSmall)
+                                .background(color = color.swatch, shape = CircleShape),
+                        )
+                        Text(
+                            text = stringResource(color.labelRes),
+                            modifier = Modifier.padding(start = Spacing.xs),
+                        )
+                    }
                 }
                 FilledTonalButton(onClick = onUnderline) {
                     Text(stringResource(R.string.reader_selection_underline))
@@ -452,7 +477,9 @@ private fun ReaderChrome(
     onCreateBookmark: () -> Unit,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
         tonalElevation = Spacing.md,
@@ -652,8 +679,8 @@ private fun StylePanel(
         Slider(
             value = settings.readerFontSizePercent.toFloat(),
             onValueChange = { onFontSizeChange((it / 5f).roundToInt() * 5) },
-            valueRange = 80f..160f,
-            steps = 15,
+            valueRange = 80f..250f,
+            steps = 33,
         )
         ReaderStyleLabel(
             title = stringResource(R.string.settings_reader_line_height_title),
@@ -661,9 +688,9 @@ private fun StylePanel(
         )
         Slider(
             value = settings.readerLineHeight,
-            onValueChange = { onLineHeightChange(((it / 0.1f).roundToInt() * 0.1f).coerceIn(1.2f, 2.0f)) },
-            valueRange = 1.2f..2.0f,
-            steps = 7,
+            onValueChange = { onLineHeightChange(((it / 0.1f).roundToInt() * 0.1f).coerceIn(1.2f, 4.0f)) },
+            valueRange = 1.2f..4.0f,
+            steps = 27,
         )
         ReaderStyleLabel(
             title = stringResource(R.string.settings_reader_side_margin_title),

@@ -14,6 +14,7 @@ data class BookEntity(
     val title: String,
     val author: String?,
     val series: String?,
+    val seriesNumber: String?,
     val description: String?,
     val coverPath: String?,
     val filePath: String,

@@ -7,7 +7,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,14 +19,17 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -58,6 +64,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -75,15 +82,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
@@ -138,8 +149,8 @@ fun BookDetailRoute(
         detailMessage = detailMessage,
         onBack = onBack,
         onContinueReading = onContinueReading,
-        onUpdateMetadata = { title, author, series, description ->
-            viewModel.updateMetadata(bookId, title, author, series, description)
+        onUpdateMetadata = { title, author, series, seriesNumber, description ->
+            viewModel.updateMetadata(bookId, title, author, series, seriesNumber, description)
         },
         onReplaceSource = { contentResolver, uri ->
             viewModel.replaceSource(bookId, contentResolver, uri)
@@ -371,8 +382,18 @@ private fun LibraryTopBar(
             onValueChange = onQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = Sizes.touchTargetEink)
                 .padding(top = Spacing.md),
             singleLine = true,
+            shape = RoundedCornerShape(Radii.full),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = SearchFieldUnfocusedBorderAlpha),
+                focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
             leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
             placeholder = { Text(stringResource(R.string.library_search_placeholder)) },
         )
@@ -398,16 +419,39 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column {
-        FloatingActionButton(onClick = { menuExpanded = true }) {
+        FloatingActionButton(
+            onClick = { menuExpanded = true },
+            modifier = Modifier.size(LibraryAddFabSize),
+            shape = RoundedCornerShape(Radii.largeIncreased),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
+                defaultElevation = Elevations.shadowLarge,
+                pressedElevation = Elevations.shadowLarge,
+                focusedElevation = Elevations.shadowMedium,
+                hoveredElevation = Elevations.shadowMedium,
+            ),
+        ) {
             Icon(
                 imageVector = Icons.Outlined.LibraryAdd,
                 contentDescription = stringResource(R.string.library_add_content_description),
+                modifier = Modifier.size(Sizes.iconLarge),
             )
         }
-        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+            modifier = Modifier.widthIn(min = LibraryAddMenuMinWidth),
+            shape = RoundedCornerShape(Radii.largeIncreased),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowLarge,
+            shadowElevation = Elevations.shadowMedium,
+        ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.library_import_files)) },
-                leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
+                leadingIcon = { LibraryAddMenuIcon(Icons.Outlined.AutoStories) },
+                modifier = Modifier.heightIn(min = LibraryAddMenuItemMinHeight),
+                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
                 onClick = {
                     menuExpanded = false
                     onImportFiles()
@@ -415,12 +459,28 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.library_import_folder)) },
-                leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null) },
+                leadingIcon = { LibraryAddMenuIcon(Icons.Outlined.CreateNewFolder) },
+                modifier = Modifier.heightIn(min = LibraryAddMenuItemMinHeight),
+                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
                 onClick = {
                     menuExpanded = false
                     onImportFolder()
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun LibraryAddMenuIcon(icon: ImageVector) {
+    Surface(
+        modifier = Modifier.size(Sizes.touchTarget),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(Sizes.icon))
         }
     }
 }
@@ -472,7 +532,7 @@ private fun BookDetailScreen(
     detailMessage: BookDetailMessage?,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
-    onUpdateMetadata: (String, String, String, String) -> Unit,
+    onUpdateMetadata: (String, String, String, String, String) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onRemoveCover: () -> Unit,
@@ -483,6 +543,7 @@ private fun BookDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showCoverPreview by remember { mutableStateOf(false) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
@@ -534,13 +595,30 @@ private fun BookDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.lg),
             ) {
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                        BookCover(
-                            book = book,
-                            modifier = Modifier
-                                .size(width = Sizes.coverWidthMax, height = Sizes.coverWidthMax / Sizes.coverAspectRatio),
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        Column(
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            BookCover(
+                                book = book,
+                                modifier = Modifier
+                                    .size(width = Sizes.coverWidthMax, height = Sizes.coverWidthMax / Sizes.coverAspectRatio)
+                                    .clickable { showCoverPreview = true },
+                            )
+                            CoverActionButtons(
+                                hasCover = book.coverPath != null,
+                                onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
+                                onRemoveCover = onRemoveCover,
+                                modifier = Modifier
+                                    .width(Sizes.coverWidthMax)
+                                    .padding(top = Spacing.sm),
+                            )
+                        }
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             Text(book.title, style = MaterialTheme.typography.headlineSmall)
                             book.author?.let {
                                 Text(
@@ -550,9 +628,9 @@ private fun BookDetailScreen(
                                     modifier = Modifier.padding(top = Spacing.xs),
                                 )
                             }
-                            book.series?.let {
+                            if (!book.series.isNullOrBlank() || !book.seriesNumber.isNullOrBlank()) {
                                 Text(
-                                    text = stringResource(R.string.library_series_value, it),
+                                    text = stringResource(R.string.library_series_value, book.seriesDisplay()),
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = Spacing.xs),
@@ -611,16 +689,6 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.Edit, contentDescription = null)
                             Text(text = stringResource(R.string.library_edit_metadata), modifier = Modifier.padding(start = Spacing.sm))
                         }
-                        ElevatedButton(onClick = { coverPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.Image, contentDescription = null)
-                            Text(text = stringResource(R.string.library_change_cover), modifier = Modifier.padding(start = Spacing.sm))
-                        }
-                        if (book.coverPath != null) {
-                            TextButton(onClick = onRemoveCover, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Outlined.Delete, contentDescription = null)
-                                Text(text = stringResource(R.string.library_remove_cover), modifier = Modifier.padding(start = Spacing.sm))
-                            }
-                        }
                         ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
@@ -665,11 +733,37 @@ private fun BookDetailScreen(
         EditMetadataDialog(
             book = book,
             onDismiss = { showEditDialog = false },
-            onSave = { title, author, series, description ->
+            onSave = { title, author, series, seriesNumber, description ->
                 showEditDialog = false
-                onUpdateMetadata(title, author, series, description)
+                onUpdateMetadata(title, author, series, seriesNumber, description)
             },
         )
+    }
+
+    if (showCoverPreview && book != null) {
+        CoverPreviewDialog(
+            book = book,
+            onDismiss = { showCoverPreview = false },
+        )
+    }
+}
+
+@Composable
+private fun CoverPreviewDialog(book: Book, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.medium),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = Elevations.shadowMedium,
+        ) {
+            BookCover(
+                book = book,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+            )
+        }
     }
 }
 
@@ -677,32 +771,54 @@ private fun BookDetailScreen(
 private fun EditMetadataDialog(
     book: Book,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit,
+    onSave: (String, String, String, String, String) -> Unit,
 ) {
     var title by remember(book.id) { mutableStateOf(book.title) }
     var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
     var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
+    var seriesNumber by remember(book.id) { mutableStateOf(book.seriesNumber.orEmpty()) }
     var description by remember(book.id) { mutableStateOf(book.description.orEmpty()) }
     val canSave = title.isNotBlank()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onSave(title, author, series, description) }, enabled = canSave) {
-                Text(stringResource(R.string.library_edit_metadata_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.library_edit_metadata_cancel))
-            }
-        },
-        title = { Text(stringResource(R.string.library_edit_metadata_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = Sizes.contentMaxWidth),
+            shape = RoundedCornerShape(Radii.extraLargeIncreased),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowLarge,
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(Spacing.lg)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(Radii.large),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.padding(Spacing.sm),
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.library_edit_metadata_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
+                    modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_title_label)) },
                     singleLine = true,
                     isError = !canSave,
@@ -710,24 +826,53 @@ private fun EditMetadataDialog(
                 OutlinedTextField(
                     value = author,
                     onValueChange = { author = it },
+                    modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_author_label)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = series,
                     onValueChange = { series = it },
+                    modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_series_label)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = seriesNumber,
+                    onValueChange = { seriesNumber = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.library_edit_metadata_series_number_label)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
+                    modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_description_label)) },
                     minLines = 3,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(Radii.full),
+                    ) {
+                        Text(stringResource(R.string.library_edit_metadata_cancel))
+                    }
+                    Button(
+                        onClick = { onSave(title, author, series, seriesNumber, description) },
+                        enabled = canSave,
+                        shape = RoundedCornerShape(Radii.full),
+                    ) {
+                        Text(stringResource(R.string.library_edit_metadata_save))
+                    }
+                }
             }
-        },
-    )
+        }
+    }
 }
 
 @Composable
@@ -744,6 +889,45 @@ private fun BookCover(book: Book, modifier: Modifier = Modifier) {
         )
     } else {
         GeneratedCover(title = book.title, author = book.author, modifier = modifier)
+    }
+}
+
+@Composable
+private fun CoverActionButtons(
+    hasCover: Boolean,
+    onChangeCover: () -> Unit,
+    onRemoveCover: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        ElevatedButton(
+            onClick = onChangeCover,
+            modifier = Modifier
+                .height(Sizes.touchTarget)
+                .weight(1f),
+            shape = RoundedCornerShape(percent = 50),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Image,
+                contentDescription = stringResource(R.string.library_change_cover),
+            )
+        }
+        ElevatedButton(
+            onClick = onRemoveCover,
+            enabled = hasCover,
+            modifier = Modifier
+                .height(Sizes.touchTarget)
+                .weight(1f),
+            shape = RoundedCornerShape(percent = 50),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Delete,
+                contentDescription = stringResource(R.string.library_remove_cover),
+            )
+        }
     }
 }
 
@@ -877,6 +1061,16 @@ private fun BookFormat.shareMimeType(): String = when (this) {
     -> "application/octet-stream"
 }
 
+@Composable
+private fun Book.seriesDisplay(): String = listOfNotNull(
+    series?.takeIf { it.isNotBlank() },
+    seriesNumber?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.library_series_number_value, it) },
+).joinToString(" · ")
+
 private fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(this))
 
+private val LibraryAddFabSize = 64.dp
+private val LibraryAddMenuMinWidth = 232.dp
+private val LibraryAddMenuItemMinHeight = 64.dp
+private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f

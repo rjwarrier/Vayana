@@ -21,8 +21,8 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
     }
 
-    override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, description: String?) {
-        bookDao.updateMetadata(id, title, author, series, description, System.currentTimeMillis())
+    override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?) {
+        bookDao.updateMetadata(id, title, author, series, seriesNumber, description, System.currentTimeMillis())
     }
 
     override suspend fun updateCover(id: Long, coverPath: String?) {
@@ -32,6 +32,8 @@ class BookRepositoryImpl @Inject constructor(
     override suspend fun insertIfNew(
         title: String,
         author: String?,
+        series: String?,
+        seriesNumber: String?,
         description: String?,
         coverPath: String?,
         filePath: String,
@@ -44,7 +46,8 @@ class BookRepositoryImpl @Inject constructor(
         val entity = BookEntity(
             title = title,
             author = author,
-            series = null,
+            series = series,
+            seriesNumber = seriesNumber,
             description = description,
             coverPath = coverPath,
             filePath = filePath,
@@ -70,6 +73,7 @@ class BookRepositoryImpl @Inject constructor(
         title: String,
         author: String?,
         series: String?,
+        seriesNumber: String?,
         description: String?,
         coverPath: String?,
         filePath: String,
@@ -83,6 +87,7 @@ class BookRepositoryImpl @Inject constructor(
             title = title,
             author = author,
             series = series,
+            seriesNumber = seriesNumber,
             description = description,
             coverPath = coverPath,
             filePath = filePath,
@@ -103,6 +108,7 @@ private fun BookEntity.toDomain(): Book = Book(
     title = title,
     author = author,
     series = series,
+    seriesNumber = seriesNumber,
     description = description,
     coverPath = coverPath,
     filePath = filePath,

@@ -11,7 +11,7 @@ interface BookRepository {
 
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
 
-    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, description: String?)
+    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?)
 
     suspend fun updateCover(id: Long, coverPath: String?)
 
@@ -19,6 +19,8 @@ interface BookRepository {
     suspend fun insertIfNew(
         title: String,
         author: String?,
+        series: String?,
+        seriesNumber: String?,
         description: String?,
         coverPath: String?,
         filePath: String,
@@ -32,6 +34,7 @@ interface BookRepository {
         title: String,
         author: String?,
         series: String?,
+        seriesNumber: String?,
         description: String?,
         coverPath: String?,
         filePath: String,

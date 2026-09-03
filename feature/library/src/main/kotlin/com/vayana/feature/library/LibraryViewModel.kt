@@ -129,7 +129,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { bookRepository.softDelete(bookId) }
     }
 
-    fun updateMetadata(bookId: Long, title: String, author: String, series: String, description: String) {
+    fun updateMetadata(bookId: Long, title: String, author: String, series: String, seriesNumber: String, description: String) {
         val normalizedTitle = title.trim()
         if (normalizedTitle.isBlank()) return
         viewModelScope.launch {
@@ -138,6 +138,7 @@ class LibraryViewModel @Inject constructor(
                 title = normalizedTitle,
                 author = author.trim().ifBlank { null },
                 series = series.trim().ifBlank { null },
+                seriesNumber = seriesNumber.trim().ifBlank { null },
                 description = description.trim().ifBlank { null },
             )
             _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
@@ -252,6 +253,8 @@ class LibraryViewModel @Inject constructor(
             val book = bookRepository.insertIfNew(
                 title = metadata.title,
                 author = metadata.author,
+                series = metadata.series,
+                seriesNumber = metadata.seriesNumber,
                 description = metadata.description,
                 coverPath = coverFile?.let { storageRoots.relativize(it) },
                 filePath = storageRoots.relativize(imported.file),
@@ -295,6 +298,7 @@ class LibraryViewModel @Inject constructor(
                 title = metadata.title,
                 author = metadata.author,
                 series = existingBook.series,
+                seriesNumber = existingBook.seriesNumber,
                 description = metadata.description,
                 coverPath = coverFile?.let { storageRoots.relativize(it) },
                 filePath = storageRoots.relativize(imported.file),
@@ -440,6 +444,8 @@ private fun List<Book>.filterByQuery(query: String): List<Book> {
     return filter { book ->
         book.title.contains(normalizedQuery, ignoreCase = true) ||
             book.author.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
+            book.series.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
+            book.seriesNumber.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
             book.description.orEmpty().contains(normalizedQuery, ignoreCase = true)
     }
 }

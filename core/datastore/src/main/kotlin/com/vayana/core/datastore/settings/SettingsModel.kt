@@ -141,7 +141,7 @@ object SettingsRegistry {
         titleRes = R.string.settings_reader_font_size_title,
         subtitleRes = R.string.settings_reader_font_size_subtitle,
         group = SettingsGroup.READER_TYPOGRAPHY,
-        range = 80..160,
+        range = 80..250,
         step = 5,
     )
     val ReaderLineHeight = FloatSetting(
@@ -150,7 +150,7 @@ object SettingsRegistry {
         titleRes = R.string.settings_reader_line_height_title,
         subtitleRes = R.string.settings_reader_line_height_subtitle,
         group = SettingsGroup.READER_TYPOGRAPHY,
-        range = 1.2f..2.0f,
+        range = 1.2f..4.0f,
         step = 0.1f,
     )
     val ReaderFontFamily = ChoiceSetting(
