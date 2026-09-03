@@ -41,7 +41,13 @@ fun VayanaNavHost(
                 onSettingsClick = { navController.navigate(SettingsRoute) },
             )
         }
-        composable<TopLevelRoute.Notes> { NotesRoute() }
+        composable<TopLevelRoute.Notes> {
+            NotesRoute(
+                onOpenReader = { bookId, locator ->
+                    navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
+                },
+            )
+        }
         composable<TopLevelRoute.Statistics> { StatisticsRoute() }
         composable<SettingsRoute> {
             SettingsScreenRoute(onBack = { navController.popBackStack() })

@@ -161,10 +161,18 @@ async function open(bookUrl, lastLocatorCfi) {
         post('log', { step: 'view.open' })
         await view.open(bookUrl)
         post('log', { step: 'view.init' })
-        await view.init({ lastLocation: lastLocatorCfi || undefined, showTextStart: !lastLocatorCfi })
+        const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
+        const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
+        await view.init({ lastLocation: initialLocation, showTextStart: !initialLocation })
         post('log', { step: 'view.init done' })
 
         post('opened', { toc: tocToPlain(view.book.toc), title: view.book.metadata?.title ?? '' })
+
+        if (lastLocatorCfi && !isStandardCfi) {
+            setTimeout(async () => {
+                await goToHref(lastLocatorCfi)
+            }, 300)
+        }
     } catch (err) {
         post('error', { message: String(err && err.stack || err) })
     }
@@ -175,7 +183,39 @@ function prev() { view?.prev() }
 function goLeft() { view?.goLeft() }
 function goRight() { view?.goRight() }
 function goToFraction(fraction) { view?.goToFraction(fraction) }
-function goToHref(href) { view?.goTo(href) }
+
+async function goToHref(href) {
+    if (!view || !href) return
+    if (href.startsWith('epubcfi(') || href.includes('#') || href.endsWith('.xhtml') || href.endsWith('.html') || href.endsWith('.htm')) {
+        try {
+            await view.goTo(href)
+            return
+        } catch (_) {}
+    }
+
+    // Try finding matching annotation from activeAnnotationsList
+    const ann = activeAnnotationsList.find(a =>
+        a.value === href ||
+        a.id === href ||
+        (a.value && href.includes(a.value)) ||
+        (a.id && href.endsWith(a.id))
+    )
+    const textToFind = ann?.text || (href.length > 10 && !href.startsWith('quote:') && !href.startsWith('text:') ? href : null)
+
+    if (textToFind) {
+        const cfi = await findCfiInBook(textToFind)
+        if (cfi) {
+            try {
+                await view.goTo(cfi)
+                return
+            } catch (_) {}
+        }
+    }
+
+    try {
+        await view.goTo(href)
+    } catch (_) {}
+}
 
 function applyReaderMargin(percent) {
     readerSideMarginPercent = Math.max(0, Math.min(24, Number(percent) || 0))
@@ -238,7 +278,7 @@ async function renderAnnotations(annotations) {
         if (!nextValues.has(value)) await view.deleteAnnotation({ value })
     }
     for (const annotation of annotations) {
-        if (annotation.value && !annotation.value.startsWith('text:')) {
+        if (annotation.value && !annotation.value.startsWith('text:') && !annotation.value.startsWith('quote:')) {
             await view.addAnnotation(annotation)
             renderedAnnotations.add(annotation.value)
         }
@@ -246,7 +286,7 @@ async function renderAnnotations(annotations) {
     for (const value of Array.from(renderedAnnotations)) {
         if (!nextValues.has(value)) renderedAnnotations.delete(value)
     }
-    // Also match any active documents
+    // Also match any active documents in view
     for (const { doc, index } of view.renderer.getContents()) {
         if (doc) matchTextAnnotationsForDoc(doc, index)
     }
@@ -255,7 +295,7 @@ async function renderAnnotations(annotations) {
 function matchTextAnnotationsForDoc(doc, index) {
     if (!activeAnnotationsList || !activeAnnotationsList.length || !view) return
     for (const ann of activeAnnotationsList) {
-        const textToFind = ann.text || (ann.value.startsWith('text:') ? null : null)
+        const textToFind = ann.text
         if (!textToFind || textToFind.length < 5) continue
         const range = findTextRangeInDoc(doc, textToFind)
         if (range) {
@@ -273,11 +313,24 @@ function matchTextAnnotationsForDoc(doc, index) {
     }
 }
 
+function normalizeSearchText(str) {
+    if (!str) return ''
+    return str
+        .toLowerCase()
+        .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+        .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+        .replace(/[\u2014\u2015\u2013]/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
 function findTextRangeInDoc(doc, text) {
     try {
-        const target = text.replace(/\s+/g, ' ').trim().toLowerCase()
-        const bodyText = (doc.body?.innerText || doc.body?.textContent || '').replace(/\s+/g, ' ').toLowerCase()
-        const searchSample = target.substring(0, Math.min(30, target.length))
+        const target = normalizeSearchText(text)
+        if (!target) return null
+        const rawBody = (doc.body?.innerText || doc.body?.textContent || '')
+        const bodyText = normalizeSearchText(rawBody)
+        const searchSample = target.substring(0, Math.min(25, target.length))
         if (!bodyText.includes(searchSample)) return null
 
         const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false)
@@ -291,13 +344,18 @@ function findTextRangeInDoc(doc, text) {
             textNodes.push({ node, start, end: fullDocText.length })
         }
 
-        const normDoc = fullDocText.replace(/\s+/g, ' ').toLowerCase()
+        const normDoc = normalizeSearchText(fullDocText)
         let matchIdx = normDoc.indexOf(target)
         let matchLen = target.length
         if (matchIdx === -1) {
-            const sample = target.substring(0, Math.min(50, target.length))
-            matchIdx = normDoc.indexOf(sample)
-            matchLen = sample.length
+            const sample50 = target.substring(0, Math.min(50, target.length))
+            matchIdx = normDoc.indexOf(sample50)
+            matchLen = sample50.length
+        }
+        if (matchIdx === -1) {
+            const sample30 = target.substring(0, Math.min(30, target.length))
+            matchIdx = normDoc.indexOf(sample30)
+            matchLen = sample30.length
         }
         if (matchIdx === -1) return null
 
@@ -320,6 +378,22 @@ function findTextRangeInDoc(doc, text) {
             return range
         }
     } catch (_) {}
+    return null
+}
+
+async function findCfiInBook(text) {
+    if (!text || !view?.book?.sections) return null
+    for (let i = 0; i < view.book.sections.length; i++) {
+        const section = view.book.sections[i]
+        if (!section.createDocument) continue
+        try {
+            const doc = await section.createDocument()
+            const range = findTextRangeInDoc(doc, text)
+            if (range) {
+                return view.getCFI(i, range)
+            }
+        } catch (_) {}
+    }
     return null
 }
 

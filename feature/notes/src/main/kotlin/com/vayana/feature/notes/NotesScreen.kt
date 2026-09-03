@@ -83,7 +83,10 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun NotesRoute(modifier: Modifier = Modifier) {
+fun NotesRoute(
+    onOpenReader: (Long, String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: NotesViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
@@ -91,6 +94,7 @@ fun NotesRoute(modifier: Modifier = Modifier) {
         modifier = modifier,
         booksWithNotes = uiState.booksWithNotes,
         allAnnotations = uiState.allAnnotations,
+        onOpenReader = onOpenReader,
         onUpdateNote = viewModel::updateNote,
         onDeleteAnnotation = viewModel::deleteAnnotation,
     )
@@ -101,6 +105,7 @@ private fun NotesScreen(
     modifier: Modifier = Modifier,
     booksWithNotes: List<BookNotesItem>,
     allAnnotations: List<Annotation>,
+    onOpenReader: (Long, String?) -> Unit,
     onUpdateNote: (Annotation, String) -> Unit,
     onDeleteAnnotation: (Long) -> Unit,
 ) {
@@ -241,6 +246,13 @@ private fun NotesScreen(
                         contentPadding = innerPadding,
                         bookItem = bookItem,
                         annotations = visibleAnnotations,
+                        onAnnotationClick = { annotation ->
+                            val locator = annotation.locator.ifBlank { "text:${annotation.id}" }
+                            onOpenReader(bookItem.book.id, locator)
+                        },
+                        onOpenBook = {
+                            onOpenReader(bookItem.book.id, null)
+                        },
                         onEdit = { editingAnnotation = it },
                         onDelete = { deletingAnnotation = it },
                     )
@@ -569,6 +581,8 @@ private fun BookNotesDetailList(
     contentPadding: PaddingValues,
     bookItem: BookNotesItem,
     annotations: List<Annotation>,
+    onAnnotationClick: (Annotation) -> Unit,
+    onOpenBook: () -> Unit,
     onEdit: (Annotation) -> Unit,
     onDelete: (Annotation) -> Unit,
 ) {
@@ -583,11 +597,12 @@ private fun BookNotesDetailList(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item {
-            BookNotesHero(bookItem = bookItem)
+            BookNotesHero(bookItem = bookItem, onOpenBook = onOpenBook)
         }
         items(annotations, key = { it.id }) { annotation ->
             AnnotationCard(
                 annotation = annotation,
+                onClick = { onAnnotationClick(annotation) },
                 onEdit = { onEdit(annotation) },
                 onDelete = { onDelete(annotation) },
                 modifier = Modifier.animateItem(),
@@ -597,9 +612,14 @@ private fun BookNotesDetailList(
 }
 
 @Composable
-private fun BookNotesHero(bookItem: BookNotesItem) {
+private fun BookNotesHero(
+    bookItem: BookNotesItem,
+    onOpenBook: () -> Unit,
+) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenBook),
         shape = RoundedCornerShape(Radii.extraLargeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.shadowSmall,
@@ -648,12 +668,15 @@ private fun BookNotesHero(bookItem: BookNotesItem) {
 @Composable
 private fun AnnotationCard(
     annotation: Annotation,
+    onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(Radii.largeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.none,

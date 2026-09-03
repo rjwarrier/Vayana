@@ -64,6 +64,7 @@ class ReaderViewModel @Inject constructor(
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
+    val targetLocator: String? = savedStateHandle["targetLocator"]
 
     private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Loading)
     val uiState: StateFlow<ReaderUiState> = _uiState
@@ -91,7 +92,8 @@ class ReaderViewModel @Inject constructor(
             }
 
             val source = BookSource(storageRoots.resolve(book.filePath).absolutePath)
-            val resumeLocator = book.lastLocator?.let {
+            val initialLocatorString = targetLocator?.takeIf { it.isNotBlank() } ?: book.lastLocator
+            val resumeLocator = initialLocatorString?.let {
                 Locator(cfi = it, href = null, progression = book.readingPercent, chapterTitle = null)
             }
 
@@ -103,6 +105,9 @@ class ReaderViewModel @Inject constructor(
                     applyReaderStyle(engine, settings.value)
                     _uiState.value = ReaderUiState.Loaded(bookTitle = openBook.title, toc = openBook.toc, currentLocator = resumeLocator)
                     observeAnnotations(engine)
+                    if (!targetLocator.isNullOrBlank()) {
+                        engine.goTo(NavTarget.ToLocator(Locator(cfi = targetLocator, href = null, progression = 0f, chapterTitle = null)))
+                    }
                 }
                 .onFailure { throwable ->
                     _uiState.value = ReaderUiState.Failed(throwable.message ?: "Could not open book")
