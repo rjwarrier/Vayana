@@ -64,6 +64,7 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,6 +74,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.core.text.HtmlCompat
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -679,6 +681,8 @@ private fun BookDetailScreen(
         onDetailMessageShown()
     }
 
+    val cleanedDescription = remember(book?.description) { book?.description?.cleanHtml() }
+
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -697,6 +701,39 @@ private fun BookDetailScreen(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(start = Spacing.sm),
                 )
+            }
+        },
+        floatingActionButton = {
+            if (book != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FloatingActionButton(
+                        onClick = { showEditDialog = true },
+                        shape = CircleShape,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = stringResource(R.string.library_edit_metadata),
+                        )
+                    }
+                    FloatingActionButton(
+                        onClick = { onContinueReading(book.id) },
+                        shape = CircleShape,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoStories,
+                            contentDescription = stringResource(R.string.library_continue_reading),
+                        )
+                    }
+                }
             }
         },
     ) { innerPadding ->
@@ -785,15 +822,36 @@ private fun BookDetailScreen(
                         ReadingStatsCard(book = book)
                     }
                 }
-                val description = book.description
-                if (!description.isNullOrBlank()) {
+                if (!cleanedDescription.isNullOrBlank()) {
                     item {
-                        Text(text = stringResource(R.string.library_description), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = Spacing.xs),
+                            text = stringResource(R.string.library_description),
+                            style = MaterialTheme.typography.titleMedium,
                         )
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = Spacing.xs)
+                                .heightIn(max = Sizes.coverWidthMax)
+                                .clip(RoundedCornerShape(Radii.medium)),
+                            shape = RoundedCornerShape(Radii.medium),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            tonalElevation = Elevations.none,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = Sizes.coverWidthMax)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(Spacing.md),
+                            ) {
+                                Text(
+                                    text = cleanedDescription,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
                     }
                 }
                 item {
@@ -806,17 +864,6 @@ private fun BookDetailScreen(
                 }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        Button(
-                            onClick = { onContinueReading(book.id) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Outlined.PlayArrow, contentDescription = null)
-                            Text(text = stringResource(R.string.library_continue_reading), modifier = Modifier.padding(start = Spacing.sm))
-                        }
-                        ElevatedButton(onClick = { showEditDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.Edit, contentDescription = null)
-                            Text(text = stringResource(R.string.library_edit_metadata), modifier = Modifier.padding(start = Spacing.sm))
-                        }
                         ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
@@ -831,7 +878,7 @@ private fun BookDetailScreen(
                         }
                     }
                 }
-                item { Spacer(modifier = Modifier.height(Spacing.xl)) }
+                item { Spacer(modifier = Modifier.height(Sizes.bottomNavHeight)) }
             }
         }
     }
@@ -1584,3 +1631,13 @@ private fun Book.hasStartedReading(): Boolean =
 private const val MetadataSuggestionLimit = 5
 private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f
+
+private fun String.cleanHtml(): String {
+    val unescaped = try {
+        HtmlCompat.fromHtml(this, HtmlCompat.FROM_HTML_MODE_COMPACT).toString()
+    } catch (_: Throwable) {
+        this.replace(Regex("<[^>]*>"), "")
+    }
+    return unescaped.replace(Regex("\n{3,}"), "\n\n").trim()
+}
+
