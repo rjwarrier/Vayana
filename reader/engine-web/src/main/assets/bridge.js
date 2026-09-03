@@ -349,47 +349,58 @@ function cleanToAlpha(str) {
 }
 
 function findBestMatch(cleanDoc, cleanTarget) {
-    if (!cleanDoc || !cleanTarget || cleanDoc.length < 5 || cleanTarget.length < 5) return null
+    if (!cleanDoc || !cleanTarget) return null
+    const targetLen = cleanTarget.length
+    if (cleanDoc.length < 5 || targetLen < 5) return null
+
+    // Prevent false matches on single short common words like "because" or "the"
+    const minRequiredLen = Math.min(targetLen, Math.max(16, Math.floor(targetLen * 0.45)))
 
     // 1. Direct full match
-    let idx = cleanDoc.indexOf(cleanTarget)
-    if (idx !== -1) return { matchIdx: idx, matchLen: cleanTarget.length }
+    const fullIdx = cleanDoc.indexOf(cleanTarget)
+    if (fullIdx !== -1) return { matchIdx: fullIdx, matchLen: targetLen }
 
-    // 2. Progressive prefix matching from the start of the quote
-    const prefixLens = [100, 80, 60, 50, 40, 30, 25, 20, 16, 12, 8]
-    for (const len of prefixLens) {
-        if (cleanTarget.length >= len) {
-            const sample = cleanTarget.substring(0, len)
-            idx = cleanDoc.indexOf(sample)
-            if (idx !== -1) {
-                // Expand match length forward as far as characters match
-                let forwardLen = len
-                while (forwardLen < cleanTarget.length &&
+    // 2. Multi-occurrence phrase search (only probe with distinctive 16+ letter phrases)
+    const probeSizes = [60, 45, 35, 28, 20, 16]
+    for (const size of probeSizes) {
+        if (targetLen >= size) {
+            const probe = cleanTarget.substring(0, size)
+            let searchFrom = 0
+            let idx
+            while ((idx = cleanDoc.indexOf(probe, searchFrom)) !== -1) {
+                let forwardLen = size
+                while (forwardLen < targetLen &&
                        idx + forwardLen < cleanDoc.length &&
                        cleanDoc[idx + forwardLen] === cleanTarget[forwardLen]) {
                     forwardLen++
                 }
-                return { matchIdx: idx, matchLen: forwardLen }
+                if (forwardLen >= minRequiredLen) {
+                    return { matchIdx: idx, matchLen: forwardLen }
+                }
+                searchFrom = idx + 1
             }
         }
     }
 
-    // 3. Sliding window probe across the quote (in case start of quote differs)
-    for (let offset = 8; offset < Math.min(cleanTarget.length - 12, 100); offset += 8) {
-        for (const len of [30, 20, 14, 10]) {
-            if (cleanTarget.length >= offset + len) {
-                const sample = cleanTarget.substring(offset, offset + len)
-                idx = cleanDoc.indexOf(sample)
-                if (idx !== -1) {
-                    const startIdx = Math.max(0, idx - offset)
-                    let forwardLen = offset + len
-                    while (forwardLen < cleanTarget.length &&
-                           startIdx + forwardLen < cleanDoc.length &&
-                           cleanDoc[startIdx + forwardLen] === cleanTarget[forwardLen]) {
-                        forwardLen++
-                    }
+    // 3. Sliding probe search across the quote (in case start of quote differs)
+    for (let offset = 8; offset < Math.min(targetLen - 20, 60); offset += 8) {
+        const probeLen = Math.min(24, targetLen - offset)
+        if (probeLen >= 16) {
+            const probe = cleanTarget.substring(offset, offset + probeLen)
+            let searchFrom = 0
+            let idx
+            while ((idx = cleanDoc.indexOf(probe, searchFrom)) !== -1) {
+                const startIdx = Math.max(0, idx - offset)
+                let forwardLen = offset + probeLen
+                while (forwardLen < targetLen &&
+                       startIdx + forwardLen < cleanDoc.length &&
+                       cleanDoc[startIdx + forwardLen] === cleanTarget[forwardLen]) {
+                    forwardLen++
+                }
+                if (forwardLen >= minRequiredLen) {
                     return { matchIdx: startIdx, matchLen: forwardLen }
                 }
+                searchFrom = idx + 1
             }
         }
     }
