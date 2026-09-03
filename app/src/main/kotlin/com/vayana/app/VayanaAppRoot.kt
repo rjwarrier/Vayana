@@ -1,6 +1,7 @@
 package com.vayana.app
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -32,6 +33,7 @@ fun VayanaAppRoot() {
 
         Scaffold(
             bottomBar = { if (showBottomBar) VayanaBottomBar(navController) },
+            containerColor = MaterialTheme.colorScheme.background,
         ) { innerPadding ->
             VayanaNavHost(
                 navController = navController,

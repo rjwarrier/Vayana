@@ -9,42 +9,39 @@ import com.vayana.core.designsystem.tokens.Palette
 /**
  * [ColorScheme] builders from [Palette]. Only these functions (plus [Palette] itself) may
  * reference a literal hex/[Color] value — everything else in the app reads roles off the
- * scheme via `MaterialTheme.colorScheme`. The handoff names three surfaces per mode
- * (page background / card surface / elevated surface); M3 wants five container tiers, so the
- * two extra steps are interpolated rather than specified pixel-for-pixel in the handoff — safe
- * to tighten later once more surfaces (sheets, dialogs) are actually built.
+ * scheme via `MaterialTheme.colorScheme`.
  *
- * The handoff does not specify an error color (no error states were in scope for the design
- * pass); standard M3 baseline error tones are used until product/design supplies one.
+ * App chroming uses a Material 3 tonal role set; reader-specific page themes and generated
+ * covers keep their own display colors because they model content rather than UI chrome.
  */
 object ColorSchemes {
 
     val light: ColorScheme = lightColorScheme(
-        primary = Palette.Teal700,
-        onPrimary = Palette.White,
-        primaryContainer = Palette.Teal100,
-        onPrimaryContainer = Palette.Teal700,
-        secondary = Palette.Forest500,
-        onSecondary = Palette.White,
-        secondaryContainer = Palette.Forest100,
-        onSecondaryContainer = Palette.Forest900,
-        tertiary = Palette.Gold700,
-        onTertiary = Palette.White,
-        tertiaryContainer = Palette.Gold300,
-        onTertiaryContainer = Palette.Gold700,
-        background = Palette.Cream100,
-        onBackground = Palette.FgPrimaryLight,
-        surface = Palette.Cream100,
-        onSurface = Palette.FgPrimaryLight,
-        surfaceVariant = Palette.Cream200,
-        onSurfaceVariant = Palette.TextMutedLight,
-        surfaceContainerLowest = Palette.Cream200,
-        surfaceContainerLow = Palette.Cream100,
-        surfaceContainer = Palette.White,
-        surfaceContainerHigh = Palette.Cream50,
-        surfaceContainerHighest = Palette.Cream50,
-        outline = Palette.BorderLight,
-        outlineVariant = Palette.BorderLight,
+        primary = Palette.M3PrimaryLight,
+        onPrimary = Palette.M3OnPrimaryLight,
+        primaryContainer = Palette.M3PrimaryContainerLight,
+        onPrimaryContainer = Palette.M3OnPrimaryContainerLight,
+        secondary = Palette.M3SecondaryLight,
+        onSecondary = Palette.M3OnSecondaryLight,
+        secondaryContainer = Palette.M3SecondaryContainerLight,
+        onSecondaryContainer = Palette.M3OnSecondaryContainerLight,
+        tertiary = Palette.M3TertiaryLight,
+        onTertiary = Palette.M3OnTertiaryLight,
+        tertiaryContainer = Palette.M3TertiaryContainerLight,
+        onTertiaryContainer = Palette.M3OnTertiaryContainerLight,
+        background = Palette.M3BackgroundLight,
+        onBackground = Palette.M3OnBackgroundLight,
+        surface = Palette.M3SurfaceLight,
+        onSurface = Palette.M3OnSurfaceLight,
+        surfaceVariant = Palette.M3SurfaceVariantLight,
+        onSurfaceVariant = Palette.M3OnSurfaceVariantLight,
+        surfaceContainerLowest = Palette.M3SurfaceContainerLowestLight,
+        surfaceContainerLow = Palette.M3SurfaceContainerLowLight,
+        surfaceContainer = Palette.M3SurfaceContainerLight,
+        surfaceContainerHigh = Palette.M3SurfaceContainerHighLight,
+        surfaceContainerHighest = Palette.M3SurfaceContainerHighestLight,
+        outline = Palette.M3OutlineLight,
+        outlineVariant = Palette.M3OutlineVariantLight,
         error = Color(0xFFB3261E),
         onError = Palette.White,
         errorContainer = Color(0xFFF9DEDC),
@@ -52,31 +49,31 @@ object ColorSchemes {
     )
 
     val dark: ColorScheme = darkColorScheme(
-        primary = Palette.Teal300,
-        onPrimary = Palette.Navy900,
-        primaryContainer = Palette.Teal700,
-        onPrimaryContainer = Palette.Teal100,
-        secondary = Palette.Forest300,
-        onSecondary = Palette.Navy900,
-        secondaryContainer = Palette.Forest700,
-        onSecondaryContainer = Palette.Forest100,
-        tertiary = Palette.Gold300,
-        onTertiary = Palette.Navy900,
-        tertiaryContainer = Palette.Gold700,
-        onTertiaryContainer = Palette.Gold300,
-        background = Palette.Navy800,
-        onBackground = Palette.WarmWhite,
-        surface = Palette.Navy800,
-        onSurface = Palette.WarmWhite,
-        surfaceVariant = Palette.Navy700,
-        onSurfaceVariant = Palette.TextMutedDark,
-        surfaceContainerLowest = Palette.Navy900,
-        surfaceContainerLow = Palette.Navy800,
-        surfaceContainer = Palette.Navy700,
-        surfaceContainerHigh = Palette.Navy600,
-        surfaceContainerHighest = Palette.Navy500,
-        outline = Palette.BorderDark,
-        outlineVariant = Palette.BorderDark,
+        primary = Palette.M3PrimaryDark,
+        onPrimary = Palette.M3OnPrimaryDark,
+        primaryContainer = Palette.M3PrimaryContainerDark,
+        onPrimaryContainer = Palette.M3OnPrimaryContainerDark,
+        secondary = Palette.M3SecondaryDark,
+        onSecondary = Palette.M3OnSecondaryDark,
+        secondaryContainer = Palette.M3SecondaryContainerDark,
+        onSecondaryContainer = Palette.M3OnSecondaryContainerDark,
+        tertiary = Palette.M3TertiaryDark,
+        onTertiary = Palette.M3OnTertiaryDark,
+        tertiaryContainer = Palette.M3TertiaryContainerDark,
+        onTertiaryContainer = Palette.M3OnTertiaryContainerDark,
+        background = Palette.M3BackgroundDark,
+        onBackground = Palette.M3OnBackgroundDark,
+        surface = Palette.M3SurfaceDark,
+        onSurface = Palette.M3OnSurfaceDark,
+        surfaceVariant = Palette.M3SurfaceVariantDark,
+        onSurfaceVariant = Palette.M3OnSurfaceVariantDark,
+        surfaceContainerLowest = Palette.M3SurfaceContainerLowestDark,
+        surfaceContainerLow = Palette.M3SurfaceContainerLowDark,
+        surfaceContainer = Palette.M3SurfaceContainerDark,
+        surfaceContainerHigh = Palette.M3SurfaceContainerHighDark,
+        surfaceContainerHighest = Palette.M3SurfaceContainerHighestDark,
+        outline = Palette.M3OutlineDark,
+        outlineVariant = Palette.M3OutlineVariantDark,
         error = Color(0xFFF2B8B5),
         onError = Color(0xFF601410),
         errorContainer = Color(0xFF8C1D18),
@@ -85,13 +82,13 @@ object ColorSchemes {
 
     /** Raised black point (PROMPT1uidesign.md §1: "softer dark ... raised black point, less pure-black"). */
     val softerDark: ColorScheme = dark.copy(
-        background = Palette.Navy900,
-        surface = Palette.Navy900,
-        surfaceContainerLowest = Palette.Navy950,
-        surfaceContainerLow = Palette.Navy900,
-        surfaceContainer = Palette.Navy800,
-        surfaceContainerHigh = Palette.Navy700,
-        surfaceContainerHighest = Palette.Navy600,
+        background = Palette.M3SurfaceContainerLowestDark,
+        surface = Palette.M3SurfaceContainerLowestDark,
+        surfaceContainerLowest = Palette.M3SurfaceContainerLowestDark,
+        surfaceContainerLow = Palette.M3BackgroundDark,
+        surfaceContainer = Palette.M3SurfaceContainerLowDark,
+        surfaceContainerHigh = Palette.M3SurfaceContainerDark,
+        surfaceContainerHighest = Palette.M3SurfaceContainerHighDark,
     )
 
     /** OLED true-black variant. */
@@ -101,46 +98,40 @@ object ColorSchemes {
         surfaceContainerLowest = Palette.Amoled,
         surfaceContainerLow = Palette.Amoled,
         surfaceContainer = Palette.NearBlack,
-        surfaceContainerHigh = Palette.Navy800,
-        surfaceContainerHighest = Palette.Navy700,
+        surfaceContainerHigh = Palette.M3SurfaceContainerLowDark,
+        surfaceContainerHighest = Palette.M3SurfaceContainerDark,
     )
 
-    /**
-     * PROMPT1uidesign.md §2: pure #FFFFFF background, #000000 text, no greys below ~30% for
-     * text — greys survive only as hairline dividers ([hairline30]). No accent color: every
-     * role collapses to black-on-white so nothing depends on a color an E-Ink panel can't show.
-     */
-    private val hairline30 = Color(0x4D000000)
-
+    /** Monochrome, high-contrast chrome optimized for E-Ink refresh and legibility. */
     val eInk: ColorScheme = lightColorScheme(
         primary = Palette.EinkForeground,
         onPrimary = Palette.EinkBackground,
-        primaryContainer = Palette.EinkForeground,
-        onPrimaryContainer = Palette.EinkBackground,
+        primaryContainer = Palette.EinkContainerHigh,
+        onPrimaryContainer = Palette.EinkForeground,
         secondary = Palette.EinkForeground,
         onSecondary = Palette.EinkBackground,
-        secondaryContainer = Palette.EinkBackground,
+        secondaryContainer = Palette.EinkContainerHigh,
         onSecondaryContainer = Palette.EinkForeground,
         tertiary = Palette.EinkForeground,
         onTertiary = Palette.EinkBackground,
-        tertiaryContainer = Palette.EinkForeground,
-        onTertiaryContainer = Palette.EinkBackground,
+        tertiaryContainer = Palette.EinkContainer,
+        onTertiaryContainer = Palette.EinkForeground,
         background = Palette.EinkBackground,
         onBackground = Palette.EinkForeground,
         surface = Palette.EinkBackground,
         onSurface = Palette.EinkForeground,
-        surfaceVariant = Palette.EinkBackground,
+        surfaceVariant = Palette.EinkContainerHigh,
         onSurfaceVariant = Palette.EinkForeground,
         surfaceContainerLowest = Palette.EinkBackground,
-        surfaceContainerLow = Palette.EinkBackground,
-        surfaceContainer = Palette.EinkBackground,
-        surfaceContainerHigh = Palette.EinkBackground,
-        surfaceContainerHighest = Palette.EinkBackground,
-        outline = hairline30,
-        outlineVariant = hairline30,
+        surfaceContainerLow = Palette.EinkContainerLow,
+        surfaceContainer = Palette.EinkContainer,
+        surfaceContainerHigh = Palette.EinkContainerHigh,
+        surfaceContainerHighest = Palette.EinkContainerHighest,
+        outline = Palette.EinkOutline,
+        outlineVariant = Palette.EinkOutlineVariant,
         error = Palette.EinkForeground,
         onError = Palette.EinkBackground,
-        errorContainer = Palette.EinkBackground,
+        errorContainer = Palette.EinkContainerHigh,
         onErrorContainer = Palette.EinkForeground,
     )
 

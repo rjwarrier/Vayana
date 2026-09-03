@@ -52,7 +52,65 @@ object Palette {
     val BorderLight = Color(0x1A000000) // rgba(0,0,0,.10)
     val BorderDark = Color(0x14FFFFFF)  // rgba(255,255,255,.08)
 
+    val M3PrimaryLight = Color(0xFF006A60)
+    val M3OnPrimaryLight = White
+    val M3PrimaryContainerLight = Color(0xFF9EF2E5)
+    val M3OnPrimaryContainerLight = Color(0xFF00201C)
+    val M3SecondaryLight = Color(0xFF4A635F)
+    val M3OnSecondaryLight = White
+    val M3SecondaryContainerLight = Color(0xFFCCE8E1)
+    val M3OnSecondaryContainerLight = Color(0xFF05201C)
+    val M3TertiaryLight = Color(0xFF456179)
+    val M3OnTertiaryLight = White
+    val M3TertiaryContainerLight = Color(0xFFCCE5FF)
+    val M3OnTertiaryContainerLight = Color(0xFF001E31)
+    val M3BackgroundLight = Color(0xFFF4FBF8)
+    val M3OnBackgroundLight = Color(0xFF161D1B)
+    val M3SurfaceLight = M3BackgroundLight
+    val M3OnSurfaceLight = M3OnBackgroundLight
+    val M3SurfaceVariantLight = Color(0xFFDAE5E1)
+    val M3OnSurfaceVariantLight = Color(0xFF3F4946)
+    val M3SurfaceContainerLowestLight = White
+    val M3SurfaceContainerLowLight = Color(0xFFEFF5F2)
+    val M3SurfaceContainerLight = Color(0xFFE9EFEC)
+    val M3SurfaceContainerHighLight = Color(0xFFE3EAE7)
+    val M3SurfaceContainerHighestLight = Color(0xFFDDE4E1)
+    val M3OutlineLight = Color(0xFF6F7976)
+    val M3OutlineVariantLight = Color(0xFFBEC9C5)
+
+    val M3PrimaryDark = Color(0xFF82D5C9)
+    val M3OnPrimaryDark = Color(0xFF003730)
+    val M3PrimaryContainerDark = Color(0xFF005047)
+    val M3OnPrimaryContainerDark = Color(0xFF9EF2E5)
+    val M3SecondaryDark = Color(0xFFB1CCC5)
+    val M3OnSecondaryDark = Color(0xFF1C3531)
+    val M3SecondaryContainerDark = Color(0xFF334B47)
+    val M3OnSecondaryContainerDark = Color(0xFFCCE8E1)
+    val M3TertiaryDark = Color(0xFFADCAE6)
+    val M3OnTertiaryDark = Color(0xFF143349)
+    val M3TertiaryContainerDark = Color(0xFF2C4A61)
+    val M3OnTertiaryContainerDark = Color(0xFFCCE5FF)
+    val M3BackgroundDark = Color(0xFF0E1513)
+    val M3OnBackgroundDark = Color(0xFFDDE4E1)
+    val M3SurfaceDark = M3BackgroundDark
+    val M3OnSurfaceDark = M3OnBackgroundDark
+    val M3SurfaceVariantDark = Color(0xFF3F4946)
+    val M3OnSurfaceVariantDark = Color(0xFFBEC9C5)
+    val M3SurfaceContainerLowestDark = Color(0xFF090F0E)
+    val M3SurfaceContainerLowDark = Color(0xFF161D1B)
+    val M3SurfaceContainerDark = Color(0xFF1A211F)
+    val M3SurfaceContainerHighDark = Color(0xFF252B2A)
+    val M3SurfaceContainerHighestDark = Color(0xFF303635)
+    val M3OutlineDark = Color(0xFF899390)
+    val M3OutlineVariantDark = Color(0xFF3F4946)
+
     /** E-Ink build (PROMPT2appbuild.md §6, PROMPT1uidesign.md §2): pure #FFFFFF / #000000 only. */
     val EinkBackground = White
     val EinkForeground = Amoled
+    val EinkContainerLow = Color(0xFFF7F7F7)
+    val EinkContainer = Color(0xFFF0F0F0)
+    val EinkContainerHigh = Color(0xFFE8E8E8)
+    val EinkContainerHighest = Color(0xFFE0E0E0)
+    val EinkOutline = Color(0x99000000)
+    val EinkOutlineVariant = Color(0x4D000000)
 }
