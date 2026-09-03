@@ -226,20 +226,29 @@ private fun ReaderScreen(
         }
     }
     val onHardwarePageKeyState = rememberUpdatedState<(Int, Int) -> Boolean> { keyCode, action ->
-        if (!settings.readerVolumeKeys) {
-            false
-        } else {
-            when (keyCode) {
-                AndroidKeyEvent.KEYCODE_VOLUME_UP -> {
-                    if (action == AndroidKeyEvent.ACTION_UP) onTapPrevious()
-                    true
+        if (keyCode == AndroidKeyEvent.KEYCODE_VOLUME_UP || keyCode == AndroidKeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (chromeVisible) {
+                if (action == AndroidKeyEvent.ACTION_UP) {
+                    chromeVisible = false
                 }
-                AndroidKeyEvent.KEYCODE_VOLUME_DOWN -> {
-                    if (action == AndroidKeyEvent.ACTION_UP) onTapNext()
-                    true
+                true
+            } else if (!settings.readerVolumeKeys) {
+                false
+            } else {
+                when (keyCode) {
+                    AndroidKeyEvent.KEYCODE_VOLUME_UP -> {
+                        if (action == AndroidKeyEvent.ACTION_UP) onTapPrevious()
+                        true
+                    }
+                    AndroidKeyEvent.KEYCODE_VOLUME_DOWN -> {
+                        if (action == AndroidKeyEvent.ACTION_UP) onTapNext()
+                        true
+                    }
+                    else -> false
                 }
-                else -> false
             }
+        } else {
+            false
         }
     }
 
@@ -288,17 +297,27 @@ private fun ReaderScreen(
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
-                if (!settings.readerVolumeKeys) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.VolumeUp -> {
-                        if (event.type == KeyEventType.KeyUp) onTapPrevious()
-                        true
+                if (event.key == Key.VolumeUp || event.key == Key.VolumeDown) {
+                    if (chromeVisible) {
+                        if (event.type == KeyEventType.KeyUp) {
+                            chromeVisible = false
+                        }
+                        return@onPreviewKeyEvent true
                     }
-                    Key.VolumeDown -> {
-                        if (event.type == KeyEventType.KeyUp) onTapNext()
-                        true
+                    if (!settings.readerVolumeKeys) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.VolumeUp -> {
+                            if (event.type == KeyEventType.KeyUp) onTapPrevious()
+                            true
+                        }
+                        Key.VolumeDown -> {
+                            if (event.type == KeyEventType.KeyUp) onTapNext()
+                            true
+                        }
+                        else -> false
                     }
-                    else -> false
+                } else {
+                    false
                 }
             }
             .background(settings.readerBackgroundColor()),
