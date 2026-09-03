@@ -1,5 +1,6 @@
 package com.vayana.feature.settings
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -31,14 +32,20 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -56,6 +63,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -70,9 +78,9 @@ import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
-import androidx.compose.animation.AnimatedContent
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
+import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -115,15 +123,26 @@ private fun SettingsScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(selectedGroup?.let { stringResource(it.titleRes) } ?: stringResource(R.string.settings_title)) },
+                title = {
+                    Text(
+                        text = selectedGroup?.let { stringResource(it.titleRes) } ?: stringResource(R.string.settings_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { if (selectedGroup != null) selectedGroup = null else onBack() }) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.settings_back_content_description))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = stringResource(R.string.settings_back_content_description),
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = { showResetAllDialog = true }) {
-                        Icon(Icons.Outlined.RestartAlt, contentDescription = stringResource(R.string.settings_reset_all_content_description))
+                        Icon(
+                            imageVector = Icons.Outlined.RestartAlt,
+                            contentDescription = stringResource(R.string.settings_reset_all_content_description),
+                        )
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -167,21 +186,58 @@ private fun SettingsScreen(
     if (showResetAllDialog) {
         AlertDialog(
             onDismissRequest = { showResetAllDialog = false },
+            icon = {
+                Surface(
+                    shape = RoundedCornerShape(Radii.large),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestartAlt,
+                        contentDescription = null,
+                        modifier = Modifier.padding(Spacing.md),
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.settings_reset_all_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(R.string.settings_reset_all_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         showResetAllDialog = false
                         onResetAll()
                     },
-                ) { Text(stringResource(R.string.settings_reset_all_confirm)) }
+                    shape = RoundedCornerShape(Radii.full),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) {
+                    Text(stringResource(R.string.settings_reset_all_confirm))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showResetAllDialog = false }) {
+                FilledTonalButton(
+                    onClick = { showResetAllDialog = false },
+                    shape = RoundedCornerShape(Radii.full),
+                ) {
                     Text(stringResource(R.string.settings_reset_all_cancel))
                 }
             },
-            title = { Text(stringResource(R.string.settings_reset_all_title)) },
-            text = { Text(stringResource(R.string.settings_reset_all_body)) },
+            shape = RoundedCornerShape(Radii.extraLargeIncreased),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowLarge,
         )
     }
 }
@@ -205,13 +261,13 @@ private fun SettingsHub(
             end = Paddings.screenHorizontal,
             bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item {
             SettingsSearchField(query = query, onQueryChange = onQueryChange)
         }
         if (query.isBlank()) {
-            item { SettingsProfileCard() }
+            item { SettingsProfileCard(settings = settings) }
             items(SettingsGroup.entries, key = { it.name }) { group ->
                 val groupSettings = SettingsRegistry.all.filter { it.group == group }
                 if (groupSettings.isNotEmpty()) {
@@ -254,8 +310,13 @@ private fun SettingsGroupDetail(
             end = Paddings.screenHorizontal,
             bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
+        if (group != null) {
+            item {
+                SettingsGroupHero(group = group, settingCount = groupSettings.size)
+            }
+        }
         items(groupSettings, key = { it.key }) { setting ->
             SettingRow(
                 setting = setting,
@@ -263,6 +324,49 @@ private fun SettingsGroupDetail(
                 onUpdate = onUpdate,
                 onReset = onReset,
             )
+        }
+    }
+}
+
+@Composable
+private fun SettingsGroupHero(group: SettingsGroup, settingCount: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.extraLargeIncreased),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Row(
+            modifier = Modifier.padding(Paddings.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Surface(
+                modifier = Modifier.size(Sizes.fab),
+                shape = RoundedCornerShape(Radii.largeIncreased),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = group.icon(),
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconLarge),
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(group.titleRes),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = group.subtitle(settingCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -276,6 +380,12 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         shape = RoundedCornerShape(Radii.full),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        ),
         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
         trailingIcon = {
             if (query.isNotEmpty()) {
@@ -300,47 +410,103 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
 }
 
 @Composable
-private fun SettingsProfileCard() {
+private fun SettingsProfileCard(settings: SettingsSnapshot) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.largeIncreased),
+        shape = RoundedCornerShape(Radii.extraLargeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Column(
+            modifier = Modifier.padding(Paddings.card),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(
+                    icon = Icons.Outlined.AutoStories,
+                    selected = true,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_profile_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_profile_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ) {
+                    Text(
+                        text = stringResource(R.string.app_tagline),
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                SettingsStatusChip(
+                    icon = Icons.Outlined.Palette,
+                    label = settings.themeMode.name.lowercase().replaceFirstChar { it.uppercase() },
+                )
+                SettingsStatusChip(
+                    icon = Icons.Outlined.Visibility,
+                    label = settings.displayProfile.name.lowercase().replaceFirstChar { it.uppercase() },
+                )
+                SettingsStatusChip(
+                    icon = Icons.Outlined.Tune,
+                    label = "${settings.readerFontSizePercent}% Font",
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsStatusChip(icon: ImageVector, label: String) {
+    Surface(
+        shape = RoundedCornerShape(Radii.full),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(Paddings.card),
+            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            SettingsIconBubble(
-                icon = Icons.Outlined.AutoStories,
-                selected = true,
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(Sizes.iconSmall),
+                tint = MaterialTheme.colorScheme.primary,
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.settings_profile_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.settings_profile_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Surface(
-                shape = RoundedCornerShape(Radii.full),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Text(
-                    text = stringResource(R.string.app_tagline),
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+            )
         }
     }
 }
@@ -350,36 +516,68 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(Radii.extraLarge))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(Radii.largeIncreased),
+        shape = RoundedCornerShape(Radii.extraLarge),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
     ) {
         Row(
             modifier = Modifier.padding(Paddings.card),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            SettingsIconBubble(icon = group.icon(), selected = false)
+            Surface(
+                modifier = Modifier.size(Sizes.touchTarget),
+                shape = RoundedCornerShape(Radii.large),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = group.icon(),
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.icon),
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(group.titleRes),
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = group.subtitle(settingCount),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                contentDescription = stringResource(R.string.settings_category_open_content_description),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(Radii.full),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Text(
+                        text = "$settingCount",
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.settings_category_open_content_description),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -388,7 +586,7 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
 private fun SettingsIconBubble(icon: ImageVector, selected: Boolean) {
     Surface(
         modifier = Modifier.size(Sizes.touchTarget),
-        shape = CircleShape,
+        shape = RoundedCornerShape(Radii.large),
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
         contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
@@ -402,29 +600,37 @@ private fun SettingsIconBubble(icon: ImageVector, selected: Boolean) {
 private fun SettingsNoMatches() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.largeIncreased),
+        shape = RoundedCornerShape(Radii.extraLargeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
     ) {
         Column(
             modifier = Modifier.padding(Paddings.card),
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Search,
-                contentDescription = null,
-                modifier = Modifier.size(Sizes.iconLarge),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            Surface(
+                shape = RoundedCornerShape(Radii.large),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.primary,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(Spacing.md)
+                        .size(Sizes.iconLarge),
+                )
+            }
             Text(
                 text = stringResource(R.string.settings_no_matches_title),
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = Spacing.md),
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = stringResource(R.string.settings_no_matches_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs),
             )
         }
     }
@@ -437,12 +643,19 @@ private fun SettingRow(
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
 ) {
+    val isModified = value != setting.defaultValue
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
+        shape = RoundedCornerShape(Radii.largeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.none,
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .vayanaAnimateContentSize(),
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -450,30 +663,56 @@ private fun SettingRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                SettingsIconBubble(icon = setting.group.icon(), selected = false)
+                Surface(
+                    modifier = Modifier.size(Sizes.touchTarget),
+                    shape = RoundedCornerShape(Radii.medium),
+                    color = if (isModified) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = if (isModified) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = setting.group.icon(),
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.icon),
+                        )
+                    }
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(setting.titleRes),
                         style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     setting.subtitleRes?.let { subtitleRes ->
                         Text(
                             text = stringResource(subtitleRes),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (setting is BooleanSetting) {
-                        Switch(checked = value as Boolean, onCheckedChange = { onUpdate(setting.asAny(), it) })
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    if (isModified) {
+                        IconButton(onClick = { onReset(setting) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = stringResource(R.string.settings_reset_one_content_description),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
-                    IconButton(onClick = { onReset(setting) }) {
-                        Icon(Icons.Outlined.RestartAlt, contentDescription = stringResource(R.string.settings_reset_one_content_description))
+                    if (setting is BooleanSetting) {
+                        Switch(
+                            checked = value as Boolean,
+                            onCheckedChange = { onUpdate(setting.asAny(), it) },
+                        )
                     }
                 }
             }
@@ -489,8 +728,39 @@ private fun SettingRow(
 
 @Composable
 private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -> Unit) {
-    Column(modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md)) {
-        Text(text = value.toString(), style = MaterialTheme.typography.labelLarge)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "${setting.range.first}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Text(
+                    text = "$value%",
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            Text(
+                text = "${setting.range.last}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Slider(
             value = value.toFloat(),
             onValueChange = { onUpdate((it / setting.step).roundToInt() * setting.step) },
@@ -502,8 +772,39 @@ private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -
 
 @Composable
 private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (Float) -> Unit) {
-    Column(modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md)) {
-        Text(text = "%.1f".format(value), style = MaterialTheme.typography.labelLarge)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "%.1fx".format(setting.range.start),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Text(
+                    text = "%.1fx".format(value),
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            Text(
+                text = "%.1fx".format(setting.range.endInclusive),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Slider(
             value = value,
             onValueChange = { raw -> onUpdate(((raw / setting.step).roundToInt() * setting.step).coerceIn(setting.range.start, setting.range.endInclusive)) },
@@ -519,7 +820,7 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md),
+            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         setting.options.forEach { option ->
@@ -528,8 +829,15 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
                 selected = selected,
                 onClick = { onUpdate(option.value) },
                 label = { Text(stringResource(option.labelRes)) },
+                shape = RoundedCornerShape(Radii.full),
                 leadingIcon = if (selected) {
-                    { Icon(Icons.Outlined.CheckCircle, contentDescription = null) }
+                    {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                    }
                 } else {
                     null
                 },
@@ -604,3 +912,4 @@ private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
     SettingsGroup.MAINTENANCE -> stringResource(subtitleRes, settingCount)
     else -> stringResource(subtitleRes)
 }
+
