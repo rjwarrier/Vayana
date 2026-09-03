@@ -108,12 +108,20 @@ async function open(bookUrl, lastLocatorCfi) {
                 chapterMinutesLeft: Number.isFinite(time?.section) ? time.section : null,
                 bookMinutesLeft: Number.isFinite(time?.total) ? time.total : null,
             })
+            for (const { doc, index } of view.renderer.getContents()) {
+                if (doc) matchTextAnnotationsForDoc(doc, index)
+            }
         })
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
             wireSelection(doc, index)
             matchTextAnnotationsForDoc(doc, index)
             post('pageLoaded', {})
+        })
+        view.addEventListener('create-overlay', e => {
+            const { index } = e.detail
+            const obj = view.renderer.getContents().find(x => x.index === index)
+            if (obj?.doc) matchTextAnnotationsForDoc(obj.doc, index)
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
@@ -126,24 +134,25 @@ async function open(bookUrl, lastLocatorCfi) {
                     for (const { left, bottom, width } of rects) {
                         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
                         line.setAttribute('x1', left)
-                        line.setAttribute('y1', bottom - strokeWidth)
+                        line.setAttribute('y1', bottom - 1)
                         line.setAttribute('x2', left + width)
-                        line.setAttribute('y2', bottom - strokeWidth)
+                        line.setAttribute('y2', bottom - 1)
                         line.setAttribute('stroke', color)
                         line.setAttribute('stroke-width', strokeWidth)
                         line.setAttribute('stroke-dasharray', '4,3')
+                        line.setAttribute('stroke-linecap', 'round')
                         g.append(line)
                     }
                     if (annotation.note && rects.length > 0) {
                         const lastRect = rects[rects.length - 1]
                         const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-                        badge.setAttribute('x', lastRect.right + 4)
+                        badge.setAttribute('x', lastRect.right + 6)
                         badge.setAttribute('y', lastRect.bottom - 2)
                         badge.setAttribute('fill', color)
-                        badge.setAttribute('font-size', '10px')
-                        badge.setAttribute('font-weight', 'bold')
+                        badge.setAttribute('font-size', '11px')
+                        badge.setAttribute('font-weight', '600')
                         badge.setAttribute('font-family', 'sans-serif')
-                        badge.setAttribute('opacity', '0.85')
+                        badge.setAttribute('opacity', '0.9')
                         badge.textContent = `· ${annotation.note}`
                         g.append(badge)
                     }
@@ -200,13 +209,16 @@ async function goToHref(href) {
         (a.value && href.includes(a.value)) ||
         (a.id && href.endsWith(a.id))
     )
-    const textToFind = ann?.text || (href.length > 10 && !href.startsWith('quote:') && !href.startsWith('text:') ? href : null)
+    const textToFind = ann?.text || (href.length > 8 && !href.startsWith('quote:') && !href.startsWith('text:') ? href : null)
 
     if (textToFind) {
         const cfi = await findCfiInBook(textToFind)
         if (cfi) {
             try {
                 await view.goTo(cfi)
+                for (const { doc, index } of view.renderer.getContents()) {
+                    if (doc) matchTextAnnotationsForDoc(doc, index)
+                }
                 return
             } catch (_) {}
         }
@@ -304,7 +316,7 @@ function matchTextAnnotationsForDoc(doc, index) {
                 view.addAnnotation({
                     value: cfi,
                     type: ann.type || 'underline',
-                    color: ann.color || '#888888',
+                    color: ann.color || '#6366f1',
                     note: ann.note,
                 })
                 renderedAnnotations.add(cfi)
@@ -313,10 +325,71 @@ function matchTextAnnotationsForDoc(doc, index) {
     }
 }
 
+function stripHtmlAndEntities(str) {
+    if (!str) return ''
+    return str
+        .replace(/&[a-z0-9#]+;/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+}
+
+function cleanToAlpha(str) {
+    if (!str) return ''
+    const stripped = stripHtmlAndEntities(str)
+    return stripped.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+function findBestMatch(cleanDoc, cleanTarget) {
+    if (!cleanDoc || !cleanTarget || cleanDoc.length < 5 || cleanTarget.length < 5) return null
+
+    // 1. Direct full match
+    let idx = cleanDoc.indexOf(cleanTarget)
+    if (idx !== -1) return { matchIdx: idx, matchLen: cleanTarget.length }
+
+    // 2. Progressive prefix matching from the start of the quote
+    const prefixLens = [100, 80, 60, 50, 40, 30, 25, 20, 16, 12, 8]
+    for (const len of prefixLens) {
+        if (cleanTarget.length >= len) {
+            const sample = cleanTarget.substring(0, len)
+            idx = cleanDoc.indexOf(sample)
+            if (idx !== -1) {
+                // Expand match length forward as far as characters match
+                let forwardLen = len
+                while (forwardLen < cleanTarget.length &&
+                       idx + forwardLen < cleanDoc.length &&
+                       cleanDoc[idx + forwardLen] === cleanTarget[forwardLen]) {
+                    forwardLen++
+                }
+                return { matchIdx: idx, matchLen: forwardLen }
+            }
+        }
+    }
+
+    // 3. Sliding window probe across the quote (in case start of quote differs)
+    for (let offset = 8; offset < Math.min(cleanTarget.length - 12, 100); offset += 8) {
+        for (const len of [30, 20, 14, 10]) {
+            if (cleanTarget.length >= offset + len) {
+                const sample = cleanTarget.substring(offset, offset + len)
+                idx = cleanDoc.indexOf(sample)
+                if (idx !== -1) {
+                    const startIdx = Math.max(0, idx - offset)
+                    let forwardLen = offset + len
+                    while (forwardLen < cleanTarget.length &&
+                           startIdx + forwardLen < cleanDoc.length &&
+                           cleanDoc[startIdx + forwardLen] === cleanTarget[forwardLen]) {
+                        forwardLen++
+                    }
+                    return { matchIdx: startIdx, matchLen: forwardLen }
+                }
+            }
+        }
+    }
+    return null
+}
+
 function findTextRangeInDoc(doc, text) {
     if (!doc || !doc.body || !text) return null
     try {
-        const cleanTarget = text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+        const cleanTarget = cleanToAlpha(text)
         if (cleanTarget.length < 5) return null
 
         const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false)
@@ -337,33 +410,10 @@ function findTextRangeInDoc(doc, text) {
 
         if (cleanDoc.length < 5) return null
 
-        let matchIdx = cleanDoc.indexOf(cleanTarget)
-        let matchLen = cleanTarget.length
+        const match = findBestMatch(cleanDoc, cleanTarget)
+        if (!match || match.matchIdx === -1 || match.matchIdx >= charMap.length) return null
 
-        // Progressive fallback for slightly mismatched quotes
-        if (matchIdx === -1 && cleanTarget.length > 50) {
-            const s50 = cleanTarget.substring(0, 50)
-            matchIdx = cleanDoc.indexOf(s50)
-            if (matchIdx !== -1) matchLen = 50
-        }
-        if (matchIdx === -1 && cleanTarget.length > 30) {
-            const s30 = cleanTarget.substring(0, 30)
-            matchIdx = cleanDoc.indexOf(s30)
-            if (matchIdx !== -1) matchLen = 30
-        }
-        if (matchIdx === -1 && cleanTarget.length > 15) {
-            const s18 = cleanTarget.substring(0, 18)
-            matchIdx = cleanDoc.indexOf(s18)
-            if (matchIdx !== -1) matchLen = 18
-        }
-        if (matchIdx === -1 && cleanTarget.length > 8) {
-            const s10 = cleanTarget.substring(0, 10)
-            matchIdx = cleanDoc.indexOf(s10)
-            if (matchIdx !== -1) matchLen = 10
-        }
-
-        if (matchIdx === -1 || matchIdx >= charMap.length) return null
-
+        const { matchIdx, matchLen } = match
         const start = charMap[matchIdx]
         const endCharIdx = Math.min(matchIdx + matchLen - 1, charMap.length - 1)
         const end = charMap[endCharIdx]

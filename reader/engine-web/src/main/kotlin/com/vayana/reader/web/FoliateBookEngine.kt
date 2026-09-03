@@ -311,5 +311,6 @@ private fun String.toAnnotationColor(): String = when (lowercase()) {
     "green" -> "#7BAE7F"
     "blue" -> "#5B8DEF"
     "pink" -> "#D77FA1"
-    else -> "#F6C453"
+    "popular" -> "#6366F1"
+    else -> "#6366F1"
 }
