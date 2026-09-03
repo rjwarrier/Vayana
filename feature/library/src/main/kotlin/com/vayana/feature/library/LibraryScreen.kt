@@ -32,10 +32,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -87,7 +90,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.PopupProperties
@@ -411,6 +418,7 @@ private fun LibraryTopBar(
                 }
             }
         }
+        val focusManager = LocalFocusManager.current
         OutlinedTextField(
             value = controls.query,
             onValueChange = onQueryChange,
@@ -429,7 +437,19 @@ private fun LibraryTopBar(
                 unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
             leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            trailingIcon = {
+                if (controls.query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.input_clear_content_description),
+                        )
+                    }
+                }
+            },
             placeholder = { Text(stringResource(R.string.library_search_placeholder)) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
         )
         Row(
             modifier = Modifier
@@ -937,6 +957,7 @@ private fun EditMetadataDialog(
                     label = { Text(stringResource(R.string.library_edit_metadata_title_label)) },
                     singleLine = true,
                     isError = !canSave,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                 )
                 MetadataSuggestionField(
                     value = author,
@@ -957,6 +978,7 @@ private fun EditMetadataDialog(
                     label = { Text(stringResource(R.string.library_edit_metadata_series_number_label)) },
                     singleLine = true,
                     isError = duplicateSeriesNumber,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     supportingText = {
                         if (duplicateSeriesNumber) {
                             Text(stringResource(R.string.library_edit_metadata_series_number_taken))
@@ -969,6 +991,7 @@ private fun EditMetadataDialog(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.library_edit_metadata_description_label)) },
                     minLines = 3,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1015,6 +1038,17 @@ private fun MetadataSuggestionField(
             modifier = Modifier.fillMaxWidth(),
             label = { Text(label) },
             singleLine = true,
+            trailingIcon = {
+                if (value.isNotEmpty()) {
+                    IconButton(onClick = { onValueChange(""); expanded = false }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.input_clear_content_description),
+                        )
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
         )
         DropdownMenu(
             expanded = expanded && matches.isNotEmpty(),

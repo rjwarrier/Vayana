@@ -16,7 +16,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
@@ -41,7 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.Annotation
@@ -101,6 +107,7 @@ private fun NotesScreen(
                     }
                 }
                 if (annotations.isNotEmpty()) {
+                    val focusManager = LocalFocusManager.current
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
@@ -109,7 +116,19 @@ private fun NotesScreen(
                             .padding(top = Spacing.sm),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = { query = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Close,
+                                        contentDescription = stringResource(R.string.input_clear_content_description),
+                                    )
+                                }
+                            }
+                        },
                         placeholder = { Text(stringResource(R.string.notes_search_placeholder)) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                     )
                     Row(
                         modifier = Modifier
@@ -311,8 +330,10 @@ private fun EditNoteDialog(annotation: Annotation, onDismiss: () -> Unit, onConf
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
+                    modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.notes_edit_label)) },
                     minLines = 3,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
             }
         },

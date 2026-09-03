@@ -8,6 +8,7 @@
     <string name="nav_statistics">Statistics</string>
 
     <string name="library_title">Library</string>
+    <string name="input_clear_content_description">Clear text</string>
     <string name="library_search_content_description">Search books and notes</string>
     <string name="library_search_placeholder">Search title, author, description</string>
     <string name="library_filter_content_description">Sort library</string>
