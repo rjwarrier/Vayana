@@ -8,6 +8,7 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
@@ -76,6 +77,7 @@ class ReaderViewModel @Inject constructor(
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
     private val dictionaryRepository: DictionaryRepository,
+    private val wordLookupStatRepository: WordLookupStatRepository,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -94,6 +96,7 @@ class ReaderViewModel @Inject constructor(
     private var bookOpen = false
     private val engineJobs = mutableListOf<Job>()
     private var dictionaryLookupJob: Job? = null
+    private var dictionaryInstallJob: Job? = null
     private var pendingDictionaryWord: String? = null
     private var dictionaryPickerActive = false
 
@@ -285,8 +288,11 @@ class ReaderViewModel @Inject constructor(
     fun installEnglishDictionary(sourceUri: String) {
         val word = currentLookupWord() ?: return
         dictionaryPickerActive = false
+        // Installing supersedes any pending lookup, but must not itself be cancellable by
+        // later selection changes / highlight taps, which only ever touch dictionaryLookupJob.
         dictionaryLookupJob?.cancel()
-        dictionaryLookupJob = viewModelScope.launch {
+        dictionaryInstallJob?.cancel()
+        dictionaryInstallJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.Installing(word)
             try {
                 dictionaryRepository.installEnglish(sourceUri)
@@ -299,7 +305,7 @@ class ReaderViewModel @Inject constructor(
                 )
                 return@launch
             }
-            dictionaryLookupJob = null
+            dictionaryInstallJob = null
             lookupSelection(word)
         }
     }
@@ -378,6 +384,7 @@ class ReaderViewModel @Inject constructor(
         cancelEngineJobs()
         boundEngine = null
         dictionaryLookupJob?.cancel()
+        dictionaryInstallJob?.cancel()
     }
 
     private fun cancelEngineJobs() {
@@ -424,6 +431,7 @@ class ReaderViewModel @Inject constructor(
         }
         dictionaryLookupJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.LookingUp(word)
+            wordLookupStatRepository.recordLookup(word)
             val entry = try {
                 dictionaryRepository.lookupEnglish(word)
             } catch (throwable: CancellationException) {

@@ -45,7 +45,9 @@ internal class OfflineDictionaryRepository @Inject constructor(
     private val installMutex = Mutex()
 
     override suspend fun lookupEnglish(word: String): DictionaryEntry? = withContext(Dispatchers.IO) {
-        if (!isValidPack(packDirectory)) return@withContext null
+        // englishPackState is already kept accurate by install/init; avoid re-stat'ing 8 files
+        // from disk on every single word lookup, which fires on every text selection.
+        if (_englishPackState.value !is DictionaryPackState.Installed) return@withContext null
         (dictionary ?: synchronized(this@OfflineDictionaryRepository) {
             dictionary ?: WordNetDictionary(packDirectory).also { dictionary = it }
         }).lookup(word)
@@ -67,8 +69,14 @@ internal class OfflineDictionaryRepository @Inject constructor(
                     check(packDirectory.renameTo(backupDirectory)) { "Could not preserve the existing dictionary" }
                 }
                 if (!stagingDirectory.renameTo(packDirectory)) {
-                    if (backupDirectory.exists()) backupDirectory.renameTo(packDirectory)
-                    error("Could not finish installing the dictionary")
+                    val restored = backupDirectory.exists() && backupDirectory.renameTo(packDirectory)
+                    error(
+                        if (restored) {
+                            "Could not finish installing the dictionary"
+                        } else {
+                            "Could not finish installing the dictionary and could not restore the previous one"
+                        },
+                    )
                 }
                 backupDirectory.deleteRecursively()
                 dictionary = null
@@ -108,9 +116,8 @@ internal class OfflineDictionaryRepository @Inject constructor(
                 val entry = input.nextEntry ?: break
                 check(++entryCount <= MaxArchiveEntries) { "Dictionary archive contains too many entries" }
                 val name = entry.name.substringAfterLast('/')
-                if (!entry.isDirectory) {
-                    check(name in AllowedArchiveFiles) { "Dictionary archive contains an unexpected file" }
-                }
+                // Real-world WordNet distributions bundle a LICENSE/README/citation file alongside
+                // the dict data; only extract the files we actually use and ignore the rest.
                 if (!entry.isDirectory && name in AllowedFiles) {
                     check(extractedFiles.add(name)) { "Dictionary archive contains duplicate files" }
                     check(entry.size <= MaxExtractedBytes) { "Dictionary file is unexpectedly large" }
@@ -139,7 +146,6 @@ internal class OfflineDictionaryRepository @Inject constructor(
             "index.adj", "data.adj", "index.adv", "data.adv",
         )
         val AllowedFiles = RequiredFiles + setOf("noun.exc", "verb.exc", "adj.exc", "adv.exc")
-        val AllowedArchiveFiles = AllowedFiles + "index.sense"
         const val MaxArchiveEntries = 32
         const val MaxExtractedBytes = 64L * 1024L * 1024L
     }

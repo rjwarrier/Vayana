@@ -10,6 +10,8 @@ data class DictionarySense(
     val partOfSpeech: PartOfSpeech,
     val definition: String,
     val examples: List<String> = emptyList(),
+    /** Other words sharing this sense's synset (WordNet's own synonym grouping). */
+    val synonyms: List<String> = emptyList(),
 )
 
 enum class PartOfSpeech {

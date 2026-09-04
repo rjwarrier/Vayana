@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 6
+Adds `word_lookup_stats` for the "words you looked up" vocabulary statistic (PROMPT2appbuild.md §4.6):
+
+- `word` (text, primary key), `count` (integer), `lastLookedUpAt` (epoch millis).
+- One row per distinct word ever looked up in the offline dictionary; `count` increments on every lookup via an upsert.
+- Feeds a Statistics tile ranking the words read most often.
+
 ## Version 5
 Adds reading statistics tracking to `books`:
 

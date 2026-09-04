@@ -125,7 +125,13 @@ internal class WordNetDictionary(private val directory: File) {
             "r" -> PartOfSpeech.ADVERB
             else -> fallbackPartOfSpeech
         }
-        return DictionarySense(partOfSpeech, definition, examples)
+        return DictionarySense(partOfSpeech, definition, examples, synonyms = parseSynsetWords(metadata))
+    }
+
+    /** The other words sharing this synset - WordNet's own synonym grouping (w_cnt is hex, per the WNDB format). */
+    private fun parseSynsetWords(metadata: List<String>): List<String> {
+        val wordCount = metadata.getOrNull(3)?.toIntOrNull(radix = 16) ?: return emptyList()
+        return (0 until wordCount).mapNotNull { i -> metadata.getOrNull(4 + i * 2)?.replace('_', ' ') }
     }
 
     private fun loadExceptions(): Map<String, List<String>> = buildMap {
@@ -181,12 +187,17 @@ internal class WordNetDictionary(private val directory: File) {
 
     private fun RandomAccessFile.readUtf8Line(): String? {
         val bytes = ByteArrayOutputStream()
+        val chunk = ByteArray(ReadChunkBytes)
         while (bytes.size() <= MaxDataLineBytes) {
-            when (val next = read()) {
-                -1 -> return bytes.takeIf { it.size() > 0 }?.toString(Charsets.UTF_8.name())
-                NewLineByte.toInt() -> return bytes.toString(Charsets.UTF_8.name()).trimEnd('\r')
-                else -> bytes.write(next)
+            val read = read(chunk)
+            if (read < 0) return bytes.takeIf { it.size() > 0 }?.toString(Charsets.UTF_8.name())
+            for (i in 0 until read) {
+                if (chunk[i] == NewLineByte) {
+                    bytes.write(chunk, 0, i)
+                    return bytes.toString(Charsets.UTF_8.name()).trimEnd('\r')
+                }
             }
+            bytes.write(chunk, 0, read)
         }
         return null
     }
@@ -205,6 +216,7 @@ internal class WordNetDictionary(private val directory: File) {
         private const val CarriageReturnByte: Byte = 13
         private const val ResultCacheSize = 64
         private const val MaxDataLineBytes = 64 * 1024
+        private const val ReadChunkBytes = 512
 
         internal fun normalizeLookupWord(rawWord: String): String? {
             val trimmed = rawWord.trim().trim('“', '”', '‘', '’', '\'', '"', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']')

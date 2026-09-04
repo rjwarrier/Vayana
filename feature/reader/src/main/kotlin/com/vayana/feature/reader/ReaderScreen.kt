@@ -854,6 +854,14 @@ private fun DictionaryLookupContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                val otherSynonyms = sense.synonyms.filterNot { it.equals(state.entry.headword, ignoreCase = true) }
+                if (otherSynonyms.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.reader_dictionary_synonyms, otherSynonyms.joinToString(", ")),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Text(
                 text = state.entry.attribution,

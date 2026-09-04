@@ -8,8 +8,11 @@ let view = null
 const renderedAnnotations = new Set()
 const resolvedTextAnnotations = new Map()
 const resolvedTextFingerprints = new Map()
+const pendingTextAnnotations = new Set()
+const authoritativeSourceForCfi = new Map()
 const standardAnnotationFingerprints = new Map()
 const documentTextIndexes = new WeakMap()
+const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
 let readerSideMarginPercent = 10
 
@@ -93,6 +96,8 @@ async function open(bookUrl, lastLocatorCfi) {
         renderedAnnotations.clear()
         resolvedTextAnnotations.clear()
         resolvedTextFingerprints.clear()
+        pendingTextAnnotations.clear()
+        authoritativeSourceForCfi.clear()
         standardAnnotationFingerprints.clear()
         post('log', { step: 'fetching', bookUrl })
         const res = await fetch(bookUrl)
@@ -326,6 +331,18 @@ async function renderAnnotations(annotations) {
             orphanedCfis.add(cfi)
             resolvedTextAnnotations.delete(sourceValue)
             resolvedTextFingerprints.delete(sourceValue)
+            if (authoritativeSourceForCfi.get(cfi) === sourceValue) {
+                // Other quotes deduplicated onto this cfi only inherited ITS color/note/type.
+                // Release them too so they re-match and render with their own data instead of
+                // permanently keeping a now-deleted (or changed) quote's stale metadata.
+                authoritativeSourceForCfi.delete(cfi)
+                for (const [otherValue, otherCfi] of Array.from(resolvedTextAnnotations)) {
+                    if (otherCfi === cfi) {
+                        resolvedTextAnnotations.delete(otherValue)
+                        resolvedTextFingerprints.delete(otherValue)
+                    }
+                }
+            }
         }
     }
     const retainedCfis = new Set(resolvedTextAnnotations.values())
@@ -370,17 +387,27 @@ function annotationFingerprint(annotation) {
 
 function matchTextAnnotationsForDoc(doc, index) {
     if (!activeAnnotationsList || !activeAnnotationsList.length || !view) return
+    let missing = unmatchedInDoc.get(doc)
+    if (!missing) {
+        missing = new Set()
+        unmatchedInDoc.set(doc, missing)
+    }
     const matches = []
     for (const ann of activeAnnotationsList) {
-        if (!ann.value || resolvedTextAnnotations.has(ann.value)) continue
+        if (!ann.value || resolvedTextAnnotations.has(ann.value) || pendingTextAnnotations.has(ann.value)) continue
         const textToFind = ann.text
         if (!textToFind || textToFind.length < 5) continue
+        // A quote already proven absent from this document won't suddenly appear in it -
+        // skip re-running the expensive alignment fallback for it on every page turn.
+        if (missing.has(ann.value)) continue
         const range = findTextRangeInDoc(doc, textToFind)
         if (range) {
             try {
                 const cfi = view.getCFI(index, range)
                 matches.push({ ann, range, cfi })
             } catch (_) {}
+        } else {
+            missing.add(ann.value)
         }
     }
 
@@ -396,16 +423,25 @@ function matchTextAnnotationsForDoc(doc, index) {
             resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
             continue
         }
+        accepted.push(match)
+        pendingTextAnnotations.add(match.ann.value)
         Promise.resolve(view.addAnnotation({
             value: match.cfi,
             type: match.ann.type || 'underline',
             color: match.ann.color || '#6366f1',
             note: match.ann.note,
-        })).catch(error => post('log', { step: 'addQuoteAnnotation', message: String(error) }))
-        renderedAnnotations.add(match.cfi)
-        resolvedTextAnnotations.set(match.ann.value, match.cfi)
-        resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
-        accepted.push(match)
+        })).then(() => {
+            renderedAnnotations.add(match.cfi)
+            resolvedTextAnnotations.set(match.ann.value, match.cfi)
+            resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
+            authoritativeSourceForCfi.set(match.cfi, match.ann.value)
+        }).catch(error => {
+            // Leave it unresolved (not marked pending, not cached as a rendered cfi) so a
+            // later render pass retries it instead of silently never showing this quote again.
+            post('log', { step: 'addQuoteAnnotation', message: String(error) })
+        }).finally(() => {
+            pendingTextAnnotations.delete(match.ann.value)
+        })
     }
 }
 
@@ -441,6 +477,21 @@ function normalizeForMatching(str) {
         .replace(/[\u2013\u2014\u2015-]/g, ' ')             // Hyphens and dashes
         .toLowerCase()
         .replace(/[^\p{L}\p{N}]/gu, '')  // Letters & digits only
+}
+
+// buildDocumentTextIndex calls this once per character of the whole chapter body, so the
+// common case (plain ASCII) is fast-pathed to avoid running normalizeForMatching's full
+// regex/Unicode-normalize chain per character. Every branch here returns exactly what
+// normalizeForMatching(char) would for that single character - verified for the full ASCII
+// range, where every non-alnum input (space, punctuation, control chars) always collapses to
+// '' and every letter/digit passes through unchanged but lowercased.
+function normalizeCharForIndex(char) {
+    const code = char.charCodeAt(0)
+    if (code >= 97 && code <= 122) return char // a-z
+    if (code >= 48 && code <= 57) return char // 0-9
+    if (code >= 65 && code <= 90) return String.fromCharCode(code + 32) // A-Z -> a-z
+    if (code < 128) return '' // Other ASCII (space, punctuation, control) always normalizes to empty.
+    return normalizeForMatching(char)
 }
 
 function buildDocumentTextIndex(doc) {
@@ -480,7 +531,7 @@ function buildDocumentTextIndex(doc) {
     while ((node = walker.nextNode())) {
         const str = node.textContent
         for (let offset = 0; offset < str.length; offset++) {
-            const normalized = normalizeForMatching(str[offset])
+            const normalized = normalizeCharForIndex(str[offset])
             if (normalized) {
                 if (!token) token = { value: '', start: cleanDoc.length, end: cleanDoc.length }
                 token.value += normalized
@@ -598,6 +649,9 @@ function findAlignedTokenMatch(index, rawText) {
                     matchLen: lastToken.end - firstToken.start,
                     score,
                 }
+                // A near-exact alignment won't be beaten by another anchor occurrence - stop
+                // paying for more O(target*window) DP grids once we already have one this good.
+                if (score >= 0.97) break
             }
         }
     }

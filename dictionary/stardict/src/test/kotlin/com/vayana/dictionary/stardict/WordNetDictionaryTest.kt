@@ -114,6 +114,23 @@ class WordNetDictionaryTest {
     }
 
     @Test
+    fun `parses other synset members as synonyms`() {
+        val directory = createTempDirectory("wordnet-test").toFile()
+        try {
+            File(directory, "index.noun").writeText("policeman n 1 0 1 0 00000000\n")
+            File(directory, "data.noun").writeText(
+                "00000000 00 n 02 policeman 0 police_officer 0 000 | a member of a police force\n",
+            )
+
+            val synonyms = WordNetDictionary(directory).lookup("policeman")?.senses?.single()?.synonyms
+
+            assertEquals(listOf("policeman", "police officer"), synonyms)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `rejects phrases and punctuation-only selections`() {
         assertNull(WordNetDictionary.normalizeLookupWord("two words"))
         assertNull(WordNetDictionary.normalizeLookupWord("…"))

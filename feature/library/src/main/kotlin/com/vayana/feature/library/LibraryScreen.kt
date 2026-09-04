@@ -800,6 +800,7 @@ private fun BookDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var showCoverPreview by remember { mutableStateOf(false) }
     var showImportQuotesDialog by remember { mutableStateOf(false) }
     val detailMessageText = detailMessage?.label()
@@ -840,9 +841,9 @@ private fun BookDetailScreen(
         },
         floatingActionButton = {
             if (book != null) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     FloatingActionButton(
                         onClick = { showEditDialog = true },
@@ -961,12 +962,24 @@ private fun BookDetailScreen(
                         ReadingStatsCard(book = book)
                     }
                 }
-                if (!cleanedDescription.isNullOrBlank()) {
-                    item {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
                             text = stringResource(R.string.library_description),
                             style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
                         )
+                        IconButton(onClick = { showEditDescriptionDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Edit,
+                                contentDescription = stringResource(R.string.library_edit_description),
+                            )
+                        }
+                    }
+                    if (!cleanedDescription.isNullOrBlank()) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -991,6 +1004,13 @@ private fun BookDetailScreen(
                                 )
                             }
                         }
+                    } else {
+                        Text(
+                            text = stringResource(R.string.library_description_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = Spacing.xs),
+                        )
                     }
                 }
                 item {
@@ -1055,9 +1075,20 @@ private fun BookDetailScreen(
             book = book,
             libraryBooks = libraryBooks,
             onDismiss = { showEditDialog = false },
-            onSave = { title, author, series, seriesNumber, description ->
+            onSave = { title, author, series, seriesNumber ->
                 showEditDialog = false
-                onUpdateMetadata(title, author, series, seriesNumber, description)
+                onUpdateMetadata(title, author, series, seriesNumber, book.description.orEmpty())
+            },
+        )
+    }
+
+    if (showEditDescriptionDialog && book != null) {
+        EditDescriptionDialog(
+            description = book.description.orEmpty(),
+            onDismiss = { showEditDescriptionDialog = false },
+            onSave = { description ->
+                showEditDescriptionDialog = false
+                onUpdateMetadata(book.title, book.author.orEmpty(), book.series.orEmpty(), book.seriesNumber.orEmpty(), description)
             },
         )
     }
@@ -1108,13 +1139,12 @@ private fun EditMetadataDialog(
     book: Book,
     libraryBooks: List<Book>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, String) -> Unit,
+    onSave: (String, String, String, String) -> Unit,
 ) {
     var title by remember(book.id) { mutableStateOf(book.title) }
     var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
     var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
     var seriesNumber by remember(book.id) { mutableStateOf(book.seriesNumber.orEmpty()) }
-    var description by remember(book.id) { mutableStateOf(book.description.orEmpty()) }
     val authorSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.author } }
     val seriesSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.series } }
     val duplicateSeriesNumber = remember(book.id, libraryBooks, series, seriesNumber) {
@@ -1259,24 +1289,6 @@ private fun EditMetadataDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.library_edit_metadata_description_label)) },
-                    minLines = 3,
-                    shape = RoundedCornerShape(Radii.medium),
-                    colors = textFieldColors,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.EditNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                )
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1291,8 +1303,80 @@ private fun EditMetadataDialog(
                         Text(stringResource(R.string.library_edit_metadata_cancel))
                     }
                     Button(
-                        onClick = { onSave(title, author, series, seriesNumber, description) },
+                        onClick = { onSave(title, author, series, seriesNumber) },
                         enabled = canSave,
+                        shape = RoundedCornerShape(Radii.full),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = Spacing.xs),
+                        )
+                        Text(stringResource(R.string.library_edit_metadata_save))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditDescriptionDialog(
+    description: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(description) }
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = Sizes.contentMaxWidth),
+            shape = RoundedCornerShape(Radii.extraLargeIncreased),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowLarge,
+        ) {
+            Column(
+                modifier = Modifier.padding(Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Text(
+                    text = stringResource(R.string.library_edit_description),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.library_edit_metadata_description_label)) },
+                    minLines = 5,
+                    shape = RoundedCornerShape(Radii.medium),
+                    colors = textFieldColors,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilledTonalButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(Radii.full),
+                    ) {
+                        Text(stringResource(R.string.library_edit_metadata_cancel))
+                    }
+                    Button(
+                        onClick = { onSave(text) },
                         shape = RoundedCornerShape(Radii.full),
                     ) {
                         Icon(

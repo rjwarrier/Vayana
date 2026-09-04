@@ -38,6 +38,8 @@
     <string name="library_series_value">Series: %1$s</string>
     <string name="library_series_number_value">Book %1$s</string>
     <string name="library_description">Description</string>
+    <string name="library_description_empty">No description added yet.</string>
+    <string name="library_edit_description">Edit description</string>
     <string name="library_imported_on">Imported %1$s</string>
     <string name="library_last_read_on">Last read %1$s</string>
     <string name="library_reading_stats_title">Reading statistics</string>
@@ -158,6 +160,8 @@
     <string name="statistics_chart_reading">Reading</string>
     <string name="statistics_chart_finished">Finished</string>
     <string name="statistics_chart_notes">Notes</string>
+    <string name="statistics_vocabulary_title">Words you looked up</string>
+    <string name="statistics_vocabulary_word_count">%1$s · %2$d</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_search_placeholder">Try “theme”, “font”, or “page”</string>
@@ -256,6 +260,7 @@
     <string name="reader_dictionary_looking_up">Looking up…</string>
     <string name="reader_dictionary_not_found">No definition found for “%1$s”.</string>
     <string name="reader_dictionary_choose_another">Choose another ZIP</string>
+    <string name="reader_dictionary_synonyms">Synonyms: %1$s</string>
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
     <string name="reader_bookmarks_add_current">Add bookmark at current position</string>
     <string name="reader_bookmarks_empty">No bookmarks in this book yet.</string>

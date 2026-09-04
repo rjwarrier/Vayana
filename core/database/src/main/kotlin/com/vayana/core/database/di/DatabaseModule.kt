@@ -6,6 +6,7 @@ import com.vayana.core.database.ALL_MIGRATIONS
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.WordLookupStatDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,4 +30,7 @@ object DatabaseModule {
 
     @Provides
     fun provideAnnotationDao(database: VayanaDatabase): AnnotationDao = database.annotationDao()
+
+    @Provides
+    fun provideWordLookupStatDao(database: VayanaDatabase): WordLookupStatDao = database.wordLookupStatDao()
 }

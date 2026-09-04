@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Paddings
@@ -114,6 +117,11 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
                 supportingText = stringResource(R.string.statistics_notes_total_support, summary.notesWithText),
             )
         }
+        if (summary.topLookedUpWords.isNotEmpty()) {
+            item {
+                TopWordsCard(words = summary.topLookedUpWords)
+            }
+        }
         summary.highlightToRevisit?.let { highlight ->
             item {
                 Surface(
@@ -185,6 +193,41 @@ private fun StatisticTile(icon: ImageVector, title: String, value: String, suppo
                 )
             }
             Text(text = value, style = MaterialTheme.typography.headlineSmall)
+        }
+    }
+}
+
+@Composable
+private fun TopWordsCard(words: List<WordLookupStat>) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Icon(imageVector = Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+                Text(text = stringResource(R.string.statistics_vocabulary_title), style = MaterialTheme.typography.titleMedium)
+            }
+            FlowRow(
+                modifier = Modifier.padding(top = Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                words.forEach { word ->
+                    Surface(
+                        shape = RoundedCornerShape(Radii.small),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.statistics_vocabulary_word_count, word.word, word.count),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        )
+                    }
+                }
+            }
         }
     }
 }
