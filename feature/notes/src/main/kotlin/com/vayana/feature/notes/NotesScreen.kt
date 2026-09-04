@@ -137,6 +137,7 @@ private fun NotesScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
+            Surface(color = MaterialTheme.colorScheme.background) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -243,6 +244,7 @@ private fun NotesScreen(
                         }
                     }
                 }
+            }
             }
         },
     ) { innerPadding ->
