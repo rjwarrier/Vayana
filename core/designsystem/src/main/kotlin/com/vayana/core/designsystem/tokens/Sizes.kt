@@ -37,4 +37,7 @@ object Sizes {
     val shareCardCoverWidth = 96.dp
     val shareCardQuoteMarkHeight = 40.dp
     val shareCardAccentBarWidth = 2.dp
+
+    /** Exported share-image side length in pixels — square, high enough res for social posts. */
+    const val shareCardExportPx = 1000
 }

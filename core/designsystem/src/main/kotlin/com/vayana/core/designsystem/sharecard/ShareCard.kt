@@ -1,11 +1,13 @@
 package com.vayana.core.designsystem.sharecard
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Button
@@ -103,8 +106,10 @@ fun ShareCardDialog(
                         onClick = {
                             isCapturing = true
                             scope.launch {
-                                val bitmap = graphicsLayer.toImageBitmap().asAndroidBitmap()
-                                context.shareBitmap(bitmap, chooserTitle)
+                                val captured = graphicsLayer.toImageBitmap().asAndroidBitmap()
+                                val exportSize = Sizes.shareCardExportPx
+                                val squared = Bitmap.createScaledBitmap(captured, exportSize, exportSize, true)
+                                context.shareBitmap(squared, chooserTitle)
                                 isCapturing = false
                                 onDismiss()
                             }
@@ -161,45 +166,58 @@ fun QuoteShareCard(
     Column(
         modifier = modifier
             .width(Sizes.shareCardWidth)
+            .aspectRatio(1f)
             .background(Palette.Navy900)
             .padding(Spacing.xl),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
         ShareCardWordmark(tint = Palette.Teal500, wordmark = watermark)
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        Text(text = "“", style = ShareCardTypography.quoteMark, color = Palette.Teal500)
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Text(text = text, style = ShareCardTypography.quoteBody, color = Palette.Cream50)
-        if (!bookTitle.isNullOrBlank() || !author.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            Row {
-                Box(
-                    modifier = Modifier
-                        .width(Sizes.shareCardAccentBarWidth)
-                        .height(Sizes.shareCardQuoteMarkHeight)
-                        .background(Palette.Teal500),
-                )
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Column {
-                    bookTitle?.takeIf { it.isNotBlank() }?.let {
-                        Text(text = it, style = ShareCardTypography.cardTitleDark, color = Palette.Cream100)
-                    }
-                    val subtitle = listOfNotNull(author?.takeIf { it.isNotBlank() }, pageLabel?.takeIf { it.isNotBlank() })
-                        .joinToString(" · ")
-                    if (subtitle.isNotBlank()) {
-                        Text(text = subtitle, style = ShareCardTypography.cardSubtitleMono, color = Palette.TextMutedDark)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(text = "“", style = ShareCardTypography.quoteMark, color = Palette.Teal500)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = text,
+                style = ShareCardTypography.quoteBody,
+                color = Palette.Cream50,
+                maxLines = 8,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!bookTitle.isNullOrBlank() || !author.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                Row {
+                    Box(
+                        modifier = Modifier
+                            .width(Sizes.shareCardAccentBarWidth)
+                            .height(Sizes.shareCardQuoteMarkHeight)
+                            .background(Palette.Teal500),
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Column {
+                        bookTitle?.takeIf { it.isNotBlank() }?.let {
+                            Text(text = it, style = ShareCardTypography.cardTitleDark, color = Palette.Cream100)
+                        }
+                        val subtitle = listOfNotNull(author?.takeIf { it.isNotBlank() }, pageLabel?.takeIf { it.isNotBlank() })
+                            .joinToString(" · ")
+                        if (subtitle.isNotBlank()) {
+                            Text(text = subtitle, style = ShareCardTypography.cardSubtitleMono, color = Palette.TextMutedDark)
+                        }
                     }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.xl))
-        HorizontalDivider(color = Palette.Navy600)
-        Spacer(modifier = Modifier.height(Spacing.md))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            ShareCardCaption(text = "Highlighted in $watermark", color = Palette.Teal300)
-            ShareCardCaption(text = footerRight, color = Palette.TextMutedDark)
+        Column {
+            HorizontalDivider(color = Palette.Navy600)
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                ShareCardCaption(text = "Highlighted in $watermark", color = Palette.Teal300)
+                ShareCardCaption(text = footerRight, color = Palette.TextMutedDark)
+            }
         }
     }
 }
@@ -223,12 +241,16 @@ fun BookShareCard(
     Column(
         modifier = modifier
             .width(Sizes.shareCardWidth)
+            .aspectRatio(1f)
             .background(Palette.Cream100)
             .padding(Spacing.xl),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
         ShareCardWordmark(tint = Palette.Forest700, wordmark = watermark)
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        Row {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
                 modifier = Modifier
                     .width(Sizes.shareCardCoverWidth)
@@ -241,7 +263,13 @@ fun BookShareCard(
             Column(modifier = Modifier.weight(1f)) {
                 ShareCardCaption(text = statusLabel, color = Palette.Forest700)
                 Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(text = title, style = ShareCardTypography.bookTitle, color = Palette.FgPrimaryLight)
+                Text(
+                    text = title,
+                    style = ShareCardTypography.bookTitle,
+                    color = Palette.FgPrimaryLight,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 author?.takeIf { it.isNotBlank() }?.let {
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(text = it, style = ShareCardTypography.bookAuthor, color = Palette.TextMutedLight)
@@ -253,15 +281,16 @@ fun BookShareCard(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.xl))
-        HorizontalDivider(color = Palette.Cream300)
-        Spacer(modifier = Modifier.height(Spacing.md))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            ShareCardCaption(text = footerLeft, color = Palette.TextMutedLight)
-            ShareCardCaption(text = footerRight, color = Palette.TextMutedLight)
+        Column {
+            HorizontalDivider(color = Palette.Cream300)
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                ShareCardCaption(text = footerLeft, color = Palette.TextMutedLight)
+                ShareCardCaption(text = footerRight, color = Palette.TextMutedLight)
+            }
         }
     }
 }
