@@ -20,7 +20,9 @@ import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -52,9 +54,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
@@ -151,6 +155,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val settings by viewModel.settings.collectAsState()
     val dictionaryLookup by viewModel.dictionaryLookup.collectAsState()
     val recentLookups by viewModel.recentLookups.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
     val context = LocalContext.current
     val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
@@ -166,6 +171,10 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         settings = settings,
         dictionaryLookup = dictionaryLookup,
         recentLookups = recentLookups,
+        searchResults = searchResults,
+        onSearchQueryChange = viewModel::search,
+        onSearchResultClick = viewModel::openSearchResult,
+        onClearSearch = viewModel::clearSearch,
         onLookupWord = viewModel::lookupWord,
         onSaveLookupAsNote = viewModel::saveLookupAsNote,
         onEngineReady = viewModel::bindEngine,
@@ -204,7 +213,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     )
 }
 
-private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE }
+private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, SEARCH }
 
 private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
     YELLOW("yellow", R.string.reader_selection_highlight_yellow, Color(0xFFF6C453)),
@@ -220,6 +229,10 @@ private fun ReaderScreen(
     settings: SettingsSnapshot,
     dictionaryLookup: DictionaryLookupState,
     recentLookups: List<String>,
+    searchResults: List<com.vayana.reader.api.SearchResult>,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
+    onClearSearch: () -> Unit,
     onLookupWord: (String) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
     onEngineReady: (BookEngine) -> Unit,
@@ -499,6 +512,10 @@ private fun ReaderScreen(
             ReaderBookProgressFooter(
                 modifier = Modifier.align(Alignment.BottomEnd),
                 locator = uiState.currentLocator,
+                onLongPress = {
+                    selectedPanel = ReaderPanel.CONTENTS
+                    chromeVisible = true
+                },
             )
         }
 
@@ -526,7 +543,7 @@ private fun ReaderScreen(
                 settings = settings,
                 selectedPanel = selectedPanel,
                 onPanelSelected = { selectedPanel = it },
-                onBack = onBack,
+                onBack = { chromeVisible = false },
                 onOpenTocEntry = {
                     chromeVisible = false
                     onOpenTocEntry(it)
@@ -548,6 +565,13 @@ private fun ReaderScreen(
                 onBionicReadingChange = onBionicReadingChange,
                 onCreateBookmark = onCreateBookmark,
                 onRefreshScreen = { einkFlashTrigger++ },
+                searchResults = searchResults,
+                onSearchQueryChange = onSearchQueryChange,
+                onSearchResultClick = {
+                    chromeVisible = false
+                    onSearchResultClick(it)
+                },
+                onClearSearch = onClearSearch,
             )
         }
 
@@ -713,16 +737,19 @@ private fun ReaderPageNumberFooter(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ReaderBookProgressFooter(
     modifier: Modifier = Modifier,
     locator: Locator?,
+    onLongPress: () -> Unit = {},
 ) {
     val progress = locator?.progression ?: return
     Surface(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(end = Spacing.md, bottom = Spacing.sm),
+            .padding(end = Spacing.md, bottom = Spacing.sm)
+            .combinedClickable(onClick = {}, onLongClick = onLongPress),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -1126,6 +1153,10 @@ private fun ReaderChrome(
     onBionicReadingChange: (Boolean) -> Unit,
     onCreateBookmark: () -> Unit,
     onRefreshScreen: () -> Unit,
+    searchResults: List<com.vayana.reader.api.SearchResult>,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
+    onClearSearch: () -> Unit,
 ) {
     Surface(
         modifier = modifier
@@ -1203,6 +1234,9 @@ private fun ReaderChrome(
                 ReaderPanelButton(Icons.Outlined.TextFields, R.string.reader_style, selectedPanel == ReaderPanel.STYLE) {
                     onPanelSelected(ReaderPanel.STYLE)
                 }
+                ReaderPanelButton(Icons.Outlined.Search, R.string.reader_search, selectedPanel == ReaderPanel.SEARCH) {
+                    onPanelSelected(ReaderPanel.SEARCH)
+                }
             }
             AnimatedContent(
                 targetState = selectedPanel,
@@ -1231,6 +1265,12 @@ private fun ReaderChrome(
                         onBionicReadingChange = onBionicReadingChange,
                     )
                     ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
+                    ReaderPanel.SEARCH -> SearchPanel(
+                        results = searchResults,
+                        onQueryChange = onSearchQueryChange,
+                        onResultClick = onSearchResultClick,
+                        onClear = onClearSearch,
+                    )
                 }
             }
         }
@@ -1387,6 +1427,76 @@ private fun NotesPanel(uiState: ReaderUiState, onAnnotationClick: (Annotation) -
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchPanel(
+    results: List<com.vayana.reader.api.SearchResult>,
+    onQueryChange: (String) -> Unit,
+    onResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
+    onClear: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = {
+                query = it
+                onQueryChange(it)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.reader_search_label)) },
+            singleLine = true,
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = {
+                        query = ""
+                        onClear()
+                    }) {
+                        Icon(imageVector = Icons.Outlined.Close, contentDescription = stringResource(R.string.reader_search_clear))
+                    }
+                }
+            } else {
+                null
+            },
+        )
+        when {
+            query.isBlank() -> Unit
+            results.isEmpty() -> Text(
+                text = stringResource(R.string.reader_search_no_results),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
+                items(results, key = { it.cfi }) { result ->
+                    TextButton(onClick = { onResultClick(result) }) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = result.excerpt,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            result.chapterTitle?.let { chapter ->
+                                Text(
+                                    text = chapter,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

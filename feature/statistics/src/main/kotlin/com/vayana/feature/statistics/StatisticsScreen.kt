@@ -20,9 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -131,6 +133,21 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
                 )
             }
         }
+        if (summary.currentStreakDays > 0) {
+            item {
+                StatisticTile(
+                    icon = Icons.Outlined.LocalFireDepartment,
+                    title = stringResource(R.string.statistics_streak_title),
+                    value = stringResource(R.string.statistics_streak_value, summary.currentStreakDays),
+                    supportingText = stringResource(R.string.statistics_streak_support),
+                )
+            }
+        }
+        if (summary.dailyGoalMinutes > 0 || summary.yearlyGoalBooks > 0) {
+            item {
+                GoalsCard(summary = summary)
+            }
+        }
         if (summary.topLookedUpWords.isNotEmpty()) {
             item {
                 TopWordsCard(words = summary.topLookedUpWords)
@@ -220,6 +237,59 @@ private fun formatSessionDuration(seconds: Long): String {
         stringResource(R.string.reader_duration_hours_minutes, hours, minutes)
     } else {
         stringResource(R.string.reader_duration_minutes, minutes)
+    }
+}
+
+@Composable
+private fun GoalsCard(summary: StatisticsSummary) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Text(text = stringResource(R.string.statistics_goals_title), style = MaterialTheme.typography.titleMedium)
+            if (summary.dailyGoalMinutes > 0) {
+                GoalRow(
+                    modifier = Modifier.padding(top = Spacing.md),
+                    label = stringResource(R.string.statistics_goals_daily_label),
+                    valueText = stringResource(
+                        R.string.statistics_goals_daily_value,
+                        summary.todayReadingMinutes,
+                        summary.dailyGoalMinutes,
+                    ),
+                    fraction = (summary.todayReadingMinutes.toFloat() / summary.dailyGoalMinutes).coerceIn(0f, 1f),
+                )
+            }
+            if (summary.yearlyGoalBooks > 0) {
+                GoalRow(
+                    modifier = Modifier.padding(top = Spacing.md),
+                    label = stringResource(R.string.statistics_goals_yearly_label),
+                    valueText = stringResource(
+                        R.string.statistics_goals_yearly_value,
+                        summary.booksFinishedThisYear,
+                        summary.yearlyGoalBooks,
+                    ),
+                    fraction = (summary.booksFinishedThisYear.toFloat() / summary.yearlyGoalBooks).coerceIn(0f, 1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoalRow(modifier: Modifier = Modifier, label: String, valueText: String, fraction: Float) {
+    Column(modifier = modifier) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = label, style = MaterialTheme.typography.bodyMedium)
+            Text(text = valueText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.xs),
+        )
     }
 }
 

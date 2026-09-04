@@ -19,6 +19,8 @@ interface BookEngine {
     suspend fun applyStyle(style: BookStyle, theme: ReadTheme)
     suspend fun renderAnnotations(annotations: List<ReaderAnnotation>)
     suspend fun clearSelection()
+    suspend fun search(query: String)
+    suspend fun clearSearch()
     fun events(): Flow<EngineEvent>
     fun close()
 }

@@ -194,6 +194,14 @@
     <string name="statistics_sessions_value">%1$d</string>
     <string name="statistics_sessions_support">Longest: %1$s</string>
     <string name="statistics_sessions_support_none">Read for a minute or more to start counting.</string>
+    <string name="statistics_streak_title">Reading streak</string>
+    <string name="statistics_streak_value">%1$d days</string>
+    <string name="statistics_streak_support">Read every day to keep it going.</string>
+    <string name="statistics_goals_title">Goals</string>
+    <string name="statistics_goals_daily_label">Today</string>
+    <string name="statistics_goals_daily_value">%1$d / %2$d min</string>
+    <string name="statistics_goals_yearly_label">This year</string>
+    <string name="statistics_goals_yearly_value">%1$d / %2$d books</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_search_placeholder">Try “theme”, “font”, or “page”</string>
@@ -237,6 +245,12 @@
     <string name="settings_group_reader_behavior_subtitle">Tap zones, volume keys, and screen wake</string>
     <string name="settings_group_maintenance">Maintenance</string>
     <string name="settings_group_maintenance_subtitle">%1$d local options</string>
+    <string name="settings_group_goals">Goals</string>
+    <string name="settings_group_goals_subtitle">%1$d local options</string>
+    <string name="settings_daily_reading_goal_title">Daily reading goal</string>
+    <string name="settings_daily_reading_goal_subtitle">Minutes per day, 0 to turn off</string>
+    <string name="settings_yearly_books_goal_title">Yearly books goal</string>
+    <string name="settings_yearly_books_goal_subtitle">Books per year, 0 to turn off</string>
     <string name="settings_theme_mode_title">Theme</string>
     <string name="settings_theme_mode_subtitle">Choose how the app handles light and dark mode.</string>
     <string name="settings_theme_mode_system">Use device setting</string>
@@ -329,6 +343,10 @@
     <string name="reader_note_dialog_save">Save</string>
     <string name="reader_progress">Progress</string>
     <string name="reader_style">Style</string>
+    <string name="reader_search">Search</string>
+    <string name="reader_search_label">Search this book</string>
+    <string name="reader_search_clear">Clear search</string>
+    <string name="reader_search_no_results">No matches found.</string>
     <string name="reader_progress_percent">%1$d%%</string>
     <string name="reader_progress_page_of">Page %1$d of %2$d</string>
     <string name="reader_progress_pages_left">%1$d pages left</string>

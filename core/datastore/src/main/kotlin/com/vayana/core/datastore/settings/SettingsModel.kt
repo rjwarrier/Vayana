@@ -15,6 +15,7 @@ enum class SettingsGroup(
     READER_TYPOGRAPHY(R.string.settings_group_reader_typography, R.string.settings_group_reader_typography_subtitle),
     READER_LAYOUT(R.string.settings_group_reader_layout, R.string.settings_group_reader_layout_subtitle),
     READER_BEHAVIOR(R.string.settings_group_reader_behavior, R.string.settings_group_reader_behavior_subtitle),
+    GOALS(R.string.settings_group_goals, R.string.settings_group_goals_subtitle),
     MAINTENANCE(R.string.settings_group_maintenance, R.string.settings_group_maintenance_subtitle),
 }
 
@@ -83,6 +84,8 @@ data class SettingsSnapshot(
     val readerShowFooter: Boolean = true,
     val readerAutoMarkSelection: Boolean = false,
     val readerBionicReading: Boolean = false,
+    val dailyReadingGoalMinutes: Int = 20,
+    val yearlyBooksGoal: Int = 12,
 )
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
@@ -260,6 +263,25 @@ object SettingsRegistry {
         group = SettingsGroup.READER_TYPOGRAPHY,
     )
 
+    val DailyReadingGoalMinutes: IntSetting = IntSetting(
+        key = "goals.daily_reading_minutes",
+        defaultValue = 20,
+        titleRes = R.string.settings_daily_reading_goal_title,
+        subtitleRes = R.string.settings_daily_reading_goal_subtitle,
+        group = SettingsGroup.GOALS,
+        range = 0..180,
+        step = 5,
+    )
+    val YearlyBooksGoal: IntSetting = IntSetting(
+        key = "goals.yearly_books",
+        defaultValue = 12,
+        titleRes = R.string.settings_yearly_books_goal_title,
+        subtitleRes = R.string.settings_yearly_books_goal_subtitle,
+        group = SettingsGroup.GOALS,
+        range = 0..100,
+        step = 1,
+    )
+
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
         DisplayProfile,
@@ -278,5 +300,7 @@ object SettingsRegistry {
         ReaderKeepAwake,
         ReaderAutoMarkSelection,
         ReaderBionicReading,
+        DailyReadingGoalMinutes,
+        YearlyBooksGoal,
     )
 }

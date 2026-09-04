@@ -22,6 +22,7 @@ import com.vayana.reader.api.ReadTheme
 import com.vayana.reader.api.ReaderAnnotation
 import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.ReaderSelection
+import com.vayana.reader.api.SearchResult
 import com.vayana.reader.api.TocEntry
 import java.io.File
 import kotlin.math.ceil
@@ -211,6 +212,14 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.evaluateJavascript("window.VayanaReader.clearSelection()", null)
     }
 
+    override suspend fun search(query: String) {
+        webView.evaluateJavascript("window.VayanaReader.search(${JSONObject.quote(query)})", null)
+    }
+
+    override suspend fun clearSearch() {
+        webView.evaluateJavascript("window.VayanaReader.clearSearch()", null)
+    }
+
     override fun events(): Flow<EngineEvent> = _events
 
     override fun close() {
@@ -263,6 +272,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val selection = payload.toSelectionOrNull()
                 _events.tryEmit(EngineEvent.SelectionChanged(selection))
             }
+            "searchResults" -> {
+                val query = payload.optString("query")
+                val results = payload.optJSONArray("results")?.toSearchResults() ?: emptyList()
+                _events.tryEmit(EngineEvent.SearchCompleted(query, results))
+            }
             "log" -> Log.d("FoliateReader", "bridge: $payload")
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")
@@ -271,6 +285,20 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 _events.tryEmit(EngineEvent.Error(message))
             }
         }
+    }
+}
+
+private fun JSONArray.toSearchResults(): List<SearchResult> = buildList {
+    for (i in 0 until length()) {
+        val obj = getJSONObject(i)
+        val cfi = obj.optStringOrNull("cfi") ?: continue
+        add(
+            SearchResult(
+                cfi = cfi,
+                excerpt = obj.optString("excerpt"),
+                chapterTitle = obj.optStringOrNull("tocLabel"),
+            ),
+        )
     }
 }
 

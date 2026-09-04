@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
@@ -1189,6 +1190,8 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderShowFooter -> readerShowFooter
     SettingsRegistry.ReaderAutoMarkSelection -> readerAutoMarkSelection
     SettingsRegistry.ReaderBionicReading -> readerBionicReading
+    SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
+    SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     else -> setting.defaultValue
 }
 
@@ -1228,6 +1231,7 @@ private fun SettingsGroup.icon(): ImageVector = when (this) {
     SettingsGroup.READER_TYPOGRAPHY -> Icons.Outlined.FormatSize
     SettingsGroup.READER_LAYOUT -> Icons.Outlined.Visibility
     SettingsGroup.READER_BEHAVIOR -> Icons.Outlined.TouchApp
+    SettingsGroup.GOALS -> Icons.Outlined.Flag
     SettingsGroup.MAINTENANCE -> Icons.Outlined.Storage
 }
 

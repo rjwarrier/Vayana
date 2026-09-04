@@ -89,6 +89,8 @@ private fun Preferences.toSnapshot(): SettingsSnapshot = SettingsSnapshot(
     readerShowFooter = read(SettingsRegistry.ReaderShowFooter),
     readerAutoMarkSelection = read(SettingsRegistry.ReaderAutoMarkSelection),
     readerBionicReading = read(SettingsRegistry.ReaderBionicReading),
+    dailyReadingGoalMinutes = read(SettingsRegistry.DailyReadingGoalMinutes),
+    yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
 )
 
 @Suppress("UNCHECKED_CAST")

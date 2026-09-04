@@ -383,6 +383,32 @@ function clearSelection() {
     post('selection', null)
 }
 
+let searchToken = 0
+
+async function search(query) {
+    if (!view) return
+    const myToken = ++searchToken
+    const results = []
+    try {
+        for await (const result of view.search({ query })) {
+            if (myToken !== searchToken) return // superseded by a newer search
+            if (result === 'done' || !result.subitems) continue
+            for (const { cfi, excerpt } of result.subitems) {
+                results.push({ cfi, excerpt, tocLabel: result.label ?? null })
+            }
+        }
+    } catch (e) {
+        post('error', { message: `Search failed: ${e.message}` })
+        return
+    }
+    if (myToken === searchToken) post('searchResults', { query, results })
+}
+
+function clearSearch() {
+    searchToken++ // invalidate any in-flight search so its stale results never post
+    if (view?.clearSearch) view.clearSearch()
+}
+
 let activeAnnotationsList = []
 
 async function renderAnnotations(annotations) {
@@ -836,6 +862,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, renderAnnotations, clearSelection }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, renderAnnotations, clearSelection, search, clearSearch }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

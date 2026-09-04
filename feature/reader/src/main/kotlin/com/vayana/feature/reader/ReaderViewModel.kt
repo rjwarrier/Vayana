@@ -173,6 +173,9 @@ class ReaderViewModel @Inject constructor(
                         lookupSelection(event.selection?.selectedText)
                         maybeAutoMarkSelection(event.selection)
                     }
+                    is com.vayana.reader.api.EngineEvent.SearchCompleted -> {
+                        if (event.query == lastSearchQuery) _searchResults.value = event.results
+                    }
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
                     -> Unit
@@ -185,6 +188,41 @@ class ReaderViewModel @Inject constructor(
                 if (bookOpen) applyReaderStyle(engine, snapshot)
             }
         }
+    }
+
+    private val _searchResults = MutableStateFlow<List<com.vayana.reader.api.SearchResult>>(emptyList())
+    val searchResults: StateFlow<List<com.vayana.reader.api.SearchResult>> = _searchResults
+    private var lastSearchQuery: String = ""
+    private var searchJob: Job? = null
+
+    fun search(query: String) {
+        val trimmed = query.trim()
+        lastSearchQuery = trimmed
+        searchJob?.cancel()
+        if (trimmed.isEmpty()) {
+            _searchResults.value = emptyList()
+            viewModelScope.launch { boundEngine?.clearSearch() }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(SearchDebounceMillis)
+            boundEngine?.search(trimmed)
+        }
+    }
+
+    fun clearSearch() {
+        searchJob?.cancel()
+        lastSearchQuery = ""
+        _searchResults.value = emptyList()
+        viewModelScope.launch { boundEngine?.clearSearch() }
+    }
+
+    fun openSearchResult(result: com.vayana.reader.api.SearchResult) {
+        dispatch(
+            NavTarget.ToLocator(
+                Locator(cfi = result.cfi, href = null, progression = 0f, chapterTitle = result.chapterTitle),
+            ),
+        )
     }
 
     fun nextPage() = dispatch(NavTarget.NextPage)
@@ -589,4 +627,6 @@ private const val RecentLookupsLimit = 5
 
 /** No page turn for this long ends the current reading session (PROMPT: idle stops a session). */
 private const val IdleSessionTimeoutMs = 5 * 60 * 1000L
+
+private const val SearchDebounceMillis = 400L
 private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")

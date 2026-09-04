@@ -57,8 +57,16 @@ sealed interface NavTarget {
 sealed interface EngineEvent {
     data class Relocated(val locator: Locator) : EngineEvent
     data class SelectionChanged(val selection: ReaderSelection?) : EngineEvent
+    data class SearchCompleted(val query: String, val results: List<SearchResult>) : EngineEvent
     data class Error(val message: String) : EngineEvent
 }
+
+data class SearchResult(
+    val cfi: String,
+    /** The matched text with a little surrounding context, for the results list. */
+    val excerpt: String,
+    val chapterTitle: String?,
+)
 
 data class ReaderSelection(
     val cfi: String,
