@@ -54,6 +54,7 @@ import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
@@ -360,6 +361,28 @@ private fun ReaderScreen(
         }
     }
 
+    // Successive partial E-Ink refreshes accumulate ghosting; periodically forcing one
+    // maximal-area repaint (a brief full-black flash) makes the panel's controller do a clean
+    // full update, the same trick Kindle/Boox readers use ("refresh every N pages").
+    var einkPageTurnCount by remember { mutableIntStateOf(0) }
+    var einkFlashTrigger by remember { mutableIntStateOf(0) }
+    var einkFlashVisible by remember { mutableStateOf(false) }
+    val currentLocatorCfi = (uiState as? ReaderUiState.Loaded)?.currentLocator?.cfi
+    LaunchedEffect(currentLocatorCfi) {
+        if (currentLocatorCfi != null && settings.displayProfile == DisplayProfile.E_INK) {
+            einkPageTurnCount++
+            if (einkPageTurnCount % EinkFullRefreshEveryPages == 0) {
+                einkFlashTrigger++
+            }
+        }
+    }
+    LaunchedEffect(einkFlashTrigger) {
+        if (einkFlashTrigger == 0) return@LaunchedEffect
+        einkFlashVisible = true
+        delay(EinkFlashDurationMillis)
+        einkFlashVisible = false
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -524,7 +547,12 @@ private fun ReaderScreen(
                 onShowFooterChange = onShowFooterChange,
                 onBionicReadingChange = onBionicReadingChange,
                 onCreateBookmark = onCreateBookmark,
+                onRefreshScreen = { einkFlashTrigger++ },
             )
+        }
+
+        if (einkFlashVisible) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
         }
 
         val loadedState = uiState as? ReaderUiState.Loaded
@@ -1097,6 +1125,7 @@ private fun ReaderChrome(
     onShowFooterChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
     onCreateBookmark: () -> Unit,
+    onRefreshScreen: () -> Unit,
 ) {
     Surface(
         modifier = modifier
@@ -1138,11 +1167,21 @@ private fun ReaderChrome(
                         .align(Alignment.Center)
                         .padding(horizontal = Sizes.touchTarget),
                 )
-                IconButton(onClick = onCreateBookmark, modifier = Modifier.align(Alignment.CenterEnd)) {
-                    Icon(
-                        imageVector = Icons.Outlined.BookmarkAdd,
-                        contentDescription = stringResource(R.string.reader_add_bookmark_content_description),
-                    )
+                Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    if (settings.displayProfile == DisplayProfile.E_INK) {
+                        IconButton(onClick = onRefreshScreen) {
+                            Icon(
+                                imageVector = Icons.Outlined.Refresh,
+                                contentDescription = stringResource(R.string.reader_refresh_screen_content_description),
+                            )
+                        }
+                    }
+                    IconButton(onClick = onCreateBookmark) {
+                        Icon(
+                            imageVector = Icons.Outlined.BookmarkAdd,
+                            contentDescription = stringResource(R.string.reader_add_bookmark_content_description),
+                        )
+                    }
                 }
             }
             Row(
@@ -1636,6 +1675,8 @@ private const val MaxDisplayedDictionarySenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
 private const val VolumeKeyLongPressMillis = 500L
+private const val EinkFullRefreshEveryPages = 6
+private const val EinkFlashDurationMillis = 120L
 
 private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 

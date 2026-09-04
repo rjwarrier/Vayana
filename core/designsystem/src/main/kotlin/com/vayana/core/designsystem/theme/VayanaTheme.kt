@@ -1,5 +1,9 @@
 package com.vayana.core.designsystem.theme
 
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -7,8 +11,17 @@ import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.node.DelegatableNode
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.VayanaTypography
+
+/** No press ripple - a fading ripple is exactly the kind of animated repaint that ghosts on E-Ink. */
+private object NoIndication : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode = object : Modifier.Node() {}
+    override fun hashCode(): Int = -1
+    override fun equals(other: Any?): Boolean = other === this
+}
 
 private val VayanaShapes = Shapes(
     extraSmall = RoundedCornerShape(Radii.extraSmall),
@@ -50,6 +63,9 @@ fun VayanaTheme(
         LocalDisplayProfile provides displayProfile,
         LocalDarkVariant provides darkVariant,
         LocalMotionSetting provides motionSetting,
+        // Ripple fade and stretch/glow overscroll both animate a repaint - deadly for E-Ink ghosting.
+        LocalIndication provides if (displayProfile == DisplayProfile.E_INK) NoIndication else LocalIndication.current,
+        LocalOverscrollFactory provides if (displayProfile == DisplayProfile.E_INK) null else LocalOverscrollFactory.current,
     ) {
         MaterialExpressiveTheme(
             colorScheme = colorScheme,

@@ -320,6 +320,7 @@
     <string name="reader_dictionary_copy">Copy definition</string>
     <string name="reader_dictionary_add_to_notes">Add to notes</string>
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
+    <string name="reader_refresh_screen_content_description">Refresh screen (clear ghosting)</string>
     <string name="reader_bookmarks_add_current">Add bookmark at current position</string>
     <string name="reader_bookmarks_empty">No bookmarks in this book yet.</string>
     <string name="reader_bookmarks_location_saved">Saved position</string>

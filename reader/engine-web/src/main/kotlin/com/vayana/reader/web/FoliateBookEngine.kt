@@ -2,6 +2,7 @@ package com.vayana.reader.web
 
 import android.content.Context
 import android.util.Log
+import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -97,6 +98,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.settings.javaScriptEnabled = true
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = false
+        // Pinch-zoom is a continuous multi-frame gesture with nothing for a reflowable page to
+        // zoom into (font size is app-controlled) - on E-Ink it's pure ghosting for no benefit.
+        webView.settings.setSupportZoom(false)
+        webView.settings.builtInZoomControls = false
+        webView.settings.displayZoomControls = false
         webView.webViewClient = object : WebViewClientCompat() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                 assetLoader.shouldInterceptRequest(request.url)
@@ -145,6 +151,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val margin = style.sideMarginPercent.coerceIn(0, 24)
         val lineHeight = style.lineHeight.coerceIn(1.2f, 4.0f)
         val isEinkTheme = theme.backgroundColorArgb == EinkBackgroundArgb && theme.textColorArgb == EinkForegroundArgb
+        // GPU-composited (hardware) layers hand the frame to the display pipeline as a diff/blend,
+        // which is what most E-Ink drivers ghost on; a software layer forces a plain full-bitmap
+        // draw that the OEM's E-Ink refresh logic handles far more cleanly.
+        webView.setLayerType(if (isEinkTheme) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
         val css = buildString {
             append("html{")
             append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
@@ -174,6 +184,13 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 append("}")
                 append("img,svg,video,canvas{")
                 append("filter:grayscale(1) contrast(1.15) !important;")
+                append("}")
+                // Highlight fills render at 0.3 opacity by default (overlayer.js); once the rule
+                // above grayscales them, a tinted highlight color washes out to a barely-visible
+                // pale grey. Multiply + higher opacity keeps it legible without hardware color.
+                append(":root{")
+                append("--overlayer-highlight-opacity:0.55;")
+                append("--overlayer-highlight-blend-mode:multiply;")
                 append("}")
             }
         }
