@@ -2,12 +2,25 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M18,38C18,29 26,24 39,24C46,24 51,26 54,29C57,26 62,24 69,24C82,24 90,29 90,38V73L56,80C55,80.2 53,80.2 52,80L18,73V38Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M49,15H59V39H49Z" />
+    android:viewportWidth="400"
+    android:viewportHeight="400">
+    <group
+        android:name="mark"
+        android:pivotX="200"
+        android:pivotY="200"
+        android:scaleX="0.75"
+        android:scaleY="0.75">
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="70"
+            android:strokeLineCap="butt"
+            android:pathData="M70,55 L197,280" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="70"
+            android:strokeLineCap="butt"
+            android:pathData="M330,55 L203,280" />
+    </group>
 </vector>
