@@ -128,6 +128,7 @@ async function open(bookUrl, lastLocatorCfi) {
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
             wireSelection(doc, index)
+            applyBionicReadingToDoc(doc)
             matchTextAnnotationsForDoc(doc, index)
             post('pageLoaded', {})
         })
@@ -279,6 +280,70 @@ function applyStyle(css, sideMarginPercent) {
     resetPageEstimate()
     if (view?.renderer?.setStyles) view.renderer.setStyles(css)
     applyReaderMargin(sideMarginPercent)
+}
+
+const BionicWordClass = 'vayana-bionic-word'
+let bionicReadingEnabled = false
+
+function setBionicReading(enabled) {
+    bionicReadingEnabled = Boolean(enabled)
+    if (!view) return
+    for (const { doc } of view.renderer.getContents()) {
+        if (doc) applyBionicReadingToDoc(doc)
+    }
+}
+
+function applyBionicReadingToDoc(doc) {
+    if (!doc || !doc.body) return
+    if (bionicReadingEnabled) {
+        transformBionicWords(doc)
+    } else {
+        revertBionicWords(doc)
+    }
+    // Restructuring text nodes invalidates any cached (text -> DOM node) mapping for this doc.
+    documentTextIndexes.delete(doc)
+    unmatchedInDoc.delete(doc)
+}
+
+function transformBionicWords(doc) {
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            const parent = node.parentElement
+            if (!parent || !node.textContent || !/\S/.test(node.textContent)) return NodeFilter.FILTER_REJECT
+            if (parent.closest(`.${BionicWordClass},style,script,noscript,template`)) return NodeFilter.FILTER_REJECT
+            return NodeFilter.FILTER_ACCEPT
+        },
+    })
+    const nodes = []
+    let node
+    while ((node = walker.nextNode())) nodes.push(node)
+    for (const textNode of nodes) {
+        const span = doc.createElement('span')
+        span.className = BionicWordClass
+        span.dataset.original = textNode.textContent
+        span.innerHTML = bionicMarkup(textNode.textContent)
+        textNode.replaceWith(span)
+    }
+}
+
+function revertBionicWords(doc) {
+    const spans = doc.body.querySelectorAll(`.${BionicWordClass}`)
+    for (const span of spans) {
+        span.replaceWith(doc.createTextNode(span.dataset.original ?? ''))
+    }
+    doc.body.normalize()
+}
+
+// Bolds roughly the first half of each word (a fixation point meant to guide the eye) while
+// leaving the rest at normal weight. Escapes non-word characters itself since it builds HTML.
+function bionicMarkup(text) {
+    return text.replace(/[\p{L}\p{N}]+|[\s\S]/gu, chunk => {
+        if (/^[\p{L}\p{N}]+$/u.test(chunk)) {
+            const boldLength = Math.max(1, Math.ceil(chunk.length * 0.5))
+            return `<b>${chunk.slice(0, boldLength)}</b>${chunk.slice(boldLength)}`
+        }
+        return chunk === '&' ? '&amp;' : chunk === '<' ? '&lt;' : chunk === '>' ? '&gt;' : chunk
+    })
 }
 
 function wireSelection(doc, index) {
@@ -771,6 +836,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, renderAnnotations, clearSelection }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, renderAnnotations, clearSelection }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

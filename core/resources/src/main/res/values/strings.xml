@@ -253,6 +253,8 @@
     <string name="settings_reader_keep_awake_subtitle">Prevent sleep while the reader is open.</string>
     <string name="settings_reader_auto_mark_selection_title">Auto-mark selection</string>
     <string name="settings_reader_auto_mark_selection_subtitle">Selecting text immediately highlights it in your last-used color.</string>
+    <string name="settings_reader_bionic_reading_title">Bionic reading</string>
+    <string name="settings_reader_bionic_reading_subtitle">Bolds the lead of each word to help guide your eyes.</string>
 
     <string name="reader_contents">Contents</string>
     <string name="reader_notes">Notes</string>

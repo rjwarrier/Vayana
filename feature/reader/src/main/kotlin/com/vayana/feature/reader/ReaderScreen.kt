@@ -192,6 +192,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onKeepAwakeChange = viewModel::updateKeepAwake,
         onShowHeadersChange = viewModel::updateShowHeaders,
         onShowFooterChange = viewModel::updateShowFooter,
+        onBionicReadingChange = viewModel::updateBionicReading,
         onPause = viewModel::onPause,
         onResume = viewModel::onResume,
         onBack = onBack,
@@ -238,6 +239,7 @@ private fun ReaderScreen(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onBionicReadingChange: (Boolean) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onBack: () -> Unit,
@@ -487,6 +489,7 @@ private fun ReaderScreen(
                 onKeepAwakeChange = onKeepAwakeChange,
                 onShowHeadersChange = onShowHeadersChange,
                 onShowFooterChange = onShowFooterChange,
+                onBionicReadingChange = onBionicReadingChange,
                 onCreateBookmark = onCreateBookmark,
             )
         }
@@ -1059,6 +1062,7 @@ private fun ReaderChrome(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onBionicReadingChange: (Boolean) -> Unit,
     onCreateBookmark: () -> Unit,
 ) {
     Surface(
@@ -1152,6 +1156,7 @@ private fun ReaderChrome(
                         onKeepAwakeChange = onKeepAwakeChange,
                         onShowHeadersChange = onShowHeadersChange,
                         onShowFooterChange = onShowFooterChange,
+                        onBionicReadingChange = onBionicReadingChange,
                     )
                     ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
                 }
@@ -1328,6 +1333,7 @@ private fun StylePanel(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onBionicReadingChange: (Boolean) -> Unit,
 ) {
     val fontSizeSetting = SettingsRegistry.ReaderFontSize
     val lineHeightSetting = SettingsRegistry.ReaderLineHeight
@@ -1414,6 +1420,13 @@ private fun StylePanel(
                 )
             }
         }
+
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.settings_reader_bionic_reading_title),
+            subtitle = stringResource(R.string.settings_reader_bionic_reading_subtitle),
+            checked = settings.readerBionicReading,
+            onCheckedChange = onBionicReadingChange,
+        )
 
         Row(
             modifier = Modifier

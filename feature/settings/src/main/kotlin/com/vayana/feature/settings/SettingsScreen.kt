@@ -866,6 +866,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderShowHeaders -> readerShowHeaders
     SettingsRegistry.ReaderShowFooter -> readerShowFooter
     SettingsRegistry.ReaderAutoMarkSelection -> readerAutoMarkSelection
+    SettingsRegistry.ReaderBionicReading -> readerBionicReading
     else -> setting.defaultValue
 }
 

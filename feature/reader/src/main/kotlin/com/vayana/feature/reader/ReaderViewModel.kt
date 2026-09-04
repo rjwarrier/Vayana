@@ -240,6 +240,10 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderShowFooter, enabled) }
     }
 
+    fun updateBionicReading(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderBionicReading, enabled) }
+    }
+
     fun createHighlight(colorKey: String = DefaultAnnotationColor) {
         lastUsedHighlightColor = colorKey
         createAnnotation(type = AnnotationType.HIGHLIGHT, colorKey = colorKey, readerNote = null)
@@ -357,6 +361,7 @@ class ReaderViewModel @Inject constructor(
                 lineHeight = snapshot.readerLineHeight,
                 fontFamily = snapshot.readerFontFamily.cssFamily,
                 sideMarginPercent = snapshot.readerSideMarginPercent,
+                bionicReading = snapshot.readerBionicReading,
             ),
             theme = snapshot.readTheme,
         )

@@ -10,6 +10,7 @@ data class BookStyle(
     val lineHeight: Float = 1.5f,
     val fontFamily: String? = null,
     val sideMarginPercent: Int = 10,
+    val bionicReading: Boolean = false,
 )
 
 data class ReadTheme(

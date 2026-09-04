@@ -82,6 +82,7 @@ data class SettingsSnapshot(
     val readerShowHeaders: Boolean = true,
     val readerShowFooter: Boolean = true,
     val readerAutoMarkSelection: Boolean = false,
+    val readerBionicReading: Boolean = false,
 )
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
@@ -251,6 +252,13 @@ object SettingsRegistry {
         subtitleRes = R.string.settings_reader_auto_mark_selection_subtitle,
         group = SettingsGroup.READER_BEHAVIOR,
     )
+    val ReaderBionicReading: BooleanSetting = BooleanSetting(
+        key = "reader.bionic_reading",
+        defaultValue = false,
+        titleRes = R.string.settings_reader_bionic_reading_title,
+        subtitleRes = R.string.settings_reader_bionic_reading_subtitle,
+        group = SettingsGroup.READER_TYPOGRAPHY,
+    )
 
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
@@ -269,5 +277,6 @@ object SettingsRegistry {
         ReaderVolumeKeys,
         ReaderKeepAwake,
         ReaderAutoMarkSelection,
+        ReaderBionicReading,
     )
 }
