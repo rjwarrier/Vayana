@@ -287,8 +287,12 @@ private fun JSONObject.toSelectionOrNull(): ReaderSelection? {
         cfi = cfi,
         selectedText = selectedText,
         chapterTitle = optStringOrNull("tocLabel"),
+        verticalPosition = optDoubleOrNull("verticalPosition")?.toFloat()?.coerceIn(0f, 1f),
     )
 }
+
+private fun JSONObject.optDoubleOrNull(name: String): Double? =
+    if (has(name) && !isNull(name)) optDouble(name).takeIf(Double::isFinite) else null
 
 private fun ReaderAnnotation.toJson(): JSONObject = JSONObject()
     .put("id", id)

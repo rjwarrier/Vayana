@@ -3,8 +3,13 @@ package com.vayana.feature.reader
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.text.format.DateFormat
+import android.view.ActionMode
 import android.view.KeyEvent as AndroidKeyEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -17,7 +22,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -88,6 +95,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -116,6 +125,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.dictionary.api.PartOfSpeech
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.Locator
 import com.vayana.reader.api.TocEntry
@@ -129,11 +139,21 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: ReaderViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val dictionaryLookup by viewModel.dictionaryLookup.collectAsState()
+    val context = LocalContext.current
+    val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) {
+            viewModel.cancelDictionaryInstall()
+        } else {
+            viewModel.installEnglishDictionary(uri.toString())
+        }
+    }
 
     ReaderScreen(
         modifier = modifier,
         uiState = uiState,
         settings = settings,
+        dictionaryLookup = dictionaryLookup,
         onEngineReady = viewModel::bindEngine,
         onTapPrevious = viewModel::previousPage,
         onTapNext = viewModel::nextPage,
@@ -145,6 +165,15 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onCreateNote = viewModel::createNote,
         onCreateBookmark = viewModel::createBookmark,
         onClearSelection = viewModel::clearSelection,
+        onDownloadDictionary = {
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(EnglishDictionaryDownloadUrl)))
+            }
+        },
+        onInstallDictionary = {
+            viewModel.prepareDictionaryInstall()
+            dictionaryPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+        },
         onFontSizeChange = viewModel::updateFontSize,
         onLineHeightChange = viewModel::updateLineHeight,
         onFontFamilyChange = viewModel::updateFontFamily,
@@ -174,6 +203,7 @@ private fun ReaderScreen(
     modifier: Modifier = Modifier,
     uiState: ReaderUiState,
     settings: SettingsSnapshot,
+    dictionaryLookup: DictionaryLookupState,
     onEngineReady: (BookEngine) -> Unit,
     onTapPrevious: () -> Unit,
     onTapNext: () -> Unit,
@@ -185,6 +215,8 @@ private fun ReaderScreen(
     onCreateNote: (String) -> Unit,
     onCreateBookmark: () -> Unit,
     onClearSelection: () -> Unit,
+    onDownloadDictionary: () -> Unit,
+    onInstallDictionary: () -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -330,7 +362,8 @@ private fun ReaderScreen(
                 val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
                 var downX = 0f
                 var downY = 0f
-                val webView = WebView(context).apply {
+                var downTime = 0L
+                val webView = ReaderWebView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     overScrollMode = View.OVER_SCROLL_NEVER
                     isHorizontalScrollBarEnabled = false
@@ -341,9 +374,11 @@ private fun ReaderScreen(
                             MotionEvent.ACTION_DOWN -> {
                                 downX = event.x
                                 downY = event.y
+                                downTime = event.eventTime
                             }
                             MotionEvent.ACTION_UP -> {
-                                if (abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
+                                val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
+                                if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
                                     onReaderTapState.value(event.x, view.width)
                                 }
                             }
@@ -445,22 +480,35 @@ private fun ReaderScreen(
         }
 
         val selection = (uiState as? ReaderUiState.Loaded)?.selection
+        val dictionaryWord = dictionaryLookup.wordOrNull()
+        val placeSelectionCardAtBottom = selection?.verticalPosition?.let { it < 0.5f } == true
         AnimatedVisibility(
-            visible = selection != null,
-            modifier = Modifier.align(Alignment.TopCenter),
+            visible = selection != null || dictionaryWord != null,
+            modifier = Modifier.align(
+                if (placeSelectionCardAtBottom) Alignment.BottomCenter else Alignment.TopCenter,
+            ),
             enter = vayanaScaleIn() + vayanaFadeIn(),
             exit = vayanaScaleOut() + vayanaFadeOut(),
         ) {
-            if (selection != null) {
+            if (selection != null || dictionaryWord != null) {
                 SelectionActions(
-                    selectedText = selection.selectedText,
+                    modifier = if (placeSelectionCardAtBottom) {
+                        Modifier.navigationBarsPadding()
+                    } else {
+                        Modifier.statusBarsPadding()
+                    },
+                    selectedText = selection?.selectedText ?: dictionaryWord.orEmpty(),
+                    selectionActionsEnabled = selection != null,
+                    dictionaryLookup = dictionaryLookup,
                     onHighlight = onCreateHighlight,
                     onUnderline = onCreateUnderline,
                     onCopy = {
-                        context.copyTextToClipboard(selection.selectedText)
+                        context.copyTextToClipboard(selection?.selectedText.orEmpty())
                         onClearSelection()
                     },
                     onNote = { noteDialogVisible = true },
+                    onDownloadDictionary = onDownloadDictionary,
+                    onInstallDictionary = onInstallDictionary,
                 )
             }
         }
@@ -622,7 +670,35 @@ private fun readerChromeHandleColor(): Color =
         MaterialTheme.colorScheme.outline
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+}
+
+/** Keeps WebView's selection handles while Vayana supplies the selection actions and dictionary UI. */
+private class ReaderWebView(context: Context) : WebView(context) {
+    override fun startActionMode(callback: ActionMode.Callback): ActionMode? =
+        super.startActionMode(callback.withoutMenu())
+
+    override fun startActionMode(callback: ActionMode.Callback, type: Int): ActionMode? =
+        super.startActionMode(callback.withoutMenu(), type)
+
+    private fun ActionMode.Callback.withoutMenu(): ActionMode.Callback = object : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+            val created = this@withoutMenu.onCreateActionMode(mode, menu)
+            menu.clear()
+            return created
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+            val prepared = this@withoutMenu.onPrepareActionMode(mode, menu)
+            menu.clear()
+            return prepared
+        }
+
+        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean =
+            this@withoutMenu.onActionItemClicked(mode, item)
+
+        override fun onDestroyActionMode(mode: ActionMode) = this@withoutMenu.onDestroyActionMode(mode)
     }
+}
 
 @Composable
 private fun formatMinutes(totalMinutes: Int): String {
@@ -639,64 +715,188 @@ private fun formatMinutes(totalMinutes: Int): String {
 private fun SelectionActions(
     modifier: Modifier = Modifier,
     selectedText: String,
+    selectionActionsEnabled: Boolean,
+    dictionaryLookup: DictionaryLookupState,
     onHighlight: (String) -> Unit,
     onUnderline: () -> Unit,
     onCopy: () -> Unit,
     onNote: () -> Unit,
+    onDownloadDictionary: () -> Unit,
+    onInstallDictionary: () -> Unit,
 ) {
-    Surface(
-        modifier = modifier
-            .statusBarsPadding()
-            .fillMaxWidth()
-            .padding(Paddings.screenHorizontal, Spacing.md),
-        color = readerHudSurfaceColor(),
-        shape = MaterialTheme.shapes.extraLarge,
-        tonalElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm,
-        shadowElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs,
-    ) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-            Text(
-                text = selectedText,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxHeight * DictionaryCardMaximumHeightFraction)
+                .padding(Paddings.screenHorizontal, Spacing.md),
+            color = readerHudSurfaceColor(),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm,
+            shadowElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs,
+        ) {
+            Column(
                 modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(top = Spacing.sm),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    .verticalScroll(rememberScrollState())
+                    .padding(Spacing.md),
             ) {
-                HighlightColor.entries.forEach { color ->
-                    FilledTonalButton(onClick = { onHighlight(color.key) }) {
-                        Box(
-                            modifier = Modifier
-                                .size(Sizes.swatchSmall)
-                                .background(color = color.swatch, shape = CircleShape),
+            if (dictionaryLookup !is DictionaryLookupState.Found) {
+                Text(
+                    text = selectedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            DictionaryLookupContent(
+                state = dictionaryLookup,
+                onDownloadDictionary = onDownloadDictionary,
+                onInstallDictionary = onInstallDictionary,
+            )
+            if (selectionActionsEnabled) {
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(top = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    HighlightColor.entries.forEach { color ->
+                        FilledTonalButton(onClick = { onHighlight(color.key) }) {
+                            Box(
+                                modifier = Modifier
+                                    .size(Sizes.swatchSmall)
+                                    .background(color = color.swatch, shape = CircleShape),
+                            )
+                            Text(
+                                text = stringResource(color.labelRes),
+                                modifier = Modifier.padding(start = Spacing.xs),
+                            )
+                        }
+                    }
+                    FilledTonalButton(onClick = onUnderline) {
+                        Text(stringResource(R.string.reader_selection_underline))
+                    }
+                    FilledTonalButton(onClick = onCopy) {
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.iconSmall),
                         )
-                        Text(
-                            text = stringResource(color.labelRes),
-                            modifier = Modifier.padding(start = Spacing.xs),
-                        )
+                        Text(stringResource(R.string.reader_selection_copy))
+                    }
+                    FilledTonalButton(onClick = onNote) {
+                        Text(stringResource(R.string.reader_selection_note))
                     }
                 }
-                FilledTonalButton(onClick = onUnderline) {
-                    Text(stringResource(R.string.reader_selection_underline))
-                }
-                FilledTonalButton(onClick = onCopy) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = null,
-                        modifier = Modifier.size(Sizes.iconSmall),
-                    )
-                    Text(stringResource(R.string.reader_selection_copy))
-                }
-                FilledTonalButton(onClick = onNote) {
-                    Text(stringResource(R.string.reader_selection_note))
-                }
+            }
             }
         }
     }
+}
+
+@Composable
+private fun DictionaryLookupContent(
+    state: DictionaryLookupState,
+    onDownloadDictionary: () -> Unit,
+    onInstallDictionary: () -> Unit,
+) {
+    when (state) {
+        DictionaryLookupState.Hidden -> Unit
+        is DictionaryLookupState.LookingUp,
+        is DictionaryLookupState.Installing,
+        -> Row(
+            modifier = Modifier.padding(top = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+            Text(
+                text = stringResource(
+                    if (state is DictionaryLookupState.Installing) {
+                        R.string.reader_dictionary_installing
+                    } else {
+                        R.string.reader_dictionary_looking_up
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        is DictionaryLookupState.PackRequired -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
+            Text(
+                text = stringResource(R.string.reader_dictionary_pack_required),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                TextButton(onClick = onDownloadDictionary) {
+                    Text(stringResource(R.string.reader_dictionary_download))
+                }
+                TextButton(onClick = onInstallDictionary) {
+                    Text(stringResource(R.string.reader_dictionary_install_zip))
+                }
+            }
+        }
+        is DictionaryLookupState.Found -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
+            Text(
+                text = state.entry.headword,
+                style = MaterialTheme.typography.titleLarge,
+            )
+            state.entry.senses.take(MaxDisplayedDictionarySenses).forEach { sense ->
+                Text(
+                    text = "${sense.partOfSpeech.shortLabel()}  ${sense.definition}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+                sense.examples.firstOrNull()?.let { example ->
+                    Text(
+                        text = "“$example”",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                text = state.entry.attribution,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+        is DictionaryLookupState.NotFound -> Text(
+            text = stringResource(R.string.reader_dictionary_not_found, state.word),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
+        is DictionaryLookupState.Failed -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
+            Text(
+                text = state.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+            TextButton(onClick = onInstallDictionary) {
+                Text(stringResource(R.string.reader_dictionary_choose_another))
+            }
+        }
+    }
+}
+
+private fun PartOfSpeech.shortLabel(): String = when (this) {
+    PartOfSpeech.NOUN -> "noun"
+    PartOfSpeech.VERB -> "verb"
+    PartOfSpeech.ADJECTIVE -> "adj."
+    PartOfSpeech.ADVERB -> "adv."
+    PartOfSpeech.UNKNOWN -> ""
+}
+
+private fun DictionaryLookupState.wordOrNull(): String? = when (this) {
+    DictionaryLookupState.Hidden -> null
+    is DictionaryLookupState.PackRequired -> word
+    is DictionaryLookupState.LookingUp -> word
+    is DictionaryLookupState.NotFound -> word
+    is DictionaryLookupState.Installing -> word
+    is DictionaryLookupState.Failed -> word
+    is DictionaryLookupState.Found -> entry.headword
 }
 
 @Composable
@@ -1275,6 +1475,9 @@ private fun SettingsSnapshot.readerBackgroundColor(): Color = when {
 }
 
 private const val ReaderHudStandardAlpha = 0.9f
+private const val MaxDisplayedDictionarySenses = 3
+private const val DictionaryCardMaximumHeightFraction = 0.58f
+private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
 
 private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 

@@ -6,6 +6,10 @@ import { Overlayer } from './foliate/overlayer.js'
 
 let view = null
 const renderedAnnotations = new Set()
+const resolvedTextAnnotations = new Map()
+const resolvedTextFingerprints = new Map()
+const standardAnnotationFingerprints = new Map()
+const documentTextIndexes = new WeakMap()
 const selectionTimers = new WeakMap()
 let readerSideMarginPercent = 10
 
@@ -86,6 +90,10 @@ function tocToPlain(items) {
 
 async function open(bookUrl, lastLocatorCfi) {
     try {
+        renderedAnnotations.clear()
+        resolvedTextAnnotations.clear()
+        resolvedTextFingerprints.clear()
+        standardAnnotationFingerprints.clear()
         post('log', { step: 'fetching', bookUrl })
         const res = await fetch(bookUrl)
         post('log', { step: 'fetched', ok: res.ok, status: res.status, contentType: res.headers.get('content-type') })
@@ -226,12 +234,22 @@ async function goToHref(href) {
         if (cfi) {
             try {
                 await view.goTo(cfi)
+            } catch (error) {
+                // Foliate can reject after its renderer has already accepted the location.
+                // A virtual quote locator is never a valid fallback navigation target.
+                post('log', { step: 'quoteNavigation', message: String(error) })
+            } finally {
                 for (const { doc, index } of view.renderer.getContents()) {
                     if (doc) matchTextAnnotationsForDoc(doc, index)
                 }
-                return
-            } catch (_) {}
+            }
+            return
         }
+    }
+
+    if (href.startsWith('quote:') || href.startsWith('text:')) {
+        post('log', { step: 'quoteNotFound', value: href })
+        return
     }
 
     try {
@@ -277,10 +295,15 @@ function postSelection(doc, index) {
         return
     }
     const range = selection.getRangeAt(0).cloneRange()
+    const rect = range.getBoundingClientRect()
+    const viewportHeight = Math.max(doc.documentElement?.clientHeight ?? 0, doc.defaultView?.innerHeight ?? 0)
     post('selection', {
         cfi: view.getCFI(index, range),
         selectedText,
         tocLabel: view.getProgressOf(index, range)?.tocItem?.label?.trim?.() ?? null,
+        verticalPosition: viewportHeight > 0
+            ? Math.max(0, Math.min(1, (rect.top + rect.bottom) / 2 / viewportHeight))
+            : null,
     })
 }
 
@@ -294,19 +317,41 @@ let activeAnnotationsList = []
 
 async function renderAnnotations(annotations) {
     if (!view) return
-    activeAnnotationsList = annotations || []
-    const nextValues = new Set(annotations.map(annotation => annotation.value))
-    for (const value of renderedAnnotations) {
-        if (!nextValues.has(value)) await view.deleteAnnotation({ value })
-    }
-    for (const annotation of annotations) {
-        if (annotation.value && !annotation.value.startsWith('text:') && !annotation.value.startsWith('quote:')) {
-            await view.addAnnotation(annotation)
-            renderedAnnotations.add(annotation.value)
+    activeAnnotationsList = Array.isArray(annotations) ? annotations.filter(Boolean) : []
+    const nextByValue = new Map(activeAnnotationsList.map(annotation => [annotation.value, annotation]))
+    const orphanedCfis = new Set()
+    for (const [sourceValue, cfi] of resolvedTextAnnotations) {
+        const next = nextByValue.get(sourceValue)
+        if (!next || resolvedTextFingerprints.get(sourceValue) !== annotationFingerprint(next)) {
+            orphanedCfis.add(cfi)
+            resolvedTextAnnotations.delete(sourceValue)
+            resolvedTextFingerprints.delete(sourceValue)
         }
     }
-    for (const value of Array.from(renderedAnnotations)) {
-        if (!nextValues.has(value)) renderedAnnotations.delete(value)
+    const retainedCfis = new Set(resolvedTextAnnotations.values())
+    for (const cfi of orphanedCfis) {
+        if (!retainedCfis.has(cfi)) {
+            await view.deleteAnnotation({ value: cfi })
+            renderedAnnotations.delete(cfi)
+        }
+    }
+    for (const [value, fingerprint] of standardAnnotationFingerprints) {
+        const next = nextByValue.get(value)
+        if (!next || annotationFingerprint(next) !== fingerprint) {
+            await view.deleteAnnotation({ value })
+            renderedAnnotations.delete(value)
+            standardAnnotationFingerprints.delete(value)
+        }
+    }
+    for (const annotation of activeAnnotationsList) {
+        if (annotation.value &&
+            !annotation.value.startsWith('text:') &&
+            !annotation.value.startsWith('quote:') &&
+            !standardAnnotationFingerprints.has(annotation.value)) {
+            await view.addAnnotation(annotation)
+            renderedAnnotations.add(annotation.value)
+            standardAnnotationFingerprints.set(annotation.value, annotationFingerprint(annotation))
+        }
     }
     // Also match any active documents in view
     for (const { doc, index } of view.renderer.getContents()) {
@@ -314,25 +359,69 @@ async function renderAnnotations(annotations) {
     }
 }
 
+function annotationFingerprint(annotation) {
+    return JSON.stringify([
+        annotation?.type || '',
+        annotation?.color || '',
+        annotation?.note || '',
+        annotation?.text || '',
+    ])
+}
+
 function matchTextAnnotationsForDoc(doc, index) {
     if (!activeAnnotationsList || !activeAnnotationsList.length || !view) return
+    const matches = []
     for (const ann of activeAnnotationsList) {
+        if (!ann.value || resolvedTextAnnotations.has(ann.value)) continue
         const textToFind = ann.text
         if (!textToFind || textToFind.length < 5) continue
         const range = findTextRangeInDoc(doc, textToFind)
         if (range) {
             try {
                 const cfi = view.getCFI(index, range)
-                view.addAnnotation({
-                    value: cfi,
-                    type: ann.type || 'underline',
-                    color: ann.color || '#6366f1',
-                    note: ann.note,
-                })
-                renderedAnnotations.add(cfi)
+                matches.push({ ann, range, cfi })
             } catch (_) {}
         }
     }
+
+    // Goodreads may list near-identical variants as separate quotes. Kindle-style popular
+    // highlights show one underline, so consolidate ranges that cover substantially the same
+    // passage and keep the largest popularity count.
+    matches.sort((a, b) => highlightCount(b.ann.note) - highlightCount(a.ann.note))
+    const accepted = []
+    for (const match of matches) {
+        const duplicate = accepted.find(existing => rangeOverlapRatio(existing.range, match.range) >= 0.80)
+        if (duplicate) {
+            resolvedTextAnnotations.set(match.ann.value, duplicate.cfi)
+            resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
+            continue
+        }
+        Promise.resolve(view.addAnnotation({
+            value: match.cfi,
+            type: match.ann.type || 'underline',
+            color: match.ann.color || '#6366f1',
+            note: match.ann.note,
+        })).catch(error => post('log', { step: 'addQuoteAnnotation', message: String(error) }))
+        renderedAnnotations.add(match.cfi)
+        resolvedTextAnnotations.set(match.ann.value, match.cfi)
+        resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
+        accepted.push(match)
+    }
+}
+
+function highlightCount(note) {
+    const match = String(note || '').match(/\d+/)
+    return match ? Number(match[0]) : 0
+}
+
+function rangeOverlapRatio(a, b) {
+    const aStart = a.__vayanaStart
+    const aEnd = a.__vayanaEnd
+    const bStart = b.__vayanaStart
+    const bEnd = b.__vayanaEnd
+    if (![aStart, aEnd, bStart, bEnd].every(Number.isFinite)) return 0
+    const overlap = Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart))
+    return overlap / Math.max(1, Math.min(aEnd - aStart, bEnd - bStart))
 }
 
 function normalizeForMatching(str) {
@@ -340,8 +429,8 @@ function normalizeForMatching(str) {
     return str
         .replace(/&[a-z0-9#]+;/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Decomposed accents
+        .normalize('NFKD')
+        .replace(/\p{M}/gu, '') // Decomposed accents and combining marks
         .replace(/\uFB00/g, 'ff')        // Ligatures
         .replace(/\uFB01/g, 'fi')
         .replace(/\uFB02/g, 'fl')
@@ -354,89 +443,170 @@ function normalizeForMatching(str) {
         .replace(/[^\p{L}\p{N}]/gu, '')  // Letters & digits only
 }
 
-function findBestMatch(cleanDoc, cleanTarget) {
-    if (!cleanDoc || !cleanTarget) return null
-    const targetLen = cleanTarget.length
-    if (cleanDoc.length < 5 || targetLen < 5) return null
-
-    // High confidence thresholds to completely eliminate false positives
-    const minRequiredLen = targetLen >= 40
-        ? Math.max(28, Math.floor(targetLen * 0.65))
-        : targetLen >= 20
-            ? Math.max(16, Math.floor(targetLen * 0.70))
-            : Math.max(8, Math.floor(targetLen * 0.80))
-
-    // 1. Direct full match (optimal case)
-    const fullIdx = cleanDoc.indexOf(cleanTarget)
-    if (fullIdx !== -1) return { matchIdx: fullIdx, matchLen: targetLen, score: 1.0 }
-
-    let bestCandidate = null
-
-    function evaluateCandidate(idx, probeLen, offsetInTarget) {
-        if (idx === -1) return
-        const startIdx = Math.max(0, idx - offsetInTarget)
-
-        // Expand match forward
-        let forwardLen = offsetInTarget + probeLen
-        while (forwardLen < targetLen &&
-               startIdx + forwardLen < cleanDoc.length &&
-               cleanDoc[startIdx + forwardLen] === cleanTarget[forwardLen]) {
-            forwardLen++
+function buildDocumentTextIndex(doc) {
+    const cached = documentTextIndexes.get(doc)
+    if (cached) return cached
+    const visibilityCache = new WeakMap()
+    const walker = doc.createTreeWalker(
+        doc.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                const parent = node.parentElement
+                if (!parent || !node.textContent) return NodeFilter.FILTER_REJECT
+                if (!isMatchableTextParent(parent, doc, visibilityCache)) {
+                    return NodeFilter.FILTER_REJECT
+                }
+                return NodeFilter.FILTER_ACCEPT
+            },
+        },
+    )
+    let node
+    let cleanDoc = ''
+    const charMap = []
+    const tokens = []
+    const tokenPositions = new Map()
+    let token = null
+    const flushToken = () => {
+        if (token?.value) {
+            const position = tokens.length
+            tokens.push(token)
+            const positions = tokenPositions.get(token.value)
+            if (positions) positions.push(position)
+            else tokenPositions.set(token.value, [position])
         }
-
-        // Expand match backward if started with offset
-        let backwardIdx = startIdx
-        let targetBackIdx = 0
-        while (backwardIdx > 0 && targetBackIdx < offsetInTarget &&
-               cleanDoc[backwardIdx - 1] === cleanTarget[offsetInTarget - targetBackIdx - 1]) {
-            backwardIdx--
-            targetBackIdx++
-        }
-
-        const totalMatched = forwardLen + targetBackIdx
-        const score = totalMatched / targetLen
-
-        if (totalMatched >= minRequiredLen) {
-            if (!bestCandidate || totalMatched > bestCandidate.matchLen) {
-                bestCandidate = { matchIdx: backwardIdx, matchLen: totalMatched, score }
+        token = null
+    }
+    while ((node = walker.nextNode())) {
+        const str = node.textContent
+        for (let offset = 0; offset < str.length; offset++) {
+            const normalized = normalizeForMatching(str[offset])
+            if (normalized) {
+                if (!token) token = { value: '', start: cleanDoc.length, end: cleanDoc.length }
+                token.value += normalized
+                for (const char of normalized) {
+                    cleanDoc += char
+                    token.end = cleanDoc.length
+                    charMap.push({ node, offset })
+                }
+            } else if (!/[\u2018\u2019\u201A\u201B\u2032'`]/u.test(str[offset])) {
+                flushToken()
             }
         }
     }
+    flushToken()
+    const index = { cleanDoc, charMap, tokens, tokenPositions }
+    documentTextIndexes.set(doc, index)
+    return index
+}
 
-    // 2. Distinctive prefix probing (searching all occurrences across chapter)
-    const prefixProbes = [70, 50, 36, 26, 20, 16]
-    for (const size of prefixProbes) {
-        if (targetLen >= size) {
-            const probe = cleanTarget.substring(0, size)
-            let searchFrom = 0
-            let idx
-            while ((idx = cleanDoc.indexOf(probe, searchFrom)) !== -1) {
-                evaluateCandidate(idx, size, 0)
-                if (bestCandidate && bestCandidate.score >= 0.95) return bestCandidate
-                searchFrom = idx + 1
+function isMatchableTextParent(element, doc, cache) {
+    if (!element) return true
+    if (cache.has(element)) return cache.get(element)
+    if (element.matches('style,script,noscript,template,[hidden],[aria-hidden="true"]')) {
+        cache.set(element, false)
+        return false
+    }
+    const getStyle = doc.defaultView?.getComputedStyle?.bind(doc.defaultView)
+    if (getStyle) {
+        const style = getStyle(element)
+        if (style.display === 'none' || style.visibility === 'hidden' || style.contentVisibility === 'hidden') {
+            cache.set(element, false)
+            return false
+        }
+    }
+    const result = element === doc.documentElement || isMatchableTextParent(element.parentElement, doc, cache)
+    cache.set(element, result)
+    return result
+}
+
+function tokenizeForMatching(text) {
+    return String(text || '')
+        .split(/[^\p{L}\p{N}\p{M}\u2018\u2019\u201A\u201B\u2032'`]+/u)
+        .map(normalizeForMatching)
+        .filter(Boolean)
+}
+
+// Align target words to a small document window. Unlike the former character-probe
+// fallback, this backtracks the edit path, so inserted or omitted words cannot shift
+// the returned DOM range into adjacent prose.
+function findAlignedTokenMatch(index, rawText) {
+    const target = tokenizeForMatching(rawText)
+    const source = index.tokens
+    if (target.length < 4 || target.length > 600 || source.length < 4) return null
+
+    let anchorIndex = -1
+    let anchorFrequency = Infinity
+    for (let i = 0; i < target.length; i++) {
+        const frequency = index.tokenPositions.get(target[i])?.length || 0
+        if (target[i].length >= 4 && frequency > 0 && frequency < anchorFrequency) {
+            anchorIndex = i
+            anchorFrequency = frequency
+        }
+    }
+    if (anchorIndex < 0 || anchorFrequency > 40) return null
+
+    let best = null
+    for (const anchorAt of index.tokenPositions.get(target[anchorIndex]) || []) {
+        const padding = Math.max(6, Math.ceil(target.length * 0.25))
+        const from = Math.max(0, anchorAt - anchorIndex - padding)
+        const to = Math.min(source.length, anchorAt + (target.length - anchorIndex) + padding)
+        const window = source.slice(from, to)
+        const rows = Array.from({ length: target.length + 1 }, () => new Uint16Array(window.length + 1))
+        for (let i = 1; i <= target.length; i++) {
+            rows[i][0] = i
+            for (let j = 1; j <= window.length; j++) {
+                const substitution = rows[i - 1][j - 1] + (target[i - 1] === window[j - 1].value ? 0 : 1)
+                rows[i][j] = Math.min(substitution, rows[i - 1][j] + 1, rows[i][j - 1] + 1)
+            }
+        }
+
+        let end = 1
+        for (let j = 2; j <= window.length; j++) {
+            if (rows[target.length][j] < rows[target.length][end]) end = j
+        }
+        const distance = rows[target.length][end]
+        let i = target.length
+        let j = end
+        let exactWords = 0
+        while (i > 0 && j > 0) {
+            if (target[i - 1] === window[j - 1].value && rows[i][j] === rows[i - 1][j - 1]) {
+                exactWords++
+                i--
+                j--
+            } else if (rows[i][j] === rows[i - 1][j] + 1) {
+                i--
+            } else if (rows[i][j] === rows[i][j - 1] + 1) {
+                j--
+            } else {
+                i--
+                j--
+            }
+        }
+        const start = j
+        const spanLength = end - start
+        const score = 1 - distance / Math.max(target.length, spanLength)
+        const evidence = exactWords / target.length
+        const minimumScore = target.length < 8 ? 0.85 : 0.72
+        const minimumEvidence = target.length < 8 ? 0.75 : 0.60
+        if (score >= minimumScore && evidence >= minimumEvidence && (!best || score > best.score)) {
+            const firstToken = window[start]
+            const lastToken = window[end - 1]
+            if (firstToken && lastToken) {
+                best = {
+                    matchIdx: firstToken.start,
+                    matchLen: lastToken.end - firstToken.start,
+                    score,
+                }
             }
         }
     }
-
-    // 3. Sliding probe search (for quotes with skipped words or introductory variations)
-    for (let offset = 8; offset < Math.min(targetLen - 20, 60); offset += 8) {
-        const probeLen = Math.min(24, targetLen - offset)
-        if (probeLen >= 16) {
-            const probe = cleanTarget.substring(offset, offset + probeLen)
-            let searchFrom = 0
-            let idx
-            while ((idx = cleanDoc.indexOf(probe, searchFrom)) !== -1) {
-                evaluateCandidate(idx, probeLen, offset)
-                if (bestCandidate && bestCandidate.score >= 0.95) return bestCandidate
-                searchFrom = idx + 1
-            }
-        }
-    }
-    return bestCandidate
+    return best
 }
 
 function findMultiChunkMatch(cleanDoc, rawText) {
     if (!cleanDoc || !rawText) return null
+    const cleanTargetLength = normalizeForMatching(rawText).length
     // Split raw text into natural clauses/phrases by punctuation or ellipses
     const clauses = rawText
         .split(/[.,;:!?…\n"]|\.{2,}/)
@@ -448,25 +618,32 @@ function findMultiChunkMatch(cleanDoc, rawText) {
     let firstMatch = null
     let lastMatch = null
     let matchedCount = 0
+    let matchedLength = 0
+    let firstMatchedClauseIndex = -1
     let lastEndIdx = 0
 
-    for (const clause of clauses) {
+    for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex++) {
+        const clause = clauses[clauseIndex]
         const idx = cleanDoc.indexOf(clause, lastEndIdx)
         if (idx !== -1 && (lastEndIdx === 0 || idx - lastEndIdx < 800)) {
             if (!firstMatch) {
                 firstMatch = { matchIdx: idx, matchLen: clause.length }
+                firstMatchedClauseIndex = clauseIndex
             }
             lastMatch = { matchIdx: idx, matchLen: clause.length }
             lastEndIdx = idx + clause.length
             matchedCount++
+            matchedLength += clause.length
         }
     }
 
-    if (matchedCount >= 2 && firstMatch && lastMatch) {
+    const hasEnoughEvidence = matchedLength >= Math.max(24, Math.floor(cleanTargetLength * 0.55))
+    if (matchedCount >= 2 && firstMatchedClauseIndex <= 1 && hasEnoughEvidence && firstMatch && lastMatch) {
         const startIdx = firstMatch.matchIdx
         const endIdx = lastMatch.matchIdx + lastMatch.matchLen
         const totalSpan = endIdx - startIdx
-        if (totalSpan > 0 && totalSpan < 2500) {
+        const maximumSpan = Math.min(2500, Math.max(cleanTargetLength * 3, 300))
+        if (totalSpan > 0 && totalSpan <= maximumSpan) {
             return { matchIdx: startIdx, matchLen: totalSpan, score: 0.92 }
         }
     }
@@ -479,51 +656,26 @@ function findTextRangeInDoc(doc, text) {
         const cleanTarget = normalizeForMatching(text)
         if (cleanTarget.length < 5) return null
 
-        const walker = doc.createTreeWalker(
-            doc.body,
-            NodeFilter.SHOW_TEXT,
-            {
-                acceptNode(n) {
-                    const tag = n.parentElement?.tagName?.toUpperCase()
-                    if (tag === 'STYLE' || tag === 'SCRIPT' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') {
-                        return NodeFilter.FILTER_REJECT
-                    }
-                    return NodeFilter.FILTER_ACCEPT
-                }
-            },
-            false
-        )
-        let node
-        let cleanDoc = ''
-        const charMap = [] // charMap[i] = { node, offset }
-
-        while ((node = walker.nextNode())) {
-            const str = node.textContent
-            for (let offset = 0; offset < str.length; offset++) {
-                const char = str[offset]
-                if (/[\p{L}\p{N}]/u.test(char)) {
-                    // Normalize accents / ligatures identically
-                    const normChar = char.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-                    for (const c of normChar) {
-                        if (/[\p{L}\p{N}]/u.test(c)) {
-                            cleanDoc += c
-                            charMap.push({ node, offset })
-                        }
-                    }
-                }
-            }
-        }
+        const index = buildDocumentTextIndex(doc)
+        const { cleanDoc, charMap } = index
 
         if (cleanDoc.length < 5) return null
 
-        // Strategy 1: Contiguous best match
-        let match = findBestMatch(cleanDoc, cleanTarget)
+        // Strategy 1: an exact normalized substring is both fastest and safest.
+        const exactIndex = cleanDoc.indexOf(cleanTarget)
+        let match = exactIndex >= 0
+            ? { matchIdx: exactIndex, matchLen: cleanTarget.length, score: 1 }
+            : null
 
-        // Strategy 2: Multi-chunk sequence match (for quotes with ellipses or omissions)
-        if (!match || (match.score && match.score < 0.85)) {
+        // Strategy 2: explicit clause gaps, such as dialogue elided by Goodreads.
+        if (!match) {
             const chunkMatch = findMultiChunkMatch(cleanDoc, text)
             if (chunkMatch) match = chunkMatch
         }
+
+        // Strategy 3: bounded word alignment for small wording differences. This returns
+        // endpoints from the EPUB itself rather than estimating them from quote offsets.
+        if (!match) match = findAlignedTokenMatch(index, text)
 
         if (!match || match.matchIdx === -1 || match.matchIdx >= charMap.length) return null
 
@@ -536,6 +688,8 @@ function findTextRangeInDoc(doc, text) {
             const range = doc.createRange()
             range.setStart(start.node, start.offset)
             range.setEnd(end.node, end.offset + 1)
+            range.__vayanaStart = matchIdx
+            range.__vayanaEnd = endCharIdx + 1
             return range
         }
     } catch (_) {}
@@ -553,7 +707,9 @@ async function findCfiInBook(text) {
             const doc = await section.createDocument()
             const range = findTextRangeInDoc(doc, text)
             if (range) {
-                const cfi = view.getCFI(i, range)
+                const start = range.cloneRange()
+                start.collapse(true)
+                const cfi = view.getCFI(i, start)
                 return cfi // Found exact valid section
             }
         } catch (_) {}

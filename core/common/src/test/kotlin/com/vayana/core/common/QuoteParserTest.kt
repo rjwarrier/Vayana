@@ -55,4 +55,22 @@ Like
         assertEquals(0, parsed[4].likesCount)
         assertEquals(1, parsed[4].highlightsCount)
     }
+
+    @Test
+    fun handlesBomCaseInsensitiveTagsAndPairedQuotes() {
+        val parsed = QuoteParser.parse("\uFEFF\"Keep the unmatched ” inside\"\n— Ada Lovelace, Notes\nTaGs : math, history 2 likes")
+
+        assertEquals(1, parsed.size)
+        assertEquals("Keep the unmatched ” inside", parsed.single().quoteText)
+        assertEquals(listOf("math", "history"), parsed.single().tags)
+        assertEquals(3, parsed.single().highlightsCount)
+    }
+
+    @Test
+    fun doesNotTreatProseEndingInLikesAsMetadata() {
+        val parsed = QuoteParser.parse("She has 12 likes\n— An Author")
+
+        assertEquals("She has 12 likes", parsed.single().quoteText)
+        assertEquals(0, parsed.single().likesCount)
+    }
 }

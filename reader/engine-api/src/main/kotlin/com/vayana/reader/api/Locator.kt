@@ -64,4 +64,6 @@ data class ReaderSelection(
     val cfi: String,
     val selectedText: String,
     val chapterTitle: String?,
+    /** Vertical center of the selection in its rendered page, from 0 (top) to 1 (bottom). */
+    val verticalPosition: Float? = null,
 )

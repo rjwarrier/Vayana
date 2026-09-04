@@ -11,12 +11,18 @@ data class ParsedQuote(
 
 object QuoteParser {
     private val authorPrefixRegex = Regex("""^[―—–\-]{1,3}\s*(.*)$""")
-    private val likesRegex = Regex("""(\d+)\s*likes?""", RegexOption.IGNORE_CASE)
+    // Goodreads exports sometimes concatenate the count to the final tag ("wisdom20 likes").
+    private val likesRegex = Regex("""(?<!\d)(\d{1,9})\s*likes?\b""", RegexOption.IGNORE_CASE)
+    private val standaloneLikesRegex = Regex("""^(\d{1,9})\s*likes?\s*$""", RegexOption.IGNORE_CASE)
+    private val tagsPrefixRegex = Regex("""^tags\s*:\s*""", RegexOption.IGNORE_CASE)
 
     fun parse(rawText: String): List<ParsedQuote> {
         if (rawText.isBlank()) return emptyList()
 
-        val normalized = rawText.replace("\r\n", "\n").replace("\r", "\n").trim()
+        val normalized = rawText.removePrefix("\uFEFF")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .trim()
         val lines = normalized.lines()
         val quotes = mutableListOf<ParsedQuote>()
 
@@ -30,8 +36,7 @@ object QuoteParser {
             val rawQuote = currentQuoteLines.joinToString("\n").trim()
             if (rawQuote.isNotBlank()) {
                 val cleanedQuote = rawQuote
-                    .removePrefix("“").removePrefix("\"").removePrefix("”")
-                    .removeSuffix("”").removeSuffix("\"").removeSuffix("“")
+                    .trimMatchingQuotePair()
                     .trim()
 
                 if (cleanedQuote.isNotBlank()) {
@@ -83,13 +88,13 @@ object QuoteParser {
                 continue
             }
 
-            if (trimmed.startsWith("tags:", ignoreCase = true)) {
+            if (tagsPrefixRegex.containsMatchIn(trimmed)) {
                 val likeMatch = likesRegex.find(trimmed)
                 if (likeMatch != null) {
                     currentLikes = likeMatch.groupValues[1].toIntOrNull()
                 }
                 val tagsOnly = trimmed
-                    .removePrefix("tags:").removePrefix("Tags:")
+                    .replaceFirst(tagsPrefixRegex, "")
                     .replace(likesRegex, "")
                     .trim()
                 val tagList = tagsOnly.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -97,8 +102,8 @@ object QuoteParser {
                 continue
             }
 
-            val standaloneLikeMatch = likesRegex.find(trimmed)
-            if (standaloneLikeMatch != null && (trimmed.endsWith("likes", ignoreCase = true) || trimmed.endsWith("like", ignoreCase = true))) {
+            val standaloneLikeMatch = standaloneLikesRegex.matchEntire(trimmed)
+            if (standaloneLikeMatch != null) {
                 currentLikes = standaloneLikeMatch.groupValues[1].toIntOrNull()
                 continue
             }
@@ -112,5 +117,16 @@ object QuoteParser {
 
         flushQuote()
         return quotes
+    }
+
+    private fun String.trimMatchingQuotePair(): String {
+        val value = trim()
+        if (value.length < 2) return value
+        val matchingPairs = setOf('“' to '”', '‘' to '’', '"' to '"')
+        return if ((value.first() to value.last()) in matchingPairs) {
+            value.substring(1, value.lastIndex).trim()
+        } else {
+            value
+        }
     }
 }

@@ -249,6 +249,13 @@
     <string name="reader_selection_underline">Underline</string>
     <string name="reader_selection_copy">Copy</string>
     <string name="reader_selection_note">Note</string>
+    <string name="reader_dictionary_pack_required">To look up this word offline, get the free English dictionary ZIP, then install it here.</string>
+    <string name="reader_dictionary_download">Get dictionary</string>
+    <string name="reader_dictionary_install_zip">Install ZIP</string>
+    <string name="reader_dictionary_installing">Installing dictionary…</string>
+    <string name="reader_dictionary_looking_up">Looking up…</string>
+    <string name="reader_dictionary_not_found">No definition found for “%1$s”.</string>
+    <string name="reader_dictionary_choose_another">Choose another ZIP</string>
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
     <string name="reader_bookmarks_add_current">Add bookmark at current position</string>
     <string name="reader_bookmarks_empty">No bookmarks in this book yet.</string>

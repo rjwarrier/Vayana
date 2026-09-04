@@ -17,6 +17,9 @@ import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.filesystem.StorageRoots
+import com.vayana.dictionary.api.DictionaryEntry
+import com.vayana.dictionary.api.DictionaryPackState
+import com.vayana.dictionary.api.DictionaryRepository
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.BookStyle
 import com.vayana.reader.api.BookSource
@@ -29,6 +32,7 @@ import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.ReaderSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -54,6 +58,16 @@ sealed interface ReaderUiState {
     data class Failed(val message: String) : ReaderUiState
 }
 
+sealed interface DictionaryLookupState {
+    data object Hidden : DictionaryLookupState
+    data class PackRequired(val word: String) : DictionaryLookupState
+    data class LookingUp(val word: String) : DictionaryLookupState
+    data class Found(val entry: DictionaryEntry) : DictionaryLookupState
+    data class NotFound(val word: String) : DictionaryLookupState
+    data class Installing(val word: String) : DictionaryLookupState
+    data class Failed(val word: String, val message: String) : DictionaryLookupState
+}
+
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -61,6 +75,7 @@ class ReaderViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
+    private val dictionaryRepository: DictionaryRepository,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -69,12 +84,18 @@ class ReaderViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Loading)
     val uiState: StateFlow<ReaderUiState> = _uiState
 
+    private val _dictionaryLookup = MutableStateFlow<DictionaryLookupState>(DictionaryLookupState.Hidden)
+    val dictionaryLookup: StateFlow<DictionaryLookupState> = _dictionaryLookup
+
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
 
     private var boundEngine: BookEngine? = null
     private var bookOpen = false
     private val engineJobs = mutableListOf<Job>()
+    private var dictionaryLookupJob: Job? = null
+    private var pendingDictionaryWord: String? = null
+    private var dictionaryPickerActive = false
 
     /** Called once the [BookEngine] exists (i.e. once the WebView has been created by the Compose factory). */
     @OptIn(FlowPreview::class)
@@ -130,6 +151,7 @@ class ReaderViewModel @Inject constructor(
                         _uiState.update { current ->
                             if (current is ReaderUiState.Loaded) current.copy(selection = event.selection) else current
                         }
+                        lookupSelection(event.selection?.selectedText)
                     }
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
@@ -237,9 +259,48 @@ class ReaderViewModel @Inject constructor(
         val engine = boundEngine ?: return
         viewModelScope.launch {
             engine.clearSelection()
+            dictionaryLookupJob?.cancel()
+            pendingDictionaryWord = null
+            _dictionaryLookup.value = DictionaryLookupState.Hidden
             _uiState.update { current ->
                 if (current is ReaderUiState.Loaded) current.copy(selection = null) else current
             }
+        }
+    }
+
+    fun prepareDictionaryInstall() {
+        val word = currentLookupWord() ?: return
+        pendingDictionaryWord = word
+        dictionaryPickerActive = true
+        _dictionaryLookup.value = DictionaryLookupState.Installing(word)
+    }
+
+    fun cancelDictionaryInstall() {
+        dictionaryPickerActive = false
+        pendingDictionaryWord?.let { word ->
+            _dictionaryLookup.value = DictionaryLookupState.PackRequired(word)
+        }
+    }
+
+    fun installEnglishDictionary(sourceUri: String) {
+        val word = currentLookupWord() ?: return
+        dictionaryPickerActive = false
+        dictionaryLookupJob?.cancel()
+        dictionaryLookupJob = viewModelScope.launch {
+            _dictionaryLookup.value = DictionaryLookupState.Installing(word)
+            try {
+                dictionaryRepository.installEnglish(sourceUri)
+            } catch (throwable: CancellationException) {
+                throw throwable
+            } catch (throwable: Throwable) {
+                _dictionaryLookup.value = DictionaryLookupState.Failed(
+                    word,
+                    throwable.message ?: "Dictionary installation failed",
+                )
+                return@launch
+            }
+            dictionaryLookupJob = null
+            lookupSelection(word)
         }
     }
 
@@ -316,6 +377,7 @@ class ReaderViewModel @Inject constructor(
         trackingJob = null
         cancelEngineJobs()
         boundEngine = null
+        dictionaryLookupJob?.cancel()
     }
 
     private fun cancelEngineJobs() {
@@ -338,10 +400,54 @@ class ReaderViewModel @Inject constructor(
                 readerNote = readerNote?.takeIf { it.isNotBlank() },
             )
             engine.clearSelection()
+            dictionaryLookupJob?.cancel()
+            pendingDictionaryWord = null
+            _dictionaryLookup.value = DictionaryLookupState.Hidden
             _uiState.update { current ->
                 if (current is ReaderUiState.Loaded) current.copy(selection = null) else current
             }
         }
+    }
+
+    private fun lookupSelection(selectedText: String?) {
+        dictionaryLookupJob?.cancel()
+        val word = selectedText?.toDictionaryWord()
+        if (word == null) {
+            if (dictionaryPickerActive) return
+            _dictionaryLookup.value = DictionaryLookupState.Hidden
+            return
+        }
+        pendingDictionaryWord = word
+        if (dictionaryRepository.englishPackState.value !is DictionaryPackState.Installed) {
+            _dictionaryLookup.value = DictionaryLookupState.PackRequired(word)
+            return
+        }
+        dictionaryLookupJob = viewModelScope.launch {
+            _dictionaryLookup.value = DictionaryLookupState.LookingUp(word)
+            val entry = try {
+                dictionaryRepository.lookupEnglish(word)
+            } catch (throwable: CancellationException) {
+                throw throwable
+            } catch (throwable: Throwable) {
+                _dictionaryLookup.value = DictionaryLookupState.Failed(
+                    word,
+                    throwable.message ?: "Dictionary lookup failed",
+                )
+                return@launch
+            }
+            _dictionaryLookup.value = if (entry == null) {
+                DictionaryLookupState.NotFound(word)
+            } else {
+                DictionaryLookupState.Found(entry)
+            }
+        }
+    }
+
+    private fun currentLookupWord(): String? = when (val state = _dictionaryLookup.value) {
+        is DictionaryLookupState.PackRequired -> state.word
+        is DictionaryLookupState.Installing -> state.word
+        is DictionaryLookupState.Failed -> state.word
+        else -> pendingDictionaryWord
     }
 }
 
@@ -390,6 +496,12 @@ private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when
     AnnotationType.NOTE -> ReaderAnnotationType.NOTE
 }
 
+private fun String.toDictionaryWord(): String? {
+    val candidate = trim().trim('“', '”', '‘', '’', '\'', '"', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']')
+    return candidate.takeIf { DictionarySelectionWordRegex.matches(it) }
+}
+
 private const val DefaultAnnotationColor = "yellow"
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
+private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")

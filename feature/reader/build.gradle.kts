@@ -12,4 +12,6 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:filesystem"))
+    implementation(project(":dictionary:api"))
+    implementation(project(":dictionary:stardict"))
 }
