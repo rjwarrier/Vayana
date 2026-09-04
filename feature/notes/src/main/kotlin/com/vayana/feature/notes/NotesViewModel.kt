@@ -6,6 +6,7 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,11 +29,18 @@ data class NotesUiState(
 class NotesViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val bookRepository: BookRepository,
+    private val storageRoots: StorageRoots,
 ) : ViewModel() {
     val uiState: StateFlow<NotesUiState> = combine(
         bookRepository.observeAll(),
         annotationRepository.observeAll(),
-    ) { books, annotations ->
+    ) { rawBooks, annotations ->
+        val books = rawBooks.map { book ->
+            book.copy(
+                coverPath = book.coverPath?.let { storageRoots.resolve(it).absolutePath },
+                filePath = storageRoots.resolve(book.filePath).absolutePath,
+            )
+        }
         val annotationsByBook = annotations.groupBy { it.bookId }
         val booksWithNotes = books.mapNotNull { book ->
             val bookAnnotations = annotationsByBook[book.id]
