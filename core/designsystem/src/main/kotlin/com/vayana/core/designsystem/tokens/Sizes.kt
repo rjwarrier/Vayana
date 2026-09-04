@@ -12,8 +12,8 @@ object Sizes {
     val touchTarget = 48.dp
     val touchTargetEink = 56.dp
 
-    val fab = 56.dp
-    val fabLarge = 64.dp
+    val fab = 64.dp
+    val fabLarge = 76.dp
     val menuMinWidth = 232.dp
     val menuItemLargeHeight = 64.dp
     val bottomNavHeight = 80.dp

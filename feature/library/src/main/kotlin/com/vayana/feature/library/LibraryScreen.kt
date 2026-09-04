@@ -846,6 +846,7 @@ private fun BookDetailScreen(
                 ) {
                     FloatingActionButton(
                         onClick = { showEditDialog = true },
+                        modifier = Modifier.size(Sizes.fab),
                         shape = CircleShape,
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -854,10 +855,12 @@ private fun BookDetailScreen(
                         Icon(
                             imageVector = Icons.Outlined.Edit,
                             contentDescription = stringResource(R.string.library_edit_metadata),
+                            modifier = Modifier.size(Sizes.iconLarge),
                         )
                     }
                     FloatingActionButton(
                         onClick = { onContinueReading(book.id) },
+                        modifier = Modifier.size(Sizes.fab),
                         shape = CircleShape,
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -866,6 +869,7 @@ private fun BookDetailScreen(
                         Icon(
                             imageVector = Icons.Outlined.AutoStories,
                             contentDescription = stringResource(R.string.library_continue_reading),
+                            modifier = Modifier.size(Sizes.iconLarge),
                         )
                     }
                 }
