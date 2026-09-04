@@ -278,13 +278,19 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    /** Adds a file-less entry for a paper book, so it can hold manually-typed quotes/notes. */
-    fun addPhysicalBook(title: String, author: String?) {
+    /**
+     * Adds a file-less entry for a paper book, so it can hold manually-typed quotes/notes.
+     * [onCreated] fires with the new book's id once it lands, so the caller can jump straight
+     * to its detail screen; it won't fire if [title] is blank or the insert somehow collides.
+     */
+    fun addPhysicalBook(title: String, author: String?, onCreated: (Long) -> Unit = {}) {
+        val cleanTitle = title.trim()
+        if (cleanTitle.isEmpty()) return
         viewModelScope.launch {
-            withContext(dispatchers.io) {
+            val book = withContext(dispatchers.io) {
                 bookRepository.insertIfNew(
-                    title = title,
-                    author = author?.takeIf { it.isNotBlank() },
+                    title = cleanTitle,
+                    author = author?.trim()?.takeIf { it.isNotBlank() },
                     series = null,
                     seriesNumber = null,
                     description = null,
@@ -294,6 +300,7 @@ class LibraryViewModel @Inject constructor(
                     fileHash = "physical:${UUID.randomUUID()}",
                 )
             }
+            if (book != null) onCreated(book.id)
         }
     }
 

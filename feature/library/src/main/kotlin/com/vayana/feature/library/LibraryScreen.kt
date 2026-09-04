@@ -149,7 +149,7 @@ fun LibraryRoute(onBookClick: (Long) -> Unit, onSettingsClick: () -> Unit, modif
         onImportProgressDismissed = viewModel::onImportProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
-        onAddPhysicalBook = viewModel::addPhysicalBook,
+        onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
         onBookClick = onBookClick,
         onSettingsClick = onSettingsClick,
         onQueryChange = viewModel::updateQuery,
@@ -1131,7 +1131,7 @@ private fun BookDetailScreen(
                                 Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
                             }
                         }
-                        if (book.format != BookFormat.PHYSICAL && book.finishedReadingAt == null && book.readingPercent < 1f) {
+                        if (book.finishedReadingAt == null && book.readingPercent < 1f) {
                             ElevatedButton(onClick = onMarkFinished, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Outlined.Check, contentDescription = null)
                                 Text(text = stringResource(R.string.library_mark_finished), modifier = Modifier.padding(start = Spacing.sm))
