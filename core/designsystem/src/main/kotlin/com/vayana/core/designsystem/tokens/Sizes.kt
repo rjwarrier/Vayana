@@ -32,4 +32,8 @@ object Sizes {
     val chartBarMaxHeight = 72.dp
     val chartBarMinWidth = 28.dp
     val chartBarMaxWidth = 56.dp
+
+    val shareCardWidth = 320.dp
+    val shareCardCoverWidth = 96.dp
+    val shareCardQuoteMarkHeight = 40.dp
 }

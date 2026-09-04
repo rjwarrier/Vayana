@@ -16,4 +16,5 @@ dependencies {
     // again first) when a milestone actually implements tablet/foldable panes — see docs/DECISIONS.md.
     implementation(libs.compose.material.icons.extended)
     implementation(libs.androidx.core.ktx)
+    implementation(project(":core:common"))
 }

@@ -81,6 +81,8 @@
     <string name="library_import_quotes_confirm">Import %1$d quotes</string>
     <string name="library_quotes_imported_message">Successfully imported %1$d quotes as highlights</string>
     <string name="library_share_file">Share file</string>
+    <string name="library_share_book">Share book</string>
+    <string name="library_share_book_progress">%1$d%% read</string>
     <string name="library_replace_source_file">Replace source file</string>
     <string name="library_mark_finished">Mark as finished</string>
     <string name="library_marked_finished">Marked as finished</string>
@@ -139,6 +141,10 @@
     <string name="notes_source_mine">Mine</string>
     <string name="notes_source_community">Community</string>
     <string name="notes_share_content_description">Share</string>
+    <string name="share_card_watermark">Vayana</string>
+    <string name="share_card_share_text">Share text</string>
+    <string name="share_card_share_image">Share image</string>
+    <string name="share_card_image_chooser_title">Share image</string>
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>

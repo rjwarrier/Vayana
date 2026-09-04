@@ -72,9 +72,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.common.QuoteCitation
+import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
+import com.vayana.core.designsystem.sharecard.QuoteShareCard
+import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Elevations
@@ -128,6 +131,7 @@ private fun NotesScreen(
     var sourceFilter by remember { mutableStateOf(NotesSourceFilter.ALL) }
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    var sharingAnnotation by remember { mutableStateOf<Annotation?>(null) }
 
     val activeBookItem = remember(selectedBookId, booksWithNotes) {
         booksWithNotes.firstOrNull { it.book.id == selectedBookId }
@@ -296,16 +300,7 @@ private fun NotesScreen(
                         },
                         onEdit = { editingAnnotation = it },
                         onDelete = { deletingAnnotation = it },
-                        onShare = { annotation ->
-                            context.shareText(
-                                QuoteCitation.format(
-                                    text = annotation.selectedText.ifBlank { annotation.readerNote.orEmpty() },
-                                    author = bookItem.book.author,
-                                    bookTitle = bookItem.book.title,
-                                    chapterTitle = annotation.chapterTitle,
-                                ),
-                            )
-                        },
+                        onShare = { annotation -> sharingAnnotation = annotation },
                     )
                 }
             }
@@ -381,6 +376,36 @@ private fun NotesScreen(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = Elevations.shadowLarge,
         )
+    }
+
+    sharingAnnotation?.let { annotation ->
+        val book = activeBookItem?.book
+        val quoteText = annotation.selectedText.ifBlank { annotation.readerNote.orEmpty() }
+        ShareCardDialog(
+            onDismiss = { sharingAnnotation = null },
+            onShareText = {
+                context.shareTextWithChooser(
+                    QuoteCitation.format(
+                        text = quoteText,
+                        author = book?.author,
+                        bookTitle = book?.title,
+                        chapterTitle = annotation.chapterTitle,
+                    ),
+                    context.getString(R.string.notes_share_content_description),
+                )
+                sharingAnnotation = null
+            },
+            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
+            shareTextLabel = stringResource(R.string.share_card_share_text),
+            shareImageLabel = stringResource(R.string.share_card_share_image),
+        ) {
+            QuoteShareCard(
+                text = quoteText,
+                author = book?.author,
+                bookTitle = book?.title,
+                watermark = stringResource(R.string.share_card_watermark),
+            )
+        }
     }
 }
 

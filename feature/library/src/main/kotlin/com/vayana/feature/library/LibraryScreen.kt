@@ -93,17 +93,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.vayana.core.common.QuoteParser
+import com.vayana.core.common.shareText as shareTextWithChooser
+import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.PopupProperties
@@ -807,6 +812,7 @@ private fun BookDetailScreen(
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var showCoverPreview by remember { mutableStateOf(false) }
     var showImportQuotesDialog by remember { mutableStateOf(false) }
+    var showShareBookDialog by remember { mutableStateOf(false) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
@@ -1034,6 +1040,10 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.EditNote, contentDescription = null)
                             Text(text = stringResource(R.string.library_import_quotes), modifier = Modifier.padding(start = Spacing.sm))
                         }
+                        ElevatedButton(onClick = { showShareBookDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Outlined.Share, contentDescription = null)
+                            Text(text = stringResource(R.string.library_share_book), modifier = Modifier.padding(start = Spacing.sm))
+                        }
                         ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
@@ -1123,6 +1133,36 @@ private fun BookDetailScreen(
             },
         )
     }
+
+    if (showShareBookDialog && book != null) {
+        ShareCardDialog(
+            onDismiss = { showShareBookDialog = false },
+            onShareText = {
+                context.shareTextWithChooser(
+                    book.toShareText(context),
+                    context.getString(R.string.library_share_book),
+                )
+                showShareBookDialog = false
+            },
+            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
+            shareTextLabel = stringResource(R.string.share_card_share_text),
+            shareImageLabel = stringResource(R.string.share_card_share_image),
+        ) {
+            BookShareCard(
+                book = book,
+                watermark = stringResource(R.string.share_card_watermark),
+            )
+        }
+    }
+}
+
+private fun Book.toShareText(context: android.content.Context): String {
+    val progress = (readingPercent * 100).toInt()
+    return buildString {
+        appendLine(title)
+        author?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
+        appendLine(context.getString(R.string.library_share_book_progress, progress))
+    }.trim()
 }
 
 @Composable
@@ -1521,6 +1561,76 @@ private fun BookCover(book: Book, modifier: Modifier = Modifier) {
         )
     } else {
         GeneratedCover(title = book.title, author = book.author, modifier = modifier)
+    }
+}
+
+@Composable
+private fun BookShareCard(book: Book, watermark: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .width(Sizes.shareCardWidth)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                    ),
+                ),
+            )
+            .padding(Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+    ) {
+        BookCover(
+            book = book,
+            modifier = Modifier
+                .width(Sizes.shareCardCoverWidth)
+                .heightIn(max = Sizes.shareCardCoverWidth / Sizes.coverAspectRatio),
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = book.title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            book.author?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+        Surface(
+            shape = RoundedCornerShape(Radii.full),
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
+        ) {
+            Text(
+                text = stringResource(R.string.library_share_book_progress, (book.readingPercent * 100).toInt()),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Outlined.AutoStories,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                modifier = Modifier.size(Sizes.iconSmall),
+            )
+            Spacer(modifier = Modifier.width(Spacing.xs))
+            Text(
+                text = watermark,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+            )
+        }
     }
 }
 
