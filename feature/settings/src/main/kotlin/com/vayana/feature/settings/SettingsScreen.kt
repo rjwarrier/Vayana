@@ -1,5 +1,8 @@
 package com.vayana.feature.settings
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,11 +27,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
@@ -37,6 +42,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -86,20 +92,32 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
 fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val settings by viewModel.settings.collectAsState()
+    val backupState by viewModel.backupState.collectAsState()
+    val restorePreview by viewModel.restorePreview.collectAsState()
 
     SettingsScreen(
         modifier = modifier,
         settings = settings,
+        backupState = backupState,
+        restorePreview = restorePreview,
         onBack = onBack,
         onUpdate = viewModel::update,
         onReset = viewModel::reset,
         onResetAll = viewModel::resetAll,
+        onCreateBackup = viewModel::createBackup,
+        onPickRestoreFile = viewModel::inspectRestoreFile,
+        onConfirmRestore = viewModel::restoreBackup,
+        onDismissRestorePreview = viewModel::dismissRestorePreview,
+        onDismissBackupState = viewModel::dismissBackupState,
     )
 }
 
@@ -108,10 +126,17 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
 private fun SettingsScreen(
     modifier: Modifier = Modifier,
     settings: SettingsSnapshot,
+    backupState: BackupUiState,
+    restorePreview: RestorePreviewState,
     onBack: () -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onResetAll: () -> Unit,
+    onCreateBackup: (Uri) -> Unit,
+    onPickRestoreFile: (Uri) -> Unit,
+    onConfirmRestore: (Uri) -> Unit,
+    onDismissRestorePreview: () -> Unit,
+    onDismissBackupState: () -> Unit,
 ) {
     var showResetAllDialog by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<SettingsGroup?>(null) }
@@ -166,10 +191,14 @@ private fun SettingsScreen(
                     query = query,
                     visibleSettings = visibleSettings,
                     settings = settings,
+                    backupState = backupState,
                     onQueryChange = { query = it },
                     onGroupSelected = { selectedGroup = it },
                     onUpdate = onUpdate,
                     onReset = onReset,
+                    onCreateBackup = onCreateBackup,
+                    onPickRestoreFile = onPickRestoreFile,
+                    onDismissBackupState = onDismissBackupState,
                 )
             } else {
                 SettingsGroupDetail(
@@ -240,6 +269,157 @@ private fun SettingsScreen(
             tonalElevation = Elevations.shadowLarge,
         )
     }
+
+    when (restorePreview) {
+        is RestorePreviewState.Loading -> {
+            AlertDialog(
+                onDismissRequest = onDismissRestorePreview,
+                confirmButton = {},
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                        Text(stringResource(R.string.settings_restore_reading))
+                    }
+                },
+                shape = RoundedCornerShape(Radii.extraLargeIncreased),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = Elevations.shadowLarge,
+            )
+        }
+        is RestorePreviewState.Failed -> {
+            AlertDialog(
+                onDismissRequest = onDismissRestorePreview,
+                icon = {
+                    Surface(
+                        shape = RoundedCornerShape(Radii.large),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ) {
+                        Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.padding(Spacing.md))
+                    }
+                },
+                title = { Text(stringResource(R.string.settings_restore_confirm_title)) },
+                text = { Text(restorePreview.message) },
+                confirmButton = {
+                    Button(onClick = onDismissRestorePreview, shape = RoundedCornerShape(Radii.full)) {
+                        Text(stringResource(R.string.settings_reset_all_cancel))
+                    }
+                },
+                shape = RoundedCornerShape(Radii.extraLargeIncreased),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = Elevations.shadowLarge,
+            )
+        }
+        is RestorePreviewState.Ready -> {
+            val inspection = restorePreview.inspection
+            AlertDialog(
+                onDismissRequest = onDismissRestorePreview,
+                icon = {
+                    Surface(
+                        shape = RoundedCornerShape(Radii.large),
+                        color = if (inspection.isCompatible) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        },
+                        contentColor = if (inspection.isCompatible) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    ) {
+                        Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.padding(Spacing.md))
+                    }
+                },
+                title = { Text(stringResource(R.string.settings_restore_confirm_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        if (!inspection.isCompatible) {
+                            Text(
+                                text = stringResource(R.string.settings_restore_incompatible),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Text(
+                            text = stringResource(
+                                R.string.settings_restore_summary_created,
+                                inspection.manifest.createdAt.formatBackupDate(),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (inspection.manifest.appVersion.isNotBlank()) {
+                            Text(
+                                text = stringResource(R.string.settings_restore_summary_app_version, inspection.manifest.appVersion),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.settings_restore_summary_books, inspection.bookCount),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_restore_summary_notes, inspection.annotationCount),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_restore_summary_size, inspection.totalBytes.formatByteSize()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                        Text(
+                            text = stringResource(R.string.settings_restore_confirm_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                confirmButton = {
+                    if (inspection.isCompatible) {
+                        Button(
+                            onClick = { onConfirmRestore(restorePreview.uri) },
+                            shape = RoundedCornerShape(Radii.full),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                            ),
+                        ) {
+                            Text(stringResource(R.string.settings_restore_confirm_action))
+                        }
+                    }
+                },
+                dismissButton = {
+                    FilledTonalButton(onClick = onDismissRestorePreview, shape = RoundedCornerShape(Radii.full)) {
+                        Text(stringResource(R.string.settings_reset_all_cancel))
+                    }
+                },
+                shape = RoundedCornerShape(Radii.extraLargeIncreased),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = Elevations.shadowLarge,
+            )
+        }
+        RestorePreviewState.Idle -> Unit
+    }
+}
+
+private fun Long.formatBackupDate(): String {
+    if (this <= 0L) return ""
+    return SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()).format(Date(this))
+}
+
+private fun Long.formatByteSize(): String {
+    if (this < 1024) return "$this B"
+    val units = listOf("KB", "MB", "GB")
+    var value = this / 1024.0
+    var unitIndex = 0
+    while (value >= 1024.0 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex++
+    }
+    return "%.1f %s".format(Locale.getDefault(), value, units[unitIndex])
 }
 
 @Composable
@@ -248,10 +428,14 @@ private fun SettingsHub(
     query: String,
     visibleSettings: List<Setting<out Any>>,
     settings: SettingsSnapshot,
+    backupState: BackupUiState,
     onQueryChange: (String) -> Unit,
     onGroupSelected: (SettingsGroup) -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
+    onCreateBackup: (Uri) -> Unit,
+    onPickRestoreFile: (Uri) -> Unit,
+    onDismissBackupState: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -268,6 +452,14 @@ private fun SettingsHub(
         }
         if (query.isBlank()) {
             item { SettingsProfileCard(settings = settings) }
+            item {
+                BackupRestoreCard(
+                    backupState = backupState,
+                    onCreateBackup = onCreateBackup,
+                    onPickRestoreFile = onPickRestoreFile,
+                    onDismissBackupState = onDismissBackupState,
+                )
+            }
             items(SettingsGroup.entries, key = { it.name }) { group ->
                 val groupSettings = SettingsRegistry.all.filter { it.group == group }
                 if (groupSettings.isNotEmpty()) {
@@ -480,6 +672,136 @@ private fun SettingsProfileCard(settings: SettingsSnapshot) {
                     label = "${settings.readerFontSizePercent}% Font",
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BackupRestoreCard(
+    backupState: BackupUiState,
+    onCreateBackup: (Uri) -> Unit,
+    onPickRestoreFile: (Uri) -> Unit,
+    onDismissBackupState: () -> Unit,
+) {
+    val backupFileName = remember {
+        "vayana-backup-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.zip"
+    }
+    val createBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        uri?.let(onCreateBackup)
+    }
+    val pickRestoreFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(onPickRestoreFile)
+    }
+    val working = backupState is BackupUiState.Working
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.extraLargeIncreased),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(Paddings.card)
+                .vayanaAnimateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(icon = Icons.Outlined.Backup, selected = false)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_backup_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_backup_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                FilledTonalButton(
+                    onClick = { createBackupLauncher.launch(backupFileName) },
+                    enabled = !working,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(imageVector = Icons.Outlined.Backup, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_backup_create), modifier = Modifier.padding(start = Spacing.xs))
+                }
+                FilledTonalButton(
+                    onClick = {
+                        pickRestoreFileLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                    },
+                    enabled = !working,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_backup_restore), modifier = Modifier.padding(start = Spacing.xs))
+                }
+            }
+
+            when (backupState) {
+                BackupUiState.Working -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_backup_working), style = MaterialTheme.typography.bodySmall)
+                }
+                BackupUiState.BackupComplete -> BackupStatusRow(
+                    message = stringResource(R.string.settings_backup_complete),
+                    isError = false,
+                    onDismiss = onDismissBackupState,
+                )
+                is BackupUiState.BackupFailed -> BackupStatusRow(
+                    message = stringResource(R.string.settings_backup_failed, backupState.message),
+                    isError = true,
+                    onDismiss = onDismissBackupState,
+                )
+                is BackupUiState.RestoreFailed -> BackupStatusRow(
+                    message = stringResource(R.string.settings_restore_failed, backupState.message),
+                    isError = true,
+                    onDismiss = onDismissBackupState,
+                )
+                is BackupUiState.RestoreIncompatible -> BackupStatusRow(
+                    message = backupState.message,
+                    isError = true,
+                    onDismiss = onDismissBackupState,
+                )
+                BackupUiState.Idle -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupStatusRow(message: String, isError: Boolean, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDismiss) {
+            Icon(
+                imageVector = Icons.Outlined.Close,
+                contentDescription = stringResource(R.string.input_clear_content_description),
+                modifier = Modifier.size(Sizes.iconSmall),
+            )
         }
     }
 }

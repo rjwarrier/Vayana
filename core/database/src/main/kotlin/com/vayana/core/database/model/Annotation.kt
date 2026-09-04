@@ -16,4 +16,5 @@ data class Annotation(
     val readerNote: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    val isDeleted: Boolean = false,
 )

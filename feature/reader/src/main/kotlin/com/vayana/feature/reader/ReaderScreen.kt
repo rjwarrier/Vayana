@@ -258,6 +258,7 @@ private fun ReaderScreen(
     val rootView = LocalView.current
     val focusRequester = remember { FocusRequester() }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var volumeKeyDownAt by remember { mutableStateOf(0L) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
         val menuStart = width / 3f
         val menuEnd = menuStart * 2f
@@ -271,7 +272,7 @@ private fun ReaderScreen(
             }
         }
     }
-    val onHardwarePageKeyState = rememberUpdatedState<(Int, Int) -> Boolean> { keyCode, action ->
+    val onHardwarePageKeyState = rememberUpdatedState<(Int, Int, Long) -> Boolean> { keyCode, action, heldMillis ->
         if (keyCode == AndroidKeyEvent.KEYCODE_VOLUME_UP || keyCode == AndroidKeyEvent.KEYCODE_VOLUME_DOWN) {
             if (chromeVisible) {
                 if (action == AndroidKeyEvent.ACTION_UP) {
@@ -281,17 +282,17 @@ private fun ReaderScreen(
             } else if (!settings.readerVolumeKeys) {
                 false
             } else {
-                when (keyCode) {
-                    AndroidKeyEvent.KEYCODE_VOLUME_UP -> {
-                        if (action == AndroidKeyEvent.ACTION_UP) onTapPrevious()
-                        true
+                if (action == AndroidKeyEvent.ACTION_UP) {
+                    if (heldMillis >= VolumeKeyLongPressMillis) {
+                        onBack()
+                    } else {
+                        when (keyCode) {
+                            AndroidKeyEvent.KEYCODE_VOLUME_UP -> onTapPrevious()
+                            AndroidKeyEvent.KEYCODE_VOLUME_DOWN -> onTapNext()
+                        }
                     }
-                    AndroidKeyEvent.KEYCODE_VOLUME_DOWN -> {
-                        if (action == AndroidKeyEvent.ACTION_UP) onTapNext()
-                        true
-                    }
-                    else -> false
                 }
+                true
             }
         } else {
             false
@@ -351,17 +352,25 @@ private fun ReaderScreen(
                         return@onPreviewKeyEvent true
                     }
                     if (!settings.readerVolumeKeys) return@onPreviewKeyEvent false
-                    when (event.key) {
-                        Key.VolumeUp -> {
-                            if (event.type == KeyEventType.KeyUp) onTapPrevious()
-                            true
+                    when (event.type) {
+                        KeyEventType.KeyDown -> {
+                            if (volumeKeyDownAt == 0L) volumeKeyDownAt = System.currentTimeMillis()
                         }
-                        Key.VolumeDown -> {
-                            if (event.type == KeyEventType.KeyUp) onTapNext()
-                            true
+                        KeyEventType.KeyUp -> {
+                            val heldMillis = if (volumeKeyDownAt == 0L) 0L else System.currentTimeMillis() - volumeKeyDownAt
+                            volumeKeyDownAt = 0L
+                            if (heldMillis >= VolumeKeyLongPressMillis) {
+                                onBack()
+                            } else {
+                                when (event.key) {
+                                    Key.VolumeUp -> onTapPrevious()
+                                    Key.VolumeDown -> onTapNext()
+                                }
+                            }
                         }
-                        else -> false
+                        else -> Unit
                     }
+                    true
                 } else {
                     false
                 }
@@ -382,7 +391,9 @@ private fun ReaderScreen(
                     overScrollMode = View.OVER_SCROLL_NEVER
                     isHorizontalScrollBarEnabled = false
                     isVerticalScrollBarEnabled = false
-                    setOnKeyListener { _, keyCode, event -> onHardwarePageKeyState.value(keyCode, event.action) }
+                    setOnKeyListener { _, keyCode, event ->
+                        onHardwarePageKeyState.value(keyCode, event.action, event.eventTime - event.downTime)
+                    }
                     setOnTouchListener { view, event ->
                         when (event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> {
@@ -1355,7 +1366,8 @@ private fun StylePanel(
     Column(
         modifier = Modifier
             .padding(horizontal = Spacing.lg, vertical = Spacing.md)
-            .heightIn(max = Sizes.contentMaxWidth),
+            .heightIn(max = Sizes.contentMaxWidth)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Text(text = stringResource(R.string.settings_reader_theme_title), style = MaterialTheme.typography.labelLarge)
@@ -1601,6 +1613,7 @@ private const val ReaderHudStandardAlpha = 0.9f
 private const val MaxDisplayedDictionarySenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
+private const val VolumeKeyLongPressMillis = 500L
 
 private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 

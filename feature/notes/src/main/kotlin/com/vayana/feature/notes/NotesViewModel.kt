@@ -65,9 +65,25 @@ class NotesViewModel @Inject constructor(
         }
     }
 
-    fun deleteAnnotation(annotationId: Long) {
+    /** Immediate and durable - the row is filtered out of every query right away, so this is
+     * safe even if the caller (a snackbar's coroutine, say) never gets to follow up. */
+    fun softDeleteAnnotation(annotationId: Long) {
         viewModelScope.launch {
-            annotationRepository.delete(annotationId)
+            annotationRepository.softDelete(annotationId)
+        }
+    }
+
+    fun undoDeleteAnnotation(annotationId: Long) {
+        viewModelScope.launch {
+            annotationRepository.restore(annotationId)
+        }
+    }
+
+    /** Best-effort cleanup after the undo window passes. If this never runs (app killed, etc.)
+     * the annotation stays soft-deleted - invisible, which is all "deleted" needs to mean. */
+    fun purgeAnnotation(annotationId: Long) {
+        viewModelScope.launch {
+            annotationRepository.purge(annotationId)
         }
     }
 }

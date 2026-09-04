@@ -7,9 +7,9 @@
     <group
         android:name="mark"
         android:pivotX="200"
-        android:pivotY="200"
-        android:scaleX="0.75"
-        android:scaleY="0.75">
+        android:pivotY="249"
+        android:scaleX="0.6"
+        android:scaleY="0.6">
         <path
             android:fillColor="#00000000"
             android:strokeColor="#FFFFFFFF"

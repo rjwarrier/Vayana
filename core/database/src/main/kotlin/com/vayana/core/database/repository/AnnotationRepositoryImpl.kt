@@ -64,7 +64,15 @@ class AnnotationRepositoryImpl @Inject constructor(
         annotationDao.update(annotation.toEntity(updatedAt = System.currentTimeMillis()))
     }
 
-    override suspend fun delete(id: Long) {
+    override suspend fun softDelete(id: Long) {
+        annotationDao.softDelete(id, System.currentTimeMillis())
+    }
+
+    override suspend fun restore(id: Long) {
+        annotationDao.restore(id, System.currentTimeMillis())
+    }
+
+    override suspend fun purge(id: Long) {
         val annotation = annotationDao.getById(id) ?: return
         annotationDao.delete(annotation)
     }
@@ -82,6 +90,7 @@ private fun AnnotationEntity.toDomain(): Annotation = Annotation(
     readerNote = readerNote,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    isDeleted = isDeleted,
 )
 
 private fun Annotation.toEntity(updatedAt: Long): AnnotationEntity = AnnotationEntity(
@@ -96,4 +105,5 @@ private fun Annotation.toEntity(updatedAt: Long): AnnotationEntity = AnnotationE
     readerNote = readerNote,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    isDeleted = isDeleted,
 )

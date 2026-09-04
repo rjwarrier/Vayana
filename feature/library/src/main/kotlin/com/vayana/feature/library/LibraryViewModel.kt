@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.QuoteParser
+import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
@@ -23,6 +24,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -222,6 +224,8 @@ class LibraryViewModel @Inject constructor(
             val text = withContext(dispatchers.io) {
                 try {
                     contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (_: Throwable) {
                     null
                 }
@@ -309,7 +313,7 @@ class LibraryViewModel @Inject constructor(
 
         var importedFile: File? = null
         var coverFile: File? = null
-        return runCatching {
+        return runCatchingCancellable {
             updateImportRow(candidate.id, ImportRowStatus.COPYING)
             val imported = bookFileImporter.import(uri, extension)
             importedFile = imported.file
@@ -355,7 +359,7 @@ class LibraryViewModel @Inject constructor(
 
         var importedFile: File? = null
         var coverFile: File? = null
-        return runCatching {
+        return runCatchingCancellable {
             val imported = bookFileImporter.import(uri, extension)
             importedFile = imported.file
             val metadata = EpubParser.parse(imported.file)
@@ -393,7 +397,7 @@ class LibraryViewModel @Inject constructor(
     private suspend fun replaceCoverInLibrary(bookId: Long, contentResolver: ContentResolver, uri: Uri): BookDetailMessage {
         val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.COVER_FAILED
         var coverFile: File? = null
-        return runCatching {
+        return runCatchingCancellable {
             val pickedCover = savePickedCover(contentResolver, uri)
             coverFile = pickedCover
             bookRepository.updateCover(bookId, storageRoots.relativize(pickedCover))
@@ -410,7 +414,7 @@ class LibraryViewModel @Inject constructor(
 
     private suspend fun removeCoverFromLibrary(bookId: Long): BookDetailMessage {
         val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.COVER_FAILED
-        return runCatching {
+        return runCatchingCancellable {
             bookRepository.updateCover(bookId, null)
             existingBook.coverPath?.let { File(it).delete() }
             BookDetailMessage.COVER_REMOVED

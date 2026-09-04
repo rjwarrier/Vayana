@@ -10,7 +10,7 @@ import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.entity.WordLookupStatEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (PROMPT2appbuild.md §2). */
-const val DATABASE_VERSION = 6
+const val DATABASE_VERSION = 7
 
 @Database(
     entities = [BookEntity::class, AnnotationEntity::class, WordLookupStatEntity::class],

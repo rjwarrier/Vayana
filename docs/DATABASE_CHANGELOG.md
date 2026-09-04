@@ -2,6 +2,17 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 7
+Adds soft-delete to `annotations`:
+
+- `isDeleted` (integer, default 0).
+- `observeAll`/`observeForBook` now filter `WHERE isDeleted = 0`. Deleting a note sets this flag
+  immediately (durable even if the app is killed a moment later); the Notes screen's undo
+  snackbar clears it back to 0, or a hard `DELETE` purges the row once the undo window passes.
+  Fixes a bug where the previous timer-based delete silently never ran if the user navigated
+  away from the Notes screen within the undo window, leaving "deleted" notes still in the
+  database and reappearing later.
+
 ## Version 6
 Adds `word_lookup_stats` for the "words you looked up" vocabulary statistic (PROMPT2appbuild.md §4.6):
 

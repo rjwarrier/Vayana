@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AnnotationDao {
-    @Query("SELECT * FROM annotations ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM annotations WHERE isDeleted = 0 ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<AnnotationEntity>>
 
-    @Query("SELECT * FROM annotations WHERE bookId = :bookId ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM annotations WHERE bookId = :bookId AND isDeleted = 0 ORDER BY updatedAt DESC")
     fun observeForBook(bookId: Long): Flow<List<AnnotationEntity>>
 
     @Query("SELECT * FROM annotations WHERE id = :id")
@@ -29,6 +29,13 @@ interface AnnotationDao {
     @Update
     suspend fun update(annotation: AnnotationEntity)
 
+    @Query("UPDATE annotations SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun softDelete(id: Long, updatedAt: Long)
+
+    @Query("UPDATE annotations SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun restore(id: Long, updatedAt: Long)
+
+    /** Permanently purges an already soft-deleted row - never call this directly on a live one. */
     @Delete
     suspend fun delete(annotation: AnnotationEntity)
 }

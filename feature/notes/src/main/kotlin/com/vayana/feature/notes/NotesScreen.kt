@@ -102,7 +102,9 @@ fun NotesRoute(
         allAnnotations = uiState.allAnnotations,
         onOpenReader = onOpenReader,
         onUpdateNote = viewModel::updateNote,
-        onDeleteAnnotation = viewModel::deleteAnnotation,
+        onSoftDeleteAnnotation = viewModel::softDeleteAnnotation,
+        onUndoDeleteAnnotation = viewModel::undoDeleteAnnotation,
+        onPurgeAnnotation = viewModel::purgeAnnotation,
     )
 }
 
@@ -113,7 +115,9 @@ private fun NotesScreen(
     allAnnotations: List<Annotation>,
     onOpenReader: (Long, String?) -> Unit,
     onUpdateNote: (Annotation, String) -> Unit,
-    onDeleteAnnotation: (Long) -> Unit,
+    onSoftDeleteAnnotation: (Long) -> Unit,
+    onUndoDeleteAnnotation: (Long) -> Unit,
+    onPurgeAnnotation: (Long) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -124,7 +128,6 @@ private fun NotesScreen(
     var sourceFilter by remember { mutableStateOf(NotesSourceFilter.ALL) }
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
-    var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
 
     val activeBookItem = remember(selectedBookId, booksWithNotes) {
         booksWithNotes.firstOrNull { it.book.id == selectedBookId }
@@ -264,7 +267,7 @@ private fun NotesScreen(
                     )
                 }
             } else {
-                val visibleAnnotations = remember(bookItem.annotations, query, filter, sourceFilter, pendingDeleteId) {
+                val visibleAnnotations = remember(bookItem.annotations, query, filter, sourceFilter) {
                     bookItem.annotations
                         .filterByQuery(query, filter)
                         .filter { annotation ->
@@ -274,7 +277,6 @@ private fun NotesScreen(
                                 NotesSourceFilter.COMMUNITY -> annotation.isCommunityQuote()
                             }
                         }
-                        .filterNot { it.id == pendingDeleteId }
                 }
                 if (visibleAnnotations.isEmpty()) {
                     NotesNoMatchesState(contentPadding = innerPadding)
@@ -341,17 +343,18 @@ private fun NotesScreen(
                 Button(
                     onClick = {
                         deletingAnnotation = null
-                        pendingDeleteId = annotation.id
+                        // Soft-delete now - immediate and durable, so it's already gone for good
+                        // even if the snackbar below never gets to run its undo/purge decision.
+                        onSoftDeleteAnnotation(annotation.id)
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
                                 message = context.getString(R.string.notes_delete_undo_message),
                                 actionLabel = context.getString(R.string.notes_delete_undo_action),
                             )
                             if (result == SnackbarResult.ActionPerformed) {
-                                pendingDeleteId = null
+                                onUndoDeleteAnnotation(annotation.id)
                             } else {
-                                onDeleteAnnotation(annotation.id)
-                                pendingDeleteId = null
+                                onPurgeAnnotation(annotation.id)
                             }
                         }
                     },
