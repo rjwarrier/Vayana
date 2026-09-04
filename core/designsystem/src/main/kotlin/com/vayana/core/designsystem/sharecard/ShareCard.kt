@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,15 +33,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.window.Dialog
 import com.vayana.core.common.shareBitmap
+import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
+import com.vayana.core.designsystem.tokens.ShareCardTypography
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import kotlinx.coroutines.launch
@@ -123,74 +126,150 @@ fun ShareCardDialog(
     }
 }
 
-/** A quote/highlight/note rendered as a shareable image card. */
+/** Small brand lockup ("vayana" + a book glyph) printed on every share card, fixed brand colors. */
+@Composable
+private fun ShareCardWordmark(tint: Color, wordmark: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Outlined.AutoStories,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(Sizes.icon),
+        )
+        Spacer(modifier = Modifier.width(Spacing.xs))
+        Text(text = wordmark, style = ShareCardTypography.wordmark, color = tint)
+    }
+}
+
+/** Small letter-spaced caps label, matching the share-card handoff's eyebrow style. */
+@Composable
+private fun ShareCardCaption(text: String, color: Color) {
+    Text(text = text, style = ShareCardTypography.caption, color = color)
+}
+
+/** A quote/highlight/note rendered as a shareable dark image card (handoff "Quote — dark"). */
 @Composable
 fun QuoteShareCard(
     text: String,
     author: String?,
     bookTitle: String?,
+    pageLabel: String?,
     watermark: String,
+    footerRight: String,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    Column(
         modifier = modifier
             .width(Sizes.shareCardWidth)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.tertiaryContainer,
-                    ),
-                ),
-            )
+            .background(Palette.Navy900)
             .padding(Spacing.xl),
     ) {
-        Column {
-            Text(
-                text = "“",
-                style = MaterialTheme.typography.displayLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.45f),
-            )
-            Text(
-                text = text,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(modifier = Modifier.height(Spacing.xl))
-            if (!bookTitle.isNullOrBlank() || !author.isNullOrBlank()) {
+        ShareCardWordmark(tint = Palette.Teal500, wordmark = watermark)
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        Text(text = "“", style = ShareCardTypography.quoteMark, color = Palette.Teal500)
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(text = text, style = ShareCardTypography.quoteBody, color = Palette.Cream50)
+        if (!bookTitle.isNullOrBlank() || !author.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            Row {
+                Box(
+                    modifier = Modifier
+                        .width(Sizes.shareCardAccentBarWidth)
+                        .height(Sizes.shareCardQuoteMarkHeight)
+                        .background(Palette.Teal500),
+                )
+                Spacer(modifier = Modifier.width(Spacing.sm))
                 Column {
                     bookTitle?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
+                        Text(text = it, style = ShareCardTypography.cardTitleDark, color = Palette.Cream100)
                     }
-                    author?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                        )
+                    val subtitle = listOfNotNull(author?.takeIf { it.isNotBlank() }, pageLabel?.takeIf { it.isNotBlank() })
+                        .joinToString(" · ")
+                    if (subtitle.isNotBlank()) {
+                        Text(text = subtitle, style = ShareCardTypography.cardSubtitleMono, color = Palette.TextMutedDark)
                     }
                 }
-                Spacer(modifier = Modifier.height(Spacing.lg))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.AutoStories,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                    modifier = Modifier.height(Sizes.iconSmall),
-                )
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(
-                    text = watermark,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                )
             }
         }
+        Spacer(modifier = Modifier.height(Spacing.xl))
+        HorizontalDivider(color = Palette.Navy600)
+        Spacer(modifier = Modifier.height(Spacing.md))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            ShareCardCaption(text = "Highlighted in $watermark", color = Palette.Teal300)
+            ShareCardCaption(text = footerRight, color = Palette.TextMutedDark)
+        }
+    }
+}
+
+/** A finished/in-progress book rendered as a shareable light image card (handoff "Book — light"). */
+@Composable
+fun BookShareCard(
+    title: String,
+    author: String?,
+    statusLabel: String,
+    stat1Value: String,
+    stat1Label: String,
+    stat2Value: String,
+    stat2Label: String,
+    footerLeft: String,
+    footerRight: String,
+    watermark: String,
+    modifier: Modifier = Modifier,
+    cover: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .width(Sizes.shareCardWidth)
+            .background(Palette.Cream100)
+            .padding(Spacing.xl),
+    ) {
+        ShareCardWordmark(tint = Palette.Forest700, wordmark = watermark)
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        Row {
+            Box(
+                modifier = Modifier
+                    .width(Sizes.shareCardCoverWidth)
+                    .height(Sizes.shareCardCoverWidth / Sizes.coverAspectRatio)
+                    .clip(RoundedCornerShape(Radii.small)),
+            ) {
+                cover()
+            }
+            Spacer(modifier = Modifier.width(Spacing.lg))
+            Column(modifier = Modifier.weight(1f)) {
+                ShareCardCaption(text = statusLabel, color = Palette.Forest700)
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(text = title, style = ShareCardTypography.bookTitle, color = Palette.FgPrimaryLight)
+                author?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(text = it, style = ShareCardTypography.bookAuthor, color = Palette.TextMutedLight)
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+                    ShareStat(value = stat1Value, label = stat1Label)
+                    ShareStat(value = stat2Value, label = stat2Label)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.xl))
+        HorizontalDivider(color = Palette.Cream300)
+        Spacer(modifier = Modifier.height(Spacing.md))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            ShareCardCaption(text = footerLeft, color = Palette.TextMutedLight)
+            ShareCardCaption(text = footerRight, color = Palette.TextMutedLight)
+        }
+    }
+}
+
+@Composable
+private fun ShareStat(value: String, label: String) {
+    Column {
+        Text(text = value, style = ShareCardTypography.statValue, color = Palette.FgPrimaryLight)
+        ShareCardCaption(text = label, color = Palette.TextMutedLight)
     }
 }

@@ -36,4 +36,5 @@ object Sizes {
     val shareCardWidth = 320.dp
     val shareCardCoverWidth = 96.dp
     val shareCardQuoteMarkHeight = 40.dp
+    val shareCardAccentBarWidth = 2.dp
 }

@@ -71,3 +71,16 @@ val VayanaTypography = Typography(
     labelMedium = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
     labelSmall = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 14.sp),
 )
+
+/** Fixed-brand type styles for the share-card templates (§ share-card handoff), independent of app theme. */
+object ShareCardTypography {
+    val wordmark = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+    val quoteMark = TextStyle(fontFamily = FontFamilies.Display, fontSize = 22.sp)
+    val quoteBody = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Medium, fontSize = 21.sp, lineHeight = 30.sp)
+    val cardTitleDark = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    val cardSubtitleMono = TextStyle(fontFamily = FontFamilies.Mono, fontSize = 12.sp)
+    val caption = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 1.5.sp)
+    val bookTitle = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 26.sp)
+    val bookAuthor = TextStyle(fontFamily = FontFamilies.Display, fontSize = 14.sp)
+    val statValue = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+}

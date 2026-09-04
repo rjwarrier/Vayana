@@ -403,7 +403,9 @@ private fun NotesScreen(
                 text = quoteText,
                 author = book?.author,
                 bookTitle = book?.title,
+                pageLabel = annotation.chapterTitle,
                 watermark = stringResource(R.string.share_card_watermark),
+                footerRight = stringResource(R.string.share_card_tagline),
             )
         }
     }

@@ -145,6 +145,12 @@
     <string name="share_card_share_text">Share text</string>
     <string name="share_card_share_image">Share image</string>
     <string name="share_card_image_chooser_title">Share image</string>
+    <string name="share_card_tagline">read, undisturbed</string>
+    <string name="share_card_status_finished">Just finished</string>
+    <string name="share_card_status_progress">%1$d%% read</string>
+    <string name="share_card_stat_progress_label">progress</string>
+    <string name="share_card_stat_read_time_label">read time</string>
+    <string name="share_card_stat_hours">%1$dh %2$dm</string>
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>

@@ -94,6 +94,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.shareText as shareTextWithChooser
+import com.vayana.core.designsystem.sharecard.BookShareCard
 import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1148,10 +1149,25 @@ private fun BookDetailScreen(
             shareTextLabel = stringResource(R.string.share_card_share_text),
             shareImageLabel = stringResource(R.string.share_card_share_image),
         ) {
+            val readSeconds = book.totalReadingSeconds
             BookShareCard(
-                book = book,
+                title = book.title,
+                author = book.author,
+                statusLabel = if (book.finishedReadingAt != null) {
+                    stringResource(R.string.share_card_status_finished)
+                } else {
+                    stringResource(R.string.share_card_status_progress, (book.readingPercent * 100).toInt())
+                },
+                stat1Value = "${(book.readingPercent * 100).toInt()}%",
+                stat1Label = stringResource(R.string.share_card_stat_progress_label),
+                stat2Value = stringResource(R.string.share_card_stat_hours, (readSeconds / 3600).toInt(), ((readSeconds % 3600) / 60).toInt()),
+                stat2Label = stringResource(R.string.share_card_stat_read_time_label),
+                footerLeft = stringResource(R.string.library_imported_on, book.createdAt.formatDate()),
+                footerRight = stringResource(R.string.share_card_tagline),
                 watermark = stringResource(R.string.share_card_watermark),
-            )
+            ) {
+                BookCover(book = book)
+            }
         }
     }
 }
@@ -1561,76 +1577,6 @@ private fun BookCover(book: Book, modifier: Modifier = Modifier) {
         )
     } else {
         GeneratedCover(title = book.title, author = book.author, modifier = modifier)
-    }
-}
-
-@Composable
-private fun BookShareCard(book: Book, watermark: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .width(Sizes.shareCardWidth)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.tertiaryContainer,
-                    ),
-                ),
-            )
-            .padding(Spacing.xl),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-    ) {
-        BookCover(
-            book = book,
-            modifier = Modifier
-                .width(Sizes.shareCardCoverWidth)
-                .heightIn(max = Sizes.shareCardCoverWidth / Sizes.coverAspectRatio),
-        )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            book.author?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-        Surface(
-            shape = RoundedCornerShape(Radii.full),
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-        ) {
-            Text(
-                text = stringResource(R.string.library_share_book_progress, (book.readingPercent * 100).toInt()),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-            )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Outlined.AutoStories,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                modifier = Modifier.size(Sizes.iconSmall),
-            )
-            Spacer(modifier = Modifier.width(Spacing.xs))
-            Text(
-                text = watermark,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-            )
-        }
     }
 }
 
