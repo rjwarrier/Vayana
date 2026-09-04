@@ -10,6 +10,9 @@ interface WordLookupStatDao {
     @Query("SELECT * FROM word_lookup_stats ORDER BY count DESC, lastLookedUpAt DESC LIMIT :limit")
     fun observeTop(limit: Int): Flow<List<WordLookupStatEntity>>
 
+    @Query("SELECT * FROM word_lookup_stats ORDER BY lastLookedUpAt DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<WordLookupStatEntity>>
+
     @Query(
         """
         INSERT INTO word_lookup_stats (word, count, lastLookedUpAt)

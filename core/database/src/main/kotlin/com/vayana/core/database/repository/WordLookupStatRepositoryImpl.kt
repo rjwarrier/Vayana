@@ -14,6 +14,9 @@ class WordLookupStatRepositoryImpl @Inject constructor(
     override fun observeTop(limit: Int): Flow<List<WordLookupStat>> =
         dao.observeTop(limit).map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeRecent(limit: Int): Flow<List<WordLookupStat>> =
+        dao.observeRecent(limit).map { entities -> entities.map { it.toDomain() } }
+
     override suspend fun recordLookup(word: String) {
         dao.recordLookup(word, System.currentTimeMillis())
     }

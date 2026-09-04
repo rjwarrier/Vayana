@@ -87,6 +87,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot = SettingsSnapshot(
     readerKeepAwake = read(SettingsRegistry.ReaderKeepAwake),
     readerShowHeaders = read(SettingsRegistry.ReaderShowHeaders),
     readerShowFooter = read(SettingsRegistry.ReaderShowFooter),
+    readerAutoMarkSelection = read(SettingsRegistry.ReaderAutoMarkSelection),
 )
 
 @Suppress("UNCHECKED_CAST")

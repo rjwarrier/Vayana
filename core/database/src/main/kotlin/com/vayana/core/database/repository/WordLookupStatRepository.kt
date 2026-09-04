@@ -5,5 +5,6 @@ import kotlinx.coroutines.flow.Flow
 
 interface WordLookupStatRepository {
     fun observeTop(limit: Int): Flow<List<WordLookupStat>>
+    fun observeRecent(limit: Int): Flow<List<WordLookupStat>>
     suspend fun recordLookup(word: String)
 }

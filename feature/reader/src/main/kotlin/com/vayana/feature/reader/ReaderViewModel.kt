@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -51,6 +52,7 @@ sealed interface ReaderUiState {
     data object Loading : ReaderUiState
     data class Loaded(
         val bookTitle: String,
+        val bookAuthor: String? = null,
         val toc: List<com.vayana.reader.api.TocEntry>,
         val currentLocator: Locator?,
         val annotations: List<Annotation> = emptyList(),
@@ -92,6 +94,10 @@ class ReaderViewModel @Inject constructor(
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
 
+    val recentLookups: StateFlow<List<String>> = wordLookupStatRepository.observeRecent(RecentLookupsLimit)
+        .map { stats -> stats.map { it.word } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private var boundEngine: BookEngine? = null
     private var bookOpen = false
     private val engineJobs = mutableListOf<Job>()
@@ -99,6 +105,8 @@ class ReaderViewModel @Inject constructor(
     private var dictionaryInstallJob: Job? = null
     private var pendingDictionaryWord: String? = null
     private var dictionaryPickerActive = false
+    private var lastUsedHighlightColor: String = DefaultAnnotationColor
+    private var autoMarkedSelectionCfi: String? = null
 
     /** Called once the [BookEngine] exists (i.e. once the WebView has been created by the Compose factory). */
     @OptIn(FlowPreview::class)
@@ -127,7 +135,12 @@ class ReaderViewModel @Inject constructor(
                     viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
                     onResume()
                     applyReaderStyle(engine, settings.value)
-                    _uiState.value = ReaderUiState.Loaded(bookTitle = openBook.title, toc = openBook.toc, currentLocator = resumeLocator)
+                    _uiState.value = ReaderUiState.Loaded(
+                        bookTitle = openBook.title,
+                        bookAuthor = book.author,
+                        toc = openBook.toc,
+                        currentLocator = resumeLocator,
+                    )
                     observeAnnotations(engine)
                     if (!targetLocator.isNullOrBlank()) {
                         engine.goTo(NavTarget.ToLocator(Locator(cfi = targetLocator, href = null, progression = 0f, chapterTitle = null)))
@@ -155,6 +168,7 @@ class ReaderViewModel @Inject constructor(
                             if (current is ReaderUiState.Loaded) current.copy(selection = event.selection) else current
                         }
                         lookupSelection(event.selection?.selectedText)
+                        maybeAutoMarkSelection(event.selection)
                     }
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
@@ -227,7 +241,28 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun createHighlight(colorKey: String = DefaultAnnotationColor) {
+        lastUsedHighlightColor = colorKey
         createAnnotation(type = AnnotationType.HIGHLIGHT, colorKey = colorKey, readerNote = null)
+    }
+
+    private fun maybeAutoMarkSelection(selection: ReaderSelection?) {
+        if (selection == null) {
+            autoMarkedSelectionCfi = null
+            return
+        }
+        if (!settings.value.readerAutoMarkSelection || selection.cfi == autoMarkedSelectionCfi) return
+        autoMarkedSelectionCfi = selection.cfi
+        createHighlight(lastUsedHighlightColor)
+    }
+
+    /** Re-runs a dictionary lookup for an arbitrary word (e.g. tapping a synonym), independent of any live selection. */
+    fun lookupWord(word: String) {
+        lookupSelection(word)
+    }
+
+    fun saveLookupAsNote(entry: DictionaryEntry) {
+        val definition = entry.senses.firstOrNull()?.definition ?: return
+        createNote("${entry.headword}: $definition")
     }
 
     fun createUnderline() {
@@ -512,4 +547,5 @@ private fun String.toDictionaryWord(): String? {
 private const val DefaultAnnotationColor = "yellow"
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
+private const val RecentLookupsLimit = 5
 private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")

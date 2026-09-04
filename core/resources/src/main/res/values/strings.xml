@@ -131,6 +131,8 @@
     <string name="notes_filter_notes">Notes</string>
     <string name="notes_filter_bookmarks">Bookmarks</string>
     <string name="notes_filter_underlines">Underlines</string>
+    <string name="notes_section_user">User Notes (%1$d)</string>
+    <string name="notes_section_community">Community (%1$d)</string>
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>
@@ -241,6 +243,8 @@
     <string name="settings_reader_volume_keys_subtitle">Use volume up for previous page and volume down for next page.</string>
     <string name="settings_reader_keep_awake_title">Keep screen awake</string>
     <string name="settings_reader_keep_awake_subtitle">Prevent sleep while the reader is open.</string>
+    <string name="settings_reader_auto_mark_selection_title">Auto-mark selection</string>
+    <string name="settings_reader_auto_mark_selection_subtitle">Selecting text immediately highlights it in your last-used color.</string>
 
     <string name="reader_contents">Contents</string>
     <string name="reader_notes">Notes</string>
@@ -261,6 +265,9 @@
     <string name="reader_dictionary_not_found">No definition found for “%1$s”.</string>
     <string name="reader_dictionary_choose_another">Choose another ZIP</string>
     <string name="reader_dictionary_synonyms">Synonyms: %1$s</string>
+    <string name="reader_dictionary_recent_lookups">Recent lookups</string>
+    <string name="reader_dictionary_copy">Copy definition</string>
+    <string name="reader_dictionary_add_to_notes">Add to notes</string>
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
     <string name="reader_bookmarks_add_current">Add bookmark at current position</string>
     <string name="reader_bookmarks_empty">No bookmarks in this book yet.</string>

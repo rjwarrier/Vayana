@@ -599,17 +599,48 @@ private fun BookNotesDetailList(
         item {
             BookNotesHero(bookItem = bookItem, onOpenBook = onOpenBook)
         }
-        items(annotations, key = { it.id }) { annotation ->
-            AnnotationCard(
-                annotation = annotation,
-                onClick = { onAnnotationClick(annotation) },
-                onEdit = { onEdit(annotation) },
-                onDelete = { onDelete(annotation) },
-                modifier = Modifier.animateItem(),
-            )
+        val userAnnotations = annotations.filterNot { it.isCommunityQuote() }
+        val communityAnnotations = annotations.filter { it.isCommunityQuote() }
+        if (userAnnotations.isNotEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.notes_section_user, userAnnotations.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+            }
+            items(userAnnotations, key = { it.id }) { annotation ->
+                AnnotationCard(
+                    annotation = annotation,
+                    onClick = { onAnnotationClick(annotation) },
+                    onEdit = { onEdit(annotation) },
+                    onDelete = { onDelete(annotation) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
+        if (communityAnnotations.isNotEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.notes_section_community, communityAnnotations.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+            }
+            items(communityAnnotations, key = { it.id }) { annotation ->
+                AnnotationCard(
+                    annotation = annotation,
+                    onClick = { onAnnotationClick(annotation) },
+                    onEdit = { onEdit(annotation) },
+                    onDelete = { onDelete(annotation) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
         }
     }
 }
+
+private fun Annotation.isCommunityQuote(): Boolean = locator.startsWith("quote:")
 
 @Composable
 private fun BookNotesHero(

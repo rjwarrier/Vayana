@@ -53,6 +53,7 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
@@ -93,6 +94,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -125,6 +127,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.PartOfSpeech
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.Locator
@@ -140,6 +143,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val dictionaryLookup by viewModel.dictionaryLookup.collectAsState()
+    val recentLookups by viewModel.recentLookups.collectAsState()
     val context = LocalContext.current
     val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
@@ -154,6 +158,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         uiState = uiState,
         settings = settings,
         dictionaryLookup = dictionaryLookup,
+        recentLookups = recentLookups,
+        onLookupWord = viewModel::lookupWord,
+        onSaveLookupAsNote = viewModel::saveLookupAsNote,
         onEngineReady = viewModel::bindEngine,
         onTapPrevious = viewModel::previousPage,
         onTapNext = viewModel::nextPage,
@@ -204,6 +211,9 @@ private fun ReaderScreen(
     uiState: ReaderUiState,
     settings: SettingsSnapshot,
     dictionaryLookup: DictionaryLookupState,
+    recentLookups: List<String>,
+    onLookupWord: (String) -> Unit,
+    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
     onEngineReady: (BookEngine) -> Unit,
     onTapPrevious: () -> Unit,
     onTapNext: () -> Unit,
@@ -479,7 +489,8 @@ private fun ReaderScreen(
             )
         }
 
-        val selection = (uiState as? ReaderUiState.Loaded)?.selection
+        val loadedState = uiState as? ReaderUiState.Loaded
+        val selection = loadedState?.selection
         val dictionaryWord = dictionaryLookup.wordOrNull()
         val placeSelectionCardAtBottom = selection?.verticalPosition?.let { it < 0.5f } == true
         AnimatedVisibility(
@@ -500,15 +511,24 @@ private fun ReaderScreen(
                     selectedText = selection?.selectedText ?: dictionaryWord.orEmpty(),
                     selectionActionsEnabled = selection != null,
                     dictionaryLookup = dictionaryLookup,
+                    recentLookups = recentLookups,
                     onHighlight = onCreateHighlight,
                     onUnderline = onCreateUnderline,
                     onCopy = {
-                        context.copyTextToClipboard(selection?.selectedText.orEmpty())
+                        val citation = buildQuoteCitation(
+                            text = selection?.selectedText.orEmpty(),
+                            bookTitle = loadedState?.bookTitle,
+                            author = loadedState?.bookAuthor,
+                            chapterTitle = selection?.chapterTitle,
+                        )
+                        context.copyTextToClipboard(citation)
                         onClearSelection()
                     },
                     onNote = { noteDialogVisible = true },
                     onDownloadDictionary = onDownloadDictionary,
                     onInstallDictionary = onInstallDictionary,
+                    onLookupWord = onLookupWord,
+                    onSaveLookupAsNote = onSaveLookupAsNote,
                 )
             }
         }
@@ -717,12 +737,15 @@ private fun SelectionActions(
     selectedText: String,
     selectionActionsEnabled: Boolean,
     dictionaryLookup: DictionaryLookupState,
+    recentLookups: List<String>,
     onHighlight: (String) -> Unit,
     onUnderline: () -> Unit,
     onCopy: () -> Unit,
     onNote: () -> Unit,
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
+    onLookupWord: (String) -> Unit,
+    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         Surface(
@@ -750,8 +773,11 @@ private fun SelectionActions(
             }
             DictionaryLookupContent(
                 state = dictionaryLookup,
+                recentLookups = recentLookups,
                 onDownloadDictionary = onDownloadDictionary,
                 onInstallDictionary = onInstallDictionary,
+                onLookupWord = onLookupWord,
+                onSaveLookupAsNote = onSaveLookupAsNote,
             )
             if (selectionActionsEnabled) {
                 Row(
@@ -797,9 +823,13 @@ private fun SelectionActions(
 @Composable
 private fun DictionaryLookupContent(
     state: DictionaryLookupState,
+    recentLookups: List<String>,
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
+    onLookupWord: (String) -> Unit,
+    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
 ) {
+    val context = LocalContext.current
     when (state) {
         DictionaryLookupState.Hidden -> Unit
         is DictionaryLookupState.LookingUp,
@@ -835,6 +865,24 @@ private fun DictionaryLookupContent(
                     Text(stringResource(R.string.reader_dictionary_install_zip))
                 }
             }
+            if (recentLookups.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.reader_dictionary_recent_lookups),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+                Row(
+                    modifier = Modifier
+                        .padding(top = Spacing.xs)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    recentLookups.forEach { word ->
+                        AssistChip(onClick = { onLookupWord(word) }, label = { Text(word) })
+                    }
+                }
+            }
         }
         is DictionaryLookupState.Found -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
             Text(
@@ -856,19 +904,53 @@ private fun DictionaryLookupContent(
                 }
                 val otherSynonyms = sense.synonyms.filterNot { it.equals(state.entry.headword, ignoreCase = true) }
                 if (otherSynonyms.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.reader_dictionary_synonyms, otherSynonyms.joinToString(", ")),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Row(
+                        modifier = Modifier
+                            .padding(top = Spacing.xs)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        otherSynonyms.forEach { synonym ->
+                            Text(
+                                text = synonym,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline,
+                                modifier = Modifier.clickable { onLookupWord(synonym) },
+                            )
+                        }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.padding(top = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = state.entry.attribution,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = {
+                    val definition = state.entry.senses.firstOrNull()?.definition.orEmpty()
+                    context.copyTextToClipboard("${state.entry.headword}: $definition")
+                }) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = stringResource(R.string.reader_dictionary_copy),
+                        modifier = Modifier.size(Sizes.iconSmall),
+                    )
+                }
+                IconButton(onClick = { onSaveLookupAsNote(state.entry) }) {
+                    Icon(
+                        imageVector = Icons.Outlined.EditNote,
+                        contentDescription = stringResource(R.string.reader_dictionary_add_to_notes),
+                        modifier = Modifier.size(Sizes.iconSmall),
                     )
                 }
             }
-            Text(
-                text = state.entry.attribution,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
         }
         is DictionaryLookupState.NotFound -> Text(
             text = stringResource(R.string.reader_dictionary_not_found, state.word),
@@ -887,6 +969,13 @@ private fun DictionaryLookupContent(
             }
         }
     }
+}
+
+private fun buildQuoteCitation(text: String, bookTitle: String?, author: String?, chapterTitle: String?): String {
+    if (text.isBlank()) return text
+    val source = listOfNotNull(author, bookTitle, chapterTitle).filter { it.isNotBlank() }
+    if (source.isEmpty()) return text
+    return "“$text”\n— ${source.joinToString(", ")}"
 }
 
 private fun PartOfSpeech.shortLabel(): String = when (this) {
