@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -127,6 +128,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.core.common.QuoteCitation
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.PartOfSpeech
 import com.vayana.reader.api.BookEngine
@@ -515,16 +517,25 @@ private fun ReaderScreen(
                     onHighlight = onCreateHighlight,
                     onUnderline = onCreateUnderline,
                     onCopy = {
-                        val citation = buildQuoteCitation(
+                        val citation = QuoteCitation.format(
                             text = selection?.selectedText.orEmpty(),
-                            bookTitle = loadedState?.bookTitle,
                             author = loadedState?.bookAuthor,
+                            bookTitle = loadedState?.bookTitle,
                             chapterTitle = selection?.chapterTitle,
                         )
                         context.copyTextToClipboard(citation)
                         onClearSelection()
                     },
                     onNote = { noteDialogVisible = true },
+                    onShare = {
+                        val citation = QuoteCitation.format(
+                            text = selection?.selectedText.orEmpty(),
+                            author = loadedState?.bookAuthor,
+                            bookTitle = loadedState?.bookTitle,
+                            chapterTitle = selection?.chapterTitle,
+                        )
+                        context.shareText(citation)
+                    },
                     onDownloadDictionary = onDownloadDictionary,
                     onInstallDictionary = onInstallDictionary,
                     onLookupWord = onLookupWord,
@@ -742,6 +753,7 @@ private fun SelectionActions(
     onUnderline: () -> Unit,
     onCopy: () -> Unit,
     onNote: () -> Unit,
+    onShare: () -> Unit,
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
@@ -812,6 +824,14 @@ private fun SelectionActions(
                     }
                     FilledTonalButton(onClick = onNote) {
                         Text(stringResource(R.string.reader_selection_note))
+                    }
+                    FilledTonalButton(onClick = onShare) {
+                        Icon(
+                            imageVector = Icons.Outlined.Share,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                        Text(stringResource(R.string.reader_selection_share))
                     }
                 }
             }
@@ -969,13 +989,6 @@ private fun DictionaryLookupContent(
             }
         }
     }
-}
-
-private fun buildQuoteCitation(text: String, bookTitle: String?, author: String?, chapterTitle: String?): String {
-    if (text.isBlank()) return text
-    val source = listOfNotNull(author, bookTitle, chapterTitle).filter { it.isNotBlank() }
-    if (source.isEmpty()) return text
-    return "“$text”\n— ${source.joinToString(", ")}"
 }
 
 private fun PartOfSpeech.shortLabel(): String = when (this) {
@@ -1598,4 +1611,12 @@ private fun Context.copyTextToClipboard(text: String) {
     val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText(getString(R.string.app_name), text)
     clipboardManager.setPrimaryClip(clip)
+}
+
+private fun Context.shareText(text: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    startActivity(Intent.createChooser(intent, getString(R.string.reader_selection_share)))
 }

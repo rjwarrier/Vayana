@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":reader:engine-api"))
     implementation(project(":reader:engine-web"))
     implementation(project(":core:database"))

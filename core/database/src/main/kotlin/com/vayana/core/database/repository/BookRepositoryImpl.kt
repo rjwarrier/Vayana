@@ -112,6 +112,10 @@ class BookRepositoryImpl @Inject constructor(
     override suspend fun softDelete(id: Long) {
         bookDao.softDelete(id, System.currentTimeMillis())
     }
+
+    override suspend fun markFinished(id: Long) {
+        bookDao.markFinished(id, System.currentTimeMillis())
+    }
 }
 
 private fun BookEntity.toDomain(): Book = Book(

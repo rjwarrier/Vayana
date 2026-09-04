@@ -74,4 +74,12 @@ interface BookDao {
             "lastReadAt = :timestamp, updatedAt = :timestamp WHERE id = :id",
     )
     suspend fun recordBookOpened(id: Long, timestamp: Long)
+
+    @Query(
+        "UPDATE books SET readingPercent = 1.0, " +
+            "startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :timestamp ELSE startedReadingAt END, " +
+            "finishedReadingAt = CASE WHEN finishedReadingAt IS NULL THEN :timestamp ELSE finishedReadingAt END, " +
+            "updatedAt = :timestamp WHERE id = :id",
+    )
+    suspend fun markFinished(id: Long, timestamp: Long)
 }

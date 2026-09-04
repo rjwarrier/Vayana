@@ -47,4 +47,6 @@ interface BookRepository {
     ): Boolean
 
     suspend fun softDelete(id: Long)
+
+    suspend fun markFinished(id: Long)
 }

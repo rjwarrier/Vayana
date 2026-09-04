@@ -82,6 +82,8 @@
     <string name="library_quotes_imported_message">Successfully imported %1$d quotes as highlights</string>
     <string name="library_share_file">Share file</string>
     <string name="library_replace_source_file">Replace source file</string>
+    <string name="library_mark_finished">Mark as finished</string>
+    <string name="library_marked_finished">Marked as finished</string>
     <string name="library_source_replaced">Source file replaced</string>
     <string name="library_source_duplicate">That file is already in your library.</string>
     <string name="library_source_unsupported">Only EPUB replacement is supported right now.</string>
@@ -133,6 +135,10 @@
     <string name="notes_filter_underlines">Underlines</string>
     <string name="notes_section_user">User Notes (%1$d)</string>
     <string name="notes_section_community">Community (%1$d)</string>
+    <string name="notes_source_all">All</string>
+    <string name="notes_source_mine">Mine</string>
+    <string name="notes_source_community">Community</string>
+    <string name="notes_share_content_description">Share</string>
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>
@@ -144,6 +150,8 @@
     <string name="notes_delete_title">Delete this note?</string>
     <string name="notes_delete_body">This removes the saved note or highlight from your library.</string>
     <string name="notes_delete_confirm">Delete</string>
+    <string name="notes_delete_undo_message">Note deleted</string>
+    <string name="notes_delete_undo_action">Undo</string>
 
     <string name="statistics_title">Statistics</string>
     <string name="statistics_empty_title">Nothing to show yet</string>
@@ -257,6 +265,7 @@
     <string name="reader_selection_underline">Underline</string>
     <string name="reader_selection_copy">Copy</string>
     <string name="reader_selection_note">Note</string>
+    <string name="reader_selection_share">Share</string>
     <string name="reader_dictionary_pack_required">To look up this word offline, get the free English dictionary ZIP, then install it here.</string>
     <string name="reader_dictionary_download">Get dictionary</string>
     <string name="reader_dictionary_install_zip">Install ZIP</string>

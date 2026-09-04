@@ -191,6 +191,9 @@ fun BookDetailRoute(
             viewModel.importQuotesFromFile(bookId, context.contentResolver, uri)
         },
         onDetailMessageShown = viewModel::onBookDetailMessageShown,
+        onMarkFinished = {
+            viewModel.markFinished(bookId)
+        },
         onDeleteBook = {
             viewModel.deleteBook(bookId)
             onBack()
@@ -794,6 +797,7 @@ private fun BookDetailScreen(
     onImportQuotes: (String) -> Unit,
     onImportQuotesFile: (Uri) -> Unit,
     onDetailMessageShown: () -> Unit,
+    onMarkFinished: () -> Unit,
     onDeleteBook: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1037,6 +1041,12 @@ private fun BookDetailScreen(
                         ElevatedButton(onClick = { sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.AutoStories, contentDescription = null)
                             Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
+                        }
+                        if (book.finishedReadingAt == null && book.readingPercent < 1f) {
+                            ElevatedButton(onClick = onMarkFinished, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Outlined.Check, contentDescription = null)
+                                Text(text = stringResource(R.string.library_mark_finished), modifier = Modifier.padding(start = Spacing.sm))
+                            }
                         }
                         TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Delete, contentDescription = null)
@@ -1668,6 +1678,7 @@ private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.SOURCE_UNSUPPORTED -> stringResource(R.string.library_source_unsupported)
     BookDetailMessage.SOURCE_FAILED -> stringResource(R.string.library_source_failed)
     is BookDetailMessage.QUOTES_IMPORTED -> stringResource(R.string.library_quotes_imported_message, count)
+    BookDetailMessage.MARKED_FINISHED -> stringResource(R.string.library_marked_finished)
 }
 
 private fun android.content.Context.shareBookFile(book: Book) {

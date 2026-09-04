@@ -49,6 +49,7 @@ sealed interface BookDetailMessage {
     data object SOURCE_UNSUPPORTED : BookDetailMessage
     data object SOURCE_FAILED : BookDetailMessage
     data class QUOTES_IMPORTED(val count: Int) : BookDetailMessage
+    data object MARKED_FINISHED : BookDetailMessage
 }
 
 data class ImportProgressRow(
@@ -158,6 +159,13 @@ class LibraryViewModel @Inject constructor(
                 description = description.trim().ifBlank { null },
             )
             _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
+        }
+    }
+
+    fun markFinished(bookId: Long) {
+        viewModelScope.launch {
+            bookRepository.markFinished(bookId)
+            _bookDetailMessage.value = BookDetailMessage.MARKED_FINISHED
         }
     }
 

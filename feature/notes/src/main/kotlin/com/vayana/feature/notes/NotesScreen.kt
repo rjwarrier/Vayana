@@ -46,6 +46,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +57,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +71,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.common.QuoteCitation
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
@@ -81,6 +86,7 @@ import com.vayana.core.resources.R
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 @Composable
 fun NotesRoute(
@@ -110,11 +116,15 @@ private fun NotesScreen(
     onDeleteAnnotation: (Long) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var selectedBookId by remember { mutableStateOf<Long?>(null) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(NotesFilter.ALL) }
+    var sourceFilter by remember { mutableStateOf(NotesSourceFilter.ALL) }
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
 
     val activeBookItem = remember(selectedBookId, booksWithNotes) {
         booksWithNotes.firstOrNull { it.book.id == selectedBookId }
@@ -122,6 +132,7 @@ private fun NotesScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             Column(
                 modifier = Modifier
@@ -210,6 +221,23 @@ private fun NotesScreen(
                                 )
                             }
                         }
+                        if (activeBookItem.annotations.any { it.isCommunityQuote() }) {
+                            Row(
+                                modifier = Modifier
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(top = Spacing.xs),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            ) {
+                                NotesSourceFilter.entries.forEach { option ->
+                                    FilterChip(
+                                        selected = sourceFilter == option,
+                                        onClick = { sourceFilter = option },
+                                        label = { Text(option.label()) },
+                                        shape = RoundedCornerShape(Radii.full),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -236,8 +264,17 @@ private fun NotesScreen(
                     )
                 }
             } else {
-                val visibleAnnotations = remember(bookItem.annotations, query, filter) {
-                    bookItem.annotations.filterByQuery(query, filter)
+                val visibleAnnotations = remember(bookItem.annotations, query, filter, sourceFilter, pendingDeleteId) {
+                    bookItem.annotations
+                        .filterByQuery(query, filter)
+                        .filter { annotation ->
+                            when (sourceFilter) {
+                                NotesSourceFilter.ALL -> true
+                                NotesSourceFilter.MINE -> !annotation.isCommunityQuote()
+                                NotesSourceFilter.COMMUNITY -> annotation.isCommunityQuote()
+                            }
+                        }
+                        .filterNot { it.id == pendingDeleteId }
                 }
                 if (visibleAnnotations.isEmpty()) {
                     NotesNoMatchesState(contentPadding = innerPadding)
@@ -255,6 +292,16 @@ private fun NotesScreen(
                         },
                         onEdit = { editingAnnotation = it },
                         onDelete = { deletingAnnotation = it },
+                        onShare = { annotation ->
+                            context.shareText(
+                                QuoteCitation.format(
+                                    text = annotation.selectedText.ifBlank { annotation.readerNote.orEmpty() },
+                                    author = bookItem.book.author,
+                                    bookTitle = bookItem.book.title,
+                                    chapterTitle = annotation.chapterTitle,
+                                ),
+                            )
+                        },
                     )
                 }
             }
@@ -294,7 +341,19 @@ private fun NotesScreen(
                 Button(
                     onClick = {
                         deletingAnnotation = null
-                        onDeleteAnnotation(annotation.id)
+                        pendingDeleteId = annotation.id
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.notes_delete_undo_message),
+                                actionLabel = context.getString(R.string.notes_delete_undo_action),
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                pendingDeleteId = null
+                            } else {
+                                onDeleteAnnotation(annotation.id)
+                                pendingDeleteId = null
+                            }
+                        }
                     },
                     shape = RoundedCornerShape(Radii.full),
                     colors = ButtonDefaults.buttonColors(
@@ -585,6 +644,7 @@ private fun BookNotesDetailList(
     onOpenBook: () -> Unit,
     onEdit: (Annotation) -> Unit,
     onDelete: (Annotation) -> Unit,
+    onShare: (Annotation) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -615,6 +675,7 @@ private fun BookNotesDetailList(
                     onClick = { onAnnotationClick(annotation) },
                     onEdit = { onEdit(annotation) },
                     onDelete = { onDelete(annotation) },
+                    onShare = { onShare(annotation) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -633,6 +694,7 @@ private fun BookNotesDetailList(
                     onClick = { onAnnotationClick(annotation) },
                     onEdit = { onEdit(annotation) },
                     onDelete = { onDelete(annotation) },
+                    onShare = { onShare(annotation) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -702,6 +764,7 @@ private fun AnnotationCard(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onShare: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -813,6 +876,13 @@ private fun AnnotationCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    IconButton(onClick = onShare) {
+                        Icon(
+                            imageVector = Icons.Outlined.Share,
+                            contentDescription = stringResource(R.string.notes_share_content_description),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(
                             imageVector = Icons.Outlined.Edit,
@@ -842,6 +912,15 @@ private fun NotesFilter.label(): String = when (this) {
     NotesFilter.NOTES -> stringResource(R.string.notes_filter_notes)
     NotesFilter.BOOKMARKS -> stringResource(R.string.notes_filter_bookmarks)
     NotesFilter.UNDERLINES -> stringResource(R.string.notes_filter_underlines)
+}
+
+private enum class NotesSourceFilter { ALL, MINE, COMMUNITY }
+
+@Composable
+private fun NotesSourceFilter.label(): String = when (this) {
+    NotesSourceFilter.ALL -> stringResource(R.string.notes_source_all)
+    NotesSourceFilter.MINE -> stringResource(R.string.notes_source_mine)
+    NotesSourceFilter.COMMUNITY -> stringResource(R.string.notes_source_community)
 }
 
 @Composable
@@ -1043,6 +1122,14 @@ private fun List<Annotation>.filterByQuery(query: String, filter: NotesFilter): 
             annotation.chapterTitle.orEmpty().contains(normalizedQuery, ignoreCase = true)
         matchesFilter && matchesQuery
     }
+}
+
+private fun Context.shareText(text: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    startActivity(Intent.createChooser(intent, getString(R.string.notes_share_content_description)))
 }
 
 private fun Context.shareAnnotations(annotations: List<Annotation>) {

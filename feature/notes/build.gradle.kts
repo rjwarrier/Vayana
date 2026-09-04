@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":core:database"))
     implementation(project(":core:filesystem"))
     implementation(libs.coil.compose)
