@@ -6,6 +6,7 @@ import com.vayana.core.database.ALL_MIGRATIONS
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.WordLookupStatDao
 import dagger.Module
 import dagger.Provides
@@ -33,4 +34,7 @@ object DatabaseModule {
 
     @Provides
     fun provideWordLookupStatDao(database: VayanaDatabase): WordLookupStatDao = database.wordLookupStatDao()
+
+    @Provides
+    fun provideReadingSessionDao(database: VayanaDatabase): ReadingSessionDao = database.readingSessionDao()
 }

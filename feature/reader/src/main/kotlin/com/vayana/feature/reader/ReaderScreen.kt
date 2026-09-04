@@ -1,5 +1,6 @@
 package com.vayana.feature.reader
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -38,6 +39,9 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -325,6 +329,24 @@ private fun ReaderScreen(
         val previous = rootView.keepScreenOn
         rootView.keepScreenOn = settings.readerKeepAwake
         onDispose { rootView.keepScreenOn = previous }
+    }
+
+    // Immersive reading: status bar hides with the rest of the chrome, comes back on tap.
+    DisposableEffect(chromeVisible) {
+        val window = (rootView.context as? Activity)?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, rootView)
+            if (chromeVisible) {
+                controller.show(WindowInsetsCompat.Type.statusBars())
+            } else {
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.statusBars())
+            }
+        }
+        onDispose {
+            val disposeWindow = (rootView.context as? Activity)?.window ?: return@onDispose
+            WindowCompat.getInsetsController(disposeWindow, rootView).show(WindowInsetsCompat.Type.statusBars())
+        }
     }
 
     LaunchedEffect(Unit) {

@@ -8,6 +8,7 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
@@ -80,6 +81,7 @@ class ReaderViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val dictionaryRepository: DictionaryRepository,
     private val wordLookupStatRepository: WordLookupStatRepository,
+    private val readingSessionRepository: ReadingSessionRepository,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -154,6 +156,7 @@ class ReaderViewModel @Inject constructor(
         engineJobs += viewModelScope.launch {
             engine.location.filterNotNull().collect { locator ->
                 locator.cfi?.let { cfi -> bookRepository.updateLocator(bookId, cfi, locator.progression) }
+                onPageMoved()
                 _uiState.update { current ->
                     if (current is ReaderUiState.Loaded) current.copy(currentLocator = locator) else current
                 }
@@ -381,17 +384,30 @@ class ReaderViewModel @Inject constructor(
     private var activeSessionStart: Long = 0L
     private var trackingJob: Job? = null
 
+    /** A page-turn resets this. If it goes stale past [IdleSessionTimeoutMs], the session is over. */
+    private var readingSessionStart: Long = 0L
+    private var lastInteractionAt: Long = 0L
+
     fun onResume() {
         if (bookOpen) {
             activeSessionStart = System.currentTimeMillis()
+            if (readingSessionStart == 0L) readingSessionStart = activeSessionStart
+            lastInteractionAt = activeSessionStart
             startReadingTimeTicker()
         }
     }
 
     fun onPause() {
         flushReadingTime()
+        endReadingSession()
         trackingJob?.cancel()
         trackingJob = null
+    }
+
+    private fun onPageMoved() {
+        val now = System.currentTimeMillis()
+        if (readingSessionStart == 0L) readingSessionStart = now
+        lastInteractionAt = now
     }
 
     private fun startReadingTimeTicker() {
@@ -400,6 +416,7 @@ class ReaderViewModel @Inject constructor(
             while (true) {
                 delay(10_000L)
                 flushReadingTime()
+                checkSessionIdle()
             }
         }
     }
@@ -417,8 +434,24 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    private fun checkSessionIdle() {
+        if (readingSessionStart == 0L) return
+        val idleFor = System.currentTimeMillis() - lastInteractionAt
+        if (idleFor >= IdleSessionTimeoutMs) endReadingSession(endedAt = lastInteractionAt)
+    }
+
+    private fun endReadingSession(endedAt: Long = System.currentTimeMillis()) {
+        val startedAt = readingSessionStart
+        if (startedAt == 0L) return
+        readingSessionStart = 0L
+        viewModelScope.launch {
+            readingSessionRepository.record(bookId, startedAt, endedAt)
+        }
+    }
+
     override fun onCleared() {
         flushReadingTime()
+        endReadingSession()
         trackingJob?.cancel()
         trackingJob = null
         cancelEngineJobs()
@@ -553,4 +586,7 @@ private const val DefaultAnnotationColor = "yellow"
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
 private const val RecentLookupsLimit = 5
+
+/** No page turn for this long ends the current reading session (PROMPT: idle stops a session). */
+private const val IdleSessionTimeoutMs = 5 * 60 * 1000L
 private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")

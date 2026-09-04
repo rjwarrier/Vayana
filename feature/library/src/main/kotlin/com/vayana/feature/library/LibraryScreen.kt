@@ -780,12 +780,12 @@ private fun LibraryHeroCard(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         LinearProgressIndicator(
-                            progress = { (book.readingPercent / 100f).coerceIn(0f, 1f) },
+                            progress = { book.readingPercent.coerceIn(0f, 1f) },
                             modifier = Modifier.weight(1f),
                             strokeCap = StrokeCap.Round,
                         )
                         Text(
-                            text = "${book.readingPercent.toInt()}%",
+                            text = "${(book.readingPercent * 100).toInt()}%",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

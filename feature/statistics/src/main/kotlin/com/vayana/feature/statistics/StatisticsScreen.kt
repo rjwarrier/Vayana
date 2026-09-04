@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -117,6 +118,19 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
                 supportingText = stringResource(R.string.statistics_notes_total_support, summary.notesWithText),
             )
         }
+        if (summary.sessionCount > 0) {
+            item {
+                StatisticTile(
+                    icon = Icons.Outlined.Timer,
+                    title = stringResource(R.string.statistics_sessions_title),
+                    value = stringResource(R.string.statistics_sessions_value, summary.sessionCount),
+                    supportingText = stringResource(
+                        R.string.statistics_sessions_support,
+                        formatSessionDuration(summary.longestSessionSeconds),
+                    ),
+                )
+            }
+        }
         if (summary.topLookedUpWords.isNotEmpty()) {
             item {
                 TopWordsCard(words = summary.topLookedUpWords)
@@ -194,6 +208,18 @@ private fun StatisticTile(icon: ImageVector, title: String, value: String, suppo
             }
             Text(text = value, style = MaterialTheme.typography.headlineSmall)
         }
+    }
+}
+
+@Composable
+private fun formatSessionDuration(seconds: Long): String {
+    val totalMinutes = (seconds / 60L).toInt().coerceAtLeast(1)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) {
+        stringResource(R.string.reader_duration_hours_minutes, hours, minutes)
+    } else {
+        stringResource(R.string.reader_duration_minutes, minutes)
     }
 }
 

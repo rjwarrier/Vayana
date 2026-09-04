@@ -4,6 +4,8 @@ import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.AnnotationRepositoryImpl
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.BookRepositoryImpl
+import com.vayana.core.database.repository.ReadingSessionRepository
+import com.vayana.core.database.repository.ReadingSessionRepositoryImpl
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.database.repository.WordLookupStatRepositoryImpl
 import dagger.Binds
@@ -26,4 +28,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindWordLookupStatRepository(impl: WordLookupStatRepositoryImpl): WordLookupStatRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReadingSessionRepository(impl: ReadingSessionRepositoryImpl): ReadingSessionRepository
 }
