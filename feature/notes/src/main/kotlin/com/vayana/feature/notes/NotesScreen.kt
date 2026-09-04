@@ -76,6 +76,7 @@ import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.sharecard.QuoteShareCard
 import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
@@ -292,11 +293,15 @@ private fun NotesScreen(
                         bookItem = bookItem,
                         annotations = visibleAnnotations,
                         onAnnotationClick = { annotation ->
-                            val locator = annotation.locator.ifBlank { "text:${annotation.id}" }
-                            onOpenReader(bookItem.book.id, locator)
+                            if (bookItem.book.format != BookFormat.PHYSICAL) {
+                                val locator = annotation.locator.ifBlank { "text:${annotation.id}" }
+                                onOpenReader(bookItem.book.id, locator)
+                            }
                         },
                         onOpenBook = {
-                            onOpenReader(bookItem.book.id, null)
+                            if (bookItem.book.format != BookFormat.PHYSICAL) {
+                                onOpenReader(bookItem.book.id, null)
+                            }
                         },
                         onEdit = { editingAnnotation = it },
                         onDelete = { deletingAnnotation = it },

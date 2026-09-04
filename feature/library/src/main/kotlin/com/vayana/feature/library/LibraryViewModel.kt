@@ -278,6 +278,25 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /** Adds a file-less entry for a paper book, so it can hold manually-typed quotes/notes. */
+    fun addPhysicalBook(title: String, author: String?) {
+        viewModelScope.launch {
+            withContext(dispatchers.io) {
+                bookRepository.insertIfNew(
+                    title = title,
+                    author = author?.takeIf { it.isNotBlank() },
+                    series = null,
+                    seriesNumber = null,
+                    description = null,
+                    coverPath = null,
+                    filePath = "",
+                    format = BookFormat.PHYSICAL,
+                    fileHash = "physical:${UUID.randomUUID()}",
+                )
+            }
+        }
+    }
+
     private data class ImportCandidate(val uri: Uri, val displayName: String) {
         val id: String = "${uri}#${displayName}"
         val rowName: String = displayName.ifBlank { uri.lastPathSegment.orEmpty() }

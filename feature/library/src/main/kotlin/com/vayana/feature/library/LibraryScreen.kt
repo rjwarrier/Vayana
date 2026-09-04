@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -148,6 +149,7 @@ fun LibraryRoute(onBookClick: (Long) -> Unit, onSettingsClick: () -> Unit, modif
         onImportProgressDismissed = viewModel::onImportProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
+        onAddPhysicalBook = viewModel::addPhysicalBook,
         onBookClick = onBookClick,
         onSettingsClick = onSettingsClick,
         onQueryChange = viewModel::updateQuery,
@@ -217,6 +219,7 @@ private fun LibraryScreen(
     onImportProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
+    onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
     onQueryChange: (String) -> Unit,
@@ -242,6 +245,7 @@ private fun LibraryScreen(
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) onImportFolder(context.contentResolver, uri)
     }
+    var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(importSummaryMessage) {
         val message = importSummaryMessage ?: return@LaunchedEffect
@@ -266,6 +270,7 @@ private fun LibraryScreen(
             LibraryAddFab(
                 onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                 onImportFolder = { folderPicker.launch(null) },
+                onAddPhysicalBook = { showAddPhysicalBookDialog = true },
             )
         },
     ) { innerPadding ->
@@ -287,6 +292,65 @@ private fun LibraryScreen(
             onDismissRequest = onImportProgressDismissed,
         )
     }
+
+    if (showAddPhysicalBookDialog) {
+        AddPhysicalBookDialog(
+            onDismiss = { showAddPhysicalBookDialog = false },
+            onConfirm = { title, author ->
+                onAddPhysicalBook(title, author)
+                showAddPhysicalBookDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun AddPhysicalBookDialog(onDismiss: () -> Unit, onConfirm: (String, String?) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var author by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.library_add_physical_book_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                Text(
+                    text = stringResource(R.string.library_add_physical_book_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.library_add_physical_book_book_title)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = author,
+                    onValueChange = { author = it },
+                    label = { Text(stringResource(R.string.library_add_physical_book_author)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(title.trim(), author.trim().takeIf { it.isNotBlank() }) },
+                enabled = title.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.library_add_physical_book_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
+            }
+        },
+        shape = RoundedCornerShape(Radii.extraLargeIncreased),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    )
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -494,7 +558,7 @@ private fun LibraryTopBar(
 }
 
 @Composable
-private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit) {
+private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit, onAddPhysicalBook: () -> Unit) {
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column {
@@ -544,6 +608,16 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit)
                 onClick = {
                     menuExpanded = false
                     onImportFolder()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.library_add_physical_book)) },
+                leadingIcon = { LibraryAddMenuIcon(Icons.AutoMirrored.Outlined.MenuBook) },
+                modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
+                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
+                onClick = {
+                    menuExpanded = false
+                    onAddPhysicalBook()
                 },
             )
         }
@@ -870,6 +944,7 @@ private fun BookDetailScreen(
                             modifier = Modifier.size(Sizes.iconLarge),
                         )
                     }
+                    if (book.format != BookFormat.PHYSICAL) {
                     FloatingActionButton(
                         onClick = { onContinueReading(book.id) },
                         modifier = Modifier.size(Sizes.fab),
@@ -883,6 +958,7 @@ private fun BookDetailScreen(
                             contentDescription = stringResource(R.string.library_continue_reading),
                             modifier = Modifier.size(Sizes.iconLarge),
                         )
+                    }
                     }
                 }
             }
@@ -1045,15 +1121,17 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_book), modifier = Modifier.padding(start = Spacing.sm))
                         }
-                        ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.Share, contentDescription = null)
-                            Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
+                        if (book.format != BookFormat.PHYSICAL) {
+                            ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Outlined.Share, contentDescription = null)
+                                Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
+                            }
+                            ElevatedButton(onClick = { sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Outlined.AutoStories, contentDescription = null)
+                                Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
+                            }
                         }
-                        ElevatedButton(onClick = { sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.AutoStories, contentDescription = null)
-                            Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
-                        }
-                        if (book.finishedReadingAt == null && book.readingPercent < 1f) {
+                        if (book.format != BookFormat.PHYSICAL && book.finishedReadingAt == null && book.readingPercent < 1f) {
                             ElevatedButton(onClick = onMarkFinished, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Outlined.Check, contentDescription = null)
                                 Text(text = stringResource(R.string.library_mark_finished), modifier = Modifier.padding(start = Spacing.sm))
@@ -1755,6 +1833,7 @@ private fun BookFormat.shareMimeType(): String = when (this) {
     BookFormat.MOBI,
     BookFormat.AZW3,
     BookFormat.FB2,
+    BookFormat.PHYSICAL,
     -> "application/octet-stream"
 }
 

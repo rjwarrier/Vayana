@@ -82,6 +82,12 @@
     <string name="library_quotes_imported_message">Successfully imported %1$d quotes as highlights</string>
     <string name="library_share_file">Share file</string>
     <string name="library_share_book">Share book</string>
+    <string name="library_add_physical_book">Add physical book</string>
+    <string name="library_add_physical_book_title">Add a physical book</string>
+    <string name="library_add_physical_book_hint">Track a paper book you own and jot down quotes as you read it — no file needed.</string>
+    <string name="library_add_physical_book_book_title">Title</string>
+    <string name="library_add_physical_book_author">Author (optional)</string>
+    <string name="library_add_physical_book_confirm">Add book</string>
     <string name="library_share_book_progress">%1$d%% read</string>
     <string name="library_replace_source_file">Replace source file</string>
     <string name="library_mark_finished">Mark as finished</string>
