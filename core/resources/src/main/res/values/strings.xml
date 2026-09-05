@@ -100,6 +100,15 @@
     <string name="library_delete_title">Delete this book?</string>
     <string name="library_delete_body">This removes it from the library. The stored file is kept for maintenance cleanup later.</string>
     <string name="library_delete_confirm">Delete</string>
+    <string name="library_recently_deleted_title">Recently deleted</string>
+    <string name="library_recently_deleted_restore">Restore</string>
+    <string name="library_recently_deleted_empty_title">Nothing deleted</string>
+    <string name="library_recently_deleted_empty_body">Books you delete stay here until you restore or permanently remove them.</string>
+    <string name="library_recently_deleted_purge_title">Delete permanently?</string>
+    <string name="library_recently_deleted_purge_body">"%1$s" and its file record will be removed for good. This cannot be undone.</string>
+    <string name="library_recently_deleted_purge_confirm">Delete forever</string>
+    <string name="library_recently_deleted_purge_content_description">Delete permanently</string>
+    <string name="library_recently_deleted_content_description">Recently deleted books</string>
     <string name="library_sort_import_date">Import date</string>
     <string name="library_sort_title">Title</string>
     <string name="library_sort_author">Author</string>
@@ -160,6 +169,7 @@
     <string name="notes_no_matches_title">No matching notes</string>
     <string name="notes_no_matches_body">Try another word from your highlights or notes.</string>
     <string name="notes_export_content_description">Share notes</string>
+    <string name="notes_export_markdown_content_description">Export as Markdown</string>
     <string name="notes_edit_content_description">Edit note</string>
     <string name="notes_delete_content_description">Delete note</string>
     <string name="notes_edit_title">Edit note</string>
@@ -334,6 +344,7 @@
     <string name="reader_dictionary_copy">Copy definition</string>
     <string name="reader_dictionary_add_to_notes">Add to notes</string>
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
+    <string name="reader_return_to_previous_position_content_description">Back to where you were</string>
     <string name="reader_refresh_screen_content_description">Refresh screen (clear ghosting)</string>
     <string name="reader_bookmarks_add_current">Add bookmark at current position</string>
     <string name="reader_bookmarks_empty">No bookmarks in this book yet.</string>

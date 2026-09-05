@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Search
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.common.QuoteCitation
+import com.vayana.core.common.shareFile
 import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
@@ -180,6 +182,14 @@ private fun NotesScreen(
                                 imageVector = Icons.Outlined.Share,
                                 contentDescription = stringResource(R.string.notes_export_content_description),
                             )
+                        }
+                        activeBookItem?.let { bookItem ->
+                            IconButton(onClick = { context.shareHighlightsMarkdown(bookItem.book, bookItem.annotations) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Description,
+                                    contentDescription = stringResource(R.string.notes_export_markdown_content_description),
+                                )
+                            }
                         }
                     }
                 }
@@ -1186,5 +1196,42 @@ private fun Context.shareAnnotations(annotations: List<Annotation>) {
         putExtra(Intent.EXTRA_TEXT, text)
     }
     startActivity(Intent.createChooser(intent, getString(R.string.notes_export_content_description)))
+}
+
+/** Exports [book]'s highlights/notes as a Markdown file, grouped by chapter, and shares it. */
+private fun Context.shareHighlightsMarkdown(book: Book, annotations: List<Annotation>) {
+    val markdown = buildString {
+        appendLine("# ${book.title}")
+        book.author?.takeIf { it.isNotBlank() }?.let { author -> appendLine("*${author}*") }
+        appendLine()
+
+        annotations
+            .filterNot { it.type == AnnotationType.BOOKMARK && it.selectedText.isBlank() }
+            .groupBy { it.chapterTitle?.takeIf { title -> title.isNotBlank() } }
+            .forEach { (chapterTitle, chapterAnnotations) ->
+                if (chapterTitle != null) {
+                    appendLine("## $chapterTitle")
+                    appendLine()
+                }
+                chapterAnnotations.forEach { annotation ->
+                    if (annotation.selectedText.isNotBlank()) {
+                        appendLine("> ${annotation.selectedText.replace("\n", "\n> ")}")
+                        appendLine()
+                    }
+                    annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
+                        appendLine(note)
+                        appendLine()
+                    }
+                }
+            }
+    }.trim()
+
+    val safeTitle = book.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifBlank { "highlights" }
+    shareFile(
+        content = markdown,
+        fileName = "$safeTitle.md",
+        mimeType = "text/markdown",
+        chooserTitle = getString(R.string.notes_export_markdown_content_description),
+    )
 }
 

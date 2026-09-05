@@ -52,6 +52,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Close
@@ -183,6 +184,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onOpenTocEntry = viewModel::openTocEntry,
         onProgressChange = viewModel::goToProgress,
         onAnnotationClick = viewModel::openAnnotation,
+        onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
         onCreateHighlight = viewModel::createHighlight,
         onCreateUnderline = viewModel::createUnderline,
         onCreateNote = viewModel::createNote,
@@ -241,6 +243,7 @@ private fun ReaderScreen(
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
     onAnnotationClick: (Annotation) -> Unit,
+    onReturnToPreviousPosition: () -> Unit,
     onCreateHighlight: (String) -> Unit,
     onCreateUnderline: () -> Unit,
     onCreateNote: (String) -> Unit,
@@ -552,6 +555,10 @@ private fun ReaderScreen(
                 onAnnotationClick = {
                     chromeVisible = false
                     onAnnotationClick(it)
+                },
+                onReturnToPreviousPosition = {
+                    chromeVisible = false
+                    onReturnToPreviousPosition()
                 },
                 onFontSizeChange = onFontSizeChange,
                 onLineHeightChange = onLineHeightChange,
@@ -1141,6 +1148,7 @@ private fun ReaderChrome(
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
     onAnnotationClick: (Annotation) -> Unit,
+    onReturnToPreviousPosition: () -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -1199,6 +1207,14 @@ private fun ReaderChrome(
                         .padding(horizontal = Sizes.touchTarget),
                 )
                 Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    if ((uiState as? ReaderUiState.Loaded)?.returnLocator != null) {
+                        IconButton(onClick = onReturnToPreviousPosition) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.Undo,
+                                contentDescription = stringResource(R.string.reader_return_to_previous_position_content_description),
+                            )
+                        }
+                    }
                     if (settings.displayProfile == DisplayProfile.E_INK) {
                         IconButton(onClick = onRefreshScreen) {
                             Icon(

@@ -15,6 +15,9 @@ class BookRepositoryImpl @Inject constructor(
     override fun observeAll(): Flow<List<Book>> =
         bookDao.observeAll().map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeDeleted(): Flow<List<Book>> =
+        bookDao.observeDeleted().map { entities -> entities.map { it.toDomain() } }
+
     override suspend fun getById(id: Long): Book? = bookDao.getById(id)?.toDomain()
 
     override suspend fun updateLocator(id: Long, locator: String, readingPercent: Float) {
@@ -111,6 +114,14 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun softDelete(id: Long) {
         bookDao.softDelete(id, System.currentTimeMillis())
+    }
+
+    override suspend fun restore(id: Long) {
+        bookDao.restore(id, System.currentTimeMillis())
+    }
+
+    override suspend fun purge(id: Long) {
+        bookDao.purge(id)
     }
 
     override suspend fun markFinished(id: Long) {

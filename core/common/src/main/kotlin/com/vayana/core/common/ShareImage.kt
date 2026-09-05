@@ -29,3 +29,17 @@ fun Context.shareText(text: String, chooserTitle: String) {
     }
     startActivity(Intent.createChooser(intent, chooserTitle))
 }
+
+/** Writes [content] to a cache file named [fileName] and shares it as [mimeType] via the system share sheet. */
+fun Context.shareFile(content: String, fileName: String, mimeType: String, chooserTitle: String) {
+    val dir = File(cacheDir, "shared_files").apply { mkdirs() }
+    val file = File(dir, fileName)
+    file.writeText(content)
+    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = mimeType
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    startActivity(Intent.createChooser(intent, chooserTitle))
+}

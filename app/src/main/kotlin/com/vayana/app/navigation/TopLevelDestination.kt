@@ -29,6 +29,9 @@ sealed interface TopLevelRoute {
 data object SettingsRoute
 
 @Serializable
+data object RecentlyDeletedRoute
+
+@Serializable
 data class BookDetailRoute(val bookId: Long)
 
 enum class TopLevelDestination(

@@ -12,6 +12,7 @@ import com.vayana.core.designsystem.theme.vayanaNavEnter
 import com.vayana.core.designsystem.theme.vayanaNavExit
 import com.vayana.core.designsystem.theme.vayanaNavPopEnter
 import com.vayana.core.designsystem.theme.vayanaNavPopExit
+import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
 import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
@@ -38,6 +39,7 @@ fun VayanaNavHost(
             LibraryListDetailRoute(
                 navController = navController,
                 onSettingsClick = { navController.navigate(SettingsRoute) },
+                onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
                 onContinueReading = { bookId -> navController.navigate(ReaderRoute(bookId)) },
             )
         }
@@ -51,6 +53,9 @@ fun VayanaNavHost(
         composable<TopLevelRoute.Statistics> { StatisticsRoute() }
         composable<SettingsRoute> {
             SettingsScreenRoute(onBack = { navController.popBackStack() })
+        }
+        composable<RecentlyDeletedRoute> {
+            RecentlyDeletedScreenRoute(onBack = { navController.popBackStack() })
         }
         composable<BookDetailRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<BookDetailRoute>()

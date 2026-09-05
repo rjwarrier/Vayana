@@ -58,6 +58,8 @@ sealed interface ReaderUiState {
         val currentLocator: Locator?,
         val annotations: List<Annotation> = emptyList(),
         val selection: ReaderSelection? = null,
+        /** Position to jump back to via [ReaderViewModel.returnToPreviousPosition], set right before a TOC/search/note jump. */
+        val returnLocator: Locator? = null,
     ) : ReaderUiState
     data class Failed(val message: String) : ReaderUiState
 }
@@ -218,6 +220,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun openSearchResult(result: com.vayana.reader.api.SearchResult) {
+        pushReturnLocator()
         dispatch(
             NavTarget.ToLocator(
                 Locator(cfi = result.cfi, href = null, progression = 0f, chapterTitle = result.chapterTitle),
@@ -228,11 +231,15 @@ class ReaderViewModel @Inject constructor(
     fun nextPage() = dispatch(NavTarget.NextPage)
     fun previousPage() = dispatch(NavTarget.PreviousPage)
 
-    fun openTocEntry(href: String) = dispatch(NavTarget.ToHref(href))
+    fun openTocEntry(href: String) {
+        pushReturnLocator()
+        dispatch(NavTarget.ToHref(href))
+    }
 
     fun goToProgress(fraction: Float) = dispatch(NavTarget.ToFraction(fraction.coerceIn(0f, 1f)))
 
     fun openAnnotation(annotation: Annotation) {
+        pushReturnLocator()
         dispatch(
             NavTarget.ToLocator(
                 Locator(
@@ -243,6 +250,25 @@ class ReaderViewModel @Inject constructor(
                 ),
             ),
         )
+    }
+
+    /** Records the position to return to right before a TOC/search/note jump moves away from it. */
+    private fun pushReturnLocator() {
+        val state = uiState.value as? ReaderUiState.Loaded ?: return
+        val current = state.currentLocator ?: return
+        _uiState.update { existing ->
+            if (existing is ReaderUiState.Loaded) existing.copy(returnLocator = current) else existing
+        }
+    }
+
+    /** Jumps back to the position recorded by [pushReturnLocator], then clears it. */
+    fun returnToPreviousPosition() {
+        val state = uiState.value as? ReaderUiState.Loaded ?: return
+        val target = state.returnLocator ?: return
+        _uiState.update { existing ->
+            if (existing is ReaderUiState.Loaded) existing.copy(returnLocator = null) else existing
+        }
+        dispatch(NavTarget.ToLocator(target))
     }
 
     fun updateFontSize(percent: Int) {

@@ -13,6 +13,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE isDeleted = 0 ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<BookEntity>>
 
+    @Query("SELECT * FROM books WHERE isDeleted = 1 ORDER BY updatedAt DESC")
+    fun observeDeleted(): Flow<List<BookEntity>>
+
     @Query("SELECT * FROM books WHERE id = :id")
     suspend fun getById(id: Long): BookEntity?
 
@@ -27,6 +30,13 @@ interface BookDao {
 
     @Query("UPDATE books SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long)
+
+    @Query("UPDATE books SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun restore(id: Long, updatedAt: Long)
+
+    /** Permanently purges an already soft-deleted row - never call this directly on a live one. */
+    @Query("DELETE FROM books WHERE id = :id AND isDeleted = 1")
+    suspend fun purge(id: Long)
 
     @Query("UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, updatedAt: Long)

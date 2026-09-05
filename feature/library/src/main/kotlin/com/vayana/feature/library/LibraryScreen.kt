@@ -53,6 +53,7 @@ import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -134,7 +135,12 @@ import kotlin.math.roundToInt
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryRoute(onBookClick: (Long) -> Unit, onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
+fun LibraryRoute(
+    onBookClick: (Long) -> Unit,
+    onSettingsClick: () -> Unit,
+    onRecentlyDeletedClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val importSummary by viewModel.importSummary.collectAsState()
@@ -152,6 +158,7 @@ fun LibraryRoute(onBookClick: (Long) -> Unit, onSettingsClick: () -> Unit, modif
         onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
         onBookClick = onBookClick,
         onSettingsClick = onSettingsClick,
+        onRecentlyDeletedClick = onRecentlyDeletedClick,
         onQueryChange = viewModel::updateQuery,
         onSortChange = viewModel::updateSort,
         onFilterChange = viewModel::updateFilter,
@@ -222,6 +229,7 @@ private fun LibraryScreen(
     onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
+    onRecentlyDeletedClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
@@ -259,6 +267,7 @@ private fun LibraryScreen(
             LibraryTopBar(
                 controls = uiState.controls,
                 onSettingsClick = onSettingsClick,
+                onRecentlyDeletedClick = onRecentlyDeletedClick,
                 onQueryChange = onQueryChange,
                 onSortChange = onSortChange,
                 onFilterChange = onFilterChange,
@@ -441,6 +450,7 @@ private fun ImportStatusIcon(status: ImportRowStatus) {
 private fun LibraryTopBar(
     controls: LibraryControls,
     onSettingsClick: () -> Unit,
+    onRecentlyDeletedClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
@@ -497,6 +507,13 @@ private fun LibraryTopBar(
                             },
                         )
                     }
+                }
+                IconButton(onClick = onRecentlyDeletedClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestoreFromTrash,
+                        contentDescription = stringResource(R.string.library_recently_deleted_content_description),
+                        modifier = Modifier.size(Sizes.icon),
+                    )
                 }
                 IconButton(onClick = onSettingsClick) {
                     Icon(

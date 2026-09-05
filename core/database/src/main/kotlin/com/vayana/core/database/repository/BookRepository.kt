@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 interface BookRepository {
     fun observeAll(): Flow<List<Book>>
 
+    /** Soft-deleted books, newest deletion first - backs the "Recently deleted" restore screen. */
+    fun observeDeleted(): Flow<List<Book>>
+
     suspend fun getById(id: Long): Book?
 
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
@@ -47,6 +50,12 @@ interface BookRepository {
     ): Boolean
 
     suspend fun softDelete(id: Long)
+
+    /** Restores a soft-deleted book (annotations were never touched by [softDelete], so nothing else to restore). */
+    suspend fun restore(id: Long)
+
+    /** Permanently removes an already soft-deleted book row - never call this on a live book. */
+    suspend fun purge(id: Long)
 
     suspend fun markFinished(id: Long)
 }

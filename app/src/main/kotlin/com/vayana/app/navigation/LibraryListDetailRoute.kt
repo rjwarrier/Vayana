@@ -1,5 +1,6 @@
 package com.vayana.app.navigation
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -9,8 +10,9 @@ import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffold
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.navigation.NavHostController
 import androidx.window.core.layout.WindowSizeClass
 import com.vayana.feature.library.BookDetailRoute
@@ -19,23 +21,30 @@ import kotlinx.coroutines.launch
 
 /**
  * On phones, behaves exactly like a plain [LibraryRoute] pushing [BookDetailRoute] onto the
- * back stack. On wide screens, hosts both panes side by side via [ListDetailPaneScaffold] so
- * selecting a book updates the detail pane in place instead of navigating away.
+ * back stack. On wide screens in portrait, hosts both panes side by side via
+ * [ListDetailPaneScaffold] so selecting a book updates the detail pane in place instead of
+ * navigating away. Landscape (tablets included) always stays single-pane, by request - the
+ * two-pane layout was only ever meant for a tall, wide surface (e.g. a tablet held upright),
+ * not the short/wide shape landscape produces.
  */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun LibraryListDetailRoute(
     navController: NavHostController,
     onSettingsClick: () -> Unit,
+    onRecentlyDeletedClick: () -> Unit,
     onContinueReading: (Long) -> Unit,
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
-    val useListDetailPane = windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val useListDetailPane = !isLandscape &&
+        windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
 
     if (!useListDetailPane) {
         LibraryRoute(
             onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
             onSettingsClick = onSettingsClick,
+            onRecentlyDeletedClick = onRecentlyDeletedClick,
         )
         return
     }
@@ -57,6 +66,7 @@ fun LibraryListDetailRoute(
                         scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, bookId) }
                     },
                     onSettingsClick = onSettingsClick,
+                    onRecentlyDeletedClick = onRecentlyDeletedClick,
                 )
             }
         },

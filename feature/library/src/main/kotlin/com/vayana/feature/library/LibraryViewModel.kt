@@ -148,6 +148,18 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { bookRepository.softDelete(bookId) }
     }
 
+    val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
+        .map { books -> books.map { it.withAbsolutePaths() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun restoreBook(bookId: Long) {
+        viewModelScope.launch { bookRepository.restore(bookId) }
+    }
+
+    fun purgeBook(bookId: Long) {
+        viewModelScope.launch { bookRepository.purge(bookId) }
+    }
+
     fun updateMetadata(bookId: Long, title: String, author: String, series: String, seriesNumber: String, description: String) {
         val normalizedTitle = title.trim()
         if (normalizedTitle.isBlank()) return
