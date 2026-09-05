@@ -426,13 +426,13 @@ class LibraryViewModel @Inject constructor(
             } finally {
                 passphrase.fill('\u0000')
             }
-            val coverDownloaded = book.coverAssetReference()
-                ?.let { coverReference -> downloadCoverIfNeeded(book, coverReference, store) > 0 }
-                ?: false
+            book.coverAssetReference()?.let { coverReference -> downloadCoverIfNeeded(book, coverReference, store) }
             // Older uploads (or books whose cover-upload never ran) carry no cover asset at
-            // all in the cloud snapshot - now that the epub is local again, fall back to
-            // extracting the cover straight from it, same as a fresh local import would.
-            if (!coverDownloaded) {
+            // all in the cloud snapshot. Only fall back to extracting the cover straight from
+            // the epub when there's genuinely no cover yet - the bulk sync pass may already
+            // have downloaded a correct (possibly custom) cover for this book independently
+            // of its file being local, and re-extracting would silently overwrite it.
+            if (bookRepository.getById(book.id)?.coverPath.isNullOrBlank()) {
                 extractLocalCoverFallback(book.id, staged.relativePath)
             }
             CloudBookDownloadResult.DOWNLOADED

@@ -92,6 +92,29 @@ function tocToPlain(items) {
     }))
 }
 
+// view.init() has no fallback of its own - if resuming to a saved locator fails outright
+// (not just a load stall, which paginator.js's own watchdog already recovers from - e.g. a
+// stale/invalid CFI), retry from the start of the book, and if even that fails, jump straight
+// to the first linear section. Without this ladder a single bad resume CFI fails the whole
+// book open with no way to recover.
+async function initWithFallback(initialLocation) {
+    if (initialLocation) {
+        try {
+            return await view.init({ lastLocation: initialLocation, showTextStart: false })
+        } catch (error) {
+            post('log', { step: 'resumeFallback', message: String(error && error.message || error) })
+        }
+    }
+    try {
+        return await view.init({ lastLocation: null, showTextStart: true })
+    } catch (error) {
+        post('log', { step: 'directSectionFallback', message: String(error && error.message || error) })
+        const firstLinearSection = view.book.sections.findIndex(section => section.linear !== 'no')
+        if (firstLinearSection < 0) throw error
+        return view.goTo(firstLinearSection)
+    }
+}
+
 async function open(bookUrl, lastLocatorCfi) {
     let phase = 'starting'
     const watchdog = setInterval(() => {
@@ -222,7 +245,7 @@ async function open(bookUrl, lastLocatorCfi) {
         phase = 'initializing book view'
         const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
         const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
-        const initPromise = view.init({ lastLocation: initialLocation, showTextStart: !initialLocation })
+        const initPromise = initWithFallback(initialLocation)
             .then(() => post('log', { step: 'view.init done' }))
             .catch(error => {
                 post('log', { step: 'view.init failed', message: String(error && error.message || error) })
@@ -252,8 +275,15 @@ async function open(bookUrl, lastLocatorCfi) {
     }
 }
 
+// 'relocate' can fire many times in a row for the same page turn (each a no-op full document
+// walk once bionic reading/annotations are already applied) - collapse repeats scheduled
+// before the first one runs into a single pass instead of stacking up redundant timeouts.
+const enhancementsPending = new WeakSet()
 function queueDocumentEnhancements(doc, index) {
+    if (enhancementsPending.has(doc)) return
+    enhancementsPending.add(doc)
     setTimeout(() => {
+        enhancementsPending.delete(doc)
         applyBionicReadingToDoc(doc)
         matchTextAnnotationsForDoc(doc, index)
     }, 0)
