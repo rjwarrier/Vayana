@@ -8,6 +8,7 @@ android {
 
 dependencies {
     implementation(project(":core:database"))
+    implementation(project(":core:datastore"))
     implementation(project(":core:filesystem"))
     implementation(project(":format:epub"))
     implementation(libs.androidx.activity.compose)

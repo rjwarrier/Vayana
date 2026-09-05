@@ -279,6 +279,8 @@
     <string name="settings_daily_reading_goal_subtitle">Minutes per day, 0 to turn off</string>
     <string name="settings_yearly_books_goal_title">Yearly books goal</string>
     <string name="settings_yearly_books_goal_subtitle">Books per year, 0 to turn off</string>
+    <string name="settings_landscape_two_column_title">Two-column landscape layout</string>
+    <string name="settings_landscape_two_column_subtitle">On a wide screen in landscape, show the library list beside book details, and the reader beside its notes</string>
     <string name="settings_theme_mode_title">Theme</string>
     <string name="settings_theme_mode_subtitle">Choose how the app handles light and dark mode.</string>
     <string name="settings_theme_mode_system">Use device setting</string>

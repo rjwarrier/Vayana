@@ -86,6 +86,7 @@ data class SettingsSnapshot(
     val readerBionicReading: Boolean = false,
     val dailyReadingGoalMinutes: Int = 20,
     val yearlyBooksGoal: Int = 12,
+    val landscapeTwoColumnLayout: Boolean = true,
 )
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
@@ -281,6 +282,13 @@ object SettingsRegistry {
         range = 0..100,
         step = 1,
     )
+    val LandscapeTwoColumnLayout: BooleanSetting = BooleanSetting(
+        key = "appearance.landscape_two_column_layout",
+        defaultValue = true,
+        titleRes = R.string.settings_landscape_two_column_title,
+        subtitleRes = R.string.settings_landscape_two_column_subtitle,
+        group = SettingsGroup.APPEARANCE,
+    )
 
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
@@ -302,5 +310,6 @@ object SettingsRegistry {
         ReaderBionicReading,
         DailyReadingGoalMinutes,
         YearlyBooksGoal,
+        LandscapeTwoColumnLayout,
     )
 }

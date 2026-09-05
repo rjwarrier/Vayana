@@ -176,8 +176,11 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     }
 
     // Tablet landscape: book and notes side by side, instead of notes living only in the bottom chrome.
+    // Gated by the "Two-column landscape layout" setting - landscapeTwoColumnLayout passes through
+    // effectiveSettings unchanged (it isn't one of the per-book style overrides), so reading it here is safe.
     val configuration = LocalConfiguration.current
-    val showNotesSidePanel = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+    val showNotesSidePanel = settings.landscapeTwoColumnLayout &&
+        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
         configuration.screenWidthDp >= TabletLandscapeMinWidthDp
 
     if (showNotesSidePanel) {

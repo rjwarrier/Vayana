@@ -18,6 +18,7 @@ import com.vayana.core.database.model.Shelf
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ShelfRepository
+import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.format.epub.EpubParser
@@ -94,6 +95,7 @@ class LibraryViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val bookFileImporter: BookFileImporter,
     private val shelfRepository: ShelfRepository,
+    private val settingsRepository: SettingsRepository,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
     @param:ApplicationContext private val appContext: Context,
@@ -165,6 +167,10 @@ class LibraryViewModel @Inject constructor(
 
     val shelves: StateFlow<List<Shelf>> = shelfRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val landscapeTwoColumnLayout: StateFlow<Boolean> = settingsRepository.snapshot
+        .map { it.landscapeTwoColumnLayout }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val readNextQueue: StateFlow<List<Book>> = bookRepository.observeReadNextQueue()
         .map { books -> books.map { it.withAbsolutePaths() } }
