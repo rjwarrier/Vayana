@@ -261,12 +261,26 @@ class View {
                 clearTimeout(timeoutId)
                 reject(error)
             }
+            let timeoutElapsed = 0
             const finish = reason => {
                 if (settled) return
                 const doc = this.document
                 const href = doc?.location?.href ?? ''
-                if (!doc?.body || href === 'about:blank') {
-                    if (reason === 'timeout') fail(new Error(`Timed out loading section ${src}`))
+                // A freshly-created iframe (or one still mid-navigation) can already have a
+                // `body` element with no content yet — accepting that as "loaded" leaves a
+                // permanently blank page since we never listen for further progress. Require
+                // the document to actually be done parsing before treating a stalled `load`
+                // event as recovered; otherwise keep polling until a longer bound.
+                const looksLoaded = doc?.body && href !== 'about:blank' && doc.readyState === 'complete' && doc.body.childNodes.length > 0
+                if (!looksLoaded) {
+                    if (reason === 'timeout') {
+                        timeoutElapsed += 500
+                        if (timeoutElapsed >= 20000) {
+                            fail(new Error(`Timed out loading section ${src}`))
+                        } else {
+                            timeoutId = setTimeout(() => finish('timeout'), 500)
+                        }
+                    }
                     return
                 }
                 settled = true

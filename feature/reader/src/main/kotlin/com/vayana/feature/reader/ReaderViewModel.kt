@@ -169,7 +169,8 @@ class ReaderViewModel @Inject constructor(
             }
 
             val source = BookSource(localFile.absolutePath)
-            val initialLocatorString = targetLocator?.takeIf { it.isNotBlank() } ?: book.lastLocator
+            val savedLocator = book.lastLocator?.takeIf { it.isNotBlank() }
+            val initialLocatorString = targetLocator?.takeIf { it.isNotBlank() }
             val resumeLocator = initialLocatorString?.let {
                 Locator(cfi = it, href = null, progression = book.readingPercent, chapterTitle = null)
             }
@@ -189,6 +190,8 @@ class ReaderViewModel @Inject constructor(
                     observeAnnotations(engine)
                     if (!targetLocator.isNullOrBlank()) {
                         engine.goTo(NavTarget.ToLocator(Locator(cfi = targetLocator, href = null, progression = 0f, chapterTitle = null)))
+                    } else if (savedLocator != null && book.readingPercent > 0.001f) {
+                        engine.goTo(NavTarget.ToFraction(book.readingPercent.coerceIn(0f, 0.999f)))
                     }
                 }
                 .onFailure { throwable ->

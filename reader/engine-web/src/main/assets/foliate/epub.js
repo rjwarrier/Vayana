@@ -1,5 +1,23 @@
 import * as CFI from './epubcfi.js'
 
+// Android WebView (this app's target) fails to load `blob:` URLs inside a sandboxed
+// same-origin iframe — the resource silently ends up empty, no error, nothing to catch.
+// When the native bridge is present we hand resources to Kotlin instead and get back a
+// same-origin https:// URL served through the app's own WebViewAssetLoader.
+async function toBase64(data) {
+    let bytes
+    if (data instanceof Blob) bytes = new Uint8Array(await data.arrayBuffer())
+    else if (data instanceof ArrayBuffer) bytes = new Uint8Array(data)
+    else if (ArrayBuffer.isView(data)) bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+    else bytes = new TextEncoder().encode(String(data))
+    let binary = ''
+    const chunkSize = 0x8000
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize))
+    }
+    return btoa(binary)
+}
+
 const NS = {
     CONTAINER: 'urn:oasis:names:tc:opendocument:xmlns:container',
     XHTML: 'http://www.w3.org/1999/xhtml',
@@ -724,7 +742,9 @@ class Loader {
         this.eventTarget.dispatchEvent(event)
         const newData = await event.detail.data
         const newType = await event.detail.type
-        const url = URL.createObjectURL(new Blob([newData], { type: newType }))
+        const url = window.AndroidBridge
+            ? window.AndroidBridge.registerResource(newType, await toBase64(newData))
+            : URL.createObjectURL(new Blob([newData], { type: newType }))
         this.#cache.set(href, url)
         this.#refCount.set(href, 1)
         if (parent) {
@@ -750,7 +770,9 @@ class Loader {
         //console.log(`unreferencing ${href}, now ${count}`)
         if (count < 1) {
             //console.log(`unloading ${href}`)
-            URL.revokeObjectURL(this.#cache.get(href))
+            const url = this.#cache.get(href)
+            if (window.AndroidBridge && url) window.AndroidBridge.unregisterResource(url.substring(url.lastIndexOf('/') + 1))
+            else if (url) URL.revokeObjectURL(url)
             this.#cache.delete(href)
             this.#refCount.delete(href)
             // unref children
@@ -904,7 +926,10 @@ class Loader {
         this.unref(item?.href)
     }
     destroy() {
-        for (const url of this.#cache.values()) URL.revokeObjectURL(url)
+        for (const url of this.#cache.values()) {
+            if (window.AndroidBridge) window.AndroidBridge.unregisterResource(url.substring(url.lastIndexOf('/') + 1))
+            else URL.revokeObjectURL(url)
+        }
     }
 }
 

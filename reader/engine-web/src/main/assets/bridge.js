@@ -15,6 +15,7 @@ const documentTextIndexes = new WeakMap()
 const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
 let readerSideMarginPercent = 10
+let hasOpened = false
 
 // Dynamic page-count estimate: foliate's paginator lays out each chapter into CSS columns
 // sized by the live font-size/line-height/margin, so `renderer.pages` for the chapter you're
@@ -91,37 +92,6 @@ function tocToPlain(items) {
     }))
 }
 
-function withTimeout(promise, millis, label) {
-    let timeoutId
-    const timeout = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${millis}ms`)), millis)
-    })
-    return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
-}
-
-async function initView(lastLocatorCfi) {
-    const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
-    const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
-    if (initialLocation) {
-        try {
-            await withTimeout(view.init({ lastLocation: initialLocation, showTextStart: false }), 15000, 'Reader resume')
-            return isStandardCfi
-        } catch (error) {
-            post('log', { step: 'resumeFallback', message: String(error && error.message || error) })
-        }
-    }
-
-    try {
-        await withTimeout(view.init({ lastLocation: null, showTextStart: true }), 15000, 'Reader start')
-    } catch (error) {
-        post('log', { step: 'directSectionFallback', message: String(error && error.message || error) })
-        const firstLinearSection = view.book.sections.findIndex(section => section.linear !== 'no')
-        if (firstLinearSection < 0) throw error
-        await withTimeout(view.goTo(firstLinearSection), 15000, 'Reader direct section start')
-    }
-    return isStandardCfi
-}
-
 async function open(bookUrl, lastLocatorCfi) {
     let phase = 'starting'
     const watchdog = setInterval(() => {
@@ -134,6 +104,7 @@ async function open(bookUrl, lastLocatorCfi) {
         pendingTextAnnotations.clear()
         authoritativeSourceForCfi.clear()
         standardAnnotationFingerprints.clear()
+        hasOpened = false
         phase = 'fetching book'
         post('log', { step: 'fetching', bookUrl })
         const res = await fetch(bookUrl)
@@ -145,6 +116,16 @@ async function open(bookUrl, lastLocatorCfi) {
         phase = 'creating view'
         view = document.createElement('foliate-view')
         document.body.append(view)
+        let firstRenderResolve = null
+        const firstRender = new Promise(resolve => {
+            firstRenderResolve = resolve
+        })
+        const markFirstRender = source => {
+            if (!firstRenderResolve) return
+            post('log', { step: 'firstRender', source })
+            firstRenderResolve(source)
+            firstRenderResolve = null
+        }
         sectionByteSizes = null
         resetPageEstimate()
         view.addEventListener('relocate', e => {
@@ -161,21 +142,24 @@ async function open(bookUrl, lastLocatorCfi) {
                 chapterMinutesLeft: Number.isFinite(time?.section) ? time.section : null,
                 bookMinutesLeft: Number.isFinite(time?.total) ? time.total : null,
             })
-            for (const { doc, index } of view.renderer.getContents()) {
-                if (doc) matchTextAnnotationsForDoc(doc, index)
+            markFirstRender('relocate')
+            if (hasOpened) {
+                for (const { doc, index } of view.renderer.getContents()) {
+                    if (doc) queueDocumentEnhancements(doc, index)
+                }
             }
         })
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
             wireSelection(doc, index)
-            applyBionicReadingToDoc(doc)
-            matchTextAnnotationsForDoc(doc, index)
             post('pageLoaded', {})
+            markFirstRender('load')
+            if (hasOpened) queueDocumentEnhancements(doc, index)
         })
         view.addEventListener('create-overlay', e => {
             const { index } = e.detail
             const obj = view.renderer.getContents().find(x => x.index === index)
-            if (obj?.doc) matchTextAnnotationsForDoc(obj.doc, index)
+            if (obj?.doc && hasOpened) queueDocumentEnhancements(obj.doc, index)
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
@@ -236,10 +220,25 @@ async function open(bookUrl, lastLocatorCfi) {
         await view.open(bookFile)
         post('log', { step: 'view.init' })
         phase = 'initializing book view'
-        const isStandardCfi = await initView(lastLocatorCfi)
-        post('log', { step: 'view.init done' })
+        const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
+        const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
+        const initPromise = view.init({ lastLocation: initialLocation, showTextStart: !initialLocation })
+            .then(() => post('log', { step: 'view.init done' }))
+            .catch(error => {
+                post('log', { step: 'view.init failed', message: String(error && error.message || error) })
+                throw error
+            })
+        const openSource = await Promise.race([initPromise.then(() => 'init'), firstRender])
+        if (openSource !== 'init') {
+            initPromise.catch(() => {})
+            post('log', { step: 'view.init pending', openedBy: openSource })
+        }
 
+        hasOpened = true
         post('opened', { toc: tocToPlain(view.book.toc), title: view.book.metadata?.title ?? '' })
+        for (const { doc, index } of view.renderer.getContents()) {
+            if (doc) queueDocumentEnhancements(doc, index)
+        }
 
         if (lastLocatorCfi && !isStandardCfi) {
             setTimeout(async () => {
@@ -251,6 +250,13 @@ async function open(bookUrl, lastLocatorCfi) {
     } finally {
         clearInterval(watchdog)
     }
+}
+
+function queueDocumentEnhancements(doc, index) {
+    setTimeout(() => {
+        applyBionicReadingToDoc(doc)
+        matchTextAnnotationsForDoc(doc, index)
+    }, 0)
 }
 
 function next() { view?.next() }

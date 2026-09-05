@@ -1,6 +1,7 @@
 package com.vayana.reader.web
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.webkit.ConsoleMessage
@@ -25,6 +26,8 @@ import com.vayana.reader.api.ReaderSelection
 import com.vayana.reader.api.SearchResult
 import com.vayana.reader.api.TocEntry
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.ceil
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -67,8 +70,29 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     // and WebView's <script type="module"> loader silently refuses to run a module served with
     // the wrong (or no) MIME type — the exact "blank white screen, no thrown error" symptom.
     // Serving assets ourselves with an explicit extension->MIME map sidesteps that entirely.
+    // foliate-js normally serves each EPUB resource (section HTML, CSS, images) to its
+    // sandboxed iframe via `blob:` URLs (URL.createObjectURL). On this WebView build those
+    // blob URLs silently fail to load inside a same-origin sandboxed iframe (empty `<body>`,
+    // no error, no load-failure — the exact "blank white screen" symptom), so instead we hand
+    // each resource to Kotlin (see JsBridge.registerResource) and serve it back over the same
+    // https://appassets.androidplatform.net origin the rest of the reader already uses.
+    private val resources = ConcurrentHashMap<String, Pair<String, ByteArray>>()
+    private val nextResourceId = AtomicLong()
+
     private val assetLoader = WebViewAssetLoader.Builder()
         .addPathHandler("/assets/") { path -> serveAsset(path) }
+        .addPathHandler("/resource/") { path ->
+            val id = path.removePrefix("/resource/")
+            val (mimeType, bytes) = resources[id] ?: return@addPathHandler null
+            WebResourceResponse(
+                mimeType,
+                null,
+                200,
+                "OK",
+                mapOf("Cache-Control" to "no-store"),
+                bytes.inputStream(),
+            )
+        }
         .addPathHandler("/book/") { path ->
             val file = currentBookFile ?: return@addPathHandler null
             val mimeType = file.readerMimeType()
@@ -153,6 +177,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             return Result.failure(IllegalStateException("Book file is empty"))
         }
         currentBookFile = bookFile
+        resources.clear()
         val deferred = CompletableDeferred<Result<OpenBook>>()
         openResult = deferred
 
@@ -280,6 +305,20 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         @JavascriptInterface
         fun onEvent(type: String, jsonPayload: String) {
             webView.post { handleEvent(type, JSONObject(jsonPayload)) }
+        }
+
+        // Called synchronously from JS (see foliate/epub.js Loader.createURL) with the resource's
+        // bytes base64-encoded. Returns the https:// URL to load it from instead of a blob: URL.
+        @JavascriptInterface
+        fun registerResource(mimeType: String, base64Data: String): String {
+            val id = nextResourceId.getAndIncrement().toString()
+            resources[id] = mimeType to Base64.decode(base64Data, Base64.NO_WRAP)
+            return "$ORIGIN/resource/$id"
+        }
+
+        @JavascriptInterface
+        fun unregisterResource(id: String) {
+            resources.remove(id)
         }
     }
 
