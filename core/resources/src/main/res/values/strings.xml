@@ -321,6 +321,14 @@
     <string name="settings_github_token_subtitle">Personal access token kept only on this device.</string>
     <string name="settings_github_passphrase_title">Sync passphrase</string>
     <string name="settings_github_passphrase_subtitle">Encrypts synced book files and exported GitHub setup. Keep the same passphrase on each device.</string>
+    <string name="settings_github_connection_test_title">GitHub connection test</string>
+    <string name="settings_github_connection_test_subtitle">Check whether this token can reach the configured repository and sync files.</string>
+    <string name="settings_github_connection_test_action">Test connection</string>
+    <string name="settings_github_connection_test_working">Testing GitHub access…</string>
+    <string name="settings_github_connection_test_connected">GitHub connection works. Existing sync metadata is readable.</string>
+    <string name="settings_github_connection_test_ready_initial">GitHub connection works. No sync snapshot exists yet, so initial sync can create one.</string>
+    <string name="settings_github_connection_test_missing_config">Enter GitHub owner, repository, branch, and token first.</string>
+    <string name="settings_github_connection_test_failed">GitHub connection failed: %1$s</string>
     <string name="settings_github_transfer_title">GitHub sync settings transfer</string>
     <string name="settings_github_transfer_subtitle">Export or import this device\'s GitHub sync setup encrypted with the sync passphrase.</string>
     <string name="settings_github_transfer_export">Export</string>

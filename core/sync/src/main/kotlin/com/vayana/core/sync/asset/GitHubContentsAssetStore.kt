@@ -56,7 +56,7 @@ class GitHubContentsAssetStore(
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
-                url = contentsUrl(path),
+                url = contentsUrl(path, includeRef = true),
                 headers = rawHeaders(),
                 maxResponseBytes = MaxSyncDocumentBytes,
             ),
@@ -66,6 +66,27 @@ class GitHubContentsAssetStore(
         }
         require(response.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
         response.body
+    }
+
+    suspend fun testConnection(): GitHubConnectionTestResult = withContext(dispatcher) {
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "GET",
+                url = contentsUrl("vayana/snapshot-latest.json", includeRef = true),
+                headers = rawHeaders(),
+                maxResponseBytes = MaxGitHubMetadataBytes,
+            ),
+        )
+        when (response.statusCode) {
+            HttpURLConnection.HTTP_OK -> GitHubConnectionTestResult.Connected
+            HttpURLConnection.HTTP_NOT_FOUND -> GitHubConnectionTestResult.ReadyForInitialSync
+            HttpURLConnection.HTTP_CONFLICT -> if (response.isEmptyRepository()) {
+                GitHubConnectionTestResult.ReadyForInitialSync
+            } else {
+                throw GitHubAssetStoreException("GitHub connection test failed", response.statusCode, response.safeBodyText())
+            }
+            else -> throw GitHubAssetStoreException("GitHub connection test failed", response.statusCode, response.safeBodyText())
+        }
     }
 
     private fun putContents(path: String, bytes: ByteArray, message: String, replaceExisting: Boolean) {
@@ -101,7 +122,7 @@ class GitHubContentsAssetStore(
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
-                url = contentsUrl(path),
+                url = contentsUrl(path, includeRef = true),
                 headers = rawHeaders(),
                 maxResponseBytes = MaxEncryptedAssetBytes,
             ),
@@ -117,7 +138,7 @@ class GitHubContentsAssetStore(
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
-                url = contentsUrl(path),
+                url = contentsUrl(path, includeRef = true),
                 headers = jsonHeaders(),
                 maxResponseBytes = MaxGitHubMetadataBytes,
             ),
@@ -148,11 +169,16 @@ class GitHubContentsAssetStore(
         }
     }
 
-    private fun contentsUrl(path: String): String {
+    private fun contentsUrl(path: String, includeRef: Boolean = false): String {
         val encodedPath = path.split('/').joinToString("/") { segment ->
             URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
         }
-        return "${repository.apiBaseUrl.trimEnd('/')}/repos/${repository.owner}/${repository.name}/contents/$encodedPath"
+        val ref = if (includeRef) {
+            "?ref=${URLEncoder.encode(repository.branch, Charsets.UTF_8.name()).replace("+", "%20")}"
+        } else {
+            ""
+        }
+        return "${repository.apiBaseUrl.trimEnd('/')}/repos/${repository.owner}/${repository.name}/contents/$encodedPath$ref"
     }
 
     private fun jsonHeaders(): Map<String, String> = commonHeaders() + mapOf(
@@ -185,6 +211,11 @@ class GitHubContentsAssetStore(
             }
         """.trimIndent()
     }
+}
+
+sealed interface GitHubConnectionTestResult {
+    data object Connected : GitHubConnectionTestResult
+    data object ReadyForInitialSync : GitHubConnectionTestResult
 }
 
 data class GitHubHttpRequest(

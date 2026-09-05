@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
@@ -111,6 +112,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val backupState by viewModel.backupState.collectAsState()
     val restorePreview by viewModel.restorePreview.collectAsState()
     val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
+    val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsState()
 
     SettingsScreen(
         modifier = modifier,
@@ -118,6 +120,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         backupState = backupState,
         restorePreview = restorePreview,
         githubSyncSettingsTransferState = githubSyncSettingsTransferState,
+        githubConnectionTestState = githubConnectionTestState,
         onBack = onBack,
         onUpdate = viewModel::update,
         onReset = viewModel::reset,
@@ -127,7 +130,9 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onConfirmRestore = viewModel::restoreBackup,
         onExportGitHubSyncSettings = viewModel::exportGitHubSyncSettings,
         onImportGitHubSyncSettings = viewModel::importGitHubSyncSettings,
+        onTestGitHubConnection = viewModel::testGitHubConnection,
         onDismissGitHubSyncSettingsTransferState = viewModel::dismissGitHubSyncSettingsTransferState,
+        onDismissGitHubConnectionTestState = viewModel::dismissGitHubConnectionTestState,
         onDismissRestorePreview = viewModel::dismissRestorePreview,
         onDismissBackupState = viewModel::dismissBackupState,
     )
@@ -141,6 +146,7 @@ private fun SettingsScreen(
     backupState: BackupUiState,
     restorePreview: RestorePreviewState,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
+    githubConnectionTestState: GitHubConnectionTestState,
     onBack: () -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
@@ -150,7 +156,9 @@ private fun SettingsScreen(
     onConfirmRestore: (Uri) -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
     onImportGitHubSyncSettings: (Uri) -> Unit,
+    onTestGitHubConnection: () -> Unit,
     onDismissGitHubSyncSettingsTransferState: () -> Unit,
+    onDismissGitHubConnectionTestState: () -> Unit,
     onDismissRestorePreview: () -> Unit,
     onDismissBackupState: () -> Unit,
 ) {
@@ -222,11 +230,14 @@ private fun SettingsScreen(
                     group = group,
                     settings = settings,
                     githubSyncSettingsTransferState = githubSyncSettingsTransferState,
+                    githubConnectionTestState = githubConnectionTestState,
                     onUpdate = onUpdate,
                     onReset = onReset,
                     onExportGitHubSyncSettings = onExportGitHubSyncSettings,
                     onImportGitHubSyncSettings = onImportGitHubSyncSettings,
+                    onTestGitHubConnection = onTestGitHubConnection,
                     onDismissGitHubSyncSettingsTransferState = onDismissGitHubSyncSettingsTransferState,
+                    onDismissGitHubConnectionTestState = onDismissGitHubConnectionTestState,
                 )
             }
         }
@@ -511,11 +522,14 @@ private fun SettingsGroupDetail(
     group: SettingsGroup?,
     settings: SettingsSnapshot,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
+    githubConnectionTestState: GitHubConnectionTestState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
     onImportGitHubSyncSettings: (Uri) -> Unit,
+    onTestGitHubConnection: () -> Unit,
     onDismissGitHubSyncSettingsTransferState: () -> Unit,
+    onDismissGitHubConnectionTestState: () -> Unit,
 ) {
     val groupSettings = SettingsRegistry.all.filter { it.group == group }
     LazyColumn(
@@ -543,12 +557,99 @@ private fun SettingsGroupDetail(
         }
         if (group == SettingsGroup.SYNC) {
             item {
+                GitHubConnectionTestCard(
+                    state = githubConnectionTestState,
+                    onTest = onTestGitHubConnection,
+                    onDismiss = onDismissGitHubConnectionTestState,
+                )
+            }
+            item {
                 GitHubSyncSettingsTransferCard(
                     state = githubSyncSettingsTransferState,
                     onExport = onExportGitHubSyncSettings,
                     onImport = onImportGitHubSyncSettings,
                     onDismiss = onDismissGitHubSyncSettingsTransferState,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GitHubConnectionTestCard(
+    state: GitHubConnectionTestState,
+    onTest: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val working = state is GitHubConnectionTestState.Working
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.extraLarge),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(Paddings.card)
+                .vayanaAnimateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(icon = Icons.Outlined.Sync, selected = false)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_github_connection_test_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_github_connection_test_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            FilledTonalButton(
+                onClick = onTest,
+                enabled = !working,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (working) {
+                    CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                } else {
+                    Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                }
+                Text(stringResource(R.string.settings_github_connection_test_action), modifier = Modifier.padding(start = Spacing.xs))
+            }
+            when (state) {
+                GitHubConnectionTestState.Working -> Text(
+                    text = stringResource(R.string.settings_github_connection_test_working),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                GitHubConnectionTestState.Connected -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_connection_test_connected),
+                    isError = false,
+                    onDismiss = onDismiss,
+                )
+                GitHubConnectionTestState.ReadyForInitialSync -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_connection_test_ready_initial),
+                    isError = false,
+                    onDismiss = onDismiss,
+                )
+                GitHubConnectionTestState.MissingConfig -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_connection_test_missing_config),
+                    isError = true,
+                    onDismiss = onDismiss,
+                )
+                is GitHubConnectionTestState.Failed -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_connection_test_failed, state.message),
+                    isError = true,
+                    onDismiss = onDismiss,
+                )
+                GitHubConnectionTestState.Idle -> Unit
             }
         }
     }

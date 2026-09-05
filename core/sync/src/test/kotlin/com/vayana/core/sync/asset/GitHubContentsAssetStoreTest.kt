@@ -107,6 +107,49 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun testConnectionReadsLatestSnapshotWithoutWriting() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val result = store.testConnection()
+
+        assertEquals(GitHubConnectionTestResult.Connected, result)
+        assertEquals(listOf("GET"), client.requests.map { it.method })
+        assertEquals(
+            "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-latest.json?ref=main",
+            client.requests.single().url,
+        )
+        assertEquals("application/vnd.github.raw", client.requests.single().headers["Accept"])
+    }
+
+    @Test
+    fun testConnectionTreatsMissingSnapshotAsReadyForInitialSync() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(404, ByteArray(0)),
+        )
+        val store = testStore(client)
+
+        assertEquals(GitHubConnectionTestResult.ReadyForInitialSync, store.testConnection())
+    }
+
+    @Test
+    fun testConnectionExposesGitHubFailureDetails() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(403, """{"message":"Resource not accessible by personal access token"}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val failure = assertFailsWith<GitHubAssetStoreException> {
+            store.testConnection()
+        }
+
+        assertEquals(403, failure.statusCode)
+        assertTrue(failure.responseBody.contains("Resource not accessible"))
+    }
+
+    @Test
     fun rejectsPathOutsideCloudAssetLayout() = runBlocking {
         val client = RecordingGitHubHttpClient()
         val store = testStore(client)

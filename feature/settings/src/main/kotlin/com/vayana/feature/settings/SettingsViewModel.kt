@@ -37,6 +37,15 @@ sealed interface GitHubSyncSettingsTransferState {
     data class Failed(val message: String) : GitHubSyncSettingsTransferState
 }
 
+sealed interface GitHubConnectionTestState {
+    data object Idle : GitHubConnectionTestState
+    data object Working : GitHubConnectionTestState
+    data object Connected : GitHubConnectionTestState
+    data object ReadyForInitialSync : GitHubConnectionTestState
+    data object MissingConfig : GitHubConnectionTestState
+    data class Failed(val message: String) : GitHubConnectionTestState
+}
+
 sealed interface RestorePreviewState {
     data object Idle : RestorePreviewState
     data object Loading : RestorePreviewState
@@ -49,6 +58,7 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
     private val gitHubSyncSettingsTransfer: GitHubSyncSettingsTransfer,
+    private val gitHubConnectionTester: GitHubConnectionTester,
 ) : ViewModel() {
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
@@ -61,6 +71,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _githubSyncSettingsTransferState = MutableStateFlow<GitHubSyncSettingsTransferState>(GitHubSyncSettingsTransferState.Idle)
     val githubSyncSettingsTransferState: StateFlow<GitHubSyncSettingsTransferState> = _githubSyncSettingsTransferState
+
+    private val _githubConnectionTestState = MutableStateFlow<GitHubConnectionTestState>(GitHubConnectionTestState.Idle)
+    val githubConnectionTestState: StateFlow<GitHubConnectionTestState> = _githubConnectionTestState
 
     fun <T : Any> update(setting: Setting<T>, value: T) {
         viewModelScope.launch { settingsRepository.update(setting, value) }
@@ -124,6 +137,22 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissGitHubSyncSettingsTransferState() {
         _githubSyncSettingsTransferState.value = GitHubSyncSettingsTransferState.Idle
+    }
+
+    fun testGitHubConnection() {
+        viewModelScope.launch {
+            _githubConnectionTestState.value = GitHubConnectionTestState.Working
+            _githubConnectionTestState.value = when (val outcome = gitHubConnectionTester.test()) {
+                GitHubConnectionTestOutcome.Connected -> GitHubConnectionTestState.Connected
+                GitHubConnectionTestOutcome.ReadyForInitialSync -> GitHubConnectionTestState.ReadyForInitialSync
+                GitHubConnectionTestOutcome.MissingConfig -> GitHubConnectionTestState.MissingConfig
+                is GitHubConnectionTestOutcome.Failed -> GitHubConnectionTestState.Failed(outcome.message)
+            }
+        }
+    }
+
+    fun dismissGitHubConnectionTestState() {
+        _githubConnectionTestState.value = GitHubConnectionTestState.Idle
     }
 
     fun inspectRestoreFile(uri: Uri) {
