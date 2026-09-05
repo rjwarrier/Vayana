@@ -38,7 +38,7 @@ import org.json.JSONObject
 private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
-private const val ReaderOpenTimeoutMillis = 15_000L
+private const val ReaderOpenTimeoutMillis = 60_000L
 private const val EinkBackgroundArgb = -0x1
 private const val EinkForegroundArgb = -0x1000000
 
@@ -71,7 +71,19 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         .addPathHandler("/assets/") { path -> serveAsset(path) }
         .addPathHandler("/book/") { path ->
             val file = currentBookFile ?: return@addPathHandler null
-            WebResourceResponse("application/epub+zip", null, file.inputStream())
+            val mimeType = file.readerMimeType()
+            WebResourceResponse(
+                mimeType,
+                null,
+                200,
+                "OK",
+                mapOf(
+                    "Cache-Control" to "no-store",
+                    "Content-Length" to file.length().toString(),
+                    "Accept-Ranges" to "none",
+                ),
+                file.inputStream(),
+            )
         }
         .build()
 
@@ -130,7 +142,17 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook> {
         openResult?.complete(Result.failure(IllegalStateException("Reader open was replaced by a newer request")))
-        currentBookFile = File(source.absoluteFilePath)
+        val bookFile = File(source.absoluteFilePath)
+        if (!bookFile.isFile) {
+            return Result.failure(IllegalStateException("Book file is missing from this device"))
+        }
+        if (!bookFile.canRead()) {
+            return Result.failure(IllegalStateException("Book file cannot be read"))
+        }
+        if (bookFile.length() <= 0L) {
+            return Result.failure(IllegalStateException("Book file is empty"))
+        }
+        currentBookFile = bookFile
         val deferred = CompletableDeferred<Result<OpenBook>>()
         openResult = deferred
 
@@ -345,6 +367,17 @@ private fun JSONObject.optMinutesOrNull(name: String): Int? =
     if (has(name) && !isNull(name)) ceil(getDouble(name)).toInt().coerceAtLeast(0) else null
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
+
+private fun File.readerMimeType(): String =
+    when (extension.lowercase()) {
+        "epub" -> "application/epub+zip"
+        "pdf" -> "application/pdf"
+        "mobi" -> "application/x-mobipocket-ebook"
+        "azw3" -> "application/vnd.amazon.ebook"
+        "fb2" -> "application/x-fictionbook+xml"
+        "txt" -> "text/plain"
+        else -> "application/octet-stream"
+    }
 
 private fun JSONObject.toSelectionOrNull(): ReaderSelection? {
     val cfi = optStringOrNull("cfi") ?: return null

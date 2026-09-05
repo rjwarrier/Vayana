@@ -92,6 +92,10 @@ function tocToPlain(items) {
 }
 
 async function open(bookUrl, lastLocatorCfi) {
+    let phase = 'starting'
+    const watchdog = setInterval(() => {
+        post('log', { step: 'openWatchdog', phase })
+    }, 5000)
     try {
         renderedAnnotations.clear()
         resolvedTextAnnotations.clear()
@@ -99,10 +103,15 @@ async function open(bookUrl, lastLocatorCfi) {
         pendingTextAnnotations.clear()
         authoritativeSourceForCfi.clear()
         standardAnnotationFingerprints.clear()
+        phase = 'fetching book'
         post('log', { step: 'fetching', bookUrl })
         const res = await fetch(bookUrl)
         post('log', { step: 'fetched', ok: res.ok, status: res.status, contentType: res.headers.get('content-type') })
+        if (!res.ok) throw new Error(`Book fetch failed: ${res.status} ${res.statusText}`)
+        const bookBlob = await res.blob()
+        const bookFile = new File([bookBlob], 'current')
 
+        phase = 'creating view'
         view = document.createElement('foliate-view')
         document.body.append(view)
         sectionByteSizes = null
@@ -192,8 +201,10 @@ async function open(bookUrl, lastLocatorCfi) {
         })
 
         post('log', { step: 'view.open' })
-        await view.open(bookUrl)
+        phase = 'opening book package'
+        await view.open(bookFile)
         post('log', { step: 'view.init' })
+        phase = 'initializing book view'
         const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
         const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
         await view.init({ lastLocation: initialLocation, showTextStart: !initialLocation })
@@ -208,6 +219,8 @@ async function open(bookUrl, lastLocatorCfi) {
         }
     } catch (err) {
         post('error', { message: String(err && err.stack || err) })
+    } finally {
+        clearInterval(watchdog)
     }
 }
 
