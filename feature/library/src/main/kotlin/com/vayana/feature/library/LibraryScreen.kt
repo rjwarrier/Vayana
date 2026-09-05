@@ -156,14 +156,17 @@ fun LibraryRoute(
     val uiState by viewModel.uiState.collectAsState()
     val importSummary by viewModel.importSummary.collectAsState()
     val importProgress by viewModel.importProgress.collectAsState()
+    val syncProgress by viewModel.syncProgress.collectAsState()
 
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
         importSummary = importSummary,
         importProgress = importProgress,
+        syncProgress = syncProgress,
         onImportSummaryShown = viewModel::onImportSummaryShown,
         onImportProgressDismissed = viewModel::onImportProgressDismissed,
+        onSyncProgressDismissed = viewModel::onSyncProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
         onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
@@ -244,8 +247,10 @@ private fun LibraryScreen(
     uiState: LibraryUiState,
     importSummary: ImportSummary?,
     importProgress: ImportProgressState?,
+    syncProgress: GitHubSyncProgressState?,
     onImportSummaryShown: () -> Unit,
     onImportProgressDismissed: () -> Unit,
+    onSyncProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     onAddPhysicalBook: (String, String?) -> Unit,
@@ -435,6 +440,13 @@ private fun LibraryScreen(
         )
     }
 
+    if (syncProgress != null) {
+        GitHubSyncProgressSheet(
+            progress = syncProgress,
+            onDismissRequest = onSyncProgressDismissed,
+        )
+    }
+
     if (showAddPhysicalBookDialog) {
         AddPhysicalBookDialog(
             onDismiss = { showAddPhysicalBookDialog = false },
@@ -612,6 +624,97 @@ private fun ImportStatusIcon(status: ImportRowStatus) {
         ImportRowStatus.FAILED,
         -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(Sizes.icon))
         ImportRowStatus.QUEUED -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismissRequest: () -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val rows = listOf(
+        GitHubSyncProgressStep.PREPARING,
+        GitHubSyncProgressStep.READING_CLOUD,
+        GitHubSyncProgressStep.ADDING_CLOUD_BOOKS,
+        GitHubSyncProgressStep.UPLOADING_BOOKS,
+        GitHubSyncProgressStep.SAVING_SNAPSHOT,
+    )
+
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = { if (!progress.isRunning) onDismissRequest() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Paddings.screenHorizontal)
+                .padding(bottom = Spacing.lg),
+        ) {
+            Text(text = stringResource(R.string.library_sync_progress_title), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = progress.detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            LinearProgressIndicator(
+                progress = { progress.fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.md),
+                strokeCap = StrokeCap.Round,
+            )
+            Text(
+                text = stringResource(
+                    R.string.library_sync_progress_summary,
+                    progress.cloudBooksCreated,
+                    progress.cloudBooksUpdated,
+                    progress.uploadedBooks,
+                    progress.failedBooks,
+                    progress.progressUpdated,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.sm),
+            )
+            LazyColumn(modifier = Modifier.padding(top = Spacing.md)) {
+                items(rows, key = { it.name }) { step ->
+                    GitHubSyncProgressRow(
+                        label = step.label(),
+                        status = progress.statusFor(step),
+                    )
+                    HorizontalDivider()
+                }
+            }
+            if (!progress.isRunning) {
+                Button(
+                    onClick = onDismissRequest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.md),
+                ) {
+                    Text(stringResource(R.string.library_import_done))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus) {
+    ListItem(
+        headlineContent = { Text(label) },
+        supportingContent = { Text(status.label()) },
+        leadingContent = { GitHubSyncStepIcon(status) },
+    )
+}
+
+@Composable
+private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus) {
+    when (status) {
+        GitHubSyncStepStatus.RUNNING -> CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+        GitHubSyncStepStatus.DONE -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+        GitHubSyncStepStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+        GitHubSyncStepStatus.WAITING -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = Modifier.size(Sizes.icon))
     }
 }
 
@@ -2168,6 +2271,44 @@ private fun ImportRowStatus.label(): String = when (this) {
     ImportRowStatus.DUPLICATE -> stringResource(R.string.library_import_status_duplicate)
     ImportRowStatus.UNSUPPORTED -> stringResource(R.string.library_import_status_unsupported)
     ImportRowStatus.FAILED -> stringResource(R.string.library_import_status_failed)
+}
+
+private enum class GitHubSyncStepStatus {
+    WAITING,
+    RUNNING,
+    DONE,
+    FAILED,
+}
+
+@Composable
+private fun GitHubSyncProgressStep.label(): String = when (this) {
+    GitHubSyncProgressStep.PREPARING -> stringResource(R.string.library_sync_progress_prepare)
+    GitHubSyncProgressStep.READING_CLOUD -> stringResource(R.string.library_sync_progress_read_cloud)
+    GitHubSyncProgressStep.ADDING_CLOUD_BOOKS -> stringResource(R.string.library_sync_progress_add_cloud)
+    GitHubSyncProgressStep.UPLOADING_BOOKS -> stringResource(R.string.library_sync_progress_upload)
+    GitHubSyncProgressStep.SAVING_SNAPSHOT -> stringResource(R.string.library_sync_progress_save)
+    GitHubSyncProgressStep.COMPLETE -> stringResource(R.string.library_sync_progress_complete)
+    GitHubSyncProgressStep.FAILED -> stringResource(R.string.library_sync_progress_failed)
+}
+
+@Composable
+private fun GitHubSyncStepStatus.label(): String = when (this) {
+    GitHubSyncStepStatus.WAITING -> stringResource(R.string.library_sync_progress_waiting)
+    GitHubSyncStepStatus.RUNNING -> stringResource(R.string.library_sync_progress_running)
+    GitHubSyncStepStatus.DONE -> stringResource(R.string.library_sync_progress_done)
+    GitHubSyncStepStatus.FAILED -> stringResource(R.string.library_sync_progress_failed)
+}
+
+private fun GitHubSyncProgressState.statusFor(step: GitHubSyncProgressStep): GitHubSyncStepStatus {
+    if (this.step == GitHubSyncProgressStep.FAILED && step.ordinal == completedSteps.coerceAtMost(GitHubSyncProgressStep.SAVING_SNAPSHOT.ordinal)) {
+        return GitHubSyncStepStatus.FAILED
+    }
+    return when {
+        step.ordinal < completedSteps -> GitHubSyncStepStatus.DONE
+        this.step == step && isRunning -> GitHubSyncStepStatus.RUNNING
+        this.step == GitHubSyncProgressStep.COMPLETE -> GitHubSyncStepStatus.DONE
+        else -> GitHubSyncStepStatus.WAITING
+    }
 }
 
 @Composable

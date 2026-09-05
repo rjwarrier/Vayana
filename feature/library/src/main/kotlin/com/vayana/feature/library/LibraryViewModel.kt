@@ -116,6 +116,31 @@ data class ImportProgressState(
         get() = rows.summarize()
 }
 
+enum class GitHubSyncProgressStep {
+    PREPARING,
+    READING_CLOUD,
+    ADDING_CLOUD_BOOKS,
+    UPLOADING_BOOKS,
+    SAVING_SNAPSHOT,
+    COMPLETE,
+    FAILED,
+}
+
+data class GitHubSyncProgressState(
+    val step: GitHubSyncProgressStep,
+    val detail: String,
+    val completedSteps: Int,
+    val totalSteps: Int = GitHubSyncProgressTotalSteps,
+    val uploadedBooks: Int = 0,
+    val failedBooks: Int = 0,
+    val cloudBooksCreated: Int = 0,
+    val cloudBooksUpdated: Int = 0,
+    val progressUpdated: Int = 0,
+    val isRunning: Boolean = true,
+) {
+    val fraction: Float = (completedSteps.toFloat() / totalSteps.toFloat()).coerceIn(0f, 1f)
+}
+
 private data class ReadingProgressMergeSummary(
     val applied: Int = 0,
     val conflicts: List<PortableSyncConflict> = emptyList(),
@@ -198,6 +223,9 @@ class LibraryViewModel @Inject constructor(
 
     private val _importProgress = MutableStateFlow<ImportProgressState?>(null)
     val importProgress: StateFlow<ImportProgressState?> = _importProgress
+
+    private val _syncProgress = MutableStateFlow<GitHubSyncProgressState?>(null)
+    val syncProgress: StateFlow<GitHubSyncProgressState?> = _syncProgress
 
     private val _bookDetailMessage = MutableStateFlow<BookDetailMessage?>(null)
     val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
@@ -398,15 +426,34 @@ class LibraryViewModel @Inject constructor(
     }
 
     suspend fun syncNow(allowInitialSync: Boolean = false): GitHubSyncNowResult = withContext(dispatchers.io) {
+        updateSyncProgress(GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
         val settings = settingsRepository.snapshot.first()
-        if (!settings.githubSyncEnabled) return@withContext GitHubSyncNowResult.SyncDisabled
-        val syncConfig = settings.gitHubSyncConfig() ?: return@withContext GitHubSyncNowResult.ConfigIncomplete
+        if (!settings.githubSyncEnabled) {
+            finishSyncProgress(GitHubSyncProgressStep.FAILED, "GitHub sync is turned off")
+            return@withContext GitHubSyncNowResult.SyncDisabled
+        }
+        val syncConfig = settings.gitHubSyncConfig()
+        if (syncConfig == null) {
+            finishSyncProgress(GitHubSyncProgressStep.FAILED, "GitHub settings are incomplete")
+            return@withContext GitHubSyncNowResult.ConfigIncomplete
+        }
         val store = runCatchingCancellable { syncConfig.assetStore() }
-            .getOrElse { return@withContext GitHubSyncNowResult.ConfigIncomplete }
+            .getOrElse {
+                finishSyncProgress(GitHubSyncProgressStep.FAILED, "GitHub settings are invalid")
+                return@withContext GitHubSyncNowResult.ConfigIncomplete
+            }
+        updateSyncProgress(GitHubSyncProgressStep.READING_CLOUD, "Reading cloud library", completedSteps = 1)
         val progressMerge = pullReadingProgress(store)
         if ((progressMerge.missingRemoteSnapshot || progressMerge.failed) && !allowInitialSync) {
+            finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress needs confirmation")
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
         }
+        updateSyncProgress(
+            step = GitHubSyncProgressStep.ADDING_CLOUD_BOOKS,
+            detail = "Adding cloud books",
+            completedSteps = 2,
+            progressUpdated = progressMerge.applied,
+        )
         val cloudLibraryMerge = if (progressMerge.missingRemoteSnapshot) {
             CloudLibraryMergeSummary()
         } else {
@@ -419,6 +466,14 @@ class LibraryViewModel @Inject constructor(
                     book.fileAssetId.isNullOrBlank()
             }
 
+        updateSyncProgress(
+            step = GitHubSyncProgressStep.UPLOADING_BOOKS,
+            detail = "Uploading ${uploadCandidates.size} local books",
+            completedSteps = 3,
+            progressUpdated = progressMerge.applied,
+            cloudBooksCreated = cloudLibraryMerge.created,
+            cloudBooksUpdated = cloudLibraryMerge.updated,
+        )
         var uploaded = 0
         var failed = 0
         uploadCandidates.forEach { book ->
@@ -435,7 +490,27 @@ class LibraryViewModel @Inject constructor(
             }.onFailure {
                 failed += 1
             }
+            updateSyncProgress(
+                step = GitHubSyncProgressStep.UPLOADING_BOOKS,
+                detail = "Uploaded $uploaded of ${uploadCandidates.size} local books",
+                completedSteps = 3,
+                uploadedBooks = uploaded,
+                failedBooks = failed,
+                progressUpdated = progressMerge.applied,
+                cloudBooksCreated = cloudLibraryMerge.created,
+                cloudBooksUpdated = cloudLibraryMerge.updated,
+            )
         }
+        updateSyncProgress(
+            step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
+            detail = "Saving latest snapshot",
+            completedSteps = 4,
+            uploadedBooks = uploaded,
+            failedBooks = failed,
+            progressUpdated = progressMerge.applied,
+            cloudBooksCreated = cloudLibraryMerge.created,
+            cloudBooksUpdated = cloudLibraryMerge.updated,
+        )
         val metadataError = runCatchingCancellable {
             val snapshot = snapshotExporter.export()
             val snapshotBytes = snapshot
@@ -445,6 +520,19 @@ class LibraryViewModel @Inject constructor(
             store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
             store.putSyncDocument("vayana/snapshot-latest.json", snapshotBytes)
         }.exceptionOrNull()
+        finishSyncProgress(
+            step = if (metadataError == null && failed == 0 && !cloudLibraryMerge.failed) {
+                GitHubSyncProgressStep.COMPLETE
+            } else {
+                GitHubSyncProgressStep.FAILED
+            },
+            detail = if (metadataError == null) "Sync finished" else "Snapshot save failed",
+            uploadedBooks = uploaded,
+            failedBooks = failed,
+            progressUpdated = progressMerge.applied,
+            cloudBooksCreated = cloudLibraryMerge.created,
+            cloudBooksUpdated = cloudLibraryMerge.updated,
+        )
         GitHubSyncNowResult.Complete(
             uploaded = uploaded,
             failed = failed,
@@ -528,6 +616,56 @@ class LibraryViewModel @Inject constructor(
         if (_importProgress.value?.isRunning == false) {
             _importProgress.value = null
         }
+    }
+
+    fun onSyncProgressDismissed() {
+        if (_syncProgress.value?.isRunning != true) {
+            _syncProgress.value = null
+        }
+    }
+
+    private fun updateSyncProgress(
+        step: GitHubSyncProgressStep,
+        detail: String,
+        completedSteps: Int,
+        uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
+        failedBooks: Int = _syncProgress.value?.failedBooks ?: 0,
+        cloudBooksCreated: Int = _syncProgress.value?.cloudBooksCreated ?: 0,
+        cloudBooksUpdated: Int = _syncProgress.value?.cloudBooksUpdated ?: 0,
+        progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
+    ) {
+        _syncProgress.value = GitHubSyncProgressState(
+            step = step,
+            detail = detail,
+            completedSteps = completedSteps,
+            uploadedBooks = uploadedBooks,
+            failedBooks = failedBooks,
+            cloudBooksCreated = cloudBooksCreated,
+            cloudBooksUpdated = cloudBooksUpdated,
+            progressUpdated = progressUpdated,
+        )
+    }
+
+    private fun finishSyncProgress(
+        step: GitHubSyncProgressStep,
+        detail: String,
+        uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
+        failedBooks: Int = _syncProgress.value?.failedBooks ?: 0,
+        cloudBooksCreated: Int = _syncProgress.value?.cloudBooksCreated ?: 0,
+        cloudBooksUpdated: Int = _syncProgress.value?.cloudBooksUpdated ?: 0,
+        progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
+    ) {
+        _syncProgress.value = GitHubSyncProgressState(
+            step = step,
+            detail = detail,
+            completedSteps = if (step == GitHubSyncProgressStep.COMPLETE) GitHubSyncProgressTotalSteps else _syncProgress.value?.completedSteps ?: 0,
+            uploadedBooks = uploadedBooks,
+            failedBooks = failedBooks,
+            cloudBooksCreated = cloudBooksCreated,
+            cloudBooksUpdated = cloudBooksUpdated,
+            progressUpdated = progressUpdated,
+            isRunning = false,
+        )
     }
 
     fun importFiles(contentResolver: ContentResolver, uris: List<Uri>) {
@@ -995,5 +1133,6 @@ private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
 private const val FinishedThreshold = 0.98f
 private const val MaxSyncFailureBodyChars = 400
 private const val MaxSyncFailureMessageChars = 600
+private const val GitHubSyncProgressTotalSteps = 5
 
 private val SupportedCoverExtensions = setOf("jpg", "jpeg", "png", "webp")
