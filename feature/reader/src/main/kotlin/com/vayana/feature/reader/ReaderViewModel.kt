@@ -434,6 +434,13 @@ class ReaderViewModel @Inject constructor(
         createAnnotation(type = AnnotationType.NOTE, readerNote = note)
     }
 
+    /** Edits an existing annotation's note text in place - used by the tablet-landscape side-by-side notes panel. */
+    fun updateAnnotationNote(annotation: Annotation, note: String) {
+        viewModelScope.launch {
+            annotationRepository.update(annotation.copy(readerNote = note.takeIf { it.isNotBlank() }))
+        }
+    }
+
     fun createBookmark() {
         val state = uiState.value as? ReaderUiState.Loaded ?: return
         val locator = state.currentLocator ?: return

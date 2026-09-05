@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.text.format.DateFormat
 import android.view.ActionMode
@@ -32,6 +33,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -66,6 +69,7 @@ import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
@@ -92,6 +96,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -101,6 +106,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
@@ -166,6 +172,73 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         } else {
             viewModel.installEnglishDictionary(uri.toString())
         }
+    }
+
+    // Tablet landscape: book and notes side by side, instead of notes living only in the bottom chrome.
+    val configuration = LocalConfiguration.current
+    val showNotesSidePanel = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+        configuration.screenWidthDp >= TabletLandscapeMinWidthDp
+
+    if (showNotesSidePanel) {
+        Row(modifier = modifier.fillMaxSize()) {
+            ReaderScreen(
+                modifier = Modifier.weight(ReaderPaneWeight).fillMaxHeight(),
+                uiState = uiState,
+                settings = settings,
+                usingCustomStyle = usingCustomStyle,
+                onUseCustomStyleChange = viewModel::setUseCustomStyle,
+                dictionaryLookup = dictionaryLookup,
+                recentLookups = recentLookups,
+                searchResults = searchResults,
+                onSearchQueryChange = viewModel::search,
+                onSearchResultClick = viewModel::openSearchResult,
+                onClearSearch = viewModel::clearSearch,
+                onLookupWord = viewModel::lookupWord,
+                onSaveLookupAsNote = viewModel::saveLookupAsNote,
+                onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
+                onEngineReady = viewModel::bindEngine,
+                onTapPrevious = viewModel::previousPage,
+                onTapNext = viewModel::nextPage,
+                onOpenTocEntry = viewModel::openTocEntry,
+                onProgressChange = viewModel::goToProgress,
+                onAnnotationClick = viewModel::openAnnotation,
+                onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
+                onCreateHighlight = viewModel::createHighlight,
+                onCreateUnderline = viewModel::createUnderline,
+                onCreateNote = viewModel::createNote,
+                onCreateBookmark = viewModel::createBookmark,
+                onClearSelection = viewModel::clearSelection,
+                onDownloadDictionary = {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(EnglishDictionaryDownloadUrl)))
+                    }
+                },
+                onInstallDictionary = {
+                    viewModel.prepareDictionaryInstall()
+                    dictionaryPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                },
+                onFontSizeChange = viewModel::updateFontSize,
+                onLineHeightChange = viewModel::updateLineHeight,
+                onFontFamilyChange = viewModel::updateFontFamily,
+                onReaderThemeChange = viewModel::updateReaderTheme,
+                onSideMarginChange = viewModel::updateSideMargin,
+                onVolumeKeysChange = viewModel::updateVolumeKeys,
+                onKeepAwakeChange = viewModel::updateKeepAwake,
+                onShowHeadersChange = viewModel::updateShowHeaders,
+                onShowFooterChange = viewModel::updateShowFooter,
+                onBionicReadingChange = viewModel::updateBionicReading,
+                onPause = viewModel::onPause,
+                onResume = viewModel::onResume,
+                onBack = onBack,
+            )
+            NotesSidePanel(
+                modifier = Modifier.weight(NotesPaneWeight).fillMaxHeight(),
+                uiState = uiState,
+                onAnnotationClick = viewModel::openAnnotation,
+                onEditNote = viewModel::updateAnnotationNote,
+            )
+        }
+        return
     }
 
     ReaderScreen(
@@ -1474,6 +1547,125 @@ private fun NotesPanel(uiState: ReaderUiState, onAnnotationClick: (Annotation) -
     }
 }
 
+/** Persistent notes list shown beside the reader on wide-landscape (tablet) screens, per PROMPT2's "book and notes side by side" recommendation. */
+@Composable
+private fun NotesSidePanel(
+    modifier: Modifier = Modifier,
+    uiState: ReaderUiState,
+    onAnnotationClick: (Annotation) -> Unit,
+    onEditNote: (Annotation, String) -> Unit,
+) {
+    val annotations = (uiState as? ReaderUiState.Loaded)?.annotations.orEmpty()
+    var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = stringResource(R.string.reader_notes),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(Spacing.lg),
+            )
+            if (annotations.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.reader_notes_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Spacing.lg),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    items(annotations, key = { it.id }) { annotation ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Radii.medium))
+                                .clickable { onAnnotationClick(annotation) },
+                            shape = RoundedCornerShape(Radii.medium),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.md)) {
+                                if (annotation.selectedText.isNotBlank()) {
+                                    Text(
+                                        text = "“${annotation.selectedText}”",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
+                                    Text(
+                                        text = note,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = Spacing.xs),
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = Spacing.xs),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = annotation.chapterTitle ?: annotation.type.name.lowercase().replaceFirstChar { it.titlecase() },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    IconButton(onClick = { editingAnnotation = annotation }) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.EditNote,
+                                            contentDescription = stringResource(R.string.notes_edit_content_description),
+                                            modifier = Modifier.size(Sizes.iconSmall),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    editingAnnotation?.let { annotation ->
+        var noteText by remember(annotation.id) { mutableStateOf(annotation.readerNote.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { editingAnnotation = null },
+            title = { Text(stringResource(R.string.notes_edit_title)) },
+            text = {
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    label = { Text(stringResource(R.string.notes_edit_label)) },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onEditNote(annotation, noteText)
+                    editingAnnotation = null
+                }) { Text(stringResource(R.string.notes_edit_save)) }
+            },
+            dismissButton = {
+                FilledTonalButton(onClick = { editingAnnotation = null }) {
+                    Text(stringResource(R.string.settings_reset_all_cancel))
+                }
+            },
+        )
+    }
+}
+
 @Composable
 private fun SearchPanel(
     results: List<com.vayana.reader.api.SearchResult>,
@@ -1842,6 +2034,11 @@ private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/eng
 private const val VolumeKeyLongPressMillis = 500L
 private const val EinkFullRefreshEveryPages = 6
 private const val EinkFlashDurationMillis = 120L
+
+/** Below this width, landscape stays a single reader pane - matches Library's tablet-landscape breakpoint. */
+private const val TabletLandscapeMinWidthDp = 600
+private const val ReaderPaneWeight = 0.65f
+private const val NotesPaneWeight = 0.35f
 
 private data class TocDisplayItem(val entry: TocEntry, val depth: Int)
 
