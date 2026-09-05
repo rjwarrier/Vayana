@@ -21,11 +21,9 @@ import kotlinx.coroutines.launch
 
 /**
  * On phones, behaves exactly like a plain [LibraryRoute] pushing [BookDetailRoute] onto the
- * back stack. On wide screens in portrait, hosts both panes side by side via
+ * back stack. On wide screens in landscape, hosts both panes side by side via
  * [ListDetailPaneScaffold] so selecting a book updates the detail pane in place instead of
- * navigating away. Landscape (tablets included) always stays single-pane, by request - the
- * two-pane layout was only ever meant for a tall, wide surface (e.g. a tablet held upright),
- * not the short/wide shape landscape produces.
+ * navigating away. Portrait always stays single-pane, by request.
  */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -37,7 +35,7 @@ fun LibraryListDetailRoute(
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val useListDetailPane = !isLandscape &&
+    val useListDetailPane = isLandscape &&
         windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
 
     if (!useListDetailPane) {
