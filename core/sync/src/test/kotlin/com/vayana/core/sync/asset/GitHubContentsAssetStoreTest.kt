@@ -13,36 +13,35 @@ class GitHubContentsAssetStoreTest {
     @Test
     fun putCreatesNewAssetAtContentsPath() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(404, ByteArray(0)),
             GitHubHttpResponse(201, """{"content":{"sha":"new-sha"}}""".toByteArray()),
         )
         val store = testStore(client)
 
         store.put(CloudAssetLayout.pathFor(AssetId), "ciphertext".toByteArray())
 
-        assertEquals("GET", client.requests[0].method)
+        assertEquals(listOf("PUT"), client.requests.map { it.method })
         assertEquals(
             "https://api.github.test/repos/owner/repo/contents/vayana/assets/ab/cd/$AssetId.bin",
             client.requests[0].url,
         )
-        assertEquals("PUT", client.requests[1].method)
-        val body = client.requests[1].bodyText()
+        val body = client.requests[0].bodyText()
         assertTrue(body.contains(""""message":"SyncVayanaassetvayana/assets/ab/cd/$AssetId.bin""""))
         assertTrue(body.contains(""""content":"${Base64.getEncoder().encodeToString("ciphertext".toByteArray())}""""))
         assertTrue(body.contains(""""branch":"main""""))
         assertTrue(body.contains(""""name":"VayanaSync""""))
         assertTrue(body.contains(""""email":"sync@example.test""""))
+        assertTrue("sha" !in body)
     }
 
     @Test
-    fun putIncludesShaWhenReplacingExistingAsset() = runBlocking {
+    fun putIncludesShaWhenReplacingExistingSyncDocument() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(200, """{"sha":"$ExistingSha"}""".toByteArray()),
             GitHubHttpResponse(200, """{"content":{"sha":"new-sha"}}""".toByteArray()),
         )
         val store = testStore(client)
 
-        store.put(CloudAssetLayout.pathFor(AssetId), "ciphertext".toByteArray())
+        store.putSyncDocument("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray())
 
         assertTrue(client.requests[1].bodyText().contains(""""sha":"$ExistingSha""""))
     }
@@ -147,14 +146,14 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
-    fun rejectsMetadataWithoutValidShaBeforeReplacing() = runBlocking {
+    fun rejectsMetadataWithoutValidShaBeforeReplacingSyncDocument() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(200, """{"sha":"not-a-git-object-sha"}""".toByteArray()),
         )
         val store = testStore(client)
 
         val failure = assertFailsWith<GitHubAssetStoreException> {
-            store.put(CloudAssetLayout.pathFor(AssetId), "ciphertext".toByteArray())
+            store.putSyncDocument("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray())
         }
 
         assertEquals(200, failure.statusCode)

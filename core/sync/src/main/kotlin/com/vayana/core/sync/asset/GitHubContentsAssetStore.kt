@@ -43,12 +43,12 @@ class GitHubContentsAssetStore(
 
     override suspend fun put(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
         validateAssetPath(path)
-        putContents(path, bytes, "Sync Vayana asset $path")
+        putContents(path, bytes, "Sync Vayana asset $path", replaceExisting = false)
     }
 
     suspend fun putSyncDocument(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
         validateSyncDocumentPath(path)
-        putContents(path, bytes, "Sync Vayana metadata $path")
+        putContents(path, bytes, "Sync Vayana metadata $path", replaceExisting = true)
     }
 
     suspend fun getSyncDocument(path: String): ByteArray = withContext(dispatcher) {
@@ -68,13 +68,13 @@ class GitHubContentsAssetStore(
         response.body
     }
 
-    private fun putContents(path: String, bytes: ByteArray, message: String) {
+    private fun putContents(path: String, bytes: ByteArray, message: String, replaceExisting: Boolean) {
         require(bytes.isNotEmpty()) { "Cloud asset upload is empty" }
         val maxBytes = if (path.endsWith(".json")) MaxSyncDocumentBytes else MaxEncryptedAssetBytes
         require(bytes.size <= maxBytes) { "Cloud upload is too large" }
         var lastResponse: GitHubHttpResponse? = null
         repeat(MaxPutAttempts) { attempt ->
-            val existingSha = findExistingSha(path)
+            val existingSha = if (replaceExisting) findExistingSha(path) else null
             val body = buildPutBody(message, bytes, existingSha)
             val response = client.execute(
                 GitHubHttpRequest(
