@@ -48,6 +48,24 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun putRetriesAfterGitHubConflict() = runBlocking {
+        val replacementSha = "abcdef0123456789abcdef0123456789abcdef01"
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"sha":"$ExistingSha"}""".toByteArray()),
+            GitHubHttpResponse(409, """{"message":"branch changed"}""".toByteArray()),
+            GitHubHttpResponse(200, """{"sha":"$replacementSha"}""".toByteArray()),
+            GitHubHttpResponse(200, """{"content":{"sha":"new-sha"}}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        store.putSyncDocument("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray())
+
+        assertEquals(listOf("GET", "PUT", "GET", "PUT"), client.requests.map { it.method })
+        assertTrue(client.requests[1].bodyText().contains(""""sha":"$ExistingSha""""))
+        assertTrue(client.requests[3].bodyText().contains(""""sha":"$replacementSha""""))
+    }
+
+    @Test
     fun getDownloadsRawAssetBytes() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(200, "ciphertext".toByteArray()),

@@ -89,6 +89,7 @@ sealed interface GitHubSyncNowResult {
         val skipped: Int,
         val pullFailed: Boolean,
         val metadataSynced: Boolean,
+        val failureMessage: String? = null,
     ) : GitHubSyncNowResult
     data object SyncDisabled : GitHubSyncNowResult
     data object ConfigIncomplete : GitHubSyncNowResult
@@ -113,6 +114,7 @@ private data class ReadingProgressMergeSummary(
     val conflicts: List<PortableSyncConflict> = emptyList(),
     val skipped: Int = 0,
     val failed: Boolean = false,
+    val failureMessage: String? = null,
 ) {
     val conflictCount: Int
         get() = conflicts.size
@@ -395,6 +397,7 @@ class LibraryViewModel @Inject constructor(
                 skipped = progressMerge.skipped,
                 pullFailed = true,
                 metadataSynced = false,
+                failureMessage = progressMerge.failureMessage,
             )
         }
         val uploadCandidates = bookRepository.observeAll().first()
@@ -421,7 +424,7 @@ class LibraryViewModel @Inject constructor(
                 failed += 1
             }
         }
-        val metadataSynced = runCatchingCancellable {
+        val metadataError = runCatchingCancellable {
             val snapshot = snapshotExporter.export()
             val snapshotBytes = snapshot
                 .copy(syncConflicts = progressMerge.conflicts)
@@ -429,7 +432,7 @@ class LibraryViewModel @Inject constructor(
                 .toByteArray(Charsets.UTF_8)
             store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
             store.putSyncDocument("vayana/snapshot-latest.json", snapshotBytes)
-        }.isSuccess
+        }.exceptionOrNull()
         GitHubSyncNowResult.Complete(
             uploaded = uploaded,
             failed = failed,
@@ -437,7 +440,8 @@ class LibraryViewModel @Inject constructor(
             conflicts = progressMerge.conflictCount,
             skipped = progressMerge.skipped,
             pullFailed = progressMerge.failed,
-            metadataSynced = metadataSynced,
+            metadataSynced = metadataError == null,
+            failureMessage = metadataError?.syncFailureMessage(),
         )
     }
 
@@ -476,7 +480,7 @@ class LibraryViewModel @Inject constructor(
             if ((throwable as? GitHubAssetStoreException)?.statusCode == 404) {
                 ReadingProgressMergeSummary()
             } else {
-                ReadingProgressMergeSummary(failed = true)
+                ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
             }
         }
 
@@ -854,6 +858,18 @@ private fun GitHubSyncConfig.assetStore(): GitHubContentsAssetStore =
         committerEmail = "$owner@users.noreply.github.com",
     )
 
+private fun Throwable.syncFailureMessage(): String =
+    when (this) {
+        is GitHubAssetStoreException -> buildString {
+            append(message ?: "GitHub request failed")
+            responseBody.takeIf { it.isNotBlank() }?.let { body ->
+                append(": ")
+                append(body.take(MaxSyncFailureBodyChars))
+            }
+        }
+        else -> message ?: "GitHub sync failed"
+    }.take(MaxSyncFailureMessageChars)
+
 private fun String.syncPathSegment(): String =
     trim()
         .lowercase()
@@ -897,5 +913,7 @@ private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
 }
 
 private const val FinishedThreshold = 0.98f
+private const val MaxSyncFailureBodyChars = 400
+private const val MaxSyncFailureMessageChars = 600
 
 private val SupportedCoverExtensions = setOf("jpg", "jpeg", "png", "webp")

@@ -72,19 +72,28 @@ class GitHubContentsAssetStore(
         require(bytes.isNotEmpty()) { "Cloud asset upload is empty" }
         val maxBytes = if (path.endsWith(".json")) MaxSyncDocumentBytes else MaxEncryptedAssetBytes
         require(bytes.size <= maxBytes) { "Cloud upload is too large" }
-        val existingSha = findExistingSha(path)
-        val body = buildPutBody(message, bytes, existingSha)
-        val response = client.execute(
-            GitHubHttpRequest(
-                method = "PUT",
-                url = contentsUrl(path),
-                headers = jsonHeaders(),
-                body = body.toByteArray(Charsets.UTF_8),
-            ),
-        )
-        if (response.statusCode !in setOf(HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED)) {
-            throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
+        var lastResponse: GitHubHttpResponse? = null
+        repeat(MaxPutAttempts) { attempt ->
+            val existingSha = findExistingSha(path)
+            val body = buildPutBody(message, bytes, existingSha)
+            val response = client.execute(
+                GitHubHttpRequest(
+                    method = "PUT",
+                    url = contentsUrl(path),
+                    headers = jsonHeaders(),
+                    body = body.toByteArray(Charsets.UTF_8),
+                ),
+            )
+            if (response.statusCode in setOf(HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED)) {
+                return
+            }
+            lastResponse = response
+            if (response.statusCode != HttpURLConnection.HTTP_CONFLICT || attempt == MaxPutAttempts - 1) {
+                throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
+            }
         }
+        val response = checkNotNull(lastResponse)
+        throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
     }
 
     override suspend fun get(path: String): ByteArray = withContext(dispatcher) {
@@ -313,6 +322,7 @@ private val GitHubObjectShaRegex = Regex("^[a-f0-9]{40,64}$")
 private val SyncDocumentPathRegex = Regex("^[A-Za-z0-9._/-]{1,240}$")
 private val AuthorizationTokenRegex = Regex(""""token"\s*:\s*"[^"]+"""")
 private const val NetworkTimeoutMillis = 30_000
+private const val MaxPutAttempts = 3
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024
 private const val MaxSyncDocumentBytes = 8 * 1024 * 1024
 private const val MaxHttpResponseBytes = MaxEncryptedAssetBytes + 1024
