@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    No <uses-permission> for INTERNET anywhere in this manifest, ever (PROMPT2appbuild.md §9:
-    "The app must build and function with zero <uses-permission> for INTERNET"). If a future
-    dependency tries to pull it in transitively, add a <uses-permission ... tools:node="remove">
-    override here rather than granting it.
--->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".VayanaApp"

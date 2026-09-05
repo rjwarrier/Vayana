@@ -1,0 +1,41 @@
+package com.vayana.core.sync.asset
+
+import javax.crypto.AEADBadTagException
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+
+class CloudAssetCipherTest {
+    private val cipher = CloudAssetCipher()
+
+    @Test
+    fun roundTripsWithMatchingPassphraseAndMetadata() {
+        val plaintext = "book bytes".toByteArray()
+        val aad = "vayana.asset.v1:test".toByteArray()
+        val encrypted = cipher.encrypt(plaintext, "secret".toCharArray(), aad)
+
+        val decrypted = cipher.decrypt(encrypted, "secret".toCharArray(), aad)
+
+        assertContentEquals(plaintext, decrypted)
+        assertFalse(encrypted.toString(Charsets.ISO_8859_1).contains("book bytes"))
+    }
+
+    @Test
+    fun rejectsWrongPassphrase() {
+        val encrypted = cipher.encrypt("book bytes".toByteArray(), "secret".toCharArray(), byteArrayOf())
+
+        assertFailsWith<AEADBadTagException> {
+            cipher.decrypt(encrypted, "wrong".toCharArray(), byteArrayOf())
+        }
+    }
+
+    @Test
+    fun rejectsWrongAuthenticatedMetadata() {
+        val encrypted = cipher.encrypt("book bytes".toByteArray(), "secret".toCharArray(), "one".toByteArray())
+
+        assertFailsWith<AEADBadTagException> {
+            cipher.decrypt(encrypted, "secret".toCharArray(), "two".toByteArray())
+        }
+    }
+}

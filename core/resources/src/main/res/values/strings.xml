@@ -31,6 +31,10 @@
     <string name="library_import_status_duplicate">Duplicate skipped</string>
     <string name="library_import_status_unsupported">Unsupported format</string>
     <string name="library_import_status_failed">Failed</string>
+    <string name="library_cloud_book_badge">In cloud</string>
+    <string name="library_book_in_cloud">This book is in your cloud library. Download support is being wired next.</string>
+    <string name="library_book_file_missing">This book file is not available on this device.</string>
+    <string name="library_book_upload_pending">This book needs to upload before other devices can download it.</string>
     <string name="library_settings_content_description">Open settings</string>
     <string name="library_book_detail_title">Book details</string>
     <string name="library_book_not_found">Book not found.</string>
@@ -247,6 +251,8 @@
     <string name="settings_reset_all_cancel">Cancel</string>
     <string name="settings_backup_title">Backup &amp; restore</string>
     <string name="settings_backup_subtitle">One file with your books, notes, stats, and settings. No account, no cloud.</string>
+    <string name="settings_kindle_device_name_title">Kindle device name</string>
+    <string name="settings_kindle_device_name_subtitle">Label this device for GitHub sync history and Kindle-style library transfer.</string>
     <string name="settings_backup_create">Create backup</string>
     <string name="settings_backup_restore">Restore</string>
     <string name="settings_backup_working">Working…</string>

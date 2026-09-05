@@ -7,18 +7,37 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WordLookupStatDao {
-    @Query("SELECT * FROM word_lookup_stats ORDER BY count DESC, lastLookedUpAt DESC LIMIT :limit")
+    @Query(
+        """
+        SELECT word, SUM(count) AS count, MAX(lastLookedUpAt) AS lastLookedUpAt, 'aggregate' AS writerOrigin
+        FROM word_lookup_stats
+        GROUP BY word
+        ORDER BY count DESC, lastLookedUpAt DESC
+        LIMIT :limit
+        """,
+    )
     fun observeTop(limit: Int): Flow<List<WordLookupStatEntity>>
 
-    @Query("SELECT * FROM word_lookup_stats ORDER BY lastLookedUpAt DESC LIMIT :limit")
+    @Query(
+        """
+        SELECT word, SUM(count) AS count, MAX(lastLookedUpAt) AS lastLookedUpAt, 'aggregate' AS writerOrigin
+        FROM word_lookup_stats
+        GROUP BY word
+        ORDER BY lastLookedUpAt DESC
+        LIMIT :limit
+        """,
+    )
     fun observeRecent(limit: Int): Flow<List<WordLookupStatEntity>>
 
     @Query(
         """
-        INSERT INTO word_lookup_stats (word, count, lastLookedUpAt)
-        VALUES (:word, 1, :lookedUpAt)
-        ON CONFLICT(word) DO UPDATE SET count = count + 1, lastLookedUpAt = :lookedUpAt
+        INSERT INTO word_lookup_stats (word, writerOrigin, count, lastLookedUpAt)
+        VALUES (:word, :writerOrigin, 1, :lookedUpAt)
+        ON CONFLICT(word, writerOrigin) DO UPDATE SET count = count + 1, lastLookedUpAt = :lookedUpAt
         """,
     )
-    suspend fun recordLookup(word: String, lookedUpAt: Long)
+    suspend fun recordLookup(word: String, lookedUpAt: Long, writerOrigin: String = "legacy-local")
+
+    @Query("SELECT * FROM word_lookup_stats ORDER BY word COLLATE NOCASE ASC, writerOrigin ASC")
+    suspend fun getAllForSync(): List<WordLookupStatEntity>
 }

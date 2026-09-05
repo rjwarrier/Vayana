@@ -2,6 +2,26 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 11
+Adds cloud-backed file state for GitHub sync:
+
+- `books` gains `fileAvailability` (`LOCAL`, `CLOUD_ONLY`, `MISSING`, `UPLOAD_PENDING`) so a
+  fresh device can show library metadata before the book file is present locally.
+- `books` gains encrypted asset reference metadata for book files and custom covers:
+  `fileAssetId`, `fileAssetSha256`, `fileAssetSizeBytes`, `fileAssetUploadedAt`,
+  `coverAssetId`, `coverAssetSha256`, `coverAssetSizeBytes`, and `coverAssetUploadedAt`.
+  These are opaque GitHub asset references, not local paths.
+
+## Version 10
+Adds the identity and counter foundation needed for GitHub/Kindle-style sync:
+
+- `books`, `annotations`, `reading_sessions`, `shelves`, and `vocabulary_cards` gain stable
+  `syncId` text columns with unique indexes. Existing rows are backfilled during migration so
+  generated local numeric IDs never have to leave the device as portable identifiers.
+- `book_shelf_cross_ref` gains `createdAt` so shelf membership ordering can be synced and merged.
+- `word_lookup_stats` changes from one row per word to one row per `(word, writerOrigin)`.
+  Existing counts are seeded under `legacy-local`; UI queries still aggregate by word.
+
 ## Version 9
 Adds schema for the remaining feature-value recommendations (personal shelves/read-next, vocabulary
 review cards, per-book reader preferences):

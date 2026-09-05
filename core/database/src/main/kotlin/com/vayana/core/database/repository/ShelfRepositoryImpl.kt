@@ -40,7 +40,7 @@ class ShelfRepositoryImpl @Inject constructor(
     override fun observeShelfBookCount(shelfId: Long): Flow<Int> = shelfDao.observeShelfBookCount(shelfId)
 
     override suspend fun addBookToShelf(bookId: Long, shelfId: Long) {
-        shelfDao.addBookToShelf(BookShelfCrossRefEntity(bookId = bookId, shelfId = shelfId))
+        shelfDao.addBookToShelf(BookShelfCrossRefEntity(bookId = bookId, shelfId = shelfId, createdAt = System.currentTimeMillis()))
     }
 
     override suspend fun removeBookFromShelf(bookId: Long, shelfId: Long) {

@@ -4,10 +4,12 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
-@Entity(tableName = "shelves")
+@Entity(tableName = "shelves", indices = [Index(value = ["syncId"], unique = true)])
 data class ShelfEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = "shelf-${UUID.randomUUID()}",
     val name: String,
     val createdAt: Long,
     val updatedAt: Long,
@@ -26,4 +28,5 @@ data class ShelfEntity(
 data class BookShelfCrossRefEntity(
     val bookId: Long,
     val shelfId: Long,
+    val createdAt: Long = 0,
 )

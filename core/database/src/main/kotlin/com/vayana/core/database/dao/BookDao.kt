@@ -46,7 +46,8 @@ interface BookDao {
 
     @Query(
         "UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, " +
-            "coverPath = :coverPath, filePath = :filePath, format = :format, fileHash = :fileHash, " +
+            "coverPath = :coverPath, filePath = :filePath, fileAvailability = 'LOCAL', format = :format, fileHash = :fileHash, " +
+            "fileAssetId = NULL, fileAssetSha256 = NULL, fileAssetSizeBytes = NULL, fileAssetUploadedAt = NULL, " +
             "lastLocator = NULL, readingPercent = 0, startedReadingAt = NULL, finishedReadingAt = NULL, totalReadingSeconds = 0, " +
             "updatedAt = :updatedAt, lastReadAt = NULL WHERE id = :id",
     )
@@ -117,4 +118,52 @@ interface BookDao {
 
     @Query("SELECT * FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt ASC")
     fun observeReadNextQueue(): Flow<List<BookEntity>>
+
+    @Query("SELECT * FROM books ORDER BY syncId ASC")
+    suspend fun getAllForSync(): List<BookEntity>
+
+    @Query(
+        """
+        UPDATE books
+        SET fileAvailability = 'LOCAL',
+            filePath = :filePath,
+            fileHash = :fileHash,
+            fileAssetId = :assetId,
+            fileAssetSha256 = :assetSha256,
+            fileAssetSizeBytes = :assetSizeBytes,
+            fileAssetUploadedAt = :assetUploadedAt,
+            updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun attachDownloadedFile(
+        id: Long,
+        filePath: String,
+        fileHash: String,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+        updatedAt: Long,
+    )
+
+    @Query(
+        """
+        UPDATE books
+        SET fileAssetId = :assetId,
+            fileAssetSha256 = :assetSha256,
+            fileAssetSizeBytes = :assetSizeBytes,
+            fileAssetUploadedAt = :assetUploadedAt,
+            updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun markFileAssetUploaded(
+        id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+        updatedAt: Long,
+    )
 }

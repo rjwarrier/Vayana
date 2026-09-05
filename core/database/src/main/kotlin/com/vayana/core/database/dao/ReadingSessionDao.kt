@@ -17,4 +17,7 @@ interface ReadingSessionDao {
 
     @Query("SELECT * FROM reading_sessions WHERE bookId = :bookId ORDER BY startedAt DESC")
     fun observeForBook(bookId: Long): Flow<List<ReadingSessionEntity>>
+
+    @Query("SELECT * FROM reading_sessions ORDER BY syncId ASC")
+    suspend fun getAllForSync(): List<ReadingSessionEntity>
 }

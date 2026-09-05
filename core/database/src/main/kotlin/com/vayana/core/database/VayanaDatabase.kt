@@ -17,7 +17,7 @@ import com.vayana.core.database.entity.VocabularyCardEntity
 import com.vayana.core.database.entity.WordLookupStatEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (PROMPT2appbuild.md §2). */
-const val DATABASE_VERSION = 9
+const val DATABASE_VERSION = 11
 
 @Database(
     entities = [

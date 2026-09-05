@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 @Entity(
     tableName = "annotations",
@@ -16,6 +17,7 @@ import androidx.room.PrimaryKey
         ),
     ],
     indices = [
+        Index(value = ["syncId"], unique = true),
         Index("bookId"),
         Index("type"),
         Index("colorKey"),
@@ -24,6 +26,7 @@ import androidx.room.PrimaryKey
 )
 data class AnnotationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = "annotation-${UUID.randomUUID()}",
     val bookId: Long,
     val type: String,
     val colorKey: String,

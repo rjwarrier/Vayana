@@ -9,6 +9,13 @@ enum class BookFormat {
     EPUB, TXT, MOBI, AZW3, FB2, PDF, PHYSICAL
 }
 
+enum class BookFileAvailability {
+    LOCAL,
+    CLOUD_ONLY,
+    MISSING,
+    UPLOAD_PENDING,
+}
+
 /**
  * Domain-facing book model — the public surface of `:core:database`. Callers never see
  * [com.vayana.core.database.entity.BookEntity] directly, keeping Room out of feature/UI code (§0.5).
@@ -22,8 +29,17 @@ data class Book(
     val description: String?,
     val coverPath: String?,
     val filePath: String,
+    val fileAvailability: BookFileAvailability,
     val format: BookFormat,
     val fileHash: String,
+    val fileAssetId: String? = null,
+    val fileAssetSha256: String? = null,
+    val fileAssetSizeBytes: Long? = null,
+    val fileAssetUploadedAt: Long? = null,
+    val coverAssetId: String? = null,
+    val coverAssetSha256: String? = null,
+    val coverAssetSizeBytes: Long? = null,
+    val coverAssetUploadedAt: Long? = null,
     val readingPercent: Float,
     val rating: Float,
     val createdAt: Long,

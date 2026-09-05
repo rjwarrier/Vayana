@@ -36,10 +36,11 @@ internal fun validateStagedBackup(context: Context, stagingDir: File, declaredVe
         db.query("PRAGMA foreign_key_check").use { cursor ->
             check(!cursor.moveToFirst()) { "Backup database contains broken references" }
         }
-        db.query("SELECT filePath, coverPath, format FROM books WHERE isDeleted = 0").use { cursor ->
+        db.query("SELECT filePath, coverPath, format, fileAvailability FROM books WHERE isDeleted = 0").use { cursor ->
             while (cursor.moveToNext()) {
                 val format = BookFormat.valueOf(cursor.getString(2))
-                if (format != BookFormat.PHYSICAL) {
+                val fileAvailability = cursor.getString(3)
+                if (format != BookFormat.PHYSICAL && fileAvailability == "LOCAL") {
                     requireStagedFile(stagingDir, cursor.getString(0), "books")
                 }
                 if (!cursor.isNull(1)) requireStagedFile(stagingDir, cursor.getString(1), "covers")

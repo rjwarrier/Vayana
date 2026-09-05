@@ -90,10 +90,30 @@ class BackupValidatorTest {
     }
 
     @Test
+    fun cloudOnlyBooksDoNotRequireALocalEpub() {
+        val root = backup()
+        open(root).use {
+            it.execSQL(
+                """
+                UPDATE books
+                SET fileAvailability = 'CLOUD_ONLY',
+                    filePath = '',
+                    fileAssetId = 'asset-book',
+                    fileAssetSha256 = 'asset-sha',
+                    fileAssetSizeBytes = 1024,
+                    fileAssetUploadedAt = 1000
+                """.trimIndent(),
+            )
+        }
+        File(root, "books/book.epub").delete()
+        validateStagedBackup(context, root, DATABASE_VERSION)
+    }
+
+    @Test
     fun rejectsBrokenForeignKeys() {
         val root = backup()
         open(root).use {
-            it.execSQL("INSERT INTO reading_sessions (bookId, startedAt, endedAt, durationSeconds) VALUES (999, 0, 1000, 1)")
+            it.execSQL("INSERT INTO reading_sessions (syncId, bookId, startedAt, endedAt, durationSeconds) VALUES ('session-broken', 999, 0, 1000, 1)")
         }
         assertFails { validateStagedBackup(context, root, DATABASE_VERSION) }
     }
@@ -119,11 +139,15 @@ class BackupValidatorTest {
             val setup = schema.getJSONArray("setupQueries")
             for (i in 0 until setup.length()) db.execSQL(setup.getString(i))
             db.version = version
+            val syncIdColumn = if (version >= 10) "syncId, " else ""
+            val syncIdValue = if (version >= 10) "'book-test', " else ""
+            val availabilityColumn = if (version >= 11) ", fileAvailability" else ""
+            val availabilityValue = if (version >= 11) ", 'LOCAL'" else ""
             val timeColumn = if (version >= 5) ", totalReadingSeconds" else ""
             val timeValue = if (version >= 5) ", 0" else ""
             db.execSQL("""
-                INSERT INTO books (id, title, filePath, format, fileHash, readingPercent, rating, isDeleted, createdAt, updatedAt$timeColumn)
-                VALUES (1, 'Test book', 'books/book.epub', 'EPUB', 'hash', 0, 0, 0, 0, 0$timeValue)
+                INSERT INTO books (id, ${syncIdColumn}title, filePath, format, fileHash, readingPercent, rating, isDeleted, createdAt, updatedAt$timeColumn$availabilityColumn)
+                VALUES (1, ${syncIdValue}'Test book', 'books/book.epub', 'EPUB', 'hash', 0, 0, 0, 0, 0$timeValue$availabilityValue)
             """.trimIndent())
         }
         return root

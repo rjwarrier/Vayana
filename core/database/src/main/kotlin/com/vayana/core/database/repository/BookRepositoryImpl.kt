@@ -3,6 +3,7 @@ package com.vayana.core.database.repository
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -62,6 +63,7 @@ class BookRepositoryImpl @Inject constructor(
             description = description,
             coverPath = coverPath,
             filePath = filePath,
+            fileAvailability = BookFileAvailability.LOCAL.name,
             format = format.name,
             fileHash = fileHash,
             lastLocator = null,
@@ -142,6 +144,44 @@ class BookRepositoryImpl @Inject constructor(
     override suspend fun setReadNext(id: Long, queued: Boolean) {
         bookDao.setReadNext(id, if (queued) System.currentTimeMillis() else null, System.currentTimeMillis())
     }
+
+    override suspend fun attachDownloadedFile(
+        id: Long,
+        filePath: String,
+        fileHash: String,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    ) {
+        bookDao.attachDownloadedFile(
+            id = id,
+            filePath = filePath,
+            fileHash = fileHash,
+            assetId = assetId,
+            assetSha256 = assetSha256,
+            assetSizeBytes = assetSizeBytes,
+            assetUploadedAt = assetUploadedAt,
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    override suspend fun markFileAssetUploaded(
+        id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    ) {
+        bookDao.markFileAssetUploaded(
+            id = id,
+            assetId = assetId,
+            assetSha256 = assetSha256,
+            assetSizeBytes = assetSizeBytes,
+            assetUploadedAt = assetUploadedAt,
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
 }
 
 internal fun BookEntity.toDomain(): Book = Book(
@@ -153,8 +193,17 @@ internal fun BookEntity.toDomain(): Book = Book(
     description = description,
     coverPath = coverPath,
     filePath = filePath,
+    fileAvailability = runCatching { BookFileAvailability.valueOf(fileAvailability) }.getOrDefault(BookFileAvailability.LOCAL),
     format = BookFormat.valueOf(format),
     fileHash = fileHash,
+    fileAssetId = fileAssetId,
+    fileAssetSha256 = fileAssetSha256,
+    fileAssetSizeBytes = fileAssetSizeBytes,
+    fileAssetUploadedAt = fileAssetUploadedAt,
+    coverAssetId = coverAssetId,
+    coverAssetSha256 = coverAssetSha256,
+    coverAssetSizeBytes = coverAssetSizeBytes,
+    coverAssetUploadedAt = coverAssetUploadedAt,
     readingPercent = readingPercent,
     rating = rating,
     createdAt = createdAt,

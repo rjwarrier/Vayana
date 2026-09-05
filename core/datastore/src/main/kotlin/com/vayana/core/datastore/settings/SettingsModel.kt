@@ -55,6 +55,14 @@ class FloatSetting(
     val step: Float,
 ) : Setting<Float>(key, defaultValue, titleRes, subtitleRes, group)
 
+class StringSetting(
+    key: String,
+    defaultValue: String,
+    @StringRes titleRes: Int,
+    @StringRes subtitleRes: Int?,
+    group: SettingsGroup,
+) : Setting<String>(key, defaultValue, titleRes, subtitleRes, group)
+
 class ChoiceSetting<T>(
     key: String,
     defaultValue: T,
@@ -87,6 +95,7 @@ data class SettingsSnapshot(
     val dailyReadingGoalMinutes: Int = 20,
     val yearlyBooksGoal: Int = 12,
     val landscapeTwoColumnLayout: Boolean = true,
+    val kindleDeviceName: String = "My Vayana",
 )
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
@@ -289,6 +298,13 @@ object SettingsRegistry {
         subtitleRes = R.string.settings_landscape_two_column_subtitle,
         group = SettingsGroup.APPEARANCE,
     )
+    val KindleDeviceName: StringSetting = StringSetting(
+        key = "sync.kindle_device_name",
+        defaultValue = "My Vayana",
+        titleRes = R.string.settings_kindle_device_name_title,
+        subtitleRes = R.string.settings_kindle_device_name_subtitle,
+        group = SettingsGroup.MAINTENANCE,
+    )
 
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
@@ -311,5 +327,6 @@ object SettingsRegistry {
         DailyReadingGoalMinutes,
         YearlyBooksGoal,
         LandscapeTwoColumnLayout,
+        KindleDeviceName,
     )
 }

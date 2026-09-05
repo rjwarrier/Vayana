@@ -68,4 +68,22 @@ interface BookRepository {
     fun observeReadNextQueue(): Flow<List<Book>>
 
     suspend fun setReadNext(id: Long, queued: Boolean)
+
+    suspend fun attachDownloadedFile(
+        id: Long,
+        filePath: String,
+        fileHash: String,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    )
+
+    suspend fun markFileAssetUploaded(
+        id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    )
 }

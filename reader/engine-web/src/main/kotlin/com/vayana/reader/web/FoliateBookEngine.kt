@@ -105,8 +105,18 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.settings.builtInZoomControls = false
         webView.settings.displayZoomControls = false
         webView.webViewClient = object : WebViewClientCompat() {
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                assetLoader.shouldInterceptRequest(request.url)
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val url = request.url
+                if (url.scheme != "https" || url.host != "appassets.androidplatform.net") {
+                    return blockedResponse()
+                }
+                return assetLoader.shouldInterceptRequest(url) ?: blockedResponse(statusCode = 404, reasonPhrase = "Not Found")
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val url = request.url
+                return url.scheme != "https" || url.host != "appassets.androidplatform.net"
+            }
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
@@ -233,6 +243,16 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val cfiArg = lastLocatorCfi?.let { JSONObject.quote(it) } ?: "null"
         webView.evaluateJavascript("window.VayanaReader.open(${JSONObject.quote(bookUrl)}, $cfiArg)", null)
     }
+
+    private fun blockedResponse(statusCode: Int = 403, reasonPhrase: String = "Forbidden"): WebResourceResponse =
+        WebResourceResponse(
+            "text/plain",
+            "utf-8",
+            statusCode,
+            reasonPhrase,
+            mapOf("Cache-Control" to "no-store"),
+            "Blocked by Vayana reader isolation".byteInputStream(),
+        )
 
     private inner class JsBridge {
         @JavascriptInterface

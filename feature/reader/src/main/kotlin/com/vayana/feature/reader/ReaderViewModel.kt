@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
@@ -152,8 +153,22 @@ class ReaderViewModel @Inject constructor(
                 return@launch
             }
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
+            if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
+                _uiState.value = ReaderUiState.Failed("This book is in your cloud library. Download support is being wired next.")
+                return@launch
+            }
+            if (book.fileAvailability != BookFileAvailability.LOCAL || book.filePath.isBlank()) {
+                _uiState.value = ReaderUiState.Failed("This book file is not available on this device.")
+                return@launch
+            }
 
-            val source = BookSource(storageRoots.resolve(book.filePath).absolutePath)
+            val localFile = storageRoots.resolve(book.filePath)
+            if (!localFile.isFile) {
+                _uiState.value = ReaderUiState.Failed("This book file is missing from this device.")
+                return@launch
+            }
+
+            val source = BookSource(localFile.absolutePath)
             val initialLocatorString = targetLocator?.takeIf { it.isNotBlank() } ?: book.lastLocator
             val resumeLocator = initialLocatorString?.let {
                 Locator(cfi = it, href = null, progression = book.readingPercent, chapterTitle = null)

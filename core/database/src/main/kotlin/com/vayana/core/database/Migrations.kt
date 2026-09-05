@@ -142,7 +142,79 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("UPDATE `books` SET `syncId` = 'book-' || lower(hex(randomblob(16))) WHERE `syncId` = ''")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_books_syncId` ON `books` (`syncId`)")
+
+        connection.execSQL("ALTER TABLE `annotations` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("UPDATE `annotations` SET `syncId` = 'annotation-' || lower(hex(randomblob(16))) WHERE `syncId` = ''")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_annotations_syncId` ON `annotations` (`syncId`)")
+
+        connection.execSQL("ALTER TABLE `reading_sessions` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("UPDATE `reading_sessions` SET `syncId` = 'session-' || lower(hex(randomblob(16))) WHERE `syncId` = ''")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_reading_sessions_syncId` ON `reading_sessions` (`syncId`)")
+
+        connection.execSQL("ALTER TABLE `shelves` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("UPDATE `shelves` SET `syncId` = 'shelf-' || lower(hex(randomblob(16))) WHERE `syncId` = ''")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_shelves_syncId` ON `shelves` (`syncId`)")
+
+        connection.execSQL("ALTER TABLE `book_shelf_cross_ref` ADD COLUMN `createdAt` INTEGER NOT NULL DEFAULT 0")
+        connection.execSQL(
+            """
+            UPDATE `book_shelf_cross_ref`
+            SET `createdAt` = (
+                SELECT max(`books`.`createdAt`, `shelves`.`createdAt`)
+                FROM `books`, `shelves`
+                WHERE `books`.`id` = `book_shelf_cross_ref`.`bookId`
+                    AND `shelves`.`id` = `book_shelf_cross_ref`.`shelfId`
+            )
+            WHERE `createdAt` = 0
+            """.trimIndent(),
+        )
+
+        connection.execSQL("ALTER TABLE `vocabulary_cards` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("UPDATE `vocabulary_cards` SET `syncId` = 'vocabulary-' || lower(hex(randomblob(16))) WHERE `syncId` = ''")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_vocabulary_cards_syncId` ON `vocabulary_cards` (`syncId`)")
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `word_lookup_stats_new` (
+                `word` TEXT NOT NULL,
+                `count` INTEGER NOT NULL,
+                `lastLookedUpAt` INTEGER NOT NULL,
+                `writerOrigin` TEXT NOT NULL DEFAULT 'legacy-local',
+                PRIMARY KEY(`word`, `writerOrigin`)
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL(
+            """
+            INSERT INTO `word_lookup_stats_new` (`word`, `count`, `lastLookedUpAt`, `writerOrigin`)
+            SELECT `word`, `count`, `lastLookedUpAt`, 'legacy-local' FROM `word_lookup_stats`
+            """.trimIndent(),
+        )
+        connection.execSQL("DROP TABLE `word_lookup_stats`")
+        connection.execSQL("ALTER TABLE `word_lookup_stats_new` RENAME TO `word_lookup_stats`")
+    }
+}
+
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `fileAvailability` TEXT NOT NULL DEFAULT 'LOCAL'")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `fileAssetId` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `fileAssetSha256` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `fileAssetSizeBytes` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `fileAssetUploadedAt` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `coverAssetId` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `coverAssetSha256` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `coverAssetSizeBytes` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `coverAssetUploadedAt` INTEGER")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-    MIGRATION_8_9,
+    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
 )

@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -98,6 +99,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.shareText as shareTextWithChooser
@@ -124,6 +126,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.tokens.Elevations
@@ -137,6 +140,7 @@ import java.io.File
 import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -253,6 +257,7 @@ private fun LibraryScreen(
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     val importSummaryMessage = importSummary?.let { summary ->
         stringResource(
             R.string.library_import_summary,
@@ -270,6 +275,18 @@ private fun LibraryScreen(
         if (uri != null) onImportFolder(context.contentResolver, uri)
     }
     var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
+    val cloudOnlyMessage = stringResource(R.string.library_book_in_cloud)
+    val missingFileMessage = stringResource(R.string.library_book_file_missing)
+    val uploadPendingMessage = stringResource(R.string.library_book_upload_pending)
+
+    fun handleBookClick(book: Book) {
+        when (book.fileAvailability) {
+            BookFileAvailability.LOCAL -> onBookClick(book.id)
+            BookFileAvailability.CLOUD_ONLY -> coroutineScope.launch { snackbarHostState.showSnackbar(cloudOnlyMessage) }
+            BookFileAvailability.MISSING -> coroutineScope.launch { snackbarHostState.showSnackbar(missingFileMessage) }
+            BookFileAvailability.UPLOAD_PENDING -> coroutineScope.launch { snackbarHostState.showSnackbar(uploadPendingMessage) }
+        }
+    }
 
     LaunchedEffect(importSummaryMessage) {
         val message = importSummaryMessage ?: return@LaunchedEffect
@@ -307,7 +324,7 @@ private fun LibraryScreen(
                 books = uiState.books,
                 groupBy = uiState.controls.groupBy,
                 contentPadding = innerPadding,
-                onBookClick = onBookClick,
+                onBookClick = ::handleBookClick,
             )
         }
     }
@@ -687,7 +704,7 @@ private fun LibraryGrid(
     books: List<Book>,
     groupBy: LibraryGroupBy,
     contentPadding: PaddingValues,
-    onBookClick: (Long) -> Unit,
+    onBookClick: (Book) -> Unit,
 ) {
     val lastOpenedBook = remember(books) {
         books.filter { (it.lastReadAt ?: 0L) > 0L }
@@ -711,7 +728,7 @@ private fun LibraryGrid(
             item(key = "hero:${lastOpenedBook.id}", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
                     book = lastOpenedBook,
-                    onClick = { onBookClick(lastOpenedBook.id) },
+                    onClick = { onBookClick(lastOpenedBook) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -720,7 +737,7 @@ private fun LibraryGrid(
         if (sections == null) {
             val gridBooks = if (lastOpenedBook != null) books.filter { it.id != lastOpenedBook.id } else books
             gridItems(gridBooks, key = { it.id }) { book ->
-                BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
+                BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book) })
             }
         } else {
             sections.forEach { section ->
@@ -736,7 +753,7 @@ private fun LibraryGrid(
                         )
                     }
                     gridItems(sectionBooks, key = { it.id }) { book ->
-                        BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book.id) })
+                        BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book) })
                     }
                 }
             }
@@ -775,8 +792,16 @@ private fun LibraryHeroCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(Radii.full),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    },
+                    contentColor = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    },
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
@@ -784,12 +809,16 @@ private fun LibraryHeroCard(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.AutoStories,
+                            imageVector = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) Icons.Outlined.CloudDownload else Icons.Outlined.AutoStories,
                             contentDescription = null,
                             modifier = Modifier.size(Sizes.iconSmall),
                         )
                         Text(
-                            text = stringResource(R.string.library_continue_reading),
+                            text = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
+                                stringResource(R.string.library_cloud_book_badge)
+                            } else {
+                                stringResource(R.string.library_continue_reading)
+                            },
                             style = MaterialTheme.typography.labelSmall,
                         )
                     }
@@ -900,6 +929,27 @@ private fun BookCoverCell(
                     .fillMaxWidth()
                     .padding(top = Spacing.xs),
             )
+        }
+        if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
+            Row(
+                modifier = Modifier.padding(top = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CloudDownload,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.library_cloud_book_badge),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -2349,4 +2399,3 @@ private fun ImportQuotesDialog(
         },
     )
 }
-

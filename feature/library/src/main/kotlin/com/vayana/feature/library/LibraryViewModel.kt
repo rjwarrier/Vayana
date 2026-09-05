@@ -551,7 +551,7 @@ class LibraryViewModel @Inject constructor(
 
     private fun Book.withAbsolutePaths(): Book = copy(
         coverPath = coverPath?.let { storageRoots.resolve(it).absolutePath },
-        filePath = storageRoots.resolve(filePath).absolutePath,
+        filePath = filePath.takeIf { it.isNotBlank() }?.let { storageRoots.resolve(it).absolutePath }.orEmpty(),
     )
 
     private fun saveCover(bytes: ByteArray): File {

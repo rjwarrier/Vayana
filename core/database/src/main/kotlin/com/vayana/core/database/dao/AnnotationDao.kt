@@ -38,4 +38,7 @@ interface AnnotationDao {
     /** Permanently purges an already soft-deleted row - never call this directly on a live one. */
     @Delete
     suspend fun delete(annotation: AnnotationEntity)
+
+    @Query("SELECT * FROM annotations ORDER BY syncId ASC")
+    suspend fun getAllForSync(): List<AnnotationEntity>
 }

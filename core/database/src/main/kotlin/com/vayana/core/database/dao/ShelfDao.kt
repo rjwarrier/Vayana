@@ -46,4 +46,10 @@ interface ShelfDao {
 
     @Query("SELECT COUNT(*) FROM book_shelf_cross_ref WHERE shelfId = :shelfId")
     fun observeShelfBookCount(shelfId: Long): Flow<Int>
+
+    @Query("SELECT * FROM shelves ORDER BY syncId ASC")
+    suspend fun getAllForSync(): List<ShelfEntity>
+
+    @Query("SELECT * FROM book_shelf_cross_ref ORDER BY bookId ASC, shelfId ASC")
+    suspend fun getMembershipsForSync(): List<BookShelfCrossRefEntity>
 }

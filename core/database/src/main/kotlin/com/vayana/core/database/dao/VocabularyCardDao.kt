@@ -26,4 +26,7 @@ interface VocabularyCardDao {
 
     @Query("DELETE FROM vocabulary_cards WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM vocabulary_cards ORDER BY syncId ASC")
+    suspend fun getAllForSync(): List<VocabularyCardEntity>
 }

@@ -85,6 +85,7 @@ import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.datastore.settings.StringSetting
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Elevations
@@ -1043,6 +1044,7 @@ private fun SettingRow(
                 is BooleanSetting -> Unit
                 is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
                 is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
+                is StringSetting -> StringSettingControl(setting = setting, value = value as String, onUpdate = { onUpdate(setting.asAny(), it) })
                 is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
             }
         }
@@ -1138,6 +1140,30 @@ private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (
 }
 
 @Composable
+private fun StringSettingControl(setting: StringSetting, value: String, onUpdate: (String) -> Unit) {
+    val focusManager = LocalFocusManager.current
+    var pendingValue by remember(setting.key, value) { mutableStateOf(value) }
+    OutlinedTextField(
+        value = pendingValue,
+        onValueChange = {
+            pendingValue = it.take(160)
+            onUpdate(pendingValue)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
+        singleLine = true,
+        shape = RoundedCornerShape(Radii.large),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        ),
+    )
+}
+
+@Composable
 private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate: (Any) -> Unit) {
     Row(
         modifier = Modifier
@@ -1192,6 +1218,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderBionicReading -> readerBionicReading
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
+    SettingsRegistry.KindleDeviceName -> kindleDeviceName
     else -> setting.defaultValue
 }
 
@@ -1220,6 +1247,7 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
         SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"
         SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
+        SettingsRegistry.KindleDeviceName -> "kindle device name label sync send to kindle backup transfer"
         else -> ""
     }
     return "${key} ${group.name} $synonyms"
@@ -1240,4 +1268,3 @@ private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
     SettingsGroup.MAINTENANCE -> stringResource(subtitleRes, settingCount)
     else -> stringResource(subtitleRes)
 }
-

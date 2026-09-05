@@ -1,16 +1,19 @@
 package com.vayana.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 /**
  * Room schema per PROMPT2appbuild.md §2. [coverPath] and [filePath] are root-relative,
  * never absolute — resolved through `StorageRoots` (`:core:filesystem`) so relocating the
  * library is a single migration job, not a data-model change.
  */
-@Entity(tableName = "books")
+@Entity(tableName = "books", indices = [Index(value = ["syncId"], unique = true)])
 data class BookEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = "book-${UUID.randomUUID()}",
     val title: String,
     val author: String?,
     val series: String?,
@@ -18,8 +21,17 @@ data class BookEntity(
     val description: String?,
     val coverPath: String?,
     val filePath: String,
+    val fileAvailability: String = "LOCAL",
     val format: String,
     val fileHash: String,
+    val fileAssetId: String? = null,
+    val fileAssetSha256: String? = null,
+    val fileAssetSizeBytes: Long? = null,
+    val fileAssetUploadedAt: Long? = null,
+    val coverAssetId: String? = null,
+    val coverAssetSha256: String? = null,
+    val coverAssetSizeBytes: Long? = null,
+    val coverAssetUploadedAt: Long? = null,
     val lastLocator: String?,
     val readingPercent: Float,
     val rating: Float,
