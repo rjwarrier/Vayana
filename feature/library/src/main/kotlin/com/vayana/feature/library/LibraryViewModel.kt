@@ -443,7 +443,7 @@ class LibraryViewModel @Inject constructor(
     // or whose cover-upload never ran, can be stuck with a local epub but no cover forever -
     // nothing else re-checks them once they're already LOCAL. Repair opportunistically on
     // every sync so they pick up a cover (and get queued for cover upload right after).
-    private suspend fun repairMissingCoversFromLocalFiles(books: List<Book>) {
+    private suspend fun repairMissingCoversFromLocalFiles(books: List<Book>): Int =
         books
             .filter { book ->
                 book.fileAvailability == BookFileAvailability.LOCAL &&
@@ -451,17 +451,16 @@ class LibraryViewModel @Inject constructor(
                     book.coverPath.isNullOrBlank() &&
                     book.filePath.isNotBlank()
             }
-            .forEach { book -> extractLocalCoverFallback(book.id, book.filePath) }
-    }
+            .count { book -> extractLocalCoverFallback(book.id, book.filePath) }
 
-    private suspend fun extractLocalCoverFallback(bookId: Long, relativeFilePath: String) {
+    private suspend fun extractLocalCoverFallback(bookId: Long, relativeFilePath: String): Boolean =
         runCatchingCancellable {
             val file = storageRoots.resolve(relativeFilePath)
-            val coverBytes = EpubParser.parse(file).coverBytes ?: return@runCatchingCancellable
+            val coverBytes = EpubParser.parse(file).coverBytes ?: return@runCatchingCancellable false
             val coverFile = saveCover(coverBytes)
             bookRepository.updateCover(bookId, storageRoots.relativize(coverFile))
-        }
-    }
+            true
+        }.getOrDefault(false)
 
     suspend fun syncNow(allowInitialSync: Boolean = false): GitHubSyncNowResult = withContext(dispatchers.io) {
         updateSyncProgress(GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
@@ -497,8 +496,9 @@ class LibraryViewModel @Inject constructor(
         } else {
             mergeCloudLibrary(store)
         }
-        repairMissingCoversFromLocalFiles(bookRepository.observeAll().first())
-        val localBooks = bookRepository.observeAll().first()
+        val booksBeforeRepair = bookRepository.observeAll().first()
+        val repairedCovers = repairMissingCoversFromLocalFiles(booksBeforeRepair)
+        val localBooks = if (repairedCovers > 0) bookRepository.observeAll().first() else booksBeforeRepair
         val uploadCandidates = localBooks
             .filter { book ->
                 book.fileAvailability == BookFileAvailability.LOCAL &&
