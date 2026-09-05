@@ -1,5 +1,11 @@
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+// Android WebView can miss (or indefinitely delay) an iframe's `load` event when an EPUB
+// subresource stalls. First check-in after this long, then keep polling until this much
+// longer has passed in total before giving up on the section entirely.
+const StallWatchdogFirstCheckMillis = 8000
+const StallWatchdogMaxPollMillis = 20000
+
 const debounce = (f, wait, immediate) => {
     let timeout
     return (...args) => {
@@ -261,7 +267,7 @@ class View {
                 clearTimeout(timeoutId)
                 reject(error)
             }
-            let timeoutElapsed = 0
+            const maxWaitUntil = Date.now() + StallWatchdogFirstCheckMillis + StallWatchdogMaxPollMillis
             const finish = reason => {
                 if (settled) return
                 const doc = this.document
@@ -274,8 +280,7 @@ class View {
                 const looksLoaded = doc?.body && href !== 'about:blank' && doc.readyState === 'complete' && doc.body.childNodes.length > 0
                 if (!looksLoaded) {
                     if (reason === 'timeout') {
-                        timeoutElapsed += 500
-                        if (timeoutElapsed >= 20000) {
+                        if (Date.now() >= maxWaitUntil) {
                             fail(new Error(`Timed out loading section ${src}`))
                         } else {
                             timeoutId = setTimeout(() => finish('timeout'), 500)
@@ -316,7 +321,7 @@ class View {
             this.#iframe.src = src
             // Android WebView can miss iframe `load` when an EPUB subresource stalls.
             // If the section document is present, render it so native open() cannot hang forever.
-            timeoutId = setTimeout(() => finish('timeout'), 8000)
+            timeoutId = setTimeout(() => finish('timeout'), StallWatchdogFirstCheckMillis)
         })
     }
     render(layout) {

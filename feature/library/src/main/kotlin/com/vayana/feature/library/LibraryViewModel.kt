@@ -415,7 +415,7 @@ class LibraryViewModel @Inject constructor(
         runCatchingCancellable {
             val store = syncConfig.assetStore()
             val passphrase = syncConfig.passphrase.toCharArray()
-            try {
+            val staged = try {
                 cloudBookAssetTransfer.downloadBookFile(
                     bookId = book.id,
                     reference = reference,
@@ -426,11 +426,41 @@ class LibraryViewModel @Inject constructor(
             } finally {
                 passphrase.fill('\u0000')
             }
-            book.coverAssetReference()?.let { coverReference ->
-                downloadCoverIfNeeded(book, coverReference, store)
+            val coverDownloaded = book.coverAssetReference()
+                ?.let { coverReference -> downloadCoverIfNeeded(book, coverReference, store) > 0 }
+                ?: false
+            // Older uploads (or books whose cover-upload never ran) carry no cover asset at
+            // all in the cloud snapshot - now that the epub is local again, fall back to
+            // extracting the cover straight from it, same as a fresh local import would.
+            if (!coverDownloaded) {
+                extractLocalCoverFallback(book.id, staged.relativePath)
             }
             CloudBookDownloadResult.DOWNLOADED
         }.getOrElse { CloudBookDownloadResult.FAILED }
+    }
+
+    // Books that were locally imported (or downloaded) before cover extraction/upload existed,
+    // or whose cover-upload never ran, can be stuck with a local epub but no cover forever -
+    // nothing else re-checks them once they're already LOCAL. Repair opportunistically on
+    // every sync so they pick up a cover (and get queued for cover upload right after).
+    private suspend fun repairMissingCoversFromLocalFiles(books: List<Book>) {
+        books
+            .filter { book ->
+                book.fileAvailability == BookFileAvailability.LOCAL &&
+                    book.format == BookFormat.EPUB &&
+                    book.coverPath.isNullOrBlank() &&
+                    book.filePath.isNotBlank()
+            }
+            .forEach { book -> extractLocalCoverFallback(book.id, book.filePath) }
+    }
+
+    private suspend fun extractLocalCoverFallback(bookId: Long, relativeFilePath: String) {
+        runCatchingCancellable {
+            val file = storageRoots.resolve(relativeFilePath)
+            val coverBytes = EpubParser.parse(file).coverBytes ?: return@runCatchingCancellable
+            val coverFile = saveCover(coverBytes)
+            bookRepository.updateCover(bookId, storageRoots.relativize(coverFile))
+        }
     }
 
     suspend fun syncNow(allowInitialSync: Boolean = false): GitHubSyncNowResult = withContext(dispatchers.io) {
@@ -467,6 +497,7 @@ class LibraryViewModel @Inject constructor(
         } else {
             mergeCloudLibrary(store)
         }
+        repairMissingCoversFromLocalFiles(bookRepository.observeAll().first())
         val localBooks = bookRepository.observeAll().first()
         val uploadCandidates = localBooks
             .filter { book ->

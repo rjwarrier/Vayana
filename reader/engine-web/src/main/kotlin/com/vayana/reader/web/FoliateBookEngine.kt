@@ -283,6 +283,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         openResult?.complete(Result.failure(IllegalStateException("Reader closed before the book opened")))
         openResult = null
         pendingOpen = null
+        resources.clear()
         webView.destroy()
     }
 
