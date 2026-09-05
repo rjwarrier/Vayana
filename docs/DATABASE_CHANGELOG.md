@@ -2,6 +2,21 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 9
+Adds schema for the remaining feature-value recommendations (personal shelves/read-next, vocabulary
+review cards, per-book reader preferences):
+
+- `books` gains `customFontSizePercent`, `customLineHeight`, `customFontFamily`,
+  `customSideMarginPercent` (all nullable - null means "use the global reader setting") and
+  `readNextAddedAt` (non-null while queued in "Read next", ordered ascending).
+- New `shelves` table (`id`, `name`, `createdAt`, `updatedAt`) and `book_shelf_cross_ref` join
+  table (`bookId`, `shelfId`, composite PK, cascade-delete both ways) for many-to-many personal
+  shelves.
+- New `vocabulary_cards` table (`id`, `word`, `definition`, `sentence`, `bookId`, `bookTitle`,
+  `createdAt`, `lastReviewedAt`, `known`) for saved dictionary lookups turned into flashcards.
+  `bookId` is a plain column, not a foreign key - a card should outlive its source book being
+  deleted, it just loses the "jump back to book" affordance.
+
 ## Version 7
 Adds soft-delete to `annotations`:
 

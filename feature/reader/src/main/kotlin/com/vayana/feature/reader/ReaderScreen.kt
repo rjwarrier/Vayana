@@ -153,7 +153,8 @@ import kotlinx.coroutines.delay
 fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: ReaderViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
-    val settings by viewModel.settings.collectAsState()
+    val settings by viewModel.effectiveSettings.collectAsState()
+    val usingCustomStyle by viewModel.usingCustomStyle.collectAsState()
     val dictionaryLookup by viewModel.dictionaryLookup.collectAsState()
     val recentLookups by viewModel.recentLookups.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -170,6 +171,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier,
         uiState = uiState,
         settings = settings,
+        usingCustomStyle = usingCustomStyle,
+        onUseCustomStyleChange = viewModel::setUseCustomStyle,
         dictionaryLookup = dictionaryLookup,
         recentLookups = recentLookups,
         searchResults = searchResults,
@@ -229,6 +232,8 @@ private fun ReaderScreen(
     modifier: Modifier = Modifier,
     uiState: ReaderUiState,
     settings: SettingsSnapshot,
+    usingCustomStyle: Boolean,
+    onUseCustomStyleChange: (Boolean) -> Unit,
     dictionaryLookup: DictionaryLookupState,
     recentLookups: List<String>,
     searchResults: List<com.vayana.reader.api.SearchResult>,
@@ -544,6 +549,8 @@ private fun ReaderScreen(
             ReaderChrome(
                 uiState = uiState,
                 settings = settings,
+                usingCustomStyle = usingCustomStyle,
+                onUseCustomStyleChange = onUseCustomStyleChange,
                 selectedPanel = selectedPanel,
                 onPanelSelected = { selectedPanel = it },
                 onBack = { chromeVisible = false },
@@ -1142,6 +1149,8 @@ private fun ReaderChrome(
     modifier: Modifier = Modifier,
     uiState: ReaderUiState,
     settings: SettingsSnapshot,
+    usingCustomStyle: Boolean,
+    onUseCustomStyleChange: (Boolean) -> Unit,
     selectedPanel: ReaderPanel,
     onPanelSelected: (ReaderPanel) -> Unit,
     onBack: () -> Unit,
@@ -1269,6 +1278,8 @@ private fun ReaderChrome(
                     ReaderPanel.PROGRESS -> ProgressPanel(uiState = uiState, onProgressChange = onProgressChange)
                     ReaderPanel.STYLE -> StylePanel(
                         settings = settings,
+                        usingCustomStyle = usingCustomStyle,
+                        onUseCustomStyleChange = onUseCustomStyleChange,
                         onFontSizeChange = onFontSizeChange,
                         onLineHeightChange = onLineHeightChange,
                         onFontFamilyChange = onFontFamilyChange,
@@ -1522,6 +1533,8 @@ private fun SearchPanel(
 @Composable
 private fun StylePanel(
     settings: SettingsSnapshot,
+    usingCustomStyle: Boolean,
+    onUseCustomStyleChange: (Boolean) -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -1557,6 +1570,18 @@ private fun StylePanel(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.reader_use_custom_style_for_book),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Switch(checked = usingCustomStyle, onCheckedChange = onUseCustomStyleChange)
+        }
+
         Text(text = stringResource(R.string.settings_reader_theme_title), style = MaterialTheme.typography.labelLarge)
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),

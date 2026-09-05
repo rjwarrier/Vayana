@@ -33,4 +33,9 @@ data class Book(
     val startedReadingAt: Long? = null,
     val finishedReadingAt: Long? = null,
     val totalReadingSeconds: Long = 0L,
+    val customFontSizePercent: Int? = null,
+    val customLineHeight: Float? = null,
+    val customFontFamily: String? = null,
+    val customSideMarginPercent: Int? = null,
+    val readNextAddedAt: Long? = null,
 )

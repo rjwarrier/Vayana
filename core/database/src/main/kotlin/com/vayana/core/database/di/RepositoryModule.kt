@@ -6,6 +6,10 @@ import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.BookRepositoryImpl
 import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.ReadingSessionRepositoryImpl
+import com.vayana.core.database.repository.ShelfRepository
+import com.vayana.core.database.repository.ShelfRepositoryImpl
+import com.vayana.core.database.repository.VocabularyCardRepository
+import com.vayana.core.database.repository.VocabularyCardRepositoryImpl
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.database.repository.WordLookupStatRepositoryImpl
 import dagger.Binds
@@ -32,4 +36,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindReadingSessionRepository(impl: ReadingSessionRepositoryImpl): ReadingSessionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindShelfRepository(impl: ShelfRepositoryImpl): ShelfRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindVocabularyCardRepository(impl: VocabularyCardRepositoryImpl): VocabularyCardRepository
 }

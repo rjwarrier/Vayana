@@ -90,6 +90,59 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `customFontSizePercent` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `customLineHeight` REAL")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `customFontFamily` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `customSideMarginPercent` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `readNextAddedAt` INTEGER")
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `shelves` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `book_shelf_cross_ref` (
+                `bookId` INTEGER NOT NULL,
+                `shelfId` INTEGER NOT NULL,
+                PRIMARY KEY(`bookId`, `shelfId`),
+                FOREIGN KEY(`bookId`) REFERENCES `books`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(`shelfId`) REFERENCES `shelves`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_book_shelf_cross_ref_bookId` ON `book_shelf_cross_ref` (`bookId`)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_book_shelf_cross_ref_shelfId` ON `book_shelf_cross_ref` (`shelfId`)")
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `vocabulary_cards` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `word` TEXT NOT NULL,
+                `definition` TEXT NOT NULL,
+                `sentence` TEXT,
+                `bookId` INTEGER,
+                `bookTitle` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `lastReviewedAt` INTEGER,
+                `known` INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_vocabulary_cards_bookId` ON `vocabulary_cards` (`bookId`)")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+    MIGRATION_8_9,
 )

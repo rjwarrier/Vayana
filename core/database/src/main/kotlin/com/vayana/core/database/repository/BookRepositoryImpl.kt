@@ -127,9 +127,24 @@ class BookRepositoryImpl @Inject constructor(
     override suspend fun markFinished(id: Long) {
         bookDao.markFinished(id, System.currentTimeMillis())
     }
+
+    override suspend fun updateReaderPrefs(id: Long, fontSizePercent: Int?, lineHeight: Float?, fontFamily: String?, sideMarginPercent: Int?) {
+        bookDao.updateReaderPrefs(id, fontSizePercent, lineHeight, fontFamily, sideMarginPercent, System.currentTimeMillis())
+    }
+
+    override suspend fun clearReaderPrefs(id: Long) {
+        bookDao.clearReaderPrefs(id, System.currentTimeMillis())
+    }
+
+    override fun observeReadNextQueue(): Flow<List<Book>> =
+        bookDao.observeReadNextQueue().map { entities -> entities.map { it.toDomain() } }
+
+    override suspend fun setReadNext(id: Long, queued: Boolean) {
+        bookDao.setReadNext(id, if (queued) System.currentTimeMillis() else null, System.currentTimeMillis())
+    }
 }
 
-private fun BookEntity.toDomain(): Book = Book(
+internal fun BookEntity.toDomain(): Book = Book(
     id = id,
     title = title,
     author = author,
@@ -149,4 +164,9 @@ private fun BookEntity.toDomain(): Book = Book(
     startedReadingAt = startedReadingAt,
     finishedReadingAt = finishedReadingAt,
     totalReadingSeconds = totalReadingSeconds,
+    customFontSizePercent = customFontSizePercent,
+    customLineHeight = customLineHeight,
+    customFontFamily = customFontFamily,
+    customSideMarginPercent = customSideMarginPercent,
+    readNextAddedAt = readNextAddedAt,
 )

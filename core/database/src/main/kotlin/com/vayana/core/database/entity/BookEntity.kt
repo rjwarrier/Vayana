@@ -33,4 +33,11 @@ data class BookEntity(
     val startedReadingAt: Long? = null,
     val finishedReadingAt: Long? = null,
     val totalReadingSeconds: Long = 0L,
+    /** Per-book reader style overrides - null means "use the global reader settings" for that field. */
+    val customFontSizePercent: Int? = null,
+    val customLineHeight: Float? = null,
+    val customFontFamily: String? = null,
+    val customSideMarginPercent: Int? = null,
+    /** Non-null while queued in "Read next", ordered ascending (earliest add = next up). */
+    val readNextAddedAt: Long? = null,
 )

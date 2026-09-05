@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
+import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
@@ -39,6 +40,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -98,6 +100,27 @@ class ReaderViewModel @Inject constructor(
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
 
+    /** Non-null while this book has its own font/line-height/margin overrides (PROMPT2 per-book reading preferences). */
+    private val _bookStyleOverride = MutableStateFlow<BookStyleOverride?>(null)
+
+    val usingCustomStyle: StateFlow<Boolean> = _bookStyleOverride
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** [settings] with this book's overrides layered on top - what the reader actually renders with and the Style panel shows. */
+    val effectiveSettings: StateFlow<SettingsSnapshot> = combine(settings, _bookStyleOverride) { snapshot, override ->
+        if (override == null) {
+            snapshot
+        } else {
+            snapshot.copy(
+                readerFontSizePercent = override.fontSizePercent ?: snapshot.readerFontSizePercent,
+                readerLineHeight = override.lineHeight ?: snapshot.readerLineHeight,
+                readerFontFamily = override.fontFamily ?: snapshot.readerFontFamily,
+                readerSideMarginPercent = override.sideMarginPercent ?: snapshot.readerSideMarginPercent,
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
+
     val recentLookups: StateFlow<List<String>> = wordLookupStatRepository.observeRecent(RecentLookupsLimit)
         .map { stats -> stats.map { it.word } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -126,6 +149,7 @@ class ReaderViewModel @Inject constructor(
                 _uiState.value = ReaderUiState.Failed("Book not found")
                 return@launch
             }
+            _bookStyleOverride.value = book.toStyleOverrideOrNull()
 
             val source = BookSource(storageRoots.resolve(book.filePath).absolutePath)
             val initialLocatorString = targetLocator?.takeIf { it.isNotBlank() } ?: book.lastLocator
@@ -138,7 +162,7 @@ class ReaderViewModel @Inject constructor(
                     bookOpen = true
                     viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
                     if (readerResumed) onResume()
-                    applyReaderStyle(engine, settings.value)
+                    applyReaderStyle(engine, effectiveSettings.value)
                     _uiState.value = ReaderUiState.Loaded(
                         bookTitle = openBook.title,
                         bookAuthor = book.author,
@@ -186,7 +210,7 @@ class ReaderViewModel @Inject constructor(
         }
 
         engineJobs += viewModelScope.launch {
-            settings.debounce(StyleUpdateDebounceMillis).collectLatest { snapshot ->
+            effectiveSettings.debounce(StyleUpdateDebounceMillis).collectLatest { snapshot ->
                 if (bookOpen) applyReaderStyle(engine, snapshot)
             }
         }
@@ -272,15 +296,27 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun updateFontSize(percent: Int) {
-        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontSize, percent) }
+        if (_bookStyleOverride.value != null) {
+            updateBookOverride { it.copy(fontSizePercent = percent) }
+        } else {
+            viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontSize, percent) }
+        }
     }
 
     fun updateLineHeight(lineHeight: Float) {
-        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderLineHeight, lineHeight) }
+        if (_bookStyleOverride.value != null) {
+            updateBookOverride { it.copy(lineHeight = lineHeight) }
+        } else {
+            viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderLineHeight, lineHeight) }
+        }
     }
 
     fun updateFontFamily(fontFamily: ReaderFontFamily) {
-        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontFamily, fontFamily) }
+        if (_bookStyleOverride.value != null) {
+            updateBookOverride { it.copy(fontFamily = fontFamily) }
+        } else {
+            viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontFamily, fontFamily) }
+        }
     }
 
     fun updateReaderTheme(theme: ReaderTheme) {
@@ -288,7 +324,43 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun updateSideMargin(percent: Int) {
-        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderSideMargin, percent) }
+        if (_bookStyleOverride.value != null) {
+            updateBookOverride { it.copy(sideMarginPercent = percent) }
+        } else {
+            viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderSideMargin, percent) }
+        }
+    }
+
+    /** Turns per-book style overrides on (seeded from the current effective style) or off (reset to the global default). */
+    fun setUseCustomStyle(enabled: Boolean) {
+        if (enabled) {
+            val snapshot = effectiveSettings.value
+            updateBookOverride {
+                BookStyleOverride(
+                    fontSizePercent = snapshot.readerFontSizePercent,
+                    lineHeight = snapshot.readerLineHeight,
+                    fontFamily = snapshot.readerFontFamily,
+                    sideMarginPercent = snapshot.readerSideMarginPercent,
+                )
+            }
+        } else {
+            _bookStyleOverride.value = null
+            viewModelScope.launch { bookRepository.clearReaderPrefs(bookId) }
+        }
+    }
+
+    private fun updateBookOverride(transform: (BookStyleOverride) -> BookStyleOverride) {
+        val updated = transform(_bookStyleOverride.value ?: BookStyleOverride())
+        _bookStyleOverride.value = updated
+        viewModelScope.launch {
+            bookRepository.updateReaderPrefs(
+                id = bookId,
+                fontSizePercent = updated.fontSizePercent,
+                lineHeight = updated.lineHeight,
+                fontFamily = updated.fontFamily?.name,
+                sideMarginPercent = updated.sideMarginPercent,
+            )
+        }
     }
 
     fun updateVolumeKeys(enabled: Boolean) {
@@ -594,6 +666,25 @@ private val SettingsSnapshot.readTheme: ReadTheme
 
 private fun androidx.compose.ui.graphics.Color.toReadTheme(textColor: androidx.compose.ui.graphics.Color): ReadTheme =
     ReadTheme(backgroundColorArgb = toArgb(), textColorArgb = textColor.toArgb())
+
+private data class BookStyleOverride(
+    val fontSizePercent: Int? = null,
+    val lineHeight: Float? = null,
+    val fontFamily: ReaderFontFamily? = null,
+    val sideMarginPercent: Int? = null,
+)
+
+private fun Book.toStyleOverrideOrNull(): BookStyleOverride? {
+    if (customFontSizePercent == null && customLineHeight == null && customFontFamily == null && customSideMarginPercent == null) {
+        return null
+    }
+    return BookStyleOverride(
+        fontSizePercent = customFontSizePercent,
+        lineHeight = customLineHeight,
+        fontFamily = customFontFamily?.let { name -> ReaderFontFamily.entries.firstOrNull { it.name == name } },
+        sideMarginPercent = customSideMarginPercent,
+    )
+}
 
 private fun Annotation.toReaderAnnotation(): ReaderAnnotation? {
     if (type == AnnotationType.BOOKMARK) return null

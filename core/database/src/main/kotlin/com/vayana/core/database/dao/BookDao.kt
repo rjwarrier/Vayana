@@ -92,4 +92,29 @@ interface BookDao {
             "updatedAt = :timestamp WHERE id = :id",
     )
     suspend fun markFinished(id: Long, timestamp: Long)
+
+    @Query(
+        "UPDATE books SET customFontSizePercent = :fontSizePercent, customLineHeight = :lineHeight, " +
+            "customFontFamily = :fontFamily, customSideMarginPercent = :sideMarginPercent, updatedAt = :updatedAt WHERE id = :id",
+    )
+    suspend fun updateReaderPrefs(
+        id: Long,
+        fontSizePercent: Int?,
+        lineHeight: Float?,
+        fontFamily: String?,
+        sideMarginPercent: Int?,
+        updatedAt: Long,
+    )
+
+    @Query(
+        "UPDATE books SET customFontSizePercent = NULL, customLineHeight = NULL, " +
+            "customFontFamily = NULL, customSideMarginPercent = NULL, updatedAt = :updatedAt WHERE id = :id",
+    )
+    suspend fun clearReaderPrefs(id: Long, updatedAt: Long)
+
+    @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun setReadNext(id: Long, readNextAddedAt: Long?, updatedAt: Long)
+
+    @Query("SELECT * FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt ASC")
+    fun observeReadNextQueue(): Flow<List<BookEntity>>
 }

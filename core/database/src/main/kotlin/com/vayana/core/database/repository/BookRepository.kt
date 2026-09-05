@@ -58,4 +58,14 @@ interface BookRepository {
     suspend fun purge(id: Long)
 
     suspend fun markFinished(id: Long)
+
+    /** Null clears that field back to the global reader setting; non-null overrides it for this book only. */
+    suspend fun updateReaderPrefs(id: Long, fontSizePercent: Int?, lineHeight: Float?, fontFamily: String?, sideMarginPercent: Int?)
+
+    suspend fun clearReaderPrefs(id: Long)
+
+    /** Books currently queued in "Read next", in queue order (earliest added = next up). */
+    fun observeReadNextQueue(): Flow<List<Book>>
+
+    suspend fun setReadNext(id: Long, queued: Boolean)
 }
