@@ -43,6 +43,10 @@ data class CloudBookRecord(
     val assetSha256: String,
     val assetSizeBytes: Long,
     val assetUploadedAt: Long,
+    val coverAssetId: String?,
+    val coverAssetSha256: String?,
+    val coverAssetSizeBytes: Long?,
+    val coverAssetUploadedAt: Long?,
     val lastLocator: String?,
     val readingPercent: Float,
     val rating: Float,
@@ -74,6 +78,8 @@ interface BookRepository {
     fun observeDeleted(): Flow<List<Book>>
 
     suspend fun getById(id: Long): Book?
+
+    suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book?
 
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
 
@@ -156,6 +162,23 @@ interface BookRepository {
 
     suspend fun markFileAssetUploaded(
         id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    )
+
+    suspend fun markCoverAssetUploaded(
+        id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    )
+
+    suspend fun attachDownloadedCover(
+        id: Long,
+        coverPath: String,
         assetId: String,
         assetSha256: String,
         assetSizeBytes: Long,

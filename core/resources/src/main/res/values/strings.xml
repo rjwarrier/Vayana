@@ -57,7 +57,7 @@
     <string name="library_sync_initial_confirm_yes">Yes, upload</string>
     <string name="library_sync_initial_confirm_no">Cancel</string>
     <string name="library_sync_progress_title">GitHub sync</string>
-    <string name="library_sync_progress_summary">Cloud +%1$d, refreshed %2$d · uploads %3$d ok, %4$d failed · progress %5$d</string>
+    <string name="library_sync_progress_summary">Cloud +%1$d, refreshed %2$d · uploads %3$d ok, %4$d failed · progress %5$d · covers up %6$d, down %7$d</string>
     <string name="library_sync_progress_prepare">Prepare</string>
     <string name="library_sync_progress_read_cloud">Read cloud library</string>
     <string name="library_sync_progress_add_cloud">Add cloud books</string>

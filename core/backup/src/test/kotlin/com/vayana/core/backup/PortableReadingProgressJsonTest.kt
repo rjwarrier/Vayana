@@ -89,6 +89,12 @@ class PortableReadingProgressJsonTest {
                     "sizeBytes": 42,
                     "uploadedAt": 3000
                   },
+                  "coverAsset": {
+                    "id": "coverEFGH1234_wxyz",
+                    "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                    "sizeBytes": 24,
+                    "uploadedAt": 3100
+                  },
                   "lastLocator": "epubcfi(/6/2)",
                   "readingPercent": 0.35,
                   "rating": 4.5,
@@ -106,6 +112,7 @@ class PortableReadingProgressJsonTest {
         assertEquals("book-cloud", books.single().syncId)
         assertEquals("Remote Book", books.single().title)
         assertEquals("abcdEFGH1234_wxyz", books.single().fileAsset.id)
+        assertEquals("coverEFGH1234_wxyz", books.single().coverAsset?.id)
         assertEquals(0.35f, books.single().readingPercent)
     }
 

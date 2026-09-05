@@ -30,6 +30,7 @@ data class PortableCloudBook(
     val format: String,
     val fileHash: String,
     val fileAsset: PortableAsset,
+    val coverAsset: PortableAsset?,
     val lastLocator: String?,
     val readingPercent: Float,
     val rating: Float,
@@ -66,6 +67,7 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
             if (format.equals("PHYSICAL", ignoreCase = true)) continue
             val fileHash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
             val asset = book.optJSONObject("fileAsset")?.toPortableAssetOrNull() ?: continue
+            val coverAsset = book.optJSONObject("coverAsset")?.toPortableAssetOrNull()
             val updatedAt = book.optPositiveLongOrNull("updatedAt") ?: continue
             add(
                 PortableCloudBook(
@@ -78,6 +80,7 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                     format = format,
                     fileHash = fileHash,
                     fileAsset = asset,
+                    coverAsset = coverAsset,
                     lastLocator = book.optBoundedString("lastLocator", MaxLocatorChars),
                     readingPercent = book.optDouble("readingPercent", 0.0).toFloat().coerceIn(0f, 1f),
                     rating = book.optDouble("rating", 0.0).toFloat().coerceIn(0f, 5f),

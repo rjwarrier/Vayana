@@ -671,6 +671,8 @@ private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismiss
                     progress.uploadedBooks,
                     progress.failedBooks,
                     progress.progressUpdated,
+                    progress.uploadedCovers,
+                    progress.downloadedCovers,
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

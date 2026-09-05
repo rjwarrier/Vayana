@@ -21,6 +21,9 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun getById(id: Long): Book? = bookDao.getById(id)?.toDomain()
 
+    override suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book? =
+        (bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash))?.toDomain()
+
     override suspend fun updateLocator(id: Long, locator: String, readingPercent: Float) {
         bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
     }
@@ -243,6 +246,42 @@ class BookRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun markCoverAssetUploaded(
+        id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    ) {
+        bookDao.markCoverAssetUploaded(
+            id = id,
+            assetId = assetId,
+            assetSha256 = assetSha256,
+            assetSizeBytes = assetSizeBytes,
+            assetUploadedAt = assetUploadedAt,
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    override suspend fun attachDownloadedCover(
+        id: Long,
+        coverPath: String,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+    ) {
+        bookDao.attachDownloadedCover(
+            id = id,
+            coverPath = coverPath,
+            assetId = assetId,
+            assetSha256 = assetSha256,
+            assetSizeBytes = assetSizeBytes,
+            assetUploadedAt = assetUploadedAt,
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
     override suspend fun mergeCloudBook(record: CloudBookRecord): CloudBookMergeResult {
         if (record.syncId.isBlank() || record.title.isBlank() || record.fileHash.isBlank()) {
             return CloudBookMergeResult.SKIPPED
@@ -253,6 +292,10 @@ class BookRepositoryImpl @Inject constructor(
                 existing.fileAssetSha256 == record.assetSha256 &&
                 existing.fileAssetSizeBytes == record.assetSizeBytes &&
                 existing.fileAssetUploadedAt == record.assetUploadedAt
+            val hasSameCoverAsset = existing.coverAssetId == record.coverAssetId &&
+                existing.coverAssetSha256 == record.coverAssetSha256 &&
+                existing.coverAssetSizeBytes == record.coverAssetSizeBytes &&
+                existing.coverAssetUploadedAt == record.coverAssetUploadedAt
             if (existing.fileAvailability == BookFileAvailability.LOCAL.name ||
                 existing.fileAvailability == BookFileAvailability.UPLOAD_PENDING.name
             ) {
@@ -265,16 +308,25 @@ class BookRepositoryImpl @Inject constructor(
                         assetUploadedAt = record.assetUploadedAt,
                         updatedAt = maxOf(existing.updatedAt, record.updatedAt),
                     )
-                    return CloudBookMergeResult.UPDATED
                 }
-                return CloudBookMergeResult.SKIPPED
+                if (!hasSameCoverAsset && record.coverAssetId != null && record.coverAssetSha256 != null && record.coverAssetSizeBytes != null && record.coverAssetUploadedAt != null) {
+                    bookDao.markCoverAssetUploaded(
+                        id = existing.id,
+                        assetId = record.coverAssetId,
+                        assetSha256 = record.coverAssetSha256,
+                        assetSizeBytes = record.coverAssetSizeBytes,
+                        assetUploadedAt = record.coverAssetUploadedAt,
+                        updatedAt = maxOf(existing.updatedAt, record.updatedAt),
+                    )
+                }
+                return if (!hasSameAsset || !hasSameCoverAsset) CloudBookMergeResult.UPDATED else CloudBookMergeResult.SKIPPED
             }
 
-            bookDao.update(record.toCloudOnlyEntity(id = existing.id))
+            bookDao.update(record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath))
             return CloudBookMergeResult.UPDATED
         }
 
-        bookDao.insert(record.toCloudOnlyEntity(id = 0))
+        bookDao.insert(record.toCloudOnlyEntity(id = 0, coverPath = null))
         return CloudBookMergeResult.CREATED
     }
 }
@@ -325,7 +377,7 @@ internal fun BookEntity.toDomain(): Book = Book(
     readNextAddedAt = readNextAddedAt,
 )
 
-private fun CloudBookRecord.toCloudOnlyEntity(id: Long): BookEntity =
+private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): BookEntity =
     BookEntity(
         id = id,
         syncId = syncId,
@@ -334,7 +386,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long): BookEntity =
         series = series,
         seriesNumber = seriesNumber,
         description = description,
-        coverPath = null,
+        coverPath = coverPath,
         filePath = "",
         fileAvailability = BookFileAvailability.CLOUD_ONLY.name,
         format = format.name,
@@ -343,10 +395,10 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long): BookEntity =
         fileAssetSha256 = assetSha256,
         fileAssetSizeBytes = assetSizeBytes,
         fileAssetUploadedAt = assetUploadedAt,
-        coverAssetId = null,
-        coverAssetSha256 = null,
-        coverAssetSizeBytes = null,
-        coverAssetUploadedAt = null,
+        coverAssetId = coverAssetId,
+        coverAssetSha256 = coverAssetSha256,
+        coverAssetSizeBytes = coverAssetSizeBytes,
+        coverAssetUploadedAt = coverAssetUploadedAt,
         lastLocator = lastLocator,
         readingPercent = readingPercent.coerceIn(0f, 1f),
         rating = rating.coerceIn(0f, 5f),

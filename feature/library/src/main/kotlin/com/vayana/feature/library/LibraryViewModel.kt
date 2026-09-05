@@ -8,6 +8,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.backup.PortableCloudBook
+import com.vayana.core.backup.PortableAsset
 import com.vayana.core.backup.PortableReadingPositionAlternative
 import com.vayana.core.backup.PortableSyncConflict
 import com.vayana.core.backup.SnapshotExporter
@@ -15,6 +16,7 @@ import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
+import com.vayana.core.common.Hashing
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.Annotation
@@ -133,6 +135,8 @@ data class GitHubSyncProgressState(
     val totalSteps: Int = GitHubSyncProgressTotalSteps,
     val uploadedBooks: Int = 0,
     val failedBooks: Int = 0,
+    val uploadedCovers: Int = 0,
+    val downloadedCovers: Int = 0,
     val cloudBooksCreated: Int = 0,
     val cloudBooksUpdated: Int = 0,
     val progressUpdated: Int = 0,
@@ -157,6 +161,7 @@ private data class CloudLibraryMergeSummary(
     val created: Int = 0,
     val updated: Int = 0,
     val skipped: Int = 0,
+    val coversDownloaded: Int = 0,
     val failed: Boolean = false,
     val failureMessage: String? = null,
 )
@@ -459,23 +464,31 @@ class LibraryViewModel @Inject constructor(
         } else {
             mergeCloudLibrary(store)
         }
-        val uploadCandidates = bookRepository.observeAll().first()
+        val localBooks = bookRepository.observeAll().first()
+        val uploadCandidates = localBooks
             .filter { book ->
                 book.fileAvailability == BookFileAvailability.LOCAL &&
                     book.format != BookFormat.PHYSICAL &&
                     book.fileAssetId.isNullOrBlank()
             }
+        val coverUploadCandidates = localBooks
+            .filter { book ->
+                book.fileAvailability == BookFileAvailability.LOCAL &&
+                    book.coverNeedsUpload(storageRoots)
+            }
 
         updateSyncProgress(
             step = GitHubSyncProgressStep.UPLOADING_BOOKS,
-            detail = "Uploading ${uploadCandidates.size} local books",
+            detail = "Uploading ${uploadCandidates.size} books and ${coverUploadCandidates.size} covers",
             completedSteps = 3,
             progressUpdated = progressMerge.applied,
             cloudBooksCreated = cloudLibraryMerge.created,
             cloudBooksUpdated = cloudLibraryMerge.updated,
+            downloadedCovers = cloudLibraryMerge.coversDownloaded,
         )
         var uploaded = 0
         var failed = 0
+        var uploadedCovers = 0
         uploadCandidates.forEach { book ->
             val passphrase = syncConfig.passphrase.toCharArray()
             val result = runCatchingCancellable {
@@ -496,9 +509,36 @@ class LibraryViewModel @Inject constructor(
                 completedSteps = 3,
                 uploadedBooks = uploaded,
                 failedBooks = failed,
+                uploadedCovers = uploadedCovers,
                 progressUpdated = progressMerge.applied,
                 cloudBooksCreated = cloudLibraryMerge.created,
                 cloudBooksUpdated = cloudLibraryMerge.updated,
+                downloadedCovers = cloudLibraryMerge.coversDownloaded,
+            )
+        }
+        coverUploadCandidates.forEach { book ->
+            val passphrase = syncConfig.passphrase.toCharArray()
+            val result = runCatchingCancellable {
+                try {
+                    cloudBookAssetTransfer.uploadCoverImage(book.id, passphrase, store)
+                } finally {
+                    passphrase.fill('\u0000')
+                }
+            }
+            result.onSuccess {
+                uploadedCovers += 1
+            }
+            updateSyncProgress(
+                step = GitHubSyncProgressStep.UPLOADING_BOOKS,
+                detail = "Uploaded $uploadedCovers of ${coverUploadCandidates.size} covers",
+                completedSteps = 3,
+                uploadedBooks = uploaded,
+                failedBooks = failed,
+                uploadedCovers = uploadedCovers,
+                progressUpdated = progressMerge.applied,
+                cloudBooksCreated = cloudLibraryMerge.created,
+                cloudBooksUpdated = cloudLibraryMerge.updated,
+                downloadedCovers = cloudLibraryMerge.coversDownloaded,
             )
         }
         updateSyncProgress(
@@ -507,9 +547,11 @@ class LibraryViewModel @Inject constructor(
             completedSteps = 4,
             uploadedBooks = uploaded,
             failedBooks = failed,
+            uploadedCovers = uploadedCovers,
             progressUpdated = progressMerge.applied,
             cloudBooksCreated = cloudLibraryMerge.created,
             cloudBooksUpdated = cloudLibraryMerge.updated,
+            downloadedCovers = cloudLibraryMerge.coversDownloaded,
         )
         val metadataError = runCatchingCancellable {
             val snapshot = snapshotExporter.export()
@@ -529,9 +571,11 @@ class LibraryViewModel @Inject constructor(
             detail = if (metadataError == null) "Sync finished" else "Snapshot save failed",
             uploadedBooks = uploaded,
             failedBooks = failed,
+            uploadedCovers = uploadedCovers,
             progressUpdated = progressMerge.applied,
             cloudBooksCreated = cloudLibraryMerge.created,
             cloudBooksUpdated = cloudLibraryMerge.updated,
+            downloadedCovers = cloudLibraryMerge.coversDownloaded,
         )
         GitHubSyncNowResult.Complete(
             uploaded = uploaded,
@@ -594,15 +638,56 @@ class LibraryViewModel @Inject constructor(
             val snapshotJson = store.getSyncDocument("vayana/snapshot-latest.json").toString(Charsets.UTF_8)
             parsePortableCloudBooks(snapshotJson).fold(CloudLibraryMergeSummary()) { summary, cloudBook ->
                 val record = cloudBook.toRecord() ?: return@fold summary.copy(skipped = summary.skipped + 1)
-                when (bookRepository.mergeCloudBook(record)) {
-                    CloudBookMergeResult.CREATED -> summary.copy(created = summary.created + 1)
-                    CloudBookMergeResult.UPDATED -> summary.copy(updated = summary.updated + 1)
-                    CloudBookMergeResult.SKIPPED -> summary.copy(skipped = summary.skipped + 1)
+                val mergeResult = bookRepository.mergeCloudBook(record)
+                val coverDownloaded = downloadCloudCoverIfNeeded(cloudBook, record, store)
+                when (mergeResult) {
+                    CloudBookMergeResult.CREATED -> summary.copy(
+                        created = summary.created + 1,
+                        coversDownloaded = summary.coversDownloaded + coverDownloaded,
+                    )
+                    CloudBookMergeResult.UPDATED -> summary.copy(
+                        updated = summary.updated + 1,
+                        coversDownloaded = summary.coversDownloaded + coverDownloaded,
+                    )
+                    CloudBookMergeResult.SKIPPED -> summary.copy(
+                        skipped = summary.skipped + 1,
+                        coversDownloaded = summary.coversDownloaded + coverDownloaded,
+                    )
                 }
             }
         }.getOrElse { throwable ->
             CloudLibraryMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
+
+    private suspend fun downloadCloudCoverIfNeeded(
+        cloudBook: PortableCloudBook,
+        record: CloudBookRecord,
+        store: GitHubContentsAssetStore,
+    ): Int {
+        val reference = cloudBook.coverAsset?.toCloudAssetReference() ?: return 0
+        val book = bookRepository.findActiveBySyncIdOrHash(record.syncId, record.fileHash) ?: return 0
+        val localCoverIsCurrent = book.coverAssetId == reference.id &&
+            book.coverAssetSha256 == reference.sha256 &&
+            book.coverAssetSizeBytes == reference.sizeBytes &&
+            book.coverAssetUploadedAt == reference.uploadedAt &&
+            book.coverPath?.let { storageRoots.resolve(it).isFile } == true
+        if (localCoverIsCurrent) return 0
+
+        val passphrase = settingsRepository.snapshot.first().githubSyncPassphrase.toCharArray()
+        return runCatchingCancellable {
+            try {
+                cloudBookAssetTransfer.downloadCoverImage(
+                    bookId = book.id,
+                    reference = reference,
+                    passphrase = passphrase,
+                    store = store,
+                )
+            } finally {
+                passphrase.fill('\u0000')
+            }
+            1
+        }.getOrDefault(0)
+    }
 
     fun onBookDetailMessageShown() {
         _bookDetailMessage.value = null
@@ -630,6 +715,8 @@ class LibraryViewModel @Inject constructor(
         completedSteps: Int,
         uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
         failedBooks: Int = _syncProgress.value?.failedBooks ?: 0,
+        uploadedCovers: Int = _syncProgress.value?.uploadedCovers ?: 0,
+        downloadedCovers: Int = _syncProgress.value?.downloadedCovers ?: 0,
         cloudBooksCreated: Int = _syncProgress.value?.cloudBooksCreated ?: 0,
         cloudBooksUpdated: Int = _syncProgress.value?.cloudBooksUpdated ?: 0,
         progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
@@ -640,6 +727,8 @@ class LibraryViewModel @Inject constructor(
             completedSteps = completedSteps,
             uploadedBooks = uploadedBooks,
             failedBooks = failedBooks,
+            uploadedCovers = uploadedCovers,
+            downloadedCovers = downloadedCovers,
             cloudBooksCreated = cloudBooksCreated,
             cloudBooksUpdated = cloudBooksUpdated,
             progressUpdated = progressUpdated,
@@ -651,6 +740,8 @@ class LibraryViewModel @Inject constructor(
         detail: String,
         uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
         failedBooks: Int = _syncProgress.value?.failedBooks ?: 0,
+        uploadedCovers: Int = _syncProgress.value?.uploadedCovers ?: 0,
+        downloadedCovers: Int = _syncProgress.value?.downloadedCovers ?: 0,
         cloudBooksCreated: Int = _syncProgress.value?.cloudBooksCreated ?: 0,
         cloudBooksUpdated: Int = _syncProgress.value?.cloudBooksUpdated ?: 0,
         progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
@@ -661,6 +752,8 @@ class LibraryViewModel @Inject constructor(
             completedSteps = if (step == GitHubSyncProgressStep.COMPLETE) GitHubSyncProgressTotalSteps else _syncProgress.value?.completedSteps ?: 0,
             uploadedBooks = uploadedBooks,
             failedBooks = failedBooks,
+            uploadedCovers = uploadedCovers,
+            downloadedCovers = downloadedCovers,
             cloudBooksCreated = cloudBooksCreated,
             cloudBooksUpdated = cloudBooksUpdated,
             progressUpdated = progressUpdated,
@@ -956,6 +1049,25 @@ private fun Book.fileAssetReference(): CloudAssetReference? {
     }.getOrNull()
 }
 
+private fun Book.coverNeedsUpload(storageRoots: StorageRoots): Boolean {
+    val coverPath = coverPath?.takeIf { it.isNotBlank() } ?: return false
+    val coverFile = storageRoots.resolve(coverPath)
+    if (!coverFile.isFile) return false
+    return coverAssetSha256.isNullOrBlank() || runCatchingCancellable {
+        Hashing.sha256(coverFile.readBytes()) != coverAssetSha256
+    }.getOrDefault(true)
+}
+
+private fun PortableAsset.toCloudAssetReference(): CloudAssetReference? =
+    runCatchingCancellable {
+        CloudAssetReference(
+            id = id,
+            sha256 = sha256,
+            sizeBytes = sizeBytes,
+            uploadedAt = uploadedAt,
+        )
+    }.getOrNull()
+
 private fun PortableCloudBook.toRecord(): CloudBookRecord? {
     val format = runCatchingCancellable { BookFormat.valueOf(format.uppercase()) }.getOrNull()
         ?: return null
@@ -972,6 +1084,10 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         assetSha256 = fileAsset.sha256,
         assetSizeBytes = fileAsset.sizeBytes,
         assetUploadedAt = fileAsset.uploadedAt,
+        coverAssetId = coverAsset?.id,
+        coverAssetSha256 = coverAsset?.sha256,
+        coverAssetSizeBytes = coverAsset?.sizeBytes,
+        coverAssetUploadedAt = coverAsset?.uploadedAt,
         lastLocator = lastLocator,
         readingPercent = readingPercent,
         rating = rating,

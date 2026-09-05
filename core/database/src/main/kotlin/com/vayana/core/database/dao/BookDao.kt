@@ -44,13 +44,25 @@ interface BookDao {
     @Query("UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, updatedAt: Long)
 
-    @Query("UPDATE books SET coverPath = :coverPath, updatedAt = :updatedAt WHERE id = :id")
+    @Query(
+        """
+        UPDATE books
+        SET coverPath = :coverPath,
+            coverAssetId = NULL,
+            coverAssetSha256 = NULL,
+            coverAssetSizeBytes = NULL,
+            coverAssetUploadedAt = NULL,
+            updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
     suspend fun updateCover(id: Long, coverPath: String?, updatedAt: Long)
 
     @Query(
         "UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, " +
             "coverPath = :coverPath, filePath = :filePath, fileAvailability = 'LOCAL', format = :format, fileHash = :fileHash, " +
             "fileAssetId = NULL, fileAssetSha256 = NULL, fileAssetSizeBytes = NULL, fileAssetUploadedAt = NULL, " +
+            "coverAssetId = NULL, coverAssetSha256 = NULL, coverAssetSizeBytes = NULL, coverAssetUploadedAt = NULL, " +
             "lastLocator = NULL, readingPercent = 0, startedReadingAt = NULL, finishedReadingAt = NULL, totalReadingSeconds = 0, " +
             "updatedAt = :updatedAt, lastReadAt = NULL WHERE id = :id",
     )
@@ -193,6 +205,48 @@ interface BookDao {
     )
     suspend fun markFileAssetUploaded(
         id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+        updatedAt: Long,
+    )
+
+    @Query(
+        """
+        UPDATE books
+        SET coverAssetId = :assetId,
+            coverAssetSha256 = :assetSha256,
+            coverAssetSizeBytes = :assetSizeBytes,
+            coverAssetUploadedAt = :assetUploadedAt,
+            updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun markCoverAssetUploaded(
+        id: Long,
+        assetId: String,
+        assetSha256: String,
+        assetSizeBytes: Long,
+        assetUploadedAt: Long,
+        updatedAt: Long,
+    )
+
+    @Query(
+        """
+        UPDATE books
+        SET coverPath = :coverPath,
+            coverAssetId = :assetId,
+            coverAssetSha256 = :assetSha256,
+            coverAssetSizeBytes = :assetSizeBytes,
+            coverAssetUploadedAt = :assetUploadedAt,
+            updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun attachDownloadedCover(
+        id: Long,
+        coverPath: String,
         assetId: String,
         assetSha256: String,
         assetSizeBytes: Long,
