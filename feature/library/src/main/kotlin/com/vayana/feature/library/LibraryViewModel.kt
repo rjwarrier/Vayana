@@ -426,6 +426,9 @@ class LibraryViewModel @Inject constructor(
             } finally {
                 passphrase.fill('\u0000')
             }
+            book.coverAssetReference()?.let { coverReference ->
+                downloadCoverIfNeeded(book, coverReference, store)
+            }
             CloudBookDownloadResult.DOWNLOADED
         }.getOrElse { CloudBookDownloadResult.FAILED }
     }
@@ -666,6 +669,14 @@ class LibraryViewModel @Inject constructor(
     ): Int {
         val reference = cloudBook.coverAsset?.toCloudAssetReference() ?: return 0
         val book = bookRepository.findActiveBySyncIdOrHash(record.syncId, record.fileHash) ?: return 0
+        return downloadCoverIfNeeded(book, reference, store)
+    }
+
+    private suspend fun downloadCoverIfNeeded(
+        book: Book,
+        reference: CloudAssetReference,
+        store: GitHubContentsAssetStore,
+    ): Int {
         val localCoverIsCurrent = book.coverAssetId == reference.id &&
             book.coverAssetSha256 == reference.sha256 &&
             book.coverAssetSizeBytes == reference.sizeBytes &&
@@ -1039,6 +1050,21 @@ private fun Book.fileAssetReference(): CloudAssetReference? {
     val assetSha256 = fileAssetSha256?.takeIf { it.isNotBlank() } ?: return null
     val assetSizeBytes = fileAssetSizeBytes ?: return null
     val assetUploadedAt = fileAssetUploadedAt ?: return null
+    return runCatchingCancellable {
+        CloudAssetReference(
+            id = assetId,
+            sha256 = assetSha256,
+            sizeBytes = assetSizeBytes,
+            uploadedAt = assetUploadedAt,
+        )
+    }.getOrNull()
+}
+
+private fun Book.coverAssetReference(): CloudAssetReference? {
+    val assetId = coverAssetId?.takeIf { it.isNotBlank() } ?: return null
+    val assetSha256 = coverAssetSha256?.takeIf { it.isNotBlank() } ?: return null
+    val assetSizeBytes = coverAssetSizeBytes ?: return null
+    val assetUploadedAt = coverAssetUploadedAt ?: return null
     return runCatchingCancellable {
         CloudAssetReference(
             id = assetId,
