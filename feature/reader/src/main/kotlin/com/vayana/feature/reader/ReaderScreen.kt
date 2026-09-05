@@ -55,6 +55,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
@@ -246,27 +248,22 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 )
             }
         }
-        IconButton(
-            onClick = { notesSidePanelVisible = !notesSidePanelVisible },
+        Surface(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(Spacing.sm),
+                .align(Alignment.CenterEnd)
+                .clickable { notesSidePanelVisible = !notesSidePanelVisible },
+            shape = RoundedCornerShape(topStart = Radii.large, bottomStart = Radii.large),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowSmall,
         ) {
-            Surface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = Elevations.shadowSmall,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.EditNote,
-                    contentDescription = stringResource(
-                        if (notesSidePanelVisible) R.string.reader_hide_notes_panel else R.string.reader_show_notes_panel,
-                    ),
-                    tint = if (notesSidePanelVisible) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(Spacing.sm),
-                )
-            }
+            Icon(
+                imageVector = if (notesSidePanelVisible) Icons.AutoMirrored.Outlined.KeyboardArrowRight else Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                contentDescription = stringResource(
+                    if (notesSidePanelVisible) R.string.reader_hide_notes_panel else R.string.reader_show_notes_panel,
+                ),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.md),
+            )
         }
         }
         return
