@@ -44,6 +44,7 @@
     <string name="library_sync_now_content_description">Sync now</string>
     <string name="library_sync_started">Syncing with GitHub…</string>
     <string name="library_sync_complete">Sync complete. Uploaded %1$d books; updated progress for %2$d.</string>
+    <string name="library_sync_complete_with_cloud">Sync complete. Added %1$d cloud books; refreshed %2$d; uploaded %3$d; updated progress for %4$d.</string>
     <string name="library_sync_partial">Sync finished with issues. Uploaded %1$d books; %2$d failed; updated progress for %3$d.</string>
     <string name="library_sync_conflicts">Sync complete. Uploaded %1$d books; updated progress for %2$d; kept local progress for %3$d conflicts.</string>
     <string name="library_sync_pull_failed">Cloud progress could not be read, so sync stopped before uploading. %1$s</string>

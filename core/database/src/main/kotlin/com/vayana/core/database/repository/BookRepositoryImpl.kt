@@ -5,9 +5,9 @@ import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
 class BookRepositoryImpl @Inject constructor(
     private val bookDao: BookDao,
@@ -242,6 +242,41 @@ class BookRepositoryImpl @Inject constructor(
             updatedAt = System.currentTimeMillis(),
         )
     }
+
+    override suspend fun mergeCloudBook(record: CloudBookRecord): CloudBookMergeResult {
+        if (record.syncId.isBlank() || record.title.isBlank() || record.fileHash.isBlank()) {
+            return CloudBookMergeResult.SKIPPED
+        }
+        val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
+        if (existing != null) {
+            val hasSameAsset = existing.fileAssetId == record.assetId &&
+                existing.fileAssetSha256 == record.assetSha256 &&
+                existing.fileAssetSizeBytes == record.assetSizeBytes &&
+                existing.fileAssetUploadedAt == record.assetUploadedAt
+            if (existing.fileAvailability == BookFileAvailability.LOCAL.name ||
+                existing.fileAvailability == BookFileAvailability.UPLOAD_PENDING.name
+            ) {
+                if (!hasSameAsset) {
+                    bookDao.markFileAssetUploaded(
+                        id = existing.id,
+                        assetId = record.assetId,
+                        assetSha256 = record.assetSha256,
+                        assetSizeBytes = record.assetSizeBytes,
+                        assetUploadedAt = record.assetUploadedAt,
+                        updatedAt = maxOf(existing.updatedAt, record.updatedAt),
+                    )
+                    return CloudBookMergeResult.UPDATED
+                }
+                return CloudBookMergeResult.SKIPPED
+            }
+
+            bookDao.update(record.toCloudOnlyEntity(id = existing.id))
+            return CloudBookMergeResult.UPDATED
+        }
+
+        bookDao.insert(record.toCloudOnlyEntity(id = 0))
+        return CloudBookMergeResult.CREATED
+    }
 }
 
 private fun BookEntity.readingProgressVersion(): ReadingProgressVersion =
@@ -289,3 +324,45 @@ internal fun BookEntity.toDomain(): Book = Book(
     customSideMarginPercent = customSideMarginPercent,
     readNextAddedAt = readNextAddedAt,
 )
+
+private fun CloudBookRecord.toCloudOnlyEntity(id: Long): BookEntity =
+    BookEntity(
+        id = id,
+        syncId = syncId,
+        title = title,
+        author = author,
+        series = series,
+        seriesNumber = seriesNumber,
+        description = description,
+        coverPath = null,
+        filePath = "",
+        fileAvailability = BookFileAvailability.CLOUD_ONLY.name,
+        format = format.name,
+        fileHash = fileHash,
+        fileAssetId = assetId,
+        fileAssetSha256 = assetSha256,
+        fileAssetSizeBytes = assetSizeBytes,
+        fileAssetUploadedAt = assetUploadedAt,
+        coverAssetId = null,
+        coverAssetSha256 = null,
+        coverAssetSizeBytes = null,
+        coverAssetUploadedAt = null,
+        lastLocator = lastLocator,
+        readingPercent = readingPercent.coerceIn(0f, 1f),
+        rating = rating.coerceIn(0f, 5f),
+        groupId = null,
+        isDeleted = false,
+        wordCount = wordCount,
+        pageEstimate = pageEstimate,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lastReadAt = lastReadAt,
+        startedReadingAt = startedReadingAt,
+        finishedReadingAt = finishedReadingAt,
+        totalReadingSeconds = totalReadingSeconds.coerceAtLeast(0L),
+        customFontSizePercent = customFontSizePercent,
+        customLineHeight = customLineHeight,
+        customFontFamily = customFontFamily,
+        customSideMarginPercent = customSideMarginPercent,
+        readNextAddedAt = readNextAddedAt,
+    )

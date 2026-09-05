@@ -30,6 +30,43 @@ enum class ReadingProgressConflictReason {
     INCOMPATIBLE_FILE_REVISION,
 }
 
+data class CloudBookRecord(
+    val syncId: String,
+    val title: String,
+    val author: String?,
+    val series: String?,
+    val seriesNumber: String?,
+    val description: String?,
+    val format: BookFormat,
+    val fileHash: String,
+    val assetId: String,
+    val assetSha256: String,
+    val assetSizeBytes: Long,
+    val assetUploadedAt: Long,
+    val lastLocator: String?,
+    val readingPercent: Float,
+    val rating: Float,
+    val wordCount: Int?,
+    val pageEstimate: Int?,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val lastReadAt: Long?,
+    val startedReadingAt: Long?,
+    val finishedReadingAt: Long?,
+    val totalReadingSeconds: Long,
+    val customFontSizePercent: Int?,
+    val customLineHeight: Float?,
+    val customFontFamily: String?,
+    val customSideMarginPercent: Int?,
+    val readNextAddedAt: Long?,
+)
+
+enum class CloudBookMergeResult {
+    CREATED,
+    UPDATED,
+    SKIPPED,
+}
+
 interface BookRepository {
     fun observeAll(): Flow<List<Book>>
 
@@ -124,4 +161,6 @@ interface BookRepository {
         assetSizeBytes: Long,
         assetUploadedAt: Long,
     )
+
+    suspend fun mergeCloudBook(record: CloudBookRecord): CloudBookMergeResult
 }

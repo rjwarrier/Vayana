@@ -7,9 +7,11 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.backup.PortableCloudBook
 import com.vayana.core.backup.PortableReadingPositionAlternative
 import com.vayana.core.backup.PortableSyncConflict
 import com.vayana.core.backup.SnapshotExporter
+import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
@@ -23,6 +25,8 @@ import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.Shelf
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.CloudBookMergeResult
+import com.vayana.core.database.repository.CloudBookRecord
 import com.vayana.core.database.repository.ReadingProgressMergeResult
 import com.vayana.core.database.repository.ReadingProgressVersion
 import com.vayana.core.database.repository.ShelfRepository
@@ -85,6 +89,8 @@ sealed interface GitHubSyncNowResult {
         val uploaded: Int,
         val failed: Int,
         val progressUpdated: Int,
+        val cloudBooksCreated: Int,
+        val cloudBooksUpdated: Int,
         val conflicts: Int,
         val skipped: Int,
         val pullFailed: Boolean,
@@ -121,6 +127,14 @@ private data class ReadingProgressMergeSummary(
     val conflictCount: Int
         get() = conflicts.size
 }
+
+private data class CloudLibraryMergeSummary(
+    val created: Int = 0,
+    val updated: Int = 0,
+    val skipped: Int = 0,
+    val failed: Boolean = false,
+    val failureMessage: String? = null,
+)
 
 enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
 
@@ -393,6 +407,11 @@ class LibraryViewModel @Inject constructor(
         if ((progressMerge.missingRemoteSnapshot || progressMerge.failed) && !allowInitialSync) {
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
         }
+        val cloudLibraryMerge = if (progressMerge.missingRemoteSnapshot) {
+            CloudLibraryMergeSummary()
+        } else {
+            mergeCloudLibrary(store)
+        }
         val uploadCandidates = bookRepository.observeAll().first()
             .filter { book ->
                 book.fileAvailability == BookFileAvailability.LOCAL &&
@@ -430,11 +449,13 @@ class LibraryViewModel @Inject constructor(
             uploaded = uploaded,
             failed = failed,
             progressUpdated = progressMerge.applied,
+            cloudBooksCreated = cloudLibraryMerge.created,
+            cloudBooksUpdated = cloudLibraryMerge.updated,
             conflicts = progressMerge.conflictCount,
-            skipped = progressMerge.skipped,
-            pullFailed = progressMerge.failed && !allowInitialSync,
+            skipped = progressMerge.skipped + cloudLibraryMerge.skipped,
+            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed) && !allowInitialSync,
             metadataSynced = metadataError == null,
-            failureMessage = metadataError?.syncFailureMessage(),
+            failureMessage = metadataError?.syncFailureMessage() ?: cloudLibraryMerge.failureMessage,
         )
     }
 
@@ -478,6 +499,21 @@ class LibraryViewModel @Inject constructor(
             } else {
                 ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
             }
+        }
+
+    private suspend fun mergeCloudLibrary(store: GitHubContentsAssetStore): CloudLibraryMergeSummary =
+        runCatchingCancellable {
+            val snapshotJson = store.getSyncDocument("vayana/snapshot-latest.json").toString(Charsets.UTF_8)
+            parsePortableCloudBooks(snapshotJson).fold(CloudLibraryMergeSummary()) { summary, cloudBook ->
+                val record = cloudBook.toRecord() ?: return@fold summary.copy(skipped = summary.skipped + 1)
+                when (bookRepository.mergeCloudBook(record)) {
+                    CloudBookMergeResult.CREATED -> summary.copy(created = summary.created + 1)
+                    CloudBookMergeResult.UPDATED -> summary.copy(updated = summary.updated + 1)
+                    CloudBookMergeResult.SKIPPED -> summary.copy(skipped = summary.skipped + 1)
+                }
+            }
+        }.getOrElse { throwable ->
+            CloudLibraryMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
 
     fun onBookDetailMessageShown() {
@@ -780,6 +816,41 @@ private fun Book.fileAssetReference(): CloudAssetReference? {
             uploadedAt = assetUploadedAt,
         )
     }.getOrNull()
+}
+
+private fun PortableCloudBook.toRecord(): CloudBookRecord? {
+    val format = runCatchingCancellable { BookFormat.valueOf(format.uppercase()) }.getOrNull()
+        ?: return null
+    return CloudBookRecord(
+        syncId = syncId,
+        title = title,
+        author = author,
+        series = series,
+        seriesNumber = seriesNumber,
+        description = description,
+        format = format,
+        fileHash = fileHash,
+        assetId = fileAsset.id,
+        assetSha256 = fileAsset.sha256,
+        assetSizeBytes = fileAsset.sizeBytes,
+        assetUploadedAt = fileAsset.uploadedAt,
+        lastLocator = lastLocator,
+        readingPercent = readingPercent,
+        rating = rating,
+        wordCount = wordCount,
+        pageEstimate = pageEstimate,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lastReadAt = lastReadAt,
+        startedReadingAt = startedReadingAt,
+        finishedReadingAt = finishedReadingAt,
+        totalReadingSeconds = totalReadingSeconds,
+        customFontSizePercent = customFontSizePercent,
+        customLineHeight = customLineHeight,
+        customFontFamily = customFontFamily,
+        customSideMarginPercent = customSideMarginPercent,
+        readNextAddedAt = readNextAddedAt,
+    )
 }
 
 private data class GitHubSyncConfig(

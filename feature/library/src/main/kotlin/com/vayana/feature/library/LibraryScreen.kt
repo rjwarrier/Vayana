@@ -294,6 +294,7 @@ private fun LibraryScreen(
     val syncDisabledMessage = stringResource(R.string.library_sync_disabled)
     val syncConfigMissingMessage = stringResource(R.string.library_sync_config_missing)
     val syncCompleteMessage = stringResource(R.string.library_sync_complete)
+    val syncCompleteWithCloudMessage = stringResource(R.string.library_sync_complete_with_cloud)
     val syncPartialMessage = stringResource(R.string.library_sync_partial)
     val syncConflictMessage = stringResource(R.string.library_sync_conflicts)
     val syncPullFailedMessage = stringResource(R.string.library_sync_pull_failed)
@@ -342,6 +343,12 @@ private fun LibraryScreen(
                         result.failureMessage.orEmpty(),
                     )
                     result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
+                    result.failed == 0 && (result.cloudBooksCreated > 0 || result.cloudBooksUpdated > 0) -> syncCompleteWithCloudMessage.format(
+                        result.cloudBooksCreated,
+                        result.cloudBooksUpdated,
+                        result.uploaded,
+                        result.progressUpdated,
+                    )
                     result.failed == 0 -> syncCompleteMessage.format(result.uploaded, result.progressUpdated)
                     else -> syncPartialMessage.format(result.uploaded, result.failed, result.progressUpdated)
                 }
