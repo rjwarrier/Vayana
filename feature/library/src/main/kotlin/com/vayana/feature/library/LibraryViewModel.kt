@@ -91,6 +91,7 @@ sealed interface GitHubSyncNowResult {
         val metadataSynced: Boolean,
         val failureMessage: String? = null,
     ) : GitHubSyncNowResult
+    data class InitialSyncConfirmationRequired(val message: String?) : GitHubSyncNowResult
     data object SyncDisabled : GitHubSyncNowResult
     data object ConfigIncomplete : GitHubSyncNowResult
 }
@@ -114,6 +115,7 @@ private data class ReadingProgressMergeSummary(
     val conflicts: List<PortableSyncConflict> = emptyList(),
     val skipped: Int = 0,
     val failed: Boolean = false,
+    val missingRemoteSnapshot: Boolean = false,
     val failureMessage: String? = null,
 ) {
     val conflictCount: Int
@@ -381,13 +383,16 @@ class LibraryViewModel @Inject constructor(
         }.getOrElse { CloudBookDownloadResult.FAILED }
     }
 
-    suspend fun syncNow(): GitHubSyncNowResult = withContext(dispatchers.io) {
+    suspend fun syncNow(allowInitialSync: Boolean = false): GitHubSyncNowResult = withContext(dispatchers.io) {
         val settings = settingsRepository.snapshot.first()
         if (!settings.githubSyncEnabled) return@withContext GitHubSyncNowResult.SyncDisabled
         val syncConfig = settings.gitHubSyncConfig() ?: return@withContext GitHubSyncNowResult.ConfigIncomplete
         val store = runCatchingCancellable { syncConfig.assetStore() }
             .getOrElse { return@withContext GitHubSyncNowResult.ConfigIncomplete }
         val progressMerge = pullReadingProgress(store)
+        if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
+            return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
+        }
         if (progressMerge.failed) {
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
@@ -478,7 +483,10 @@ class LibraryViewModel @Inject constructor(
             }
         }.getOrElse { throwable ->
             if (throwable.isMissingRemoteSnapshot()) {
-                ReadingProgressMergeSummary()
+                ReadingProgressMergeSummary(
+                    missingRemoteSnapshot = true,
+                    failureMessage = throwable.syncFailureMessage(),
+                )
             } else {
                 ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
             }

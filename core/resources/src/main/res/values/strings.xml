@@ -50,6 +50,11 @@
     <string name="library_sync_metadata_failed">Book upload pass finished, but metadata sync failed. Uploaded %1$d books; %2$d failed. %3$s</string>
     <string name="library_sync_disabled">Turn on GitHub sync in Settings first.</string>
     <string name="library_sync_config_missing">Finish GitHub sync settings before syncing.</string>
+    <string name="library_sync_initial_confirm_title">Start initial GitHub sync?</string>
+    <string name="library_sync_initial_confirm_body">Vayana could not find existing cloud progress. If this is your first sync for this repository, continue to upload this device\'s library snapshot and book files.</string>
+    <string name="library_sync_initial_confirm_detail">GitHub said: %1$s</string>
+    <string name="library_sync_initial_confirm_yes">Yes, upload</string>
+    <string name="library_sync_initial_confirm_no">Cancel</string>
     <string name="library_settings_content_description">Open settings</string>
     <string name="library_book_detail_title">Book details</string>
     <string name="library_book_not_found">Book not found.</string>

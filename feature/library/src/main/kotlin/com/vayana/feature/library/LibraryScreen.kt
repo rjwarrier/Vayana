@@ -251,7 +251,7 @@ private fun LibraryScreen(
     onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
-    onSyncNow: suspend () -> GitHubSyncNowResult,
+    onSyncNow: suspend (Boolean) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -281,6 +281,7 @@ private fun LibraryScreen(
     }
     var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
     var syncRunning by remember { mutableStateOf(false) }
+    var initialSyncConfirmationMessage by remember { mutableStateOf<String?>(null) }
     val cloudDownloadStartedMessage = stringResource(R.string.library_book_cloud_download_started)
     val cloudDownloadCompleteMessage = stringResource(R.string.library_book_cloud_download_complete)
     val cloudSyncDisabledMessage = stringResource(R.string.library_book_cloud_sync_disabled)
@@ -297,6 +298,11 @@ private fun LibraryScreen(
     val syncConflictMessage = stringResource(R.string.library_sync_conflicts)
     val syncPullFailedMessage = stringResource(R.string.library_sync_pull_failed)
     val syncMetadataFailedMessage = stringResource(R.string.library_sync_metadata_failed)
+    val initialSyncConfirmationTitle = stringResource(R.string.library_sync_initial_confirm_title)
+    val initialSyncConfirmationBody = stringResource(R.string.library_sync_initial_confirm_body)
+    val initialSyncConfirmationDetail = stringResource(R.string.library_sync_initial_confirm_detail)
+    val initialSyncConfirm = stringResource(R.string.library_sync_initial_confirm_yes)
+    val initialSyncCancel = stringResource(R.string.library_sync_initial_confirm_no)
 
     fun handleBookClick(book: Book) {
         when (book.fileAvailability) {
@@ -319,30 +325,37 @@ private fun LibraryScreen(
         }
     }
 
-    fun handleSyncNow() {
+    suspend fun runSyncNow(allowInitialSync: Boolean) {
+        snackbarHostState.showSnackbar(syncStartedMessage)
+        when (val result = onSyncNow(allowInitialSync)) {
+            is GitHubSyncNowResult.Complete -> {
+                val message = when {
+                    result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
+                    !result.metadataSynced -> syncMetadataFailedMessage.format(
+                        result.uploaded,
+                        result.failed,
+                        result.failureMessage.orEmpty(),
+                    )
+                    result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
+                    result.failed == 0 -> syncCompleteMessage.format(result.uploaded, result.progressUpdated)
+                    else -> syncPartialMessage.format(result.uploaded, result.failed, result.progressUpdated)
+                }
+                snackbarHostState.showSnackbar(message)
+            }
+            is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
+                initialSyncConfirmationMessage = result.message
+            }
+            GitHubSyncNowResult.SyncDisabled -> snackbarHostState.showSnackbar(syncDisabledMessage)
+            GitHubSyncNowResult.ConfigIncomplete -> snackbarHostState.showSnackbar(syncConfigMissingMessage)
+        }
+    }
+
+    fun handleSyncNow(allowInitialSync: Boolean = false) {
         if (syncRunning) return
         coroutineScope.launch {
             syncRunning = true
             try {
-                snackbarHostState.showSnackbar(syncStartedMessage)
-                when (val result = onSyncNow()) {
-                    is GitHubSyncNowResult.Complete -> {
-                        val message = when {
-                            result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
-                            !result.metadataSynced -> syncMetadataFailedMessage.format(
-                                result.uploaded,
-                                result.failed,
-                                result.failureMessage.orEmpty(),
-                            )
-                            result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
-                            result.failed == 0 -> syncCompleteMessage.format(result.uploaded, result.progressUpdated)
-                            else -> syncPartialMessage.format(result.uploaded, result.failed, result.progressUpdated)
-                        }
-                        snackbarHostState.showSnackbar(message)
-                    }
-                    GitHubSyncNowResult.SyncDisabled -> snackbarHostState.showSnackbar(syncDisabledMessage)
-                    GitHubSyncNowResult.ConfigIncomplete -> snackbarHostState.showSnackbar(syncConfigMissingMessage)
-                }
+                runSyncNow(allowInitialSync)
             } finally {
                 syncRunning = false
             }
@@ -407,6 +420,42 @@ private fun LibraryScreen(
                 onAddPhysicalBook(title, author)
                 showAddPhysicalBookDialog = false
             },
+        )
+    }
+
+    initialSyncConfirmationMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { initialSyncConfirmationMessage = null },
+            title = { Text(initialSyncConfirmationTitle) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(initialSyncConfirmationBody)
+                    if (message.isNotBlank()) {
+                        Text(
+                            text = initialSyncConfirmationDetail.format(message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        initialSyncConfirmationMessage = null
+                        handleSyncNow(allowInitialSync = true)
+                    },
+                ) {
+                    Text(initialSyncConfirm)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { initialSyncConfirmationMessage = null }) {
+                    Text(initialSyncCancel)
+                }
+            },
+            shape = RoundedCornerShape(Radii.extraLargeIncreased),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         )
     }
 }
