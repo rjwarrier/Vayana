@@ -477,7 +477,7 @@ class LibraryViewModel @Inject constructor(
                 }
             }
         }.getOrElse { throwable ->
-            if ((throwable as? GitHubAssetStoreException)?.statusCode == 404) {
+            if (throwable.isMissingRemoteSnapshot()) {
                 ReadingProgressMergeSummary()
             } else {
                 ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
@@ -869,6 +869,10 @@ private fun Throwable.syncFailureMessage(): String =
         }
         else -> message ?: "GitHub sync failed"
     }.take(MaxSyncFailureMessageChars)
+
+private fun Throwable.isMissingRemoteSnapshot(): Boolean =
+    this is GitHubAssetStoreException &&
+        (statusCode == 404 || (statusCode == 409 && responseBody.contains("Git Repository is empty", ignoreCase = true)))
 
 private fun String.syncPathSegment(): String =
     trim()

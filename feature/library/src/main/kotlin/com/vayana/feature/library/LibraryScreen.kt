@@ -328,7 +328,7 @@ private fun LibraryScreen(
                 when (val result = onSyncNow()) {
                     is GitHubSyncNowResult.Complete -> {
                         val message = when {
-                            result.pullFailed -> syncPullFailedMessage
+                            result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
                             !result.metadataSynced -> syncMetadataFailedMessage.format(
                                 result.uploaded,
                                 result.failed,

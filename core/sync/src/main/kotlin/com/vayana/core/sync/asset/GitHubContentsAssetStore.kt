@@ -131,6 +131,15 @@ class GitHubContentsAssetStore(
                     responseBody = response.safeBodyText(),
                 )
             HttpURLConnection.HTTP_NOT_FOUND -> null
+            HttpURLConnection.HTTP_CONFLICT -> if (response.isEmptyRepository()) {
+                null
+            } else {
+                throw GitHubAssetStoreException(
+                    message = "GitHub asset metadata lookup failed",
+                    statusCode = response.statusCode,
+                    responseBody = response.safeBodyText(),
+                )
+            }
             else -> throw GitHubAssetStoreException(
                 message = "GitHub asset metadata lookup failed",
                 statusCode = response.statusCode,
@@ -315,6 +324,10 @@ private fun String.unescapeJson(): String = buildString(length) {
         }
     }
 }
+
+private fun GitHubHttpResponse.isEmptyRepository(): Boolean =
+    statusCode == HttpURLConnection.HTTP_CONFLICT &&
+        bodyText().contains("Git Repository is empty", ignoreCase = true)
 
 private val GitHubNameRegex = Regex("^[A-Za-z0-9_.-]{1,100}$")
 private val GitHubBranchRegex = Regex("^[A-Za-z0-9._/-]{1,255}$")

@@ -66,6 +66,20 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun putTreatsEmptyRepositoryMetadataLookupAsMissingFile() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(409, """{"message":"Git Repository is empty."}""".toByteArray()),
+            GitHubHttpResponse(201, """{"content":{"sha":"new-sha"}}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        store.putSyncDocument("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray())
+
+        assertEquals(listOf("GET", "PUT"), client.requests.map { it.method })
+        assertTrue("sha" !in client.requests[1].bodyText())
+    }
+
+    @Test
     fun getDownloadsRawAssetBytes() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(200, "ciphertext".toByteArray()),

@@ -46,7 +46,7 @@
     <string name="library_sync_complete">Sync complete. Uploaded %1$d books; updated progress for %2$d.</string>
     <string name="library_sync_partial">Sync finished with issues. Uploaded %1$d books; %2$d failed; updated progress for %3$d.</string>
     <string name="library_sync_conflicts">Sync complete. Uploaded %1$d books; updated progress for %2$d; kept local progress for %3$d conflicts.</string>
-    <string name="library_sync_pull_failed">Cloud progress could not be read, so sync stopped before uploading.</string>
+    <string name="library_sync_pull_failed">Cloud progress could not be read, so sync stopped before uploading. %1$s</string>
     <string name="library_sync_metadata_failed">Book upload pass finished, but metadata sync failed. Uploaded %1$d books; %2$d failed. %3$s</string>
     <string name="library_sync_disabled">Turn on GitHub sync in Settings first.</string>
     <string name="library_sync_config_missing">Finish GitHub sync settings before syncing.</string>
