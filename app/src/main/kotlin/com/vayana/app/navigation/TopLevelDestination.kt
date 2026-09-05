@@ -32,6 +32,12 @@ data object SettingsRoute
 data object RecentlyDeletedRoute
 
 @Serializable
+data object ShelvesRoute
+
+@Serializable
+data class ShelfDetailRoute(val shelfId: Long)
+
+@Serializable
 data class BookDetailRoute(val bookId: Long)
 
 enum class TopLevelDestination(

@@ -14,8 +14,10 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.Shelf
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.ShelfRepository
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.format.epub.EpubParser
@@ -91,6 +93,7 @@ class LibraryViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val annotationRepository: AnnotationRepository,
     private val bookFileImporter: BookFileImporter,
+    private val shelfRepository: ShelfRepository,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
     @param:ApplicationContext private val appContext: Context,
@@ -158,6 +161,55 @@ class LibraryViewModel @Inject constructor(
 
     fun purgeBook(bookId: Long) {
         viewModelScope.launch { bookRepository.purge(bookId) }
+    }
+
+    val shelves: StateFlow<List<Shelf>> = shelfRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val readNextQueue: StateFlow<List<Book>> = bookRepository.observeReadNextQueue()
+        .map { books -> books.map { it.withAbsolutePaths() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun observeBooksForShelf(shelfId: Long): StateFlow<List<Book>> = shelfRepository.observeBooksForShelf(shelfId)
+        .map { books -> books.map { it.withAbsolutePaths() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun observeShelvesForBook(bookId: Long): StateFlow<List<Shelf>> = shelfRepository.observeShelvesForBook(bookId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun observeShelfBookCount(shelfId: Long): StateFlow<Int> = shelfRepository.observeShelfBookCount(shelfId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun observeShelf(shelfId: Long): StateFlow<Shelf?> = shelves
+        .map { list -> list.firstOrNull { it.id == shelfId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun createShelf(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch { shelfRepository.create(trimmed) }
+    }
+
+    fun renameShelf(shelfId: Long, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch { shelfRepository.rename(shelfId, trimmed) }
+    }
+
+    fun deleteShelf(shelfId: Long) {
+        viewModelScope.launch { shelfRepository.delete(shelfId) }
+    }
+
+    fun addBookToShelf(bookId: Long, shelfId: Long) {
+        viewModelScope.launch { shelfRepository.addBookToShelf(bookId, shelfId) }
+    }
+
+    fun removeBookFromShelf(bookId: Long, shelfId: Long) {
+        viewModelScope.launch { shelfRepository.removeBookFromShelf(bookId, shelfId) }
+    }
+
+    fun setReadNext(bookId: Long, queued: Boolean) {
+        viewModelScope.launch { bookRepository.setReadNext(bookId, queued) }
     }
 
     fun updateMetadata(bookId: Long, title: String, author: String, series: String, seriesNumber: String, description: String) {

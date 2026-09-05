@@ -36,6 +36,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
@@ -53,12 +55,14 @@ import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -70,6 +74,7 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.graphics.StrokeCap
@@ -139,6 +144,7 @@ fun LibraryRoute(
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
+    onShelvesClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
@@ -159,6 +165,7 @@ fun LibraryRoute(
         onBookClick = onBookClick,
         onSettingsClick = onSettingsClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
+        onShelvesClick = onShelvesClick,
         onQueryChange = viewModel::updateQuery,
         onSortChange = viewModel::updateSort,
         onFilterChange = viewModel::updateFilter,
@@ -179,12 +186,20 @@ fun BookDetailRoute(
     val book by bookFlow.collectAsState()
     val libraryBooks by viewModel.libraryBooks.collectAsState()
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
+    val allShelves by viewModel.shelves.collectAsState()
+    val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
 
     BookDetailScreen(
         modifier = modifier,
         book = book,
         libraryBooks = libraryBooks,
         detailMessage = detailMessage,
+        allShelves = allShelves,
+        shelvesForBook = shelvesForBook,
+        onCreateShelf = viewModel::createShelf,
+        onAddToShelf = { shelfId -> viewModel.addBookToShelf(bookId, shelfId) },
+        onRemoveFromShelf = { shelfId -> viewModel.removeBookFromShelf(bookId, shelfId) },
+        onSetReadNext = { queued -> viewModel.setReadNext(bookId, queued) },
         onBack = onBack,
         onContinueReading = onContinueReading,
         onUpdateMetadata = { title, author, series, seriesNumber, description ->
@@ -230,6 +245,7 @@ private fun LibraryScreen(
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
+    onShelvesClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
@@ -268,6 +284,7 @@ private fun LibraryScreen(
                 controls = uiState.controls,
                 onSettingsClick = onSettingsClick,
                 onRecentlyDeletedClick = onRecentlyDeletedClick,
+                onShelvesClick = onShelvesClick,
                 onQueryChange = onQueryChange,
                 onSortChange = onSortChange,
                 onFilterChange = onFilterChange,
@@ -451,6 +468,7 @@ private fun LibraryTopBar(
     controls: LibraryControls,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
+    onShelvesClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
@@ -507,6 +525,13 @@ private fun LibraryTopBar(
                             },
                         )
                     }
+                }
+                IconButton(onClick = onShelvesClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.CollectionsBookmark,
+                        contentDescription = stringResource(R.string.library_shelves_content_description),
+                        modifier = Modifier.size(Sizes.icon),
+                    )
                 }
                 IconButton(onClick = onRecentlyDeletedClick) {
                     Icon(
@@ -885,6 +910,12 @@ private fun BookDetailScreen(
     book: Book?,
     libraryBooks: List<Book>,
     detailMessage: BookDetailMessage?,
+    allShelves: List<com.vayana.core.database.model.Shelf>,
+    shelvesForBook: List<com.vayana.core.database.model.Shelf>,
+    onCreateShelf: (String) -> Unit,
+    onAddToShelf: (Long) -> Unit,
+    onRemoveFromShelf: (Long) -> Unit,
+    onSetReadNext: (Boolean) -> Unit,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
     onUpdateMetadata: (String, String, String, String, String) -> Unit,
@@ -1126,7 +1157,26 @@ private fun BookDetailScreen(
                     }
                 }
                 item {
+                    BookShelvesSection(
+                        shelvesForBook = shelvesForBook,
+                        allShelves = allShelves,
+                        onCreateShelf = onCreateShelf,
+                        onAddToShelf = onAddToShelf,
+                        onRemoveFromShelf = onRemoveFromShelf,
+                    )
+                }
+                item {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        if (book.format != BookFormat.PHYSICAL) {
+                            val isQueued = book.readNextAddedAt != null
+                            ElevatedButton(onClick = { onSetReadNext(!isQueued) }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(if (isQueued) Icons.Outlined.Check else Icons.Outlined.PlaylistAdd, contentDescription = null)
+                                Text(
+                                    text = stringResource(if (isQueued) R.string.library_read_next_remove else R.string.library_read_next_add),
+                                    modifier = Modifier.padding(start = Spacing.sm),
+                                )
+                            }
+                        }
                         ElevatedButton(
                             onClick = { showImportQuotesDialog = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -1264,6 +1314,102 @@ private fun BookDetailScreen(
                 BookCover(book = book)
             }
         }
+    }
+}
+
+@Composable
+private fun BookShelvesSection(
+    shelvesForBook: List<com.vayana.core.database.model.Shelf>,
+    allShelves: List<com.vayana.core.database.model.Shelf>,
+    onCreateShelf: (String) -> Unit,
+    onAddToShelf: (Long) -> Unit,
+    onRemoveFromShelf: (Long) -> Unit,
+) {
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = stringResource(R.string.library_shelves_section_title), style = MaterialTheme.typography.titleMedium)
+            IconButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.library_shelves_add_to_shelf))
+            }
+        }
+        if (shelvesForBook.isEmpty()) {
+            Text(
+                text = stringResource(R.string.library_shelves_none_yet),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                shelvesForBook.forEach { shelf ->
+                    InputChip(
+                        selected = false,
+                        onClick = { onRemoveFromShelf(shelf.id) },
+                        label = { Text(shelf.name) },
+                        trailingIcon = {
+                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.library_shelves_remove_book), modifier = Modifier.size(Sizes.iconSmall))
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        var newShelfName by remember { mutableStateOf("") }
+        val memberIds = remember(shelvesForBook) { shelvesForBook.map { it.id }.toSet() }
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text(stringResource(R.string.library_shelves_add_to_shelf)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    allShelves.forEach { shelf ->
+                        val onShelf = shelf.id in memberIds
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (onShelf) onRemoveFromShelf(shelf.id) else onAddToShelf(shelf.id)
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            Checkbox(checked = onShelf, onCheckedChange = { checked -> if (checked) onAddToShelf(shelf.id) else onRemoveFromShelf(shelf.id) })
+                            Text(shelf.name)
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.xs))
+                    OutlinedTextField(
+                        value = newShelfName,
+                        onValueChange = { newShelfName = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.library_shelves_name_label)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newShelfName.isNotBlank()) onCreateShelf(newShelfName)
+                        showAddDialog = false
+                    },
+                ) { Text(if (newShelfName.isNotBlank()) stringResource(R.string.library_shelves_create) else stringResource(R.string.notes_edit_save)) }
+            },
+            dismissButton = {
+                FilledTonalButton(onClick = { showAddDialog = false }) {
+                    Text(stringResource(R.string.settings_reset_all_cancel))
+                }
+            },
+        )
     }
 }
 

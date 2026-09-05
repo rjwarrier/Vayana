@@ -13,6 +13,8 @@ import com.vayana.core.designsystem.theme.vayanaNavExit
 import com.vayana.core.designsystem.theme.vayanaNavPopEnter
 import com.vayana.core.designsystem.theme.vayanaNavPopExit
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
+import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
+import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
 import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
@@ -40,6 +42,7 @@ fun VayanaNavHost(
                 navController = navController,
                 onSettingsClick = { navController.navigate(SettingsRoute) },
                 onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
+                onShelvesClick = { navController.navigate(ShelvesRoute) },
                 onContinueReading = { bookId -> navController.navigate(ReaderRoute(bookId)) },
             )
         }
@@ -56,6 +59,21 @@ fun VayanaNavHost(
         }
         composable<RecentlyDeletedRoute> {
             RecentlyDeletedScreenRoute(onBack = { navController.popBackStack() })
+        }
+        composable<ShelvesRoute> {
+            ShelvesScreenRoute(
+                onBack = { navController.popBackStack() },
+                onShelfClick = { shelfId -> navController.navigate(ShelfDetailRoute(shelfId)) },
+                onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+            )
+        }
+        composable<ShelfDetailRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<ShelfDetailRoute>()
+            ShelfDetailScreenRoute(
+                shelfId = route.shelfId,
+                onBack = { navController.popBackStack() },
+                onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+            )
         }
         composable<BookDetailRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<BookDetailRoute>()

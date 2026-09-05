@@ -31,6 +31,7 @@ fun LibraryListDetailRoute(
     navController: NavHostController,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
+    onShelvesClick: () -> Unit,
     onContinueReading: (Long) -> Unit,
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
@@ -43,6 +44,7 @@ fun LibraryListDetailRoute(
             onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
             onSettingsClick = onSettingsClick,
             onRecentlyDeletedClick = onRecentlyDeletedClick,
+            onShelvesClick = onShelvesClick,
         )
         return
     }
@@ -65,6 +67,7 @@ fun LibraryListDetailRoute(
                     },
                     onSettingsClick = onSettingsClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
+                    onShelvesClick = onShelvesClick,
                 )
             }
         },
