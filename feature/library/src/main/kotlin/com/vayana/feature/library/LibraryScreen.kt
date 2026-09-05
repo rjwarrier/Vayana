@@ -326,9 +326,14 @@ private fun LibraryScreen(
     }
 
     suspend fun runSyncNow(allowInitialSync: Boolean) {
-        snackbarHostState.showSnackbar(syncStartedMessage)
+        snackbarHostState.currentSnackbarData?.dismiss()
+        val startedSnackbar = coroutineScope.launch {
+            snackbarHostState.showSnackbar(syncStartedMessage)
+        }
         when (val result = onSyncNow(allowInitialSync)) {
             is GitHubSyncNowResult.Complete -> {
+                startedSnackbar.cancel()
+                snackbarHostState.currentSnackbarData?.dismiss()
                 val message = when {
                     result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
                     !result.metadataSynced -> syncMetadataFailedMessage.format(
@@ -343,10 +348,20 @@ private fun LibraryScreen(
                 snackbarHostState.showSnackbar(message)
             }
             is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
+                startedSnackbar.cancel()
+                snackbarHostState.currentSnackbarData?.dismiss()
                 initialSyncConfirmationMessage = result.message
             }
-            GitHubSyncNowResult.SyncDisabled -> snackbarHostState.showSnackbar(syncDisabledMessage)
-            GitHubSyncNowResult.ConfigIncomplete -> snackbarHostState.showSnackbar(syncConfigMissingMessage)
+            GitHubSyncNowResult.SyncDisabled -> {
+                startedSnackbar.cancel()
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(syncDisabledMessage)
+            }
+            GitHubSyncNowResult.ConfigIncomplete -> {
+                startedSnackbar.cancel()
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(syncConfigMissingMessage)
+            }
         }
     }
 

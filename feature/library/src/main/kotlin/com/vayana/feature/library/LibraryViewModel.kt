@@ -794,7 +794,7 @@ private data class GitHubSyncConfig(
 }
 
 private fun SettingsSnapshot.isGitHubSyncReady(): Boolean =
-    githubSyncEnabled && gitHubSyncConfig() != null
+    githubSyncEnabled && gitHubSyncConfig()?.canBuildRepository() == true
 
 private fun SettingsSnapshot.deviceLabelForSync(): String =
     kindleDeviceName.trim().ifBlank { "Vayana Sync" }
@@ -853,6 +853,15 @@ private fun GitHubSyncConfig.assetStore(): GitHubContentsAssetStore =
         committerName = committerName,
         committerEmail = "$owner@users.noreply.github.com",
     )
+
+private fun GitHubSyncConfig.canBuildRepository(): Boolean =
+    runCatchingCancellable {
+        GitHubRepository(
+            owner = owner,
+            name = repository,
+            branch = branch,
+        )
+    }.isSuccess
 
 private fun Throwable.syncFailureMessage(): String =
     when (this) {
