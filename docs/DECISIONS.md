@@ -60,6 +60,26 @@ Notes for anything a reader of the code would otherwise wonder about. One paragr
 
 **Module shape mostly mirrors PROMPT2 §1 verbatim** (`:core:*`, `:feature:*`, `:reader:engine-api`/`:reader:engine-web`, `:format:*`, `:dictionary:*`). `:reader:engine-api` and `:dictionary:api` are pure `kotlin.jvm` modules (no Android dependency) since PROMPT2 §0.5 requires domain interfaces to carry zero Android imports. Everything else that touches Room/DataStore/WebView/Compose is `com.android.library`.
 
+## Review fixes — September 2026
+
+Restore now integrity-checks and migrates the staged database with the same Room
+migrations used by the app, then checks foreign keys and active book/cover files.
+The staged Room identity table is removed first so even a copied identity hash
+cannot bypass schema validation; live data is untouched until validation passes.
+The validation connection uses TRUNCATE journaling so its closed database can be
+copied without a WAL. Regression tests use the checked-in schemas (versions 1–8)
+with Robolectric 4.13 at API 28, without changing the app's toolchain pins.
+
+Bionic formatting marks inserted elements as CFI-transparent. A small documented
+patch in vendored `epubcfi.js` applies the same flattening filter when generating
+and resolving locators. DOM regression tests run with `npm ci` and `npm test` in
+`reader/engine-web/tests`; these dependencies are only for tests, not app assets.
+
+Reading time and completed sessions now share the five-minute idle deadline.
+The tracker caps late ticks at that deadline, excludes the gap before the next
+interaction, and makes repeated pause/resume callbacks idempotent. Tablet
+non-reader destinations consume safe drawing insets at the navigation host.
+
 ## Product-depth scan — quiet local utility before new infrastructure
 
 **Shipped small, ethos-aligned features that use existing local data before adding migration-heavy systems.** The prompt's strongest product through-line is calm, offline reading: comfort controls, local ownership of notes, and reflective statistics without accounts or telemetry. So this pass makes already-declared reader behavior settings real (`keep screen awake`, volume-key page turns), adds local Notes search plus plain-text sharing, and turns the empty Statistics tab into a local dashboard from the existing `Book` and `Annotation` repositories. Full reading-session heatmaps, FTS search, dictionaries, TTS, tags, and backup remain good next milestones, but they need either new schema or engine/API work; these additions avoid placeholder UI while keeping the app useful and offline.

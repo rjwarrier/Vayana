@@ -12,7 +12,6 @@ import com.vayana.core.designsystem.theme.vayanaNavEnter
 import com.vayana.core.designsystem.theme.vayanaNavExit
 import com.vayana.core.designsystem.theme.vayanaNavPopEnter
 import com.vayana.core.designsystem.theme.vayanaNavPopExit
-import com.vayana.feature.library.LibraryRoute
 import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
@@ -36,9 +35,10 @@ fun VayanaNavHost(
         popExitTransition = { vayanaNavPopExit(displayProfile, motionSetting) },
     ) {
         composable<TopLevelRoute.Library> {
-            LibraryRoute(
-                onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+            LibraryListDetailRoute(
+                navController = navController,
                 onSettingsClick = { navController.navigate(SettingsRoute) },
+                onContinueReading = { bookId -> navController.navigate(ReaderRoute(bookId)) },
             )
         }
         composable<TopLevelRoute.Notes> {

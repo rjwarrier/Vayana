@@ -320,6 +320,7 @@ function transformBionicWords(doc) {
     for (const textNode of nodes) {
         const span = doc.createElement('span')
         span.className = BionicWordClass
+        span.setAttribute('data-foliate-cfi-transparent', '')
         span.dataset.original = textNode.textContent
         span.innerHTML = bionicMarkup(textNode.textContent)
         textNode.replaceWith(span)
@@ -340,7 +341,7 @@ function bionicMarkup(text) {
     return text.replace(/[\p{L}\p{N}]+|[\s\S]/gu, chunk => {
         if (/^[\p{L}\p{N}]+$/u.test(chunk)) {
             const boldLength = Math.max(1, Math.ceil(chunk.length * 0.5))
-            return `<b>${chunk.slice(0, boldLength)}</b>${chunk.slice(boldLength)}`
+            return `<b data-foliate-cfi-transparent>${chunk.slice(0, boldLength)}</b>${chunk.slice(boldLength)}`
         }
         return chunk === '&' ? '&amp;' : chunk === '<' ? '&lt;' : chunk === '>' ? '&gt;' : chunk
     })

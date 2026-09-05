@@ -1,25 +1,24 @@
 package com.vayana.app.navigation
 
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
-/** Iterates the [TopLevelDestination] registry — no `when` ladder over routes (§0.4). */
+/** Tablet/wide-screen counterpart to [VayanaBottomBar] — same destinations, rail layout. */
 @Composable
-fun VayanaBottomBar(navController: NavHostController) {
+fun VayanaNavigationRail(navController: NavHostController) {
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
 
-    NavigationBar {
+    NavigationRail {
         TopLevelDestination.entries.forEach { destination ->
             val selected = currentDestination?.hasRoute(destination.routeClass) == true
-            NavigationBarItem(
+            NavigationRailItem(
                 selected = selected,
                 onClick = {
                     navController.navigateToTopLevel(destination.route)
@@ -33,15 +32,5 @@ fun VayanaBottomBar(navController: NavHostController) {
                 label = { Text(stringResource(destination.labelRes)) },
             )
         }
-    }
-}
-
-internal fun NavHostController.navigateToTopLevel(route: TopLevelRoute) {
-    navigate(route) {
-        popUpTo(graph.findStartDestination().id) {
-            saveState = true
-        }
-        launchSingleTop = true
-        restoreState = true
     }
 }

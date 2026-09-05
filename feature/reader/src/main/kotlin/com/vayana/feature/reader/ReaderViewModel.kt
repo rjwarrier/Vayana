@@ -135,7 +135,7 @@ class ReaderViewModel @Inject constructor(
                 .onSuccess { openBook: OpenBook ->
                     bookOpen = true
                     viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
-                    onResume()
+                    if (readerResumed) onResume()
                     applyReaderStyle(engine, settings.value)
                     _uiState.value = ReaderUiState.Loaded(
                         bookTitle = openBook.title,
@@ -419,33 +419,28 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    private var activeSessionStart: Long = 0L
+    private val readingTimeTracker = ReadingTimeTracker(IdleSessionTimeoutMs)
+    private var readerResumed = false
     private var trackingJob: Job? = null
 
-    /** A page-turn resets this. If it goes stale past [IdleSessionTimeoutMs], the session is over. */
-    private var readingSessionStart: Long = 0L
-    private var lastInteractionAt: Long = 0L
-
     fun onResume() {
+        readerResumed = true
         if (bookOpen) {
-            activeSessionStart = System.currentTimeMillis()
-            if (readingSessionStart == 0L) readingSessionStart = activeSessionStart
-            lastInteractionAt = activeSessionStart
+            readingTimeTracker.resume(System.currentTimeMillis())
             startReadingTimeTicker()
         }
     }
 
     fun onPause() {
-        flushReadingTime()
-        endReadingSession()
+        readerResumed = false
+        persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
         trackingJob?.cancel()
         trackingJob = null
     }
 
     private fun onPageMoved() {
-        val now = System.currentTimeMillis()
-        if (readingSessionStart == 0L) readingSessionStart = now
-        lastInteractionAt = now
+        if (!readerResumed || !bookOpen) return
+        persistReadingTime(readingTimeTracker.interact(System.currentTimeMillis()))
     }
 
     private fun startReadingTimeTicker() {
@@ -453,43 +448,22 @@ class ReaderViewModel @Inject constructor(
         trackingJob = viewModelScope.launch {
             while (true) {
                 delay(10_000L)
-                flushReadingTime()
-                checkSessionIdle()
+                persistReadingTime(readingTimeTracker.flush(System.currentTimeMillis()))
             }
         }
     }
 
-    private fun flushReadingTime() {
-        if (activeSessionStart > 0L) {
-            val now = System.currentTimeMillis()
-            val elapsedSeconds = ((now - activeSessionStart) / 1000L).coerceAtLeast(0L)
-            if (elapsedSeconds > 0L) {
-                activeSessionStart = now
-                viewModelScope.launch {
-                    bookRepository.addReadingTime(bookId, elapsedSeconds)
-                }
-            }
-        }
-    }
-
-    private fun checkSessionIdle() {
-        if (readingSessionStart == 0L) return
-        val idleFor = System.currentTimeMillis() - lastInteractionAt
-        if (idleFor >= IdleSessionTimeoutMs) endReadingSession(endedAt = lastInteractionAt)
-    }
-
-    private fun endReadingSession(endedAt: Long = System.currentTimeMillis()) {
-        val startedAt = readingSessionStart
-        if (startedAt == 0L) return
-        readingSessionStart = 0L
+    private fun persistReadingTime(update: ReadingTimeUpdate) {
+        if (update.addedSeconds == 0L && update.session == null) return
         viewModelScope.launch {
-            readingSessionRepository.record(bookId, startedAt, endedAt)
+            if (update.addedSeconds > 0L) bookRepository.addReadingTime(bookId, update.addedSeconds)
+            update.session?.let { session ->
+                readingSessionRepository.record(bookId, session.startedAt, session.endedAt)
+            }
         }
     }
 
     override fun onCleared() {
-        flushReadingTime()
-        endReadingSession()
         trackingJob?.cancel()
         trackingJob = null
         cancelEngineJobs()

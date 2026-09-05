@@ -285,7 +285,13 @@ const nodeToParts = (node, offset, filter) => {
         .filter(x => x.index !== -1)
 }
 
-export const fromRange = (range, filter) => {
+// App-added formatting must not alter the publication's CFI tree. FILTER_SKIP
+// flattens wrappers and merges their text offsets, preserving the original paths.
+const formattingFilter = node => isElementNode(node)
+    && node.hasAttribute('data-foliate-cfi-transparent')
+    ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_ACCEPT
+
+export const fromRange = (range, filter = formattingFilter) => {
     const { startContainer, startOffset, endContainer, endOffset } = range
     const start = nodeToParts(startContainer, startOffset, filter)
     if (range.collapsed) return toString([start])
@@ -293,7 +299,7 @@ export const fromRange = (range, filter) => {
     return buildRange([start], [end])
 }
 
-export const toRange = (doc, parts, filter) => {
+export const toRange = (doc, parts, filter = formattingFilter) => {
     const startParts = collapse(parts)
     const endParts = collapse(parts, true)
 

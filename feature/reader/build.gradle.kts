@@ -15,4 +15,5 @@ dependencies {
     implementation(project(":core:filesystem"))
     implementation(project(":dictionary:api"))
     implementation(project(":dictionary:stardict"))
+    testImplementation(kotlin("test"))
 }

@@ -215,6 +215,8 @@ class BackupManager @Inject constructor(
                 val settingsFile = File(stagingDir, "settings.json")
                 val settingsMap = if (settingsFile.isFile) readSettingsMap(settingsFile) else emptyMap()
 
+                validateStagedBackup(context, stagingDir, manifest.databaseVersion)
+
                 // Point of no return: once the live database is closed the process can no
                 // longer serve requests, so every path from here ends in a restart.
                 database.close()
