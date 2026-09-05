@@ -60,6 +60,7 @@ import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -168,6 +169,7 @@ fun LibraryRoute(
         onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
         onBookClick = onBookClick,
         onDownloadCloudBook = viewModel::downloadCloudBook,
+        onSyncNow = viewModel::syncNow,
         onSettingsClick = onSettingsClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
         onShelvesClick = onShelvesClick,
@@ -249,6 +251,7 @@ private fun LibraryScreen(
     onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
+    onSyncNow: suspend () -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -277,6 +280,7 @@ private fun LibraryScreen(
         if (uri != null) onImportFolder(context.contentResolver, uri)
     }
     var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
+    var syncRunning by remember { mutableStateOf(false) }
     val cloudDownloadStartedMessage = stringResource(R.string.library_book_cloud_download_started)
     val cloudDownloadCompleteMessage = stringResource(R.string.library_book_cloud_download_complete)
     val cloudSyncDisabledMessage = stringResource(R.string.library_book_cloud_sync_disabled)
@@ -285,6 +289,14 @@ private fun LibraryScreen(
     val cloudDownloadFailedMessage = stringResource(R.string.library_book_cloud_download_failed)
     val missingFileMessage = stringResource(R.string.library_book_file_missing)
     val uploadPendingMessage = stringResource(R.string.library_book_upload_pending)
+    val syncStartedMessage = stringResource(R.string.library_sync_started)
+    val syncDisabledMessage = stringResource(R.string.library_sync_disabled)
+    val syncConfigMissingMessage = stringResource(R.string.library_sync_config_missing)
+    val syncCompleteMessage = stringResource(R.string.library_sync_complete)
+    val syncPartialMessage = stringResource(R.string.library_sync_partial)
+    val syncConflictMessage = stringResource(R.string.library_sync_conflicts)
+    val syncPullFailedMessage = stringResource(R.string.library_sync_pull_failed)
+    val syncMetadataFailedMessage = stringResource(R.string.library_sync_metadata_failed)
 
     fun handleBookClick(book: Book) {
         when (book.fileAvailability) {
@@ -307,6 +319,32 @@ private fun LibraryScreen(
         }
     }
 
+    fun handleSyncNow() {
+        if (syncRunning) return
+        coroutineScope.launch {
+            syncRunning = true
+            try {
+                snackbarHostState.showSnackbar(syncStartedMessage)
+                when (val result = onSyncNow()) {
+                    is GitHubSyncNowResult.Complete -> {
+                        val message = when {
+                            !result.metadataSynced -> syncMetadataFailedMessage.format(result.uploaded, result.failed)
+                            result.pullFailed -> syncPullFailedMessage
+                            result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
+                            result.failed == 0 -> syncCompleteMessage.format(result.uploaded, result.progressUpdated)
+                            else -> syncPartialMessage.format(result.uploaded, result.failed, result.progressUpdated)
+                        }
+                        snackbarHostState.showSnackbar(message)
+                    }
+                    GitHubSyncNowResult.SyncDisabled -> snackbarHostState.showSnackbar(syncDisabledMessage)
+                    GitHubSyncNowResult.ConfigIncomplete -> snackbarHostState.showSnackbar(syncConfigMissingMessage)
+                }
+            } finally {
+                syncRunning = false
+            }
+        }
+    }
+
     LaunchedEffect(importSummaryMessage) {
         val message = importSummaryMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
@@ -318,6 +356,9 @@ private fun LibraryScreen(
         topBar = {
             LibraryTopBar(
                 controls = uiState.controls,
+                showSyncNow = uiState.githubSyncReady,
+                syncRunning = syncRunning,
+                onSyncNow = ::handleSyncNow,
                 onSettingsClick = onSettingsClick,
                 onRecentlyDeletedClick = onRecentlyDeletedClick,
                 onShelvesClick = onShelvesClick,
@@ -502,6 +543,9 @@ private fun ImportStatusIcon(status: ImportRowStatus) {
 @Composable
 private fun LibraryTopBar(
     controls: LibraryControls,
+    showSyncNow: Boolean,
+    syncRunning: Boolean,
+    onSyncNow: () -> Unit,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -524,7 +568,25 @@ private fun LibraryTopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = stringResource(R.string.library_title), style = MaterialTheme.typography.headlineMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (showSyncNow) {
+                    IconButton(
+                        onClick = onSyncNow,
+                        enabled = !syncRunning,
+                    ) {
+                        if (syncRunning) {
+                            CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.Sync,
+                                contentDescription = stringResource(R.string.library_sync_now_content_description),
+                                modifier = Modifier.size(Sizes.icon),
+                            )
+                        }
+                    }
+                }
+                Text(text = stringResource(R.string.library_title), style = MaterialTheme.typography.headlineMedium)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { filterExpanded = true }) {
                     Icon(

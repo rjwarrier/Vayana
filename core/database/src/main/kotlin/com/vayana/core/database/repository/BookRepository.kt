@@ -4,6 +4,32 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import kotlinx.coroutines.flow.Flow
 
+sealed interface ReadingProgressMergeResult {
+    data object AppliedRemote : ReadingProgressMergeResult
+    data object LocalNewer : ReadingProgressMergeResult
+    data object NoLocalMatch : ReadingProgressMergeResult
+    data object InvalidRemote : ReadingProgressMergeResult
+    data class ConflictLocalKept(
+        val local: ReadingProgressVersion,
+        val remote: ReadingProgressVersion,
+        val reason: ReadingProgressConflictReason,
+    ) : ReadingProgressMergeResult
+}
+
+data class ReadingProgressVersion(
+    val syncId: String,
+    val fileHash: String,
+    val locator: String?,
+    val readingPercent: Float,
+    val lastReadAt: Long?,
+    val updatedAt: Long,
+)
+
+enum class ReadingProgressConflictReason {
+    SAME_TIMESTAMP_DIFFERENT_LOCATOR,
+    INCOMPATIBLE_FILE_REVISION,
+}
+
 interface BookRepository {
     fun observeAll(): Flow<List<Book>>
 
@@ -13,6 +39,18 @@ interface BookRepository {
     suspend fun getById(id: Long): Book?
 
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
+
+    suspend fun applySyncedReadingProgress(
+        syncId: String,
+        fileHash: String,
+        locator: String,
+        readingPercent: Float,
+        lastReadAt: Long?,
+        remoteUpdatedAt: Long,
+        startedReadingAt: Long?,
+        finishedReadingAt: Long?,
+        totalReadingSeconds: Long,
+    ): ReadingProgressMergeResult
 
     suspend fun addReadingTime(id: Long, addedSeconds: Long)
 

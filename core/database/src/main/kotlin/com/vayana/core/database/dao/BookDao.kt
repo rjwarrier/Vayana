@@ -22,6 +22,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE fileHash = :fileHash AND isDeleted = 0 LIMIT 1")
     suspend fun findByHash(fileHash: String): BookEntity?
 
+    @Query("SELECT * FROM books WHERE syncId = :syncId AND isDeleted = 0 LIMIT 1")
+    suspend fun findBySyncId(syncId: String): BookEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(book: BookEntity): Long
 
@@ -72,6 +75,36 @@ interface BookDao {
             "updatedAt = :updatedAt, lastReadAt = :updatedAt WHERE id = :id",
     )
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, updatedAt: Long)
+
+    @Query(
+        """
+        UPDATE books
+        SET lastLocator = :locator,
+            readingPercent = :readingPercent,
+            startedReadingAt = COALESCE(startedReadingAt, :startedReadingAt),
+            finishedReadingAt = CASE
+                WHEN :finishedReadingAt IS NOT NULL AND (finishedReadingAt IS NULL OR :finishedReadingAt < finishedReadingAt) THEN :finishedReadingAt
+                ELSE finishedReadingAt
+            END,
+            totalReadingSeconds = CASE
+                WHEN :totalReadingSeconds > totalReadingSeconds THEN :totalReadingSeconds
+                ELSE totalReadingSeconds
+            END,
+            updatedAt = :remoteUpdatedAt,
+            lastReadAt = :lastReadAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun applySyncedReadingProgress(
+        id: Long,
+        locator: String,
+        readingPercent: Float,
+        lastReadAt: Long?,
+        remoteUpdatedAt: Long,
+        startedReadingAt: Long?,
+        finishedReadingAt: Long?,
+        totalReadingSeconds: Long,
+    )
 
     @Query(
         "UPDATE books SET totalReadingSeconds = totalReadingSeconds + :addedSeconds, " +

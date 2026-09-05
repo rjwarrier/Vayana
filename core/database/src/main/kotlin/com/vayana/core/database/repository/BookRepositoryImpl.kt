@@ -25,6 +25,66 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
     }
 
+    override suspend fun applySyncedReadingProgress(
+        syncId: String,
+        fileHash: String,
+        locator: String,
+        readingPercent: Float,
+        lastReadAt: Long?,
+        remoteUpdatedAt: Long,
+        startedReadingAt: Long?,
+        finishedReadingAt: Long?,
+        totalReadingSeconds: Long,
+    ): ReadingProgressMergeResult {
+        if (locator.isBlank() || remoteUpdatedAt <= 0L || readingPercent !in 0f..1f) {
+            return ReadingProgressMergeResult.InvalidRemote
+        }
+        val book = bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash)
+            ?: return ReadingProgressMergeResult.NoLocalMatch
+        val local = book.readingProgressVersion()
+        val remote = ReadingProgressVersion(
+            syncId = syncId,
+            fileHash = fileHash,
+            locator = locator,
+            readingPercent = readingPercent,
+            lastReadAt = lastReadAt,
+            updatedAt = remoteUpdatedAt,
+        )
+        if (book.syncId == syncId && book.fileHash != fileHash) {
+            return ReadingProgressMergeResult.ConflictLocalKept(
+                local = local,
+                remote = remote,
+                reason = ReadingProgressConflictReason.INCOMPATIBLE_FILE_REVISION,
+            )
+        }
+        val localVersion = book.lastReadAt ?: book.updatedAt
+        val remoteVersion = lastReadAt ?: remoteUpdatedAt
+        if (localVersion > remoteVersion) {
+            return ReadingProgressMergeResult.LocalNewer
+        }
+        if (localVersion == remoteVersion && book.lastLocator != locator) {
+            return ReadingProgressMergeResult.ConflictLocalKept(
+                local = local,
+                remote = remote,
+                reason = ReadingProgressConflictReason.SAME_TIMESTAMP_DIFFERENT_LOCATOR,
+            )
+        }
+        if (localVersion == remoteVersion) {
+            return ReadingProgressMergeResult.LocalNewer
+        }
+        bookDao.applySyncedReadingProgress(
+            id = book.id,
+            locator = locator,
+            readingPercent = readingPercent,
+            lastReadAt = remoteVersion,
+            remoteUpdatedAt = remoteUpdatedAt,
+            startedReadingAt = startedReadingAt,
+            finishedReadingAt = finishedReadingAt,
+            totalReadingSeconds = totalReadingSeconds,
+        )
+        return ReadingProgressMergeResult.AppliedRemote
+    }
+
     override suspend fun addReadingTime(id: Long, addedSeconds: Long) {
         bookDao.addReadingTime(id, addedSeconds, System.currentTimeMillis())
     }
@@ -183,6 +243,16 @@ class BookRepositoryImpl @Inject constructor(
         )
     }
 }
+
+private fun BookEntity.readingProgressVersion(): ReadingProgressVersion =
+    ReadingProgressVersion(
+        syncId = syncId,
+        fileHash = fileHash,
+        locator = lastLocator,
+        readingPercent = readingPercent,
+        lastReadAt = lastReadAt,
+        updatedAt = updatedAt,
+    )
 
 internal fun BookEntity.toDomain(): Book = Book(
     id = id,

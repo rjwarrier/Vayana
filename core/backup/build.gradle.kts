@@ -14,4 +14,7 @@ dependencies {
     implementation(project(":core:filesystem"))
 
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.org.json)
 }

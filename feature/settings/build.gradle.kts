@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:filesystem"))
+    implementation(project(":core:sync"))
     implementation(libs.room.runtime)
     testImplementation(kotlin("test"))
     testImplementation("org.robolectric:robolectric:4.13")

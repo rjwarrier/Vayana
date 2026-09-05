@@ -62,6 +62,20 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun getSyncDocumentUsesTightMetadataResponseLimit() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val bytes = store.getSyncDocument("vayana/snapshot-latest.json")
+
+        assertContentEquals("""{"books":[]}""".toByteArray(), bytes)
+        assertEquals("application/vnd.github.raw", client.requests.single().headers["Accept"])
+        assertEquals(8 * 1024 * 1024, client.requests.single().maxResponseBytes)
+    }
+
+    @Test
     fun rejectsPathOutsideCloudAssetLayout() = runBlocking {
         val client = RecordingGitHubHttpClient()
         val store = testStore(client)
@@ -70,6 +84,19 @@ class GitHubContentsAssetStoreTest {
             store.get("vayana/assets/not-the-layout.bin")
         }
         assertTrue(failure.message.orEmpty().startsWith("Invalid cloud asset"))
+    }
+
+    @Test
+    fun rejectsUnsafeSyncDocumentPath() = runBlocking {
+        val client = RecordingGitHubHttpClient()
+        val store = testStore(client)
+
+        val failure = assertFailsWith<IllegalArgumentException> {
+            store.getSyncDocument("vayana/snapshots/../../settings.json")
+        }
+
+        assertEquals("Invalid sync document path", failure.message)
+        assertTrue(client.requests.isEmpty())
     }
 
     @Test

@@ -7,20 +7,30 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.backup.PortableReadingPositionAlternative
+import com.vayana.core.backup.PortableSyncConflict
+import com.vayana.core.backup.SnapshotExporter
+import com.vayana.core.backup.parsePortableReadingProgressSnapshot
+import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.Shelf
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.ReadingProgressMergeResult
+import com.vayana.core.database.repository.ReadingProgressVersion
 import com.vayana.core.database.repository.ShelfRepository
 import com.vayana.core.datastore.settings.SettingsRepository
+import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.sync.asset.CloudAssetReference
 import com.vayana.core.sync.asset.CloudBookAssetTransfer
+import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import com.vayana.core.sync.asset.GitHubRepository
 import com.vayana.core.filesystem.BookFileImporter
@@ -70,6 +80,20 @@ enum class CloudBookDownloadResult {
     FAILED,
 }
 
+sealed interface GitHubSyncNowResult {
+    data class Complete(
+        val uploaded: Int,
+        val failed: Int,
+        val progressUpdated: Int,
+        val conflicts: Int,
+        val skipped: Int,
+        val pullFailed: Boolean,
+        val metadataSynced: Boolean,
+    ) : GitHubSyncNowResult
+    data object SyncDisabled : GitHubSyncNowResult
+    data object ConfigIncomplete : GitHubSyncNowResult
+}
+
 data class ImportProgressRow(
     val id: String,
     val fileName: String,
@@ -82,6 +106,16 @@ data class ImportProgressState(
 ) {
     val summary: ImportSummary
         get() = rows.summarize()
+}
+
+private data class ReadingProgressMergeSummary(
+    val applied: Int = 0,
+    val conflicts: List<PortableSyncConflict> = emptyList(),
+    val skipped: Int = 0,
+    val failed: Boolean = false,
+) {
+    val conflictCount: Int
+        get() = conflicts.size
 }
 
 enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
@@ -100,6 +134,7 @@ data class LibraryControls(
 data class LibraryUiState(
     val books: List<Book> = emptyList(),
     val controls: LibraryControls = LibraryControls(),
+    val githubSyncReady: Boolean = false,
 )
 
 @HiltViewModel
@@ -110,6 +145,7 @@ class LibraryViewModel @Inject constructor(
     private val shelfRepository: ShelfRepository,
     private val settingsRepository: SettingsRepository,
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
+    private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
     @param:ApplicationContext private val appContext: Context,
@@ -124,13 +160,14 @@ class LibraryViewModel @Inject constructor(
     val libraryBooks: StateFlow<List<Book>> =
         allBooks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val uiState: StateFlow<LibraryUiState> = combine(libraryBooks, controls) { books, controls ->
+    val uiState: StateFlow<LibraryUiState> = combine(libraryBooks, controls, settingsRepository.snapshot) { books, controls, settings ->
         LibraryUiState(
             books = books
                 .filterBy(controls.filter)
                 .filterByQuery(controls.query)
                 .sortedBy(controls.sort),
             controls = controls,
+            githubSyncReady = settings.isGitHubSyncReady(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
@@ -322,37 +359,126 @@ class LibraryViewModel @Inject constructor(
         val reference = book.fileAssetReference() ?: return@withContext CloudBookDownloadResult.ASSET_MISSING
         val settings = settingsRepository.snapshot.first()
         if (!settings.githubSyncEnabled) return@withContext CloudBookDownloadResult.SYNC_DISABLED
-        if (
-            settings.githubOwner.isBlank() ||
-            settings.githubRepository.isBlank() ||
-            settings.githubBranch.isBlank() ||
-            settings.githubToken.isBlank() ||
-            settings.githubSyncPassphrase.isBlank()
-        ) {
-            return@withContext CloudBookDownloadResult.CONFIG_INCOMPLETE
-        }
+        val syncConfig = settings.gitHubSyncConfig() ?: return@withContext CloudBookDownloadResult.CONFIG_INCOMPLETE
 
         runCatchingCancellable {
-            val store = GitHubContentsAssetStore(
-                repository = GitHubRepository(
-                    owner = settings.githubOwner.trim(),
-                    name = settings.githubRepository.trim(),
-                    branch = settings.githubBranch.trim(),
-                ),
-                token = settings.githubToken.trim(),
-                committerName = settings.kindleDeviceName.trim().ifBlank { "Vayana Sync" },
-                committerEmail = "${settings.githubOwner.trim()}@users.noreply.github.com",
-            )
-            cloudBookAssetTransfer.downloadBookFile(
-                bookId = book.id,
-                reference = reference,
-                extension = book.format.name.lowercase(),
-                passphrase = settings.githubSyncPassphrase.toCharArray(),
-                store = store,
-            )
+            val store = syncConfig.assetStore()
+            val passphrase = syncConfig.passphrase.toCharArray()
+            try {
+                cloudBookAssetTransfer.downloadBookFile(
+                    bookId = book.id,
+                    reference = reference,
+                    extension = book.format.name.lowercase(),
+                    passphrase = passphrase,
+                    store = store,
+                )
+            } finally {
+                passphrase.fill('\u0000')
+            }
             CloudBookDownloadResult.DOWNLOADED
         }.getOrElse { CloudBookDownloadResult.FAILED }
     }
+
+    suspend fun syncNow(): GitHubSyncNowResult = withContext(dispatchers.io) {
+        val settings = settingsRepository.snapshot.first()
+        if (!settings.githubSyncEnabled) return@withContext GitHubSyncNowResult.SyncDisabled
+        val syncConfig = settings.gitHubSyncConfig() ?: return@withContext GitHubSyncNowResult.ConfigIncomplete
+        val store = runCatchingCancellable { syncConfig.assetStore() }
+            .getOrElse { return@withContext GitHubSyncNowResult.ConfigIncomplete }
+        val progressMerge = pullReadingProgress(store)
+        if (progressMerge.failed) {
+            return@withContext GitHubSyncNowResult.Complete(
+                uploaded = 0,
+                failed = 0,
+                progressUpdated = progressMerge.applied,
+                conflicts = progressMerge.conflictCount,
+                skipped = progressMerge.skipped,
+                pullFailed = true,
+                metadataSynced = false,
+            )
+        }
+        val uploadCandidates = bookRepository.observeAll().first()
+            .filter { book ->
+                book.fileAvailability == BookFileAvailability.LOCAL &&
+                    book.format != BookFormat.PHYSICAL &&
+                    book.fileAssetId.isNullOrBlank()
+            }
+
+        var uploaded = 0
+        var failed = 0
+        uploadCandidates.forEach { book ->
+            val passphrase = syncConfig.passphrase.toCharArray()
+            val result = runCatchingCancellable {
+                try {
+                    cloudBookAssetTransfer.uploadBookFile(book.id, passphrase, store)
+                } finally {
+                    passphrase.fill('\u0000')
+                }
+            }
+            result.onSuccess {
+                uploaded += 1
+            }.onFailure {
+                failed += 1
+            }
+        }
+        val metadataSynced = runCatchingCancellable {
+            val snapshot = snapshotExporter.export()
+            val snapshotBytes = snapshot
+                .copy(syncConflicts = progressMerge.conflicts)
+                .toJsonString()
+                .toByteArray(Charsets.UTF_8)
+            store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
+            store.putSyncDocument("vayana/snapshot-latest.json", snapshotBytes)
+        }.isSuccess
+        GitHubSyncNowResult.Complete(
+            uploaded = uploaded,
+            failed = failed,
+            progressUpdated = progressMerge.applied,
+            conflicts = progressMerge.conflictCount,
+            skipped = progressMerge.skipped,
+            pullFailed = progressMerge.failed,
+            metadataSynced = metadataSynced,
+        )
+    }
+
+    private suspend fun pullReadingProgress(store: GitHubContentsAssetStore): ReadingProgressMergeSummary =
+        runCatchingCancellable {
+            val snapshotJson = store.getSyncDocument("vayana/snapshot-latest.json").toString(Charsets.UTF_8)
+            val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
+            val localDeviceLabel = settingsRepository.snapshot.first().deviceLabelForSync()
+            remoteSnapshot.progresses.fold(ReadingProgressMergeSummary()) { summary, progress ->
+                val mergeResult = bookRepository.applySyncedReadingProgress(
+                    syncId = progress.syncId,
+                    fileHash = progress.fileHash,
+                    locator = progress.lastLocator,
+                    readingPercent = progress.readingPercent,
+                    lastReadAt = progress.lastReadAt,
+                    remoteUpdatedAt = progress.updatedAt,
+                    startedReadingAt = progress.startedReadingAt,
+                    finishedReadingAt = progress.finishedReadingAt,
+                    totalReadingSeconds = progress.totalReadingSeconds,
+                )
+                when (mergeResult) {
+                    ReadingProgressMergeResult.AppliedRemote -> summary.copy(applied = summary.applied + 1)
+                    is ReadingProgressMergeResult.ConflictLocalKept -> summary.copy(
+                        conflicts = summary.conflicts + mergeResult.toPortableConflict(
+                            localDeviceLabel = localDeviceLabel,
+                            remoteDeviceLabel = remoteSnapshot.deviceLabel,
+                        ),
+                    )
+                    ReadingProgressMergeResult.LocalNewer,
+                    ReadingProgressMergeResult.NoLocalMatch,
+                    ReadingProgressMergeResult.InvalidRemote,
+                    -> summary.copy(skipped = summary.skipped + 1)
+                }
+            }
+        }.getOrElse { throwable ->
+            if ((throwable as? GitHubAssetStoreException)?.statusCode == 404) {
+                ReadingProgressMergeSummary()
+            } else {
+                ReadingProgressMergeSummary(failed = true)
+            }
+        }
 
     fun onBookDetailMessageShown() {
         _bookDetailMessage.value = null
@@ -655,6 +781,86 @@ private fun Book.fileAssetReference(): CloudAssetReference? {
         )
     }.getOrNull()
 }
+
+private data class GitHubSyncConfig(
+    val owner: String,
+    val repository: String,
+    val branch: String,
+    val token: String,
+    val passphrase: String,
+    val committerName: String,
+) {
+    val deviceSnapshotPath: String = "vayana/snapshots/${committerName.syncPathSegment()}.json"
+}
+
+private fun SettingsSnapshot.isGitHubSyncReady(): Boolean =
+    githubSyncEnabled && gitHubSyncConfig() != null
+
+private fun SettingsSnapshot.deviceLabelForSync(): String =
+    kindleDeviceName.trim().ifBlank { "Vayana Sync" }
+
+private fun SettingsSnapshot.gitHubSyncConfig(): GitHubSyncConfig? {
+    val owner = githubOwner.trim()
+    val repository = githubRepository.trim()
+    val branch = githubBranch.trim()
+    val token = githubToken.trim()
+    val passphrase = githubSyncPassphrase
+    if (owner.isBlank() || repository.isBlank() || branch.isBlank() || token.isBlank() || passphrase.isBlank()) {
+        return null
+    }
+    return GitHubSyncConfig(
+        owner = owner,
+        repository = repository,
+        branch = branch,
+        token = token,
+        passphrase = passphrase,
+        committerName = deviceLabelForSync(),
+    )
+}
+
+private fun ReadingProgressMergeResult.ConflictLocalKept.toPortableConflict(
+    localDeviceLabel: String,
+    remoteDeviceLabel: String?,
+): PortableSyncConflict =
+    PortableSyncConflict(
+        type = "readingPosition",
+        syncId = local.syncId,
+        reason = reason.name,
+        detectedAt = System.currentTimeMillis(),
+        localDeviceLabel = localDeviceLabel,
+        remoteDeviceLabel = remoteDeviceLabel?.takeIf { it.isNotBlank() },
+        local = local.toPortableAlternative(),
+        remote = remote.toPortableAlternative(),
+    )
+
+private fun ReadingProgressVersion.toPortableAlternative(): PortableReadingPositionAlternative =
+    PortableReadingPositionAlternative(
+        fileHash = fileHash,
+        locator = locator,
+        readingPercent = readingPercent,
+        lastReadAt = lastReadAt,
+        updatedAt = updatedAt,
+    )
+
+private fun GitHubSyncConfig.assetStore(): GitHubContentsAssetStore =
+    GitHubContentsAssetStore(
+        repository = GitHubRepository(
+            owner = owner,
+            name = repository,
+            branch = branch,
+        ),
+        token = token,
+        committerName = committerName,
+        committerEmail = "$owner@users.noreply.github.com",
+    )
+
+private fun String.syncPathSegment(): String =
+    trim()
+        .lowercase()
+        .replace(Regex("[^a-z0-9._-]+"), "-")
+        .trim('-')
+        .take(80)
+        .ifBlank { "vayana-sync" }
 
 private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(
     imported = count { it.status == ImportRowStatus.IMPORTED },

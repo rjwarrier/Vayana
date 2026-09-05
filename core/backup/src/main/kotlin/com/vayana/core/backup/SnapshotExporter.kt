@@ -40,14 +40,15 @@ class SnapshotExporter @Inject constructor(
         val bookSyncIdsByLocalId = books.associate { it.id to it.syncId }
         val shelves = shelfDao.getAllForSync()
         val shelfSyncIdsByLocalId = shelves.associate { it.id to it.syncId }
-        val settings = settingsRepository.exportToMap()
+        val allSettings = settingsRepository.exportToMap()
+        val settings = allSettings
             .filterKeys { it in PortableSettings.allowlist }
             .toSortedMap()
 
         PortableSnapshot(
             formatVersion = CurrentPortableSnapshotVersion,
             exportedAt = System.currentTimeMillis(),
-            deviceLabel = settings[SettingsRegistry.KindleDeviceName.key].orEmpty().ifBlank { SettingsRegistry.KindleDeviceName.defaultValue },
+            deviceLabel = allSettings[SettingsRegistry.KindleDeviceName.key].orEmpty().ifBlank { SettingsRegistry.KindleDeviceName.defaultValue },
             books = books.map { it.toPortable() }.sortedBy { it.syncId },
             annotations = annotationDao.getAllForSync()
                 .mapNotNull { it.toPortable(bookSyncIdsByLocalId) }

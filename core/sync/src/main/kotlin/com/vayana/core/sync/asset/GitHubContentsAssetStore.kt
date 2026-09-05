@@ -43,10 +43,37 @@ class GitHubContentsAssetStore(
 
     override suspend fun put(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
         validateAssetPath(path)
+        putContents(path, bytes, "Sync Vayana asset $path")
+    }
+
+    suspend fun putSyncDocument(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        putContents(path, bytes, "Sync Vayana metadata $path")
+    }
+
+    suspend fun getSyncDocument(path: String): ByteArray = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "GET",
+                url = contentsUrl(path),
+                headers = rawHeaders(),
+                maxResponseBytes = MaxSyncDocumentBytes,
+            ),
+        )
+        if (response.statusCode != HttpURLConnection.HTTP_OK) {
+            throw GitHubAssetStoreException("GitHub metadata download failed", response.statusCode, response.safeBodyText())
+        }
+        require(response.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
+        response.body
+    }
+
+    private fun putContents(path: String, bytes: ByteArray, message: String) {
         require(bytes.isNotEmpty()) { "Cloud asset upload is empty" }
-        require(bytes.size <= MaxEncryptedAssetBytes) { "Cloud asset upload is too large" }
+        val maxBytes = if (path.endsWith(".json")) MaxSyncDocumentBytes else MaxEncryptedAssetBytes
+        require(bytes.size <= maxBytes) { "Cloud upload is too large" }
         val existingSha = findExistingSha(path)
-        val body = buildPutBody(path, bytes, existingSha)
+        val body = buildPutBody(message, bytes, existingSha)
         val response = client.execute(
             GitHubHttpRequest(
                 method = "PUT",
@@ -67,6 +94,7 @@ class GitHubContentsAssetStore(
                 method = "GET",
                 url = contentsUrl(path),
                 headers = rawHeaders(),
+                maxResponseBytes = MaxEncryptedAssetBytes,
             ),
         )
         if (response.statusCode != HttpURLConnection.HTTP_OK) {
@@ -82,6 +110,7 @@ class GitHubContentsAssetStore(
                 method = "GET",
                 url = contentsUrl(path),
                 headers = jsonHeaders(),
+                maxResponseBytes = MaxGitHubMetadataBytes,
             ),
         )
         return when (response.statusCode) {
@@ -123,12 +152,12 @@ class GitHubContentsAssetStore(
         "User-Agent" to "VayanaSync",
     )
 
-    private fun buildPutBody(path: String, bytes: ByteArray, existingSha: String?): String {
+    private fun buildPutBody(message: String, bytes: ByteArray, existingSha: String?): String {
         val encodedBytes = Base64.getEncoder().encodeToString(bytes)
         val shaProperty = existingSha?.let { ""","sha":"${it.escapeJson()}"""" }.orEmpty()
         return """
             {
-              "message":"${"Sync Vayana asset $path".escapeJson()}",
+              "message":"${message.escapeJson()}",
               "content":"$encodedBytes",
               "branch":"${repository.branch.escapeJson()}",
               "committer":{
@@ -145,6 +174,7 @@ data class GitHubHttpRequest(
     val url: String,
     val headers: Map<String, String> = emptyMap(),
     val body: ByteArray? = null,
+    val maxResponseBytes: Int = MaxHttpResponseBytes,
 )
 
 data class GitHubHttpResponse(
@@ -186,7 +216,7 @@ private class UrlConnectionGitHubHttpClient : GitHubHttpClient {
             } else {
                 connection.inputStream
             }
-            val bytes = stream?.use { it.readBytesLimited(MaxHttpResponseBytes) } ?: ByteArray(0)
+            val bytes = stream?.use { it.readBytesLimited(request.maxResponseBytes) } ?: ByteArray(0)
             return GitHubHttpResponse(status, bytes)
         } finally {
             connection.disconnect()
@@ -200,6 +230,13 @@ private fun validateAssetPath(path: String) {
     val assetId = path.substringAfterLast('/').removeSuffix(".bin")
     require(CloudAssetLayout.isValidAssetId(assetId)) { "Invalid cloud asset id" }
     require(path == CloudAssetLayout.pathFor(assetId)) { "Invalid cloud asset path" }
+}
+
+private fun validateSyncDocumentPath(path: String) {
+    require(path == "vayana/snapshot-latest.json" || path.startsWith("vayana/snapshots/")) { "Invalid sync document path" }
+    require(path.endsWith(".json")) { "Invalid sync document path" }
+    require(".." !in path && "//" !in path) { "Invalid sync document path" }
+    require(path.matches(SyncDocumentPathRegex)) { "Invalid sync document path" }
 }
 
 private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
@@ -273,8 +310,11 @@ private fun String.unescapeJson(): String = buildString(length) {
 private val GitHubNameRegex = Regex("^[A-Za-z0-9_.-]{1,100}$")
 private val GitHubBranchRegex = Regex("^[A-Za-z0-9._/-]{1,255}$")
 private val GitHubObjectShaRegex = Regex("^[a-f0-9]{40,64}$")
+private val SyncDocumentPathRegex = Regex("^[A-Za-z0-9._/-]{1,240}$")
 private val AuthorizationTokenRegex = Regex(""""token"\s*:\s*"[^"]+"""")
 private const val NetworkTimeoutMillis = 30_000
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024
+private const val MaxSyncDocumentBytes = 8 * 1024 * 1024
 private const val MaxHttpResponseBytes = MaxEncryptedAssetBytes + 1024
+private const val MaxGitHubMetadataBytes = 256 * 1024
 private const val MaxErrorBodyChars = 4_096

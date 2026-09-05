@@ -28,6 +28,15 @@ sealed interface BackupUiState {
     data class RestoreIncompatible(val message: String) : BackupUiState
 }
 
+sealed interface GitHubSyncSettingsTransferState {
+    data object Idle : GitHubSyncSettingsTransferState
+    data object Working : GitHubSyncSettingsTransferState
+    data object ExportComplete : GitHubSyncSettingsTransferState
+    data object ImportComplete : GitHubSyncSettingsTransferState
+    data object MissingPassphrase : GitHubSyncSettingsTransferState
+    data class Failed(val message: String) : GitHubSyncSettingsTransferState
+}
+
 sealed interface RestorePreviewState {
     data object Idle : RestorePreviewState
     data object Loading : RestorePreviewState
@@ -39,6 +48,7 @@ sealed interface RestorePreviewState {
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
+    private val gitHubSyncSettingsTransfer: GitHubSyncSettingsTransfer,
 ) : ViewModel() {
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
@@ -48,6 +58,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _restorePreview = MutableStateFlow<RestorePreviewState>(RestorePreviewState.Idle)
     val restorePreview: StateFlow<RestorePreviewState> = _restorePreview
+
+    private val _githubSyncSettingsTransferState = MutableStateFlow<GitHubSyncSettingsTransferState>(GitHubSyncSettingsTransferState.Idle)
+    val githubSyncSettingsTransferState: StateFlow<GitHubSyncSettingsTransferState> = _githubSyncSettingsTransferState
 
     fun <T : Any> update(setting: Setting<T>, value: T) {
         viewModelScope.launch { settingsRepository.update(setting, value) }
@@ -85,6 +98,32 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissBackupState() {
         _backupState.value = BackupUiState.Idle
+    }
+
+    fun exportGitHubSyncSettings(destination: Uri) {
+        viewModelScope.launch {
+            _githubSyncSettingsTransferState.value = GitHubSyncSettingsTransferState.Working
+            _githubSyncSettingsTransferState.value = when (val outcome = gitHubSyncSettingsTransfer.exportTo(destination)) {
+                GitHubSyncSettingsTransferOutcome.Success -> GitHubSyncSettingsTransferState.ExportComplete
+                GitHubSyncSettingsTransferOutcome.MissingPassphrase -> GitHubSyncSettingsTransferState.MissingPassphrase
+                is GitHubSyncSettingsTransferOutcome.Failed -> GitHubSyncSettingsTransferState.Failed(outcome.message)
+            }
+        }
+    }
+
+    fun importGitHubSyncSettings(source: Uri) {
+        viewModelScope.launch {
+            _githubSyncSettingsTransferState.value = GitHubSyncSettingsTransferState.Working
+            _githubSyncSettingsTransferState.value = when (val outcome = gitHubSyncSettingsTransfer.importFrom(source)) {
+                GitHubSyncSettingsTransferOutcome.Success -> GitHubSyncSettingsTransferState.ImportComplete
+                GitHubSyncSettingsTransferOutcome.MissingPassphrase -> GitHubSyncSettingsTransferState.MissingPassphrase
+                is GitHubSyncSettingsTransferOutcome.Failed -> GitHubSyncSettingsTransferState.Failed(outcome.message)
+            }
+        }
+    }
+
+    fun dismissGitHubSyncSettingsTransferState() {
+        _githubSyncSettingsTransferState.value = GitHubSyncSettingsTransferState.Idle
     }
 
     fun inspectRestoreFile(uri: Uri) {

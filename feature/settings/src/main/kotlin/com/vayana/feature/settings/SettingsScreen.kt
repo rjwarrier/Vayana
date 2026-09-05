@@ -30,6 +30,8 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
@@ -108,12 +110,14 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val settings by viewModel.settings.collectAsState()
     val backupState by viewModel.backupState.collectAsState()
     val restorePreview by viewModel.restorePreview.collectAsState()
+    val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
 
     SettingsScreen(
         modifier = modifier,
         settings = settings,
         backupState = backupState,
         restorePreview = restorePreview,
+        githubSyncSettingsTransferState = githubSyncSettingsTransferState,
         onBack = onBack,
         onUpdate = viewModel::update,
         onReset = viewModel::reset,
@@ -121,6 +125,9 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onCreateBackup = viewModel::createBackup,
         onPickRestoreFile = viewModel::inspectRestoreFile,
         onConfirmRestore = viewModel::restoreBackup,
+        onExportGitHubSyncSettings = viewModel::exportGitHubSyncSettings,
+        onImportGitHubSyncSettings = viewModel::importGitHubSyncSettings,
+        onDismissGitHubSyncSettingsTransferState = viewModel::dismissGitHubSyncSettingsTransferState,
         onDismissRestorePreview = viewModel::dismissRestorePreview,
         onDismissBackupState = viewModel::dismissBackupState,
     )
@@ -133,6 +140,7 @@ private fun SettingsScreen(
     settings: SettingsSnapshot,
     backupState: BackupUiState,
     restorePreview: RestorePreviewState,
+    githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     onBack: () -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
@@ -140,6 +148,9 @@ private fun SettingsScreen(
     onCreateBackup: (Uri) -> Unit,
     onPickRestoreFile: (Uri) -> Unit,
     onConfirmRestore: (Uri) -> Unit,
+    onExportGitHubSyncSettings: (Uri) -> Unit,
+    onImportGitHubSyncSettings: (Uri) -> Unit,
+    onDismissGitHubSyncSettingsTransferState: () -> Unit,
     onDismissRestorePreview: () -> Unit,
     onDismissBackupState: () -> Unit,
 ) {
@@ -210,8 +221,12 @@ private fun SettingsScreen(
                     contentPadding = innerPadding,
                     group = group,
                     settings = settings,
+                    githubSyncSettingsTransferState = githubSyncSettingsTransferState,
                     onUpdate = onUpdate,
                     onReset = onReset,
+                    onExportGitHubSyncSettings = onExportGitHubSyncSettings,
+                    onImportGitHubSyncSettings = onImportGitHubSyncSettings,
+                    onDismissGitHubSyncSettingsTransferState = onDismissGitHubSyncSettingsTransferState,
                 )
             }
         }
@@ -495,8 +510,12 @@ private fun SettingsGroupDetail(
     contentPadding: PaddingValues,
     group: SettingsGroup?,
     settings: SettingsSnapshot,
+    githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
+    onExportGitHubSyncSettings: (Uri) -> Unit,
+    onImportGitHubSyncSettings: (Uri) -> Unit,
+    onDismissGitHubSyncSettingsTransferState: () -> Unit,
 ) {
     val groupSettings = SettingsRegistry.all.filter { it.group == group }
     LazyColumn(
@@ -521,6 +540,118 @@ private fun SettingsGroupDetail(
                 onUpdate = onUpdate,
                 onReset = onReset,
             )
+        }
+        if (group == SettingsGroup.SYNC) {
+            item {
+                GitHubSyncSettingsTransferCard(
+                    state = githubSyncSettingsTransferState,
+                    onExport = onExportGitHubSyncSettings,
+                    onImport = onImportGitHubSyncSettings,
+                    onDismiss = onDismissGitHubSyncSettingsTransferState,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GitHubSyncSettingsTransferCard(
+    state: GitHubSyncSettingsTransferState,
+    onExport: (Uri) -> Unit,
+    onImport: (Uri) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val exportFileName = remember {
+        "vayana-github-sync-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.vayana-ghsync"
+    }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        uri?.let(onExport)
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(onImport)
+    }
+    val working = state is GitHubSyncSettingsTransferState.Working
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.extraLarge),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(Paddings.card)
+                .vayanaAnimateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(icon = Icons.Outlined.Storage, selected = false)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_github_transfer_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_github_transfer_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                FilledTonalButton(
+                    onClick = { exportLauncher.launch(exportFileName) },
+                    enabled = !working,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(imageVector = Icons.Outlined.FileUpload, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_github_transfer_export), modifier = Modifier.padding(start = Spacing.xs))
+                }
+                FilledTonalButton(
+                    onClick = { importLauncher.launch(arrayOf("application/octet-stream", "*/*")) },
+                    enabled = !working,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(imageVector = Icons.Outlined.FileDownload, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_github_transfer_import), modifier = Modifier.padding(start = Spacing.xs))
+                }
+            }
+            when (state) {
+                GitHubSyncSettingsTransferState.Working -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_github_transfer_working), style = MaterialTheme.typography.bodySmall)
+                }
+                GitHubSyncSettingsTransferState.ExportComplete -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_transfer_export_complete),
+                    isError = false,
+                    onDismiss = onDismiss,
+                )
+                GitHubSyncSettingsTransferState.ImportComplete -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_transfer_import_complete),
+                    isError = false,
+                    onDismiss = onDismiss,
+                )
+                GitHubSyncSettingsTransferState.MissingPassphrase -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_transfer_missing_passphrase),
+                    isError = true,
+                    onDismiss = onDismiss,
+                )
+                is GitHubSyncSettingsTransferState.Failed -> BackupStatusRow(
+                    message = stringResource(R.string.settings_github_transfer_failed, state.message),
+                    isError = true,
+                    onDismiss = onDismiss,
+                )
+                GitHubSyncSettingsTransferState.Idle -> Unit
+            }
         }
     }
 }
