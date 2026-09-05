@@ -390,20 +390,8 @@ class LibraryViewModel @Inject constructor(
         val store = runCatchingCancellable { syncConfig.assetStore() }
             .getOrElse { return@withContext GitHubSyncNowResult.ConfigIncomplete }
         val progressMerge = pullReadingProgress(store)
-        if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
+        if ((progressMerge.missingRemoteSnapshot || progressMerge.failed) && !allowInitialSync) {
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
-        }
-        if (progressMerge.failed) {
-            return@withContext GitHubSyncNowResult.Complete(
-                uploaded = 0,
-                failed = 0,
-                progressUpdated = progressMerge.applied,
-                conflicts = progressMerge.conflictCount,
-                skipped = progressMerge.skipped,
-                pullFailed = true,
-                metadataSynced = false,
-                failureMessage = progressMerge.failureMessage,
-            )
         }
         val uploadCandidates = bookRepository.observeAll().first()
             .filter { book ->
@@ -444,7 +432,7 @@ class LibraryViewModel @Inject constructor(
             progressUpdated = progressMerge.applied,
             conflicts = progressMerge.conflictCount,
             skipped = progressMerge.skipped,
-            pullFailed = progressMerge.failed,
+            pullFailed = progressMerge.failed && !allowInitialSync,
             metadataSynced = metadataError == null,
             failureMessage = metadataError?.syncFailureMessage(),
         )

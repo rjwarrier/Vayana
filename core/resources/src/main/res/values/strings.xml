@@ -51,7 +51,7 @@
     <string name="library_sync_disabled">Turn on GitHub sync in Settings first.</string>
     <string name="library_sync_config_missing">Finish GitHub sync settings before syncing.</string>
     <string name="library_sync_initial_confirm_title">Start initial GitHub sync?</string>
-    <string name="library_sync_initial_confirm_body">Vayana could not find existing cloud progress. If this is your first sync for this repository, continue to upload this device\'s library snapshot and book files.</string>
+    <string name="library_sync_initial_confirm_body">Vayana could not read existing cloud progress. If this is your first sync for this repository, continue to upload this device\'s library snapshot and book files. Continuing can replace unreadable cloud progress with this device\'s current state.</string>
     <string name="library_sync_initial_confirm_detail">GitHub said: %1$s</string>
     <string name="library_sync_initial_confirm_yes">Yes, upload</string>
     <string name="library_sync_initial_confirm_no">Cancel</string>
