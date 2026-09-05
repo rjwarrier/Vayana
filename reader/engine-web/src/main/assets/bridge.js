@@ -91,6 +91,37 @@ function tocToPlain(items) {
     }))
 }
 
+function withTimeout(promise, millis, label) {
+    let timeoutId
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${millis}ms`)), millis)
+    })
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+}
+
+async function initView(lastLocatorCfi) {
+    const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
+    const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
+    if (initialLocation) {
+        try {
+            await withTimeout(view.init({ lastLocation: initialLocation, showTextStart: false }), 15000, 'Reader resume')
+            return isStandardCfi
+        } catch (error) {
+            post('log', { step: 'resumeFallback', message: String(error && error.message || error) })
+        }
+    }
+
+    try {
+        await withTimeout(view.init({ lastLocation: null, showTextStart: true }), 15000, 'Reader start')
+    } catch (error) {
+        post('log', { step: 'directSectionFallback', message: String(error && error.message || error) })
+        const firstLinearSection = view.book.sections.findIndex(section => section.linear !== 'no')
+        if (firstLinearSection < 0) throw error
+        await withTimeout(view.goTo(firstLinearSection), 15000, 'Reader direct section start')
+    }
+    return isStandardCfi
+}
+
 async function open(bookUrl, lastLocatorCfi) {
     let phase = 'starting'
     const watchdog = setInterval(() => {
@@ -205,9 +236,7 @@ async function open(bookUrl, lastLocatorCfi) {
         await view.open(bookFile)
         post('log', { step: 'view.init' })
         phase = 'initializing book view'
-        const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
-        const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
-        await view.init({ lastLocation: initialLocation, showTextStart: !initialLocation })
+        const isStandardCfi = await initView(lastLocatorCfi)
         post('log', { step: 'view.init done' })
 
         post('opened', { toc: tocToPlain(view.book.toc), title: view.book.metadata?.title ?? '' })

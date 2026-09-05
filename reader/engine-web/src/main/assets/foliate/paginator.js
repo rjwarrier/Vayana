@@ -252,9 +252,25 @@ class View {
     }
     async load(src, afterLoad, beforeRender) {
         if (typeof src !== 'string') throw new Error(`${src} is not string`)
-        return new Promise(resolve => {
-            this.#iframe.addEventListener('load', () => {
+        return new Promise((resolve, reject) => {
+            let settled = false
+            let timeoutId
+            const fail = error => {
+                if (settled) return
+                settled = true
+                clearTimeout(timeoutId)
+                reject(error)
+            }
+            const finish = reason => {
+                if (settled) return
                 const doc = this.document
+                const href = doc?.location?.href ?? ''
+                if (!doc?.body || href === 'about:blank') {
+                    if (reason === 'timeout') fail(new Error(`Timed out loading section ${src}`))
+                    return
+                }
+                settled = true
+                clearTimeout(timeoutId)
                 afterLoad?.(doc)
 
                 // it needs to be visible for Firefox to get computed style
@@ -278,8 +294,15 @@ class View {
                 doc.fonts.ready.then(() => this.expand())
 
                 resolve()
+            }
+            this.#iframe.addEventListener('load', () => finish('load'), { once: true })
+            this.#iframe.addEventListener('error', () => {
+                fail(new Error(`Failed to load section ${src}`))
             }, { once: true })
             this.#iframe.src = src
+            // Android WebView can miss iframe `load` when an EPUB subresource stalls.
+            // If the section document is present, render it so native open() cannot hang forever.
+            timeoutId = setTimeout(() => finish('timeout'), 8000)
         })
     }
     render(layout) {
