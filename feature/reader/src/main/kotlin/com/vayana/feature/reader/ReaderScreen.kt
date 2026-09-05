@@ -91,6 +91,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -180,9 +181,11 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         configuration.screenWidthDp >= TabletLandscapeMinWidthDp
 
     if (showNotesSidePanel) {
-        Row(modifier = modifier.fillMaxSize()) {
+        var notesSidePanelVisible by rememberSaveable { mutableStateOf(true) }
+        Box(modifier = modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
             ReaderScreen(
-                modifier = Modifier.weight(ReaderPaneWeight).fillMaxHeight(),
+                modifier = Modifier.weight(if (notesSidePanelVisible) ReaderPaneWeight else 1f).fillMaxHeight(),
                 uiState = uiState,
                 settings = settings,
                 usingCustomStyle = usingCustomStyle,
@@ -231,12 +234,37 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onResume = viewModel::onResume,
                 onBack = onBack,
             )
-            NotesSidePanel(
-                modifier = Modifier.weight(NotesPaneWeight).fillMaxHeight(),
-                uiState = uiState,
-                onAnnotationClick = viewModel::openAnnotation,
-                onEditNote = viewModel::updateAnnotationNote,
-            )
+            if (notesSidePanelVisible) {
+                NotesSidePanel(
+                    modifier = Modifier.weight(NotesPaneWeight).fillMaxHeight(),
+                    uiState = uiState,
+                    onAnnotationClick = viewModel::openAnnotation,
+                    onEditNote = viewModel::updateAnnotationNote,
+                )
+            }
+        }
+        IconButton(
+            onClick = { notesSidePanelVisible = !notesSidePanelVisible },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(Spacing.sm),
+        ) {
+            Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = Elevations.shadowSmall,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.EditNote,
+                    contentDescription = stringResource(
+                        if (notesSidePanelVisible) R.string.reader_hide_notes_panel else R.string.reader_show_notes_panel,
+                    ),
+                    tint = if (notesSidePanelVisible) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(Spacing.sm),
+                )
+            }
+        }
         }
         return
     }
