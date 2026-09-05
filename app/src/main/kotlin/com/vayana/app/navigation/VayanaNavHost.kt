@@ -19,6 +19,7 @@ import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
 import com.vayana.feature.statistics.StatisticsRoute
+import com.vayana.feature.statistics.VocabularyReviewRoute as VocabularyReviewScreenRoute
 
 @Composable
 fun VayanaNavHost(
@@ -53,7 +54,12 @@ fun VayanaNavHost(
                 },
             )
         }
-        composable<TopLevelRoute.Statistics> { StatisticsRoute() }
+        composable<TopLevelRoute.Statistics> {
+            StatisticsRoute(onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) })
+        }
+        composable<VocabularyReviewRoute> {
+            VocabularyReviewScreenRoute(onBack = { navController.popBackStack() })
+        }
         composable<SettingsRoute> {
             SettingsScreenRoute(onBack = { navController.popBackStack() })
         }

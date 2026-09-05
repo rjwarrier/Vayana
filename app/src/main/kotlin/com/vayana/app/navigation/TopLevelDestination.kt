@@ -32,6 +32,9 @@ data object SettingsRoute
 data object RecentlyDeletedRoute
 
 @Serializable
+data object VocabularyReviewRoute
+
+@Serializable
 data object ShelvesRoute
 
 @Serializable

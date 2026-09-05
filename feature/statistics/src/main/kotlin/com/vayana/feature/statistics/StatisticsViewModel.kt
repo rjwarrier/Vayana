@@ -9,6 +9,7 @@ import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
+import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +20,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 data class StatisticsSummary(
@@ -46,6 +48,7 @@ class StatisticsViewModel @Inject constructor(
     wordLookupStatRepository: WordLookupStatRepository,
     readingSessionRepository: ReadingSessionRepository,
     settingsRepository: SettingsRepository,
+    vocabularyCardRepository: VocabularyCardRepository,
 ) : ViewModel() {
     val summary: StateFlow<StatisticsSummary> = combine(
         bookRepository.observeAll(),
@@ -56,6 +59,10 @@ class StatisticsViewModel @Inject constructor(
     ) { books, annotations, topWords, sessions, settings ->
         books.toSummary(annotations, topWords, sessions, settings.dailyReadingGoalMinutes, settings.yearlyBooksGoal)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+
+    val vocabularyCardCount: StateFlow<Int> = vocabularyCardRepository.observeAll()
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }
 
 private fun List<Book>.toSummary(

@@ -10,6 +10,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
+import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
@@ -86,6 +87,7 @@ class ReaderViewModel @Inject constructor(
     private val dictionaryRepository: DictionaryRepository,
     private val wordLookupStatRepository: WordLookupStatRepository,
     private val readingSessionRepository: ReadingSessionRepository,
+    private val vocabularyCardRepository: VocabularyCardRepository,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -406,6 +408,22 @@ class ReaderViewModel @Inject constructor(
     fun saveLookupAsNote(entry: DictionaryEntry) {
         val definition = entry.senses.firstOrNull()?.definition ?: return
         createNote("${entry.headword}: $definition")
+    }
+
+    /** Saves a dictionary lookup as a vocabulary flashcard, using the current selection as the example sentence. */
+    fun saveLookupAsVocabularyCard(entry: DictionaryEntry) {
+        val definition = entry.senses.firstOrNull()?.definition ?: return
+        val state = uiState.value as? ReaderUiState.Loaded
+        val sentence = state?.selection?.selectedText?.takeIf { it.isNotBlank() && !it.equals(entry.headword, ignoreCase = true) }
+        viewModelScope.launch {
+            vocabularyCardRepository.save(
+                word = entry.headword,
+                definition = definition,
+                sentence = sentence,
+                bookId = bookId,
+                bookTitle = state?.bookTitle,
+            )
+        }
     }
 
     fun createUnderline() {

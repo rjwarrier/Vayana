@@ -2,6 +2,7 @@ package com.vayana.feature.statistics
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material3.Icon
@@ -50,15 +52,26 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 
 @Composable
-fun StatisticsRoute(modifier: Modifier = Modifier) {
+fun StatisticsRoute(onReviewVocabulary: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: StatisticsViewModel = hiltViewModel()
     val summary by viewModel.summary.collectAsState()
+    val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsState()
 
-    StatisticsScreen(modifier = modifier, summary = summary)
+    StatisticsScreen(
+        modifier = modifier,
+        summary = summary,
+        vocabularyCardCount = vocabularyCardCount,
+        onReviewVocabulary = onReviewVocabulary,
+    )
 }
 
 @Composable
-private fun StatisticsScreen(modifier: Modifier = Modifier, summary: StatisticsSummary) {
+private fun StatisticsScreen(
+    modifier: Modifier = Modifier,
+    summary: StatisticsSummary,
+    vocabularyCardCount: Int,
+    onReviewVocabulary: () -> Unit,
+) {
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -69,16 +82,26 @@ private fun StatisticsScreen(modifier: Modifier = Modifier, summary: StatisticsS
             )
         },
     ) { innerPadding ->
-        if (summary.totalBooks == 0 && summary.totalAnnotations == 0) {
+        if (summary.totalBooks == 0 && summary.totalAnnotations == 0 && vocabularyCardCount == 0) {
             StatisticsEmptyState(contentPadding = innerPadding)
         } else {
-            StatisticsDashboard(contentPadding = innerPadding, summary = summary)
+            StatisticsDashboard(
+                contentPadding = innerPadding,
+                summary = summary,
+                vocabularyCardCount = vocabularyCardCount,
+                onReviewVocabulary = onReviewVocabulary,
+            )
         }
     }
 }
 
 @Composable
-private fun StatisticsDashboard(contentPadding: PaddingValues, summary: StatisticsSummary) {
+private fun StatisticsDashboard(
+    contentPadding: PaddingValues,
+    summary: StatisticsSummary,
+    vocabularyCardCount: Int,
+    onReviewVocabulary: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -151,6 +174,34 @@ private fun StatisticsDashboard(contentPadding: PaddingValues, summary: Statisti
         if (summary.topLookedUpWords.isNotEmpty()) {
             item {
                 TopWordsCard(words = summary.topLookedUpWords)
+            }
+        }
+        if (vocabularyCardCount > 0) {
+            item {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radii.medium))
+                        .clickable(onClick = onReviewVocabulary),
+                    shape = RoundedCornerShape(Radii.medium),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(Spacing.lg),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(imageVector = Icons.Outlined.Style, contentDescription = null)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = stringResource(R.string.statistics_review_vocabulary_title), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = stringResource(R.string.statistics_review_vocabulary_support, vocabularyCardCount),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
             }
         }
         summary.highlightToRevisit?.let { highlight ->

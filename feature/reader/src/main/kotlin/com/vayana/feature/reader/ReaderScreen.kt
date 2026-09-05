@@ -61,6 +61,7 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -181,6 +182,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onClearSearch = viewModel::clearSearch,
         onLookupWord = viewModel::lookupWord,
         onSaveLookupAsNote = viewModel::saveLookupAsNote,
+        onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
         onEngineReady = viewModel::bindEngine,
         onTapPrevious = viewModel::previousPage,
         onTapNext = viewModel::nextPage,
@@ -242,6 +244,7 @@ private fun ReaderScreen(
     onClearSearch: () -> Unit,
     onLookupWord: (String) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
+    onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
     onEngineReady: (BookEngine) -> Unit,
     onTapPrevious: () -> Unit,
     onTapNext: () -> Unit,
@@ -642,6 +645,7 @@ private fun ReaderScreen(
                     onInstallDictionary = onInstallDictionary,
                     onLookupWord = onLookupWord,
                     onSaveLookupAsNote = onSaveLookupAsNote,
+                    onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
                 )
             }
         }
@@ -863,6 +867,7 @@ private fun SelectionActions(
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
+    onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         Surface(
@@ -895,6 +900,7 @@ private fun SelectionActions(
                 onInstallDictionary = onInstallDictionary,
                 onLookupWord = onLookupWord,
                 onSaveLookupAsNote = onSaveLookupAsNote,
+                onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
             )
             if (selectionActionsEnabled) {
                 Row(
@@ -953,6 +959,7 @@ private fun DictionaryLookupContent(
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
+    onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
 ) {
     val context = LocalContext.current
     when (state) {
@@ -1072,6 +1079,13 @@ private fun DictionaryLookupContent(
                     Icon(
                         imageVector = Icons.Outlined.EditNote,
                         contentDescription = stringResource(R.string.reader_dictionary_add_to_notes),
+                        modifier = Modifier.size(Sizes.iconSmall),
+                    )
+                }
+                IconButton(onClick = { onSaveLookupAsVocabulary(state.entry) }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Style,
+                        contentDescription = stringResource(R.string.reader_dictionary_add_to_vocabulary),
                         modifier = Modifier.size(Sizes.iconSmall),
                     )
                 }
