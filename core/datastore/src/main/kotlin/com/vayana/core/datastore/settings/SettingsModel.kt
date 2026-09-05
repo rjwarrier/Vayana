@@ -16,6 +16,7 @@ enum class SettingsGroup(
     READER_LAYOUT(R.string.settings_group_reader_layout, R.string.settings_group_reader_layout_subtitle),
     READER_BEHAVIOR(R.string.settings_group_reader_behavior, R.string.settings_group_reader_behavior_subtitle),
     GOALS(R.string.settings_group_goals, R.string.settings_group_goals_subtitle),
+    SYNC(R.string.settings_group_sync, R.string.settings_group_sync_subtitle),
     MAINTENANCE(R.string.settings_group_maintenance, R.string.settings_group_maintenance_subtitle),
 }
 
@@ -61,6 +62,9 @@ class StringSetting(
     @StringRes titleRes: Int,
     @StringRes subtitleRes: Int?,
     group: SettingsGroup,
+    val maxLength: Int = 160,
+    val secure: Boolean = false,
+    val exportable: Boolean = true,
 ) : Setting<String>(key, defaultValue, titleRes, subtitleRes, group)
 
 class ChoiceSetting<T>(
@@ -96,6 +100,12 @@ data class SettingsSnapshot(
     val yearlyBooksGoal: Int = 12,
     val landscapeTwoColumnLayout: Boolean = true,
     val kindleDeviceName: String = "My Vayana",
+    val githubSyncEnabled: Boolean = false,
+    val githubOwner: String = "",
+    val githubRepository: String = "",
+    val githubBranch: String = "main",
+    val githubToken: String = "",
+    val githubSyncPassphrase: String = "",
 )
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
@@ -303,7 +313,58 @@ object SettingsRegistry {
         defaultValue = "My Vayana",
         titleRes = R.string.settings_kindle_device_name_title,
         subtitleRes = R.string.settings_kindle_device_name_subtitle,
-        group = SettingsGroup.MAINTENANCE,
+        group = SettingsGroup.SYNC,
+    )
+    val GithubSyncEnabled: BooleanSetting = BooleanSetting(
+        key = "sync.github_enabled",
+        defaultValue = false,
+        titleRes = R.string.settings_github_sync_enabled_title,
+        subtitleRes = R.string.settings_github_sync_enabled_subtitle,
+        group = SettingsGroup.SYNC,
+    )
+    val GithubOwner: StringSetting = StringSetting(
+        key = "sync.github_owner",
+        defaultValue = "",
+        titleRes = R.string.settings_github_owner_title,
+        subtitleRes = R.string.settings_github_owner_subtitle,
+        group = SettingsGroup.SYNC,
+        maxLength = 100,
+    )
+    val GithubRepository: StringSetting = StringSetting(
+        key = "sync.github_repository",
+        defaultValue = "",
+        titleRes = R.string.settings_github_repository_title,
+        subtitleRes = R.string.settings_github_repository_subtitle,
+        group = SettingsGroup.SYNC,
+        maxLength = 100,
+    )
+    val GithubBranch: StringSetting = StringSetting(
+        key = "sync.github_branch",
+        defaultValue = "main",
+        titleRes = R.string.settings_github_branch_title,
+        subtitleRes = R.string.settings_github_branch_subtitle,
+        group = SettingsGroup.SYNC,
+        maxLength = 255,
+    )
+    val GithubToken: StringSetting = StringSetting(
+        key = "sync.github_token",
+        defaultValue = "",
+        titleRes = R.string.settings_github_token_title,
+        subtitleRes = R.string.settings_github_token_subtitle,
+        group = SettingsGroup.SYNC,
+        maxLength = 512,
+        secure = true,
+        exportable = false,
+    )
+    val GithubSyncPassphrase: StringSetting = StringSetting(
+        key = "sync.github_passphrase",
+        defaultValue = "",
+        titleRes = R.string.settings_github_passphrase_title,
+        subtitleRes = R.string.settings_github_passphrase_subtitle,
+        group = SettingsGroup.SYNC,
+        maxLength = 256,
+        secure = true,
+        exportable = false,
     )
 
     val all: List<Setting<out Any>> = listOf(
@@ -327,6 +388,12 @@ object SettingsRegistry {
         DailyReadingGoalMinutes,
         YearlyBooksGoal,
         LandscapeTwoColumnLayout,
+        GithubSyncEnabled,
         KindleDeviceName,
+        GithubOwner,
+        GithubRepository,
+        GithubBranch,
+        GithubToken,
+        GithubSyncPassphrase,
     )
 }

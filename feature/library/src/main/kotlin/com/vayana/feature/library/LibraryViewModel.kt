@@ -19,6 +19,10 @@ import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ShelfRepository
 import com.vayana.core.datastore.settings.SettingsRepository
+import com.vayana.core.sync.asset.CloudAssetReference
+import com.vayana.core.sync.asset.CloudBookAssetTransfer
+import com.vayana.core.sync.asset.GitHubContentsAssetStore
+import com.vayana.core.sync.asset.GitHubRepository
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.format.epub.EpubParser
@@ -30,6 +34,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +60,14 @@ sealed interface BookDetailMessage {
     data object SOURCE_FAILED : BookDetailMessage
     data class QUOTES_IMPORTED(val count: Int) : BookDetailMessage
     data object MARKED_FINISHED : BookDetailMessage
+}
+
+enum class CloudBookDownloadResult {
+    DOWNLOADED,
+    SYNC_DISABLED,
+    CONFIG_INCOMPLETE,
+    ASSET_MISSING,
+    FAILED,
 }
 
 data class ImportProgressRow(
@@ -96,6 +109,7 @@ class LibraryViewModel @Inject constructor(
     private val bookFileImporter: BookFileImporter,
     private val shelfRepository: ShelfRepository,
     private val settingsRepository: SettingsRepository,
+    private val cloudBookAssetTransfer: CloudBookAssetTransfer,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
     @param:ApplicationContext private val appContext: Context,
@@ -302,6 +316,42 @@ class LibraryViewModel @Inject constructor(
             } ?: return@launch
             importQuotes(bookId, text)
         }
+    }
+
+    suspend fun downloadCloudBook(book: Book): CloudBookDownloadResult = withContext(dispatchers.io) {
+        val reference = book.fileAssetReference() ?: return@withContext CloudBookDownloadResult.ASSET_MISSING
+        val settings = settingsRepository.snapshot.first()
+        if (!settings.githubSyncEnabled) return@withContext CloudBookDownloadResult.SYNC_DISABLED
+        if (
+            settings.githubOwner.isBlank() ||
+            settings.githubRepository.isBlank() ||
+            settings.githubBranch.isBlank() ||
+            settings.githubToken.isBlank() ||
+            settings.githubSyncPassphrase.isBlank()
+        ) {
+            return@withContext CloudBookDownloadResult.CONFIG_INCOMPLETE
+        }
+
+        runCatchingCancellable {
+            val store = GitHubContentsAssetStore(
+                repository = GitHubRepository(
+                    owner = settings.githubOwner.trim(),
+                    name = settings.githubRepository.trim(),
+                    branch = settings.githubBranch.trim(),
+                ),
+                token = settings.githubToken.trim(),
+                committerName = settings.kindleDeviceName.trim().ifBlank { "Vayana Sync" },
+                committerEmail = "${settings.githubOwner.trim()}@users.noreply.github.com",
+            )
+            cloudBookAssetTransfer.downloadBookFile(
+                bookId = book.id,
+                reference = reference,
+                extension = book.format.name.lowercase(),
+                passphrase = settings.githubSyncPassphrase.toCharArray(),
+                store = store,
+            )
+            CloudBookDownloadResult.DOWNLOADED
+        }.getOrElse { CloudBookDownloadResult.FAILED }
     }
 
     fun onBookDetailMessageShown() {
@@ -589,6 +639,21 @@ class LibraryViewModel @Inject constructor(
         unsupported = count { it is ImportResult.Unsupported },
         failed = count { it is ImportResult.Failed },
     )
+}
+
+private fun Book.fileAssetReference(): CloudAssetReference? {
+    val assetId = fileAssetId?.takeIf { it.isNotBlank() } ?: return null
+    val assetSha256 = fileAssetSha256?.takeIf { it.isNotBlank() } ?: return null
+    val assetSizeBytes = fileAssetSizeBytes ?: return null
+    val assetUploadedAt = fileAssetUploadedAt ?: return null
+    return runCatchingCancellable {
+        CloudAssetReference(
+            id = assetId,
+            sha256 = assetSha256,
+            sizeBytes = assetSizeBytes,
+            uploadedAt = assetUploadedAt,
+        )
+    }.getOrNull()
 }
 
 private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(

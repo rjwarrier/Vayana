@@ -38,4 +38,11 @@ class CloudAssetCipherTest {
             cipher.decrypt(encrypted, "secret".toCharArray(), "two".toByteArray())
         }
     }
+
+    @Test
+    fun rejectsEmptyPassphrase() {
+        assertFailsWith<IllegalArgumentException> {
+            cipher.encrypt("book bytes".toByteArray(), CharArray(0), byteArrayOf())
+        }
+    }
 }

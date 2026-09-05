@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:filesystem"))
+    implementation(project(":core:sync"))
     implementation(project(":format:epub"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)

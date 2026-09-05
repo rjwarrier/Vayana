@@ -93,6 +93,12 @@ private fun Preferences.toSnapshot(): SettingsSnapshot = SettingsSnapshot(
     yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
     landscapeTwoColumnLayout = read(SettingsRegistry.LandscapeTwoColumnLayout),
     kindleDeviceName = read(SettingsRegistry.KindleDeviceName),
+    githubSyncEnabled = read(SettingsRegistry.GithubSyncEnabled),
+    githubOwner = read(SettingsRegistry.GithubOwner),
+    githubRepository = read(SettingsRegistry.GithubRepository),
+    githubBranch = read(SettingsRegistry.GithubBranch),
+    githubToken = read(SettingsRegistry.GithubToken),
+    githubSyncPassphrase = read(SettingsRegistry.GithubSyncPassphrase),
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -113,7 +119,7 @@ private fun <T : Any> MutablePreferencesWriter.write(setting: Setting<T>, value:
         is BooleanSetting -> preferences[booleanPreferencesKey(setting.key)] = value as Boolean
         is IntSetting -> preferences[intPreferencesKey(setting.key)] = (value as Int).coerceIn(setting.range)
         is FloatSetting -> preferences[floatPreferencesKey(setting.key)] = (value as Float).coerceIn(setting.range.start, setting.range.endInclusive)
-        is StringSetting -> preferences[stringPreferencesKey(setting.key)] = (value as String).take(MaxStringSettingLength)
+        is StringSetting -> preferences[stringPreferencesKey(setting.key)] = (value as String).take(setting.maxLength)
         is ChoiceSetting<*> -> preferences[stringPreferencesKey(setting.key)] = (value as Enum<*>).name
     }
 }
@@ -123,7 +129,7 @@ private fun MutablePreferences.writeFromString(setting: Setting<out Any>, encode
         is BooleanSetting -> this[booleanPreferencesKey(setting.key)] = encoded.toBooleanStrictOrNull() ?: setting.defaultValue
         is IntSetting -> this[intPreferencesKey(setting.key)] = (encoded.toIntOrNull() ?: setting.defaultValue).coerceIn(setting.range)
         is FloatSetting -> this[floatPreferencesKey(setting.key)] = (encoded.toFloatOrNull() ?: setting.defaultValue).coerceIn(setting.range.start, setting.range.endInclusive)
-        is StringSetting -> this[stringPreferencesKey(setting.key)] = encoded.take(MaxStringSettingLength)
+        is StringSetting -> this[stringPreferencesKey(setting.key)] = encoded.take(setting.maxLength)
         is ChoiceSetting<*> -> {
             val value = setting.options.firstOrNull { (it.value as Enum<*>).name == encoded }?.value ?: setting.defaultValue
             this[stringPreferencesKey(setting.key)] = (value as Enum<*>).name
@@ -145,5 +151,3 @@ private class MutablePreferencesWriter(val preferences: MutablePreferences)
 
 private fun <T : Any> MutablePreferences.write(setting: Setting<T>, value: T) =
     MutablePreferencesWriter(this).write(setting, value)
-
-private const val MaxStringSettingLength = 160

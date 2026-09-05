@@ -1,6 +1,7 @@
 package com.vayana.core.sync.asset
 
 import java.security.SecureRandom
+import java.util.Arrays
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
@@ -11,6 +12,7 @@ class CloudAssetCipher(
     private val secureRandom: SecureRandom = SecureRandom(),
 ) {
     fun encrypt(plaintext: ByteArray, passphrase: CharArray, aad: ByteArray): ByteArray {
+        require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         val salt = ByteArray(SaltBytes).also(secureRandom::nextBytes)
         val nonce = ByteArray(NonceBytes).also(secureRandom::nextBytes)
         val cipher = Cipher.getInstance(Transformation)
@@ -31,6 +33,7 @@ class CloudAssetCipher(
     }
 
     fun decrypt(envelope: ByteArray, passphrase: CharArray, aad: ByteArray): ByteArray {
+        require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         require(envelope.size > Magic.size + 1 + SaltBytes + NonceBytes + GcmTagBytes) { "Cloud asset envelope is too small" }
         require(envelope.copyOfRange(0, Magic.size).contentEquals(Magic)) { "Cloud asset envelope has an invalid header" }
         require(envelope[Magic.size] == EnvelopeVersion) { "Unsupported cloud asset envelope version" }
@@ -49,7 +52,12 @@ class CloudAssetCipher(
     private fun deriveKey(passphrase: CharArray, salt: ByteArray): SecretKeySpec {
         val spec = PBEKeySpec(passphrase, salt, KdfIterations, KeyBits)
         val encoded = SecretKeyFactory.getInstance(KdfAlgorithm).generateSecret(spec).encoded
-        return SecretKeySpec(encoded, KeyAlgorithm)
+        return try {
+            SecretKeySpec(encoded, KeyAlgorithm)
+        } finally {
+            spec.clearPassword()
+            Arrays.fill(encoded, 0)
+        }
     }
 
     private companion object {

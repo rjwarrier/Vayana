@@ -75,6 +75,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.datastore.settings.BooleanSetting
@@ -1146,7 +1149,7 @@ private fun StringSettingControl(setting: StringSetting, value: String, onUpdate
     OutlinedTextField(
         value = pendingValue,
         onValueChange = {
-            pendingValue = it.take(160)
+            pendingValue = it.take(setting.maxLength)
             onUpdate(pendingValue)
         },
         modifier = Modifier
@@ -1154,8 +1157,12 @@ private fun StringSettingControl(setting: StringSetting, value: String, onUpdate
             .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
         singleLine = true,
         shape = RoundedCornerShape(Radii.large),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardOptions = KeyboardOptions(
+            imeAction = ImeAction.Done,
+            keyboardType = if (setting.secure) KeyboardType.Password else KeyboardType.Text,
+        ),
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        visualTransformation = if (setting.secure) PasswordVisualTransformation() else VisualTransformation.None,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -1219,6 +1226,12 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     SettingsRegistry.KindleDeviceName -> kindleDeviceName
+    SettingsRegistry.GithubSyncEnabled -> githubSyncEnabled
+    SettingsRegistry.GithubOwner -> githubOwner
+    SettingsRegistry.GithubRepository -> githubRepository
+    SettingsRegistry.GithubBranch -> githubBranch
+    SettingsRegistry.GithubToken -> githubToken
+    SettingsRegistry.GithubSyncPassphrase -> githubSyncPassphrase
     else -> setting.defaultValue
 }
 
@@ -1248,6 +1261,12 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"
         SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
         SettingsRegistry.KindleDeviceName -> "kindle device name label sync send to kindle backup transfer"
+        SettingsRegistry.GithubSyncEnabled -> "github sync cloud enable repository books notes settings"
+        SettingsRegistry.GithubOwner -> "github owner username organization account sync repository"
+        SettingsRegistry.GithubRepository -> "github repository repo cloud sync books notes settings"
+        SettingsRegistry.GithubBranch -> "github branch main cloud sync repository"
+        SettingsRegistry.GithubToken -> "github token personal access token pat credential sync"
+        SettingsRegistry.GithubSyncPassphrase -> "github sync passphrase password encryption cloud assets books"
         else -> ""
     }
     return "${key} ${group.name} $synonyms"
@@ -1260,6 +1279,7 @@ private fun SettingsGroup.icon(): ImageVector = when (this) {
     SettingsGroup.READER_LAYOUT -> Icons.Outlined.Visibility
     SettingsGroup.READER_BEHAVIOR -> Icons.Outlined.TouchApp
     SettingsGroup.GOALS -> Icons.Outlined.Flag
+    SettingsGroup.SYNC -> Icons.Outlined.Storage
     SettingsGroup.MAINTENANCE -> Icons.Outlined.Storage
 }
 

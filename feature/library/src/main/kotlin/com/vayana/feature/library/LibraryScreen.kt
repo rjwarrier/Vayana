@@ -167,6 +167,7 @@ fun LibraryRoute(
         onImportFolder = viewModel::importFolder,
         onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
         onBookClick = onBookClick,
+        onDownloadCloudBook = viewModel::downloadCloudBook,
         onSettingsClick = onSettingsClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
         onShelvesClick = onShelvesClick,
@@ -247,6 +248,7 @@ private fun LibraryScreen(
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
+    onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -275,14 +277,31 @@ private fun LibraryScreen(
         if (uri != null) onImportFolder(context.contentResolver, uri)
     }
     var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
-    val cloudOnlyMessage = stringResource(R.string.library_book_in_cloud)
+    val cloudDownloadStartedMessage = stringResource(R.string.library_book_cloud_download_started)
+    val cloudDownloadCompleteMessage = stringResource(R.string.library_book_cloud_download_complete)
+    val cloudSyncDisabledMessage = stringResource(R.string.library_book_cloud_sync_disabled)
+    val cloudSyncConfigMissingMessage = stringResource(R.string.library_book_cloud_sync_config_missing)
+    val cloudAssetMissingMessage = stringResource(R.string.library_book_cloud_asset_missing)
+    val cloudDownloadFailedMessage = stringResource(R.string.library_book_cloud_download_failed)
     val missingFileMessage = stringResource(R.string.library_book_file_missing)
     val uploadPendingMessage = stringResource(R.string.library_book_upload_pending)
 
     fun handleBookClick(book: Book) {
         when (book.fileAvailability) {
             BookFileAvailability.LOCAL -> onBookClick(book.id)
-            BookFileAvailability.CLOUD_ONLY -> coroutineScope.launch { snackbarHostState.showSnackbar(cloudOnlyMessage) }
+            BookFileAvailability.CLOUD_ONLY -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(cloudDownloadStartedMessage)
+                when (onDownloadCloudBook(book)) {
+                    CloudBookDownloadResult.DOWNLOADED -> {
+                        snackbarHostState.showSnackbar(cloudDownloadCompleteMessage)
+                        onBookClick(book.id)
+                    }
+                    CloudBookDownloadResult.SYNC_DISABLED -> snackbarHostState.showSnackbar(cloudSyncDisabledMessage)
+                    CloudBookDownloadResult.CONFIG_INCOMPLETE -> snackbarHostState.showSnackbar(cloudSyncConfigMissingMessage)
+                    CloudBookDownloadResult.ASSET_MISSING -> snackbarHostState.showSnackbar(cloudAssetMissingMessage)
+                    CloudBookDownloadResult.FAILED -> snackbarHostState.showSnackbar(cloudDownloadFailedMessage)
+                }
+            }
             BookFileAvailability.MISSING -> coroutineScope.launch { snackbarHostState.showSnackbar(missingFileMessage) }
             BookFileAvailability.UPLOAD_PENDING -> coroutineScope.launch { snackbarHostState.showSnackbar(uploadPendingMessage) }
         }

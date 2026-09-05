@@ -28,22 +28,27 @@ class CloudAssetStager @Inject constructor(
         check(plaintextBytes.size.toLong() == reference.sizeBytes) { "Downloaded book size did not match its expected size" }
 
         val destination = File(storageRoots.booksDir, "${UUID.randomUUID()}.$normalizedExtension")
-        destination.writeBytes(plaintextBytes)
-        val relativePath = storageRoots.relativize(destination)
-        bookRepository.attachDownloadedFile(
-            id = bookId,
-            filePath = relativePath,
-            fileHash = actualSha256,
-            assetId = reference.id,
-            assetSha256 = reference.sha256,
-            assetSizeBytes = reference.sizeBytes,
-            assetUploadedAt = reference.uploadedAt,
-        )
-        StagedCloudAsset(
-            reference = reference,
-            relativePath = relativePath,
-            plaintextSha256 = actualSha256,
-        )
+        try {
+            destination.writeBytes(plaintextBytes)
+            val relativePath = storageRoots.relativize(destination)
+            bookRepository.attachDownloadedFile(
+                id = bookId,
+                filePath = relativePath,
+                fileHash = actualSha256,
+                assetId = reference.id,
+                assetSha256 = reference.sha256,
+                assetSizeBytes = reference.sizeBytes,
+                assetUploadedAt = reference.uploadedAt,
+            )
+            StagedCloudAsset(
+                reference = reference,
+                relativePath = relativePath,
+                plaintextSha256 = actualSha256,
+            )
+        } catch (throwable: Throwable) {
+            destination.delete()
+            throw throwable
+        }
     }
 }
 

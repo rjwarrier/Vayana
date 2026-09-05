@@ -2,6 +2,7 @@ package com.vayana.core.sync.asset
 
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Base64
@@ -18,8 +19,11 @@ data class GitHubRepository(
     init {
         require(owner.matches(GitHubNameRegex)) { "Invalid GitHub owner" }
         require(name.matches(GitHubNameRegex)) { "Invalid GitHub repository name" }
-        require(branch.isNotBlank()) { "GitHub branch is required" }
-        require(apiBaseUrl.startsWith("https://")) { "GitHub API base URL must use HTTPS" }
+        require(branch.matches(GitHubBranchRegex)) { "Invalid GitHub branch" }
+        val apiUri = URI(apiBaseUrl)
+        require(apiUri.scheme == "https") { "GitHub API base URL must use HTTPS" }
+        require(!apiUri.host.isNullOrBlank()) { "GitHub API base URL must include a host" }
+        require(apiUri.query == null && apiUri.fragment == null) { "GitHub API base URL must not include query or fragment" }
     }
 }
 
@@ -39,6 +43,8 @@ class GitHubContentsAssetStore(
 
     override suspend fun put(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
         validateAssetPath(path)
+        require(bytes.isNotEmpty()) { "Cloud asset upload is empty" }
+        require(bytes.size <= MaxEncryptedAssetBytes) { "Cloud asset upload is too large" }
         val existingSha = findExistingSha(path)
         val body = buildPutBody(path, bytes, existingSha)
         val response = client.execute(
@@ -50,7 +56,7 @@ class GitHubContentsAssetStore(
             ),
         )
         if (response.statusCode !in setOf(HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED)) {
-            throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.bodyText())
+            throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
         }
     }
 
@@ -64,8 +70,9 @@ class GitHubContentsAssetStore(
             ),
         )
         if (response.statusCode != HttpURLConnection.HTTP_OK) {
-            throw GitHubAssetStoreException("GitHub asset download failed", response.statusCode, response.bodyText())
+            throw GitHubAssetStoreException("GitHub asset download failed", response.statusCode, response.safeBodyText())
         }
+        require(response.body.size <= MaxEncryptedAssetBytes) { "Cloud asset download is too large" }
         response.body
     }
 
@@ -79,11 +86,17 @@ class GitHubContentsAssetStore(
         )
         return when (response.statusCode) {
             HttpURLConnection.HTTP_OK -> response.bodyText().extractJsonString("sha")
+                ?.takeIf { it.matches(GitHubObjectShaRegex) }
+                ?: throw GitHubAssetStoreException(
+                    message = "GitHub asset metadata response was missing a valid SHA",
+                    statusCode = response.statusCode,
+                    responseBody = response.safeBodyText(),
+                )
             HttpURLConnection.HTTP_NOT_FOUND -> null
             else -> throw GitHubAssetStoreException(
                 message = "GitHub asset metadata lookup failed",
                 statusCode = response.statusCode,
-                responseBody = response.bodyText(),
+                responseBody = response.safeBodyText(),
             )
         }
     }
@@ -139,6 +152,10 @@ data class GitHubHttpResponse(
     val body: ByteArray,
 ) {
     fun bodyText(): String = body.toString(Charsets.UTF_8)
+
+    fun safeBodyText(): String = bodyText()
+        .replace(AuthorizationTokenRegex, """"token":"***"""")
+        .take(MaxErrorBodyChars)
 }
 
 interface GitHubHttpClient {
@@ -154,30 +171,51 @@ class GitHubAssetStoreException(
 private class UrlConnectionGitHubHttpClient : GitHubHttpClient {
     override fun execute(request: GitHubHttpRequest): GitHubHttpResponse {
         val connection = URL(request.url).openConnection() as HttpURLConnection
-        connection.requestMethod = request.method
-        connection.connectTimeout = NetworkTimeoutMillis
-        connection.readTimeout = NetworkTimeoutMillis
-        request.headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-        request.body?.let { body ->
-            connection.doOutput = true
-            connection.outputStream.use { it.write(body) }
+        try {
+            connection.requestMethod = request.method
+            connection.connectTimeout = NetworkTimeoutMillis
+            connection.readTimeout = NetworkTimeoutMillis
+            request.headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
+            request.body?.let { body ->
+                connection.doOutput = true
+                connection.outputStream.use { it.write(body) }
+            }
+            val status = connection.responseCode
+            val stream = if (status >= HttpURLConnection.HTTP_BAD_REQUEST) {
+                connection.errorStream
+            } else {
+                connection.inputStream
+            }
+            val bytes = stream?.use { it.readBytesLimited(MaxHttpResponseBytes) } ?: ByteArray(0)
+            return GitHubHttpResponse(status, bytes)
+        } finally {
+            connection.disconnect()
         }
-        val status = connection.responseCode
-        val stream = if (status >= HttpURLConnection.HTTP_BAD_REQUEST) {
-            connection.errorStream
-        } else {
-            connection.inputStream
-        }
-        val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
-        connection.disconnect()
-        return GitHubHttpResponse(status, bytes)
     }
 }
 
 private fun validateAssetPath(path: String) {
-    require(path == CloudAssetLayout.pathFor(path.substringAfterLast('/').removeSuffix(".bin"))) {
-        "Invalid cloud asset path"
+    require(path.startsWith("vayana/assets/")) { "Invalid cloud asset path" }
+    require(path.endsWith(".bin")) { "Invalid cloud asset path" }
+    val assetId = path.substringAfterLast('/').removeSuffix(".bin")
+    require(CloudAssetLayout.isValidAssetId(assetId)) { "Invalid cloud asset id" }
+    require(path == CloudAssetLayout.pathFor(assetId)) { "Invalid cloud asset path" }
+}
+
+private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    val output = java.io.ByteArrayOutputStream()
+    var total = 0
+    while (true) {
+        val read = read(buffer)
+        if (read == -1) break
+        total += read
+        if (total > maxBytes) {
+            throw IOException("GitHub response exceeded $maxBytes bytes")
+        }
+        output.write(buffer, 0, read)
     }
+    return output.toByteArray()
 }
 
 private fun String.extractJsonString(name: String): String? {
@@ -233,4 +271,10 @@ private fun String.unescapeJson(): String = buildString(length) {
 }
 
 private val GitHubNameRegex = Regex("^[A-Za-z0-9_.-]{1,100}$")
+private val GitHubBranchRegex = Regex("^[A-Za-z0-9._/-]{1,255}$")
+private val GitHubObjectShaRegex = Regex("^[a-f0-9]{40,64}$")
+private val AuthorizationTokenRegex = Regex(""""token"\s*:\s*"[^"]+"""")
 private const val NetworkTimeoutMillis = 30_000
+private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024
+private const val MaxHttpResponseBytes = MaxEncryptedAssetBytes + 1024
+private const val MaxErrorBodyChars = 4_096

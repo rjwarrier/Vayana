@@ -37,14 +37,14 @@ class GitHubContentsAssetStoreTest {
     @Test
     fun putIncludesShaWhenReplacingExistingAsset() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(200, """{"sha":"existing-sha"}""".toByteArray()),
+            GitHubHttpResponse(200, """{"sha":"$ExistingSha"}""".toByteArray()),
             GitHubHttpResponse(200, """{"content":{"sha":"new-sha"}}""".toByteArray()),
         )
         val store = testStore(client)
 
         store.put(CloudAssetLayout.pathFor(AssetId), "ciphertext".toByteArray())
 
-        assertTrue(client.requests[1].bodyText().contains(""""sha":"existing-sha""""))
+        assertTrue(client.requests[1].bodyText().contains(""""sha":"$ExistingSha""""))
     }
 
     @Test
@@ -75,7 +75,7 @@ class GitHubContentsAssetStoreTest {
     @Test
     fun exposesGitHubFailuresWithStatusAndBody() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(500, """{"message":"boom"}""".toByteArray()),
+            GitHubHttpResponse(500, """{"message":"boom","token":"secret"}""".toByteArray()),
         )
         val store = testStore(client)
 
@@ -84,7 +84,35 @@ class GitHubContentsAssetStoreTest {
         }
 
         assertEquals(500, failure.statusCode)
-        assertEquals("""{"message":"boom"}""", failure.responseBody)
+        assertEquals("""{"message":"boom","token":"***"}""", failure.responseBody)
+    }
+
+    @Test
+    fun rejectsMetadataWithoutValidShaBeforeReplacing() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"sha":"not-a-git-object-sha"}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val failure = assertFailsWith<GitHubAssetStoreException> {
+            store.put(CloudAssetLayout.pathFor(AssetId), "ciphertext".toByteArray())
+        }
+
+        assertEquals(200, failure.statusCode)
+        assertTrue(failure.message.orEmpty().contains("missing a valid SHA"))
+    }
+
+    @Test
+    fun rejectsEmptyUpload() = runBlocking {
+        val client = RecordingGitHubHttpClient()
+        val store = testStore(client)
+
+        val failure = assertFailsWith<IllegalArgumentException> {
+            store.put(CloudAssetLayout.pathFor(AssetId), ByteArray(0))
+        }
+
+        assertEquals("Cloud asset upload is empty", failure.message)
+        assertTrue(client.requests.isEmpty())
     }
 
     private fun testStore(client: RecordingGitHubHttpClient): GitHubContentsAssetStore =
@@ -121,3 +149,4 @@ private fun GitHubHttpRequest.bodyText(): String {
 }
 
 private const val AssetId = "abcdEFGH1234_wxyz"
+private const val ExistingSha = "0123456789abcdef0123456789abcdef01234567"

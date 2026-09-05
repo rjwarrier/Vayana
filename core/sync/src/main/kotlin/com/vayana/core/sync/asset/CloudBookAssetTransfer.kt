@@ -29,6 +29,7 @@ class CloudBookAssetTransfer @Inject constructor(
 
     suspend fun uploadBookFile(bookId: Long, passphrase: CharArray, store: CloudAssetStore): CloudAssetReference =
         withContext(dispatchers.io) {
+            require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
             val prepared = prepareBookFile(bookId, passphrase)
             store.put(prepared.path, prepared.encryptedBytes)
             bookRepository.markFileAssetUploaded(
@@ -48,12 +49,14 @@ class CloudBookAssetTransfer @Inject constructor(
         passphrase: CharArray,
         store: CloudAssetStore,
     ): StagedCloudAsset = withContext(dispatchers.io) {
+        require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         val encryptedBytes = store.get(CloudAssetLayout.pathFor(reference.id))
         val plaintext = cipher.decrypt(encryptedBytes, passphrase, reference.aad())
         stager.stageDownloadedBook(bookId, reference, plaintext, extension)
     }
 
     suspend fun prepareBookFile(bookId: Long, passphrase: CharArray): PreparedCloudAsset = withContext(dispatchers.io) {
+        require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         val book = bookRepository.getById(bookId) ?: error("Book not found")
         check(book.format != BookFormat.PHYSICAL) { "Physical books do not have downloadable assets" }
         check(book.fileAvailability == BookFileAvailability.LOCAL) { "Only local book files can be uploaded" }
