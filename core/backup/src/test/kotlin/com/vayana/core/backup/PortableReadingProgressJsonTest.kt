@@ -136,6 +136,283 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
+    fun progressOnlyPatchPreservesMetadataAndAssets() {
+        val result = patchPortableReadingProgressOnly(
+            jsonText = """
+            {
+              "exportedAt": 1000,
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Title",
+                  "author": "Remote Author",
+                  "tagsCsv": "cloud, tags",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "fileAsset": {
+                    "id": "asset-a",
+                    "sha256": "sha-a",
+                    "sizeBytes": 42,
+                    "uploadedAt": 3000
+                  },
+                  "lastLocator": "old",
+                  "readingPercent": 0.25,
+                  "rating": 4.5,
+                  "updatedAt": 2000,
+                  "lastReadAt": 1900,
+                  "totalReadingSeconds": 90
+                }
+              ]
+            }
+            """.trimIndent(),
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = "new",
+                    readingPercent = 0.75f,
+                    lastReadAt = 4000,
+                    startedReadingAt = 1500,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 180,
+                ),
+            ),
+            exportedAt = 5000,
+        )
+
+        val book = JSONObject(result.jsonText).getJSONArray("books").getJSONObject(0)
+
+        assertEquals(1, result.patched)
+        assertEquals("Remote Title", book.getString("title"))
+        assertEquals("Remote Author", book.getString("author"))
+        assertEquals("cloud, tags", book.getString("tagsCsv"))
+        assertEquals(4.5, book.getDouble("rating"))
+        assertEquals("asset-a", book.getJSONObject("fileAsset").getString("id"))
+        assertEquals("new", book.getString("lastLocator"))
+        assertEquals(0.75, book.getDouble("readingPercent"))
+        assertEquals(4000L, book.getLong("lastReadAt"))
+        assertEquals(5000L, JSONObject(result.jsonText).getLong("exportedAt"))
+    }
+
+    @Test
+    fun progressOnlyPatchSkipsStaleLocalProgress() {
+        val json = """
+            {
+              "exportedAt": 1000,
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Title",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "lastLocator": "remote",
+                  "readingPercent": 0.75,
+                  "updatedAt": 4000,
+                  "lastReadAt": 4000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = patchPortableReadingProgressOnly(
+            jsonText = json,
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = "local",
+                    readingPercent = 0.5f,
+                    lastReadAt = 3000,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 120,
+                ),
+            ),
+            exportedAt = 5000,
+        )
+
+        assertEquals(0, result.patched)
+        assertEquals(json, result.jsonText)
+    }
+
+    @Test
+    fun progressOnlyPatchRequiresMatchingFileHashAndLocator() {
+        val json = """
+            {
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Title",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "lastLocator": "remote",
+                  "readingPercent": 0.75,
+                  "updatedAt": 2000,
+                  "lastReadAt": 2000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = patchPortableReadingProgressOnly(
+            jsonText = json,
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "different-hash",
+                    lastLocator = "local",
+                    readingPercent = 0.5f,
+                    lastReadAt = 3000,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 120,
+                ),
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = null,
+                    readingPercent = 0.9f,
+                    lastReadAt = 3500,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 240,
+                ),
+            ),
+            exportedAt = 5000,
+        )
+
+        assertEquals(0, result.patched)
+        assertEquals(json, result.jsonText)
+    }
+
+    @Test
+    fun progressOnlyPatchSkipsInvalidPatchValues() {
+        val json = """
+            {
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Title",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "lastLocator": "remote",
+                  "readingPercent": 0.75,
+                  "updatedAt": 2000,
+                  "lastReadAt": 2000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = patchPortableReadingProgressOnly(
+            jsonText = json,
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = "local",
+                    readingPercent = Float.NaN,
+                    lastReadAt = 3000,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 120,
+                ),
+                PortableReadingProgressPatch(
+                    fileHash = "x".repeat(161),
+                    lastLocator = "local",
+                    readingPercent = 0.5f,
+                    lastReadAt = 3000,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 120,
+                ),
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = "x".repeat(16_385),
+                    readingPercent = 0.5f,
+                    lastReadAt = 3000,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 120,
+                ),
+            ),
+            exportedAt = 5000,
+        )
+
+        assertEquals(0, result.patched)
+        assertEquals(json, result.jsonText)
+    }
+
+    @Test
+    fun progressOnlyPatchSkipsDeletedCloudBooks() {
+        val json = """
+            {
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Title",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "isDeleted": true,
+                  "lastLocator": "remote",
+                  "readingPercent": 0.1,
+                  "updatedAt": 2000,
+                  "lastReadAt": 2000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = patchPortableReadingProgressOnly(
+            jsonText = json,
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = "local",
+                    readingPercent = 0.9f,
+                    lastReadAt = 5000,
+                    startedReadingAt = 1000,
+                    finishedReadingAt = 5000,
+                    totalReadingSeconds = 600,
+                ),
+            ),
+            exportedAt = 6000,
+        )
+
+        assertEquals(0, result.patched)
+        assertEquals(json, result.jsonText)
+    }
+
+    @Test
+    fun progressOnlyPatchRejectsTooManyPatches() {
+        val patches = List(20_001) {
+            PortableReadingProgressPatch(
+                fileHash = "hash-$it",
+                lastLocator = "locator-$it",
+                readingPercent = 0.5f,
+                lastReadAt = 1000L + it,
+                startedReadingAt = null,
+                finishedReadingAt = null,
+                totalReadingSeconds = 10,
+            )
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            patchPortableReadingProgressOnly(
+                jsonText = """{"books":[]}""",
+                patches = patches,
+                exportedAt = 2000,
+            )
+        }
+    }
+
+    @Test
+    fun progressOnlyPatchRejectsInvalidExportTime() {
+        assertFailsWith<IllegalArgumentException> {
+            patchPortableReadingProgressOnly(
+                jsonText = """{"books":[]}""",
+                patches = emptyList(),
+                exportedAt = 0,
+            )
+        }
+    }
+
+    @Test
     fun serializesReadingPositionConflictAlternatives() {
         val snapshot = PortableSnapshot(
             formatVersion = 1,

@@ -42,7 +42,12 @@
     <string name="library_book_file_missing">This book file is not available on this device.</string>
     <string name="library_book_upload_pending">This book needs to upload before other devices can download it.</string>
     <string name="library_sync_now_content_description">Sync now</string>
+    <string name="library_sync_all">Full sync</string>
+    <string name="library_sync_reading_progress_only">Reading progress only</string>
     <string name="library_sync_started">Syncing with GitHub…</string>
+    <string name="library_sync_progress_only_complete">Reading progress synced. Pulled %1$d; pushed %2$d.</string>
+    <string name="library_sync_progress_only_conflicts">Reading progress synced. Pulled %1$d; pushed %2$d; kept local progress for %3$d conflicts.</string>
+    <string name="library_sync_progress_only_failed">Reading progress sync failed. %1$s</string>
     <string name="library_sync_complete">Sync complete. Uploaded %1$d books; updated progress for %2$d.</string>
     <string name="library_sync_complete_with_cloud">Sync complete. Added %1$d cloud books; refreshed %2$d; uploaded %3$d; updated progress for %4$d.</string>
     <string name="library_sync_partial">Sync finished with issues. Uploaded %1$d books; %2$d failed; updated progress for %3$d.</string>

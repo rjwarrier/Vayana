@@ -274,7 +274,7 @@ private fun LibraryScreen(
     onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
-    onSyncNow: suspend (Boolean) -> GitHubSyncNowResult,
+    onSyncNow: suspend (Boolean, GitHubSyncMode) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -314,6 +314,9 @@ private fun LibraryScreen(
     val missingFileMessage = stringResource(R.string.library_book_file_missing)
     val uploadPendingMessage = stringResource(R.string.library_book_upload_pending)
     val syncStartedMessage = stringResource(R.string.library_sync_started)
+    val syncProgressOnlyCompleteMessage = stringResource(R.string.library_sync_progress_only_complete)
+    val syncProgressOnlyConflictsMessage = stringResource(R.string.library_sync_progress_only_conflicts)
+    val syncProgressOnlyFailedMessage = stringResource(R.string.library_sync_progress_only_failed)
     val syncDisabledMessage = stringResource(R.string.library_sync_disabled)
     val syncConfigMissingMessage = stringResource(R.string.library_sync_config_missing)
     val syncCompleteMessage = stringResource(R.string.library_sync_complete)
@@ -351,31 +354,43 @@ private fun LibraryScreen(
         }
     }
 
-    suspend fun runSyncNow(allowInitialSync: Boolean) {
+    suspend fun runSyncNow(allowInitialSync: Boolean, mode: GitHubSyncMode) {
         snackbarHostState.currentSnackbarData?.dismiss()
         val startedSnackbar = coroutineScope.launch {
             snackbarHostState.showSnackbar(syncStartedMessage)
         }
-        when (val result = onSyncNow(allowInitialSync)) {
+        when (val result = onSyncNow(allowInitialSync, mode)) {
             is GitHubSyncNowResult.Complete -> {
                 startedSnackbar.cancel()
                 snackbarHostState.currentSnackbarData?.dismiss()
-                val message = when {
-                    result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
-                    !result.metadataSynced -> syncMetadataFailedMessage.format(
-                        result.uploaded,
-                        result.failed,
-                        result.failureMessage.orEmpty(),
-                    )
-                    result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
-                    result.failed == 0 && (result.cloudBooksCreated > 0 || result.cloudBooksUpdated > 0) -> syncCompleteWithCloudMessage.format(
-                        result.cloudBooksCreated,
-                        result.cloudBooksUpdated,
-                        result.uploaded,
-                        result.progressUpdated,
-                    )
-                    result.failed == 0 -> syncCompleteMessage.format(result.uploaded, result.progressUpdated)
-                    else -> syncPartialMessage.format(result.uploaded, result.failed, result.progressUpdated)
+                val message = if (mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
+                    when {
+                        result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage.orEmpty())
+                        result.conflicts > 0 -> syncProgressOnlyConflictsMessage.format(
+                            result.progressUpdated,
+                            result.progressUploaded,
+                            result.conflicts,
+                        )
+                        else -> syncProgressOnlyCompleteMessage.format(result.progressUpdated, result.progressUploaded)
+                    }
+                } else {
+                    when {
+                        result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
+                        !result.metadataSynced -> syncMetadataFailedMessage.format(
+                            result.uploaded,
+                            result.failed,
+                            result.failureMessage.orEmpty(),
+                        )
+                        result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
+                        result.failed == 0 && (result.cloudBooksCreated > 0 || result.cloudBooksUpdated > 0) -> syncCompleteWithCloudMessage.format(
+                            result.cloudBooksCreated,
+                            result.cloudBooksUpdated,
+                            result.uploaded,
+                            result.progressUpdated,
+                        )
+                        result.failed == 0 -> syncCompleteMessage.format(result.uploaded, result.progressUpdated)
+                        else -> syncPartialMessage.format(result.uploaded, result.failed, result.progressUpdated)
+                    }
                 }
                 snackbarHostState.showSnackbar(message)
             }
@@ -397,12 +412,12 @@ private fun LibraryScreen(
         }
     }
 
-    fun handleSyncNow(allowInitialSync: Boolean = false) {
+    fun handleSyncNow(mode: GitHubSyncMode = GitHubSyncMode.FULL, allowInitialSync: Boolean = false) {
         if (syncRunning) return
         coroutineScope.launch {
             syncRunning = true
             try {
-                runSyncNow(allowInitialSync)
+                runSyncNow(allowInitialSync, mode)
             } finally {
                 syncRunning = false
             }
@@ -422,7 +437,7 @@ private fun LibraryScreen(
                 controls = uiState.controls,
                 showSyncNow = uiState.githubSyncReady,
                 syncRunning = syncRunning,
-                onSyncNow = ::handleSyncNow,
+                onSyncNow = { mode -> handleSyncNow(mode = mode) },
                 onSettingsClick = onSettingsClick,
                 onRecentlyDeletedClick = onRecentlyDeletedClick,
                 onShelvesClick = onShelvesClick,
@@ -820,7 +835,7 @@ private fun LibraryTopBar(
     controls: LibraryControls,
     showSyncNow: Boolean,
     syncRunning: Boolean,
-    onSyncNow: () -> Unit,
+    onSyncNow: (GitHubSyncMode) -> Unit,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -831,6 +846,7 @@ private fun LibraryTopBar(
 ) {
     var filterExpanded by remember { mutableStateOf(false) }
     var groupExpanded by remember { mutableStateOf(false) }
+    var syncExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -845,17 +861,38 @@ private fun LibraryTopBar(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showSyncNow) {
-                    IconButton(
-                        onClick = onSyncNow,
-                        enabled = !syncRunning,
-                    ) {
-                        if (syncRunning) {
-                            CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
-                        } else {
-                            Icon(
-                                imageVector = Icons.Outlined.Sync,
-                                contentDescription = stringResource(R.string.library_sync_now_content_description),
-                                modifier = Modifier.size(Sizes.icon),
+                    Box {
+                        IconButton(
+                            onClick = { syncExpanded = true },
+                            enabled = !syncRunning,
+                        ) {
+                            if (syncRunning) {
+                                CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Sync,
+                                    contentDescription = stringResource(R.string.library_sync_now_content_description),
+                                    modifier = Modifier.size(Sizes.icon),
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = syncExpanded,
+                            onDismissRequest = { syncExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_sync_all)) },
+                                onClick = {
+                                    syncExpanded = false
+                                    onSyncNow(GitHubSyncMode.FULL)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_sync_reading_progress_only)) },
+                                onClick = {
+                                    syncExpanded = false
+                                    onSyncNow(GitHubSyncMode.READING_PROGRESS_ONLY)
+                                },
                             )
                         }
                     }

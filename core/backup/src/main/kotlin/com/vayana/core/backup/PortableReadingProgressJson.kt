@@ -50,8 +50,79 @@ data class PortableCloudBook(
     val readNextAddedAt: Long?,
 )
 
+data class PortableReadingProgressPatch(
+    val fileHash: String,
+    val lastLocator: String?,
+    val readingPercent: Float,
+    val lastReadAt: Long?,
+    val startedReadingAt: Long?,
+    val finishedReadingAt: Long?,
+    val totalReadingSeconds: Long,
+)
+
+data class PortableReadingProgressPatchResult(
+    val jsonText: String,
+    val patched: Int,
+)
+
 fun parsePortableReadingProgresses(jsonText: String): List<PortableReadingProgress> =
     parsePortableReadingProgressSnapshot(jsonText).progresses
+
+fun patchPortableReadingProgressOnly(
+    jsonText: String,
+    patches: List<PortableReadingProgressPatch>,
+    exportedAt: Long,
+): PortableReadingProgressPatchResult {
+    require(jsonText.length <= MaxPortableProgressJsonChars) { "Portable snapshot is too large" }
+    require(patches.size <= MaxPortableProgressBooks) { "Portable progress patch has too many books" }
+    require(exportedAt > 0L) { "Portable progress patch export time is invalid" }
+    val root = JSONObject(jsonText)
+    val books = root.optJSONArray("books") ?: return PortableReadingProgressPatchResult(jsonText, patched = 0)
+    require(books.length() <= MaxPortableProgressBooks) { "Portable snapshot has too many books" }
+    val patchesByFileHash = patches
+        .asSequence()
+        .filter { patch ->
+            patch.fileHash.isNotBlank() &&
+                patch.fileHash.length <= MaxFileHashChars &&
+                !patch.lastLocator.isNullOrBlank() &&
+                patch.lastLocator.length <= MaxLocatorChars &&
+                !patch.readingPercent.isNaN() &&
+                !patch.readingPercent.isInfinite() &&
+                (patch.lastReadAt ?: 0L) > 0L
+        }
+        .associateBy { it.fileHash }
+    var patched = 0
+
+    for (index in 0 until books.length()) {
+        val book = books.optJSONObject(index) ?: continue
+        if (book.optBoolean("isDeleted", false)) continue
+        book.optBoundedString("syncId", MaxSyncIdChars) ?: continue
+        val fileHash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
+        val patch = patchesByFileHash[fileHash] ?: continue
+        val localVersion = patch.lastReadAt ?: continue
+        val remoteVersion = book.optPositiveLongOrNull("lastReadAt")
+            ?: book.optPositiveLongOrNull("updatedAt")
+            ?: 0L
+        if (localVersion <= remoteVersion) continue
+
+        book.put("lastLocator", patch.lastLocator)
+        book.put("readingPercent", patch.readingPercent.coerceIn(0f, 1f).toDouble())
+        book.putNullable("lastReadAt", patch.lastReadAt)
+        book.putNullable("startedReadingAt", patch.startedReadingAt)
+        book.putNullable("finishedReadingAt", patch.finishedReadingAt)
+        book.put("totalReadingSeconds", patch.totalReadingSeconds.coerceAtLeast(0L))
+        book.put("updatedAt", maxOf(book.optLong("updatedAt", 0L), localVersion))
+        patched += 1
+    }
+
+    if (patched > 0) {
+        root.put("exportedAt", exportedAt)
+    }
+    return PortableReadingProgressPatchResult(
+        jsonText = if (patched > 0) root.toString(2) else jsonText,
+        patched = patched,
+    )
+}
 
 fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
     require(jsonText.length <= MaxPortableProgressJsonChars) { "Portable snapshot is too large" }
@@ -156,6 +227,9 @@ private fun JSONObject.optBoundedString(name: String, maxChars: Int): String? =
     optString(name)
         .trim()
         .takeIf { it.isNotEmpty() && it.length <= maxChars }
+
+private fun JSONObject.putNullable(name: String, value: Any?): JSONObject =
+    put(name, value ?: JSONObject.NULL)
 
 private fun JSONObject.toPortableAssetOrNull(): PortableAsset? {
     val id = optBoundedString("id", MaxAssetIdChars) ?: return null

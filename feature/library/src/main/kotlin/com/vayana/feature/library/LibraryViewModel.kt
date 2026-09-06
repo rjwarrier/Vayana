@@ -9,9 +9,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.backup.PortableCloudBook
 import com.vayana.core.backup.PortableAsset
+import com.vayana.core.backup.PortableReadingProgressPatch
 import com.vayana.core.backup.PortableReadingPositionAlternative
 import com.vayana.core.backup.PortableSyncConflict
 import com.vayana.core.backup.SnapshotExporter
+import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.backup.toJsonString
@@ -92,6 +94,11 @@ enum class CloudBookDownloadResult {
     FAILED,
 }
 
+enum class GitHubSyncMode {
+    FULL,
+    READING_PROGRESS_ONLY,
+}
+
 enum class CloudBookDownloadProgressStep {
     CHECKING_SETTINGS,
     DOWNLOADING_FILE,
@@ -121,6 +128,7 @@ sealed interface GitHubSyncNowResult {
         val progressUpdated: Int,
         val cloudBooksCreated: Int,
         val cloudBooksUpdated: Int,
+        val progressUploaded: Int = 0,
         val conflicts: Int,
         val skipped: Int,
         val pullFailed: Boolean,
@@ -192,6 +200,12 @@ private data class CloudLibraryMergeSummary(
     val updated: Int = 0,
     val skipped: Int = 0,
     val coversDownloaded: Int = 0,
+    val failed: Boolean = false,
+    val failureMessage: String? = null,
+)
+
+private data class ReadingProgressOnlyPushSummary(
+    val pushed: Int = 0,
     val failed: Boolean = false,
     val failureMessage: String? = null,
 )
@@ -558,7 +572,10 @@ class LibraryViewModel @Inject constructor(
             true
         }.getOrDefault(false)
 
-    suspend fun syncNow(allowInitialSync: Boolean = false): GitHubSyncNowResult = withContext(dispatchers.io) {
+    suspend fun syncNow(
+        allowInitialSync: Boolean = false,
+        mode: GitHubSyncMode = GitHubSyncMode.FULL,
+    ): GitHubSyncNowResult = withContext(dispatchers.io) {
         updateSyncProgress(GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
         val settings = settingsRepository.snapshot.first()
         if (!settings.githubSyncEnabled) {
@@ -592,9 +609,56 @@ class LibraryViewModel @Inject constructor(
                 failureMessage = progressMerge.failureMessage,
             )
         }
+        if (progressMerge.missingRemoteSnapshot && mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
+            finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress could not be found")
+            return@withContext GitHubSyncNowResult.Complete(
+                uploaded = 0,
+                failed = 0,
+                progressUpdated = 0,
+                cloudBooksCreated = 0,
+                cloudBooksUpdated = 0,
+                progressUploaded = 0,
+                conflicts = 0,
+                skipped = 0,
+                pullFailed = true,
+                metadataSynced = false,
+                failureMessage = progressMerge.failureMessage,
+            )
+        }
         if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
             finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress needs confirmation")
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
+        }
+        if (mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
+            updateSyncProgress(
+                step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
+                detail = "Saving reading progress",
+                completedSteps = 4,
+                progressUpdated = progressMerge.applied,
+            )
+            val progressPush = pushReadingProgressOnly(
+                remoteSnapshotJson = progressMerge.remoteSnapshotJson.orEmpty(),
+                remoteSnapshotSha = progressMerge.remoteSnapshotSha,
+                store = store,
+            )
+            finishSyncProgress(
+                step = if (progressPush.failed) GitHubSyncProgressStep.FAILED else GitHubSyncProgressStep.COMPLETE,
+                detail = if (progressPush.failed) "Reading progress save failed" else "Reading progress synced",
+                progressUpdated = progressMerge.applied,
+            )
+            return@withContext GitHubSyncNowResult.Complete(
+                uploaded = 0,
+                failed = 0,
+                progressUpdated = progressMerge.applied,
+                cloudBooksCreated = 0,
+                cloudBooksUpdated = 0,
+                progressUploaded = progressPush.pushed,
+                conflicts = progressMerge.conflictCount,
+                skipped = progressMerge.skipped,
+                pullFailed = progressMerge.failed,
+                metadataSynced = !progressPush.failed,
+                failureMessage = progressPush.failureMessage,
+            )
         }
         updateSyncProgress(
             step = GitHubSyncProgressStep.ADDING_CLOUD_BOOKS,
@@ -807,6 +871,36 @@ class LibraryViewModel @Inject constructor(
             }
         }.getOrElse { throwable ->
             CloudLibraryMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun pushReadingProgressOnly(
+        remoteSnapshotJson: String,
+        remoteSnapshotSha: String?,
+        store: GitHubContentsAssetStore,
+    ): ReadingProgressOnlyPushSummary =
+        runCatchingCancellable {
+            val result = patchPortableReadingProgressOnly(
+                jsonText = remoteSnapshotJson,
+                patches = bookRepository.observeAll().first().map { book ->
+                    PortableReadingProgressPatch(
+                        fileHash = book.fileHash,
+                        lastLocator = book.lastLocator,
+                        readingPercent = book.readingPercent,
+                        lastReadAt = book.lastReadAt,
+                        startedReadingAt = book.startedReadingAt,
+                        finishedReadingAt = book.finishedReadingAt,
+                        totalReadingSeconds = book.totalReadingSeconds,
+                    )
+                },
+                exportedAt = System.currentTimeMillis(),
+            )
+            if (result.patched > 0) {
+                val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
+                store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, remoteSnapshotSha)
+            }
+            ReadingProgressOnlyPushSummary(pushed = result.patched)
+        }.getOrElse { throwable ->
+            ReadingProgressOnlyPushSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
 
     private suspend fun downloadCloudCoverIfNeeded(
