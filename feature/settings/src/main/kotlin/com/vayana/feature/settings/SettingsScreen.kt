@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,8 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -35,6 +32,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
@@ -43,15 +41,15 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -500,7 +498,7 @@ private fun SettingsHub(
         if (query.isBlank()) {
             item {
                 SettingsContentContainer {
-                    SettingsProfileCard(settings = settings)
+                    SettingsProfileCard()
                 }
             }
             item {
@@ -528,11 +526,11 @@ private fun SettingsHub(
                 }
             }
         } else {
-            items(visibleSettings, key = { it.key }) { setting ->
+            item {
                 SettingsContentContainer {
-                    SettingRow(
-                        setting = setting,
-                        value = settings.valueFor(setting),
+                    SettingsPanelCard(
+                        settingsList = visibleSettings,
+                        settings = settings,
                         onUpdate = onUpdate,
                         onReset = onReset,
                     )
@@ -571,15 +569,15 @@ private fun SettingsGroupDetail(
         if (group != null) {
             item {
                 SettingsContentContainer {
-                    SettingsGroupHero(group = group, settingCount = groupSettings.size)
+                    SettingsGroupHeader(group = group, settingCount = groupSettings.size)
                 }
             }
         }
-        items(groupSettings, key = { it.key }) { setting ->
+        item {
             SettingsContentContainer {
-                SettingRow(
-                    setting = setting,
-                    value = settings.valueFor(setting),
+                SettingsPanelCard(
+                    settingsList = groupSettings,
+                    settings = settings,
                     onUpdate = onUpdate,
                     onReset = onReset,
                 )
@@ -835,44 +833,37 @@ private fun GitHubSyncSettingsTransferCard(
 }
 
 @Composable
-private fun SettingsGroupHero(group: SettingsGroup, settingCount: Int) {
-    Surface(
+private fun SettingsGroupHeader(group: SettingsGroup, settingCount: Int) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.padding(Paddings.card),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        Surface(
+            modifier = Modifier.size(SettingsCategoryBadgeSize),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            contentColor = MaterialTheme.colorScheme.primary,
         ) {
-            Surface(
-                modifier = Modifier.size(Sizes.fab),
-                shape = RoundedCornerShape(Radii.largeIncreased),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = group.icon(),
-                        contentDescription = null,
-                        modifier = Modifier.size(Sizes.iconLarge),
-                    )
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(group.titleRes),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = group.subtitle(settingCount),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = group.icon(),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
                 )
             }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(group.titleRes),
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = group.subtitle(settingCount),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -916,7 +907,7 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
 }
 
 @Composable
-private fun SettingsProfileCard(settings: SettingsSnapshot) {
+private fun SettingsProfileCard() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.large),
@@ -965,27 +956,6 @@ private fun SettingsProfileCard(settings: SettingsSnapshot) {
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                SettingsStatusChip(
-                    icon = Icons.Outlined.Palette,
-                    label = settings.themeMode.name.lowercase().replaceFirstChar { it.uppercase() },
-                )
-                SettingsStatusChip(
-                    icon = Icons.Outlined.Visibility,
-                    label = settings.displayProfile.name.lowercase().replaceFirstChar { it.uppercase() },
-                )
-                SettingsStatusChip(
-                    icon = Icons.Outlined.Tune,
-                    label = "${settings.readerFontSizePercent}% Font",
-                )
-            }
         }
     }
 }
@@ -1121,33 +1091,6 @@ private fun BackupStatusRow(message: String, isError: Boolean, onDismiss: () -> 
 }
 
 @Composable
-private fun SettingsStatusChip(icon: ImageVector, label: String) {
-    Surface(
-        shape = RoundedCornerShape(Radii.full),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(Sizes.iconSmall),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-@Composable
 private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
@@ -1273,6 +1216,38 @@ private fun SettingsNoMatches() {
 }
 
 @Composable
+private fun SettingsPanelCard(
+    settingsList: List<Setting<out Any>>,
+    settings: SettingsSnapshot,
+    onUpdate: (Setting<Any>, Any) -> Unit,
+    onReset: (Setting<out Any>) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            settingsList.forEachIndexed { index, setting ->
+                SettingRow(
+                    setting = setting,
+                    value = settings.valueFor(setting),
+                    onUpdate = onUpdate,
+                    onReset = onReset,
+                )
+                if (index < settingsList.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = Paddings.card),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingRow(
     setting: Setting<out Any>,
     value: Any,
@@ -1281,84 +1256,63 @@ private fun SettingRow(
 ) {
     val isModified = value != setting.defaultValue
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.largeIncreased),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .vayanaAnimateContentSize(),
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .vayanaAnimateContentSize(),
+                .padding(Paddings.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Paddings.card),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Surface(
-                    modifier = Modifier.size(Sizes.touchTarget),
-                    shape = RoundedCornerShape(Radii.medium),
-                    color = if (isModified) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    contentColor = if (isModified) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = setting.group.icon(),
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.icon),
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(setting.titleRes),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                setting.subtitleRes?.let { subtitleRes ->
                     Text(
-                        text = stringResource(setting.titleRes),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
+                        text = stringResource(subtitleRes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    setting.subtitleRes?.let { subtitleRes ->
-                        Text(
-                            text = stringResource(subtitleRes),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                if (isModified) {
+                    IconButton(onClick = { onReset(setting) }) {
+                        Icon(
+                            imageVector = Icons.Outlined.RestartAlt,
+                            contentDescription = stringResource(R.string.settings_reset_one_content_description),
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    if (isModified) {
-                        IconButton(onClick = { onReset(setting) }) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = stringResource(R.string.settings_reset_one_content_description),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                    if (setting is BooleanSetting) {
-                        Switch(
-                            checked = value as Boolean,
-                            onCheckedChange = { onUpdate(setting.asAny(), it) },
-                        )
-                    }
+                if (setting is BooleanSetting) {
+                    Switch(
+                        checked = value as Boolean,
+                        onCheckedChange = { onUpdate(setting.asAny(), it) },
+                    )
                 }
             }
-            when (setting) {
-                is BooleanSetting -> Unit
-                is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
-                is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
-                is StringSetting -> StringSettingControl(setting = setting, value = value as String, onUpdate = { onUpdate(setting.asAny(), it) })
-                is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
-            }
+        }
+        when (setting) {
+            is BooleanSetting -> Unit
+            is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
+            is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
+            is StringSetting -> StringSettingControl(setting = setting, value = value as String, onUpdate = { onUpdate(setting.asAny(), it) })
+            is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
         }
     }
 }
@@ -1481,32 +1435,75 @@ private fun StringSettingControl(setting: StringSetting, value: String, onUpdate
 
 @Composable
 private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate: (Any) -> Unit) {
-    Row(
+    var expanded by remember(setting.key) { mutableStateOf(false) }
+    val selectedOption = setting.options.firstOrNull { it.value == value }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        setting.options.forEach { option ->
-            val selected = option.value == value
-            FilterChip(
-                selected = selected,
-                onClick = { onUpdate(option.value) },
-                label = { Text(stringResource(option.labelRes)) },
-                shape = RoundedCornerShape(Radii.full),
-                leadingIcon = if (selected) {
-                    {
-                        Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconSmall),
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Radii.medium))
+                .clickable { expanded = true },
+            shape = RoundedCornerShape(Radii.medium),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = Elevations.none,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Text(
+                    text = selectedOption?.let { stringResource(it.labelRes) }.orEmpty(),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            setting.options.forEach { option ->
+                val selected = option.value == value
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(option.labelRes),
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         )
-                    }
-                } else {
-                    null
-                },
-            )
+                    },
+                    onClick = {
+                        expanded = false
+                        onUpdate(option.value)
+                    },
+                    leadingIcon = if (selected) {
+                        {
+                            Icon(
+                                imageVector = Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(Sizes.iconSmall),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
     }
 }
@@ -1594,6 +1591,8 @@ private fun SettingsGroup.icon(): ImageVector = when (this) {
 
 @Composable
 private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
-    SettingsGroup.MAINTENANCE -> stringResource(subtitleRes, settingCount)
+    SettingsGroup.GOALS,
+    SettingsGroup.MAINTENANCE,
+    -> stringResource(subtitleRes, settingCount)
     else -> stringResource(subtitleRes)
 }
