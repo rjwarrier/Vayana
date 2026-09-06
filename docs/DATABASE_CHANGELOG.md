@@ -2,6 +2,17 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 13
+Adds identity-reconciliation and hard-deletion bookkeeping for GitHub sync milestone 1
+(docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md §4, §10):
+
+- New `book_aliases` table (`syncId` primary key, unique `fileHash`, `createdAt`) mapping a
+  content hash to a canonical book `syncId`, for reconciling independently imported copies of the
+  same file across devices. Schema only - nothing reads or writes it yet.
+- New `tombstones` table (`syncId` primary key, `entityType`, `deletedAt`) recording hard
+  deletions, including future shelf memberships, so a merge can tell "never existed here" apart
+  from "existed and was purged". Schema only - nothing calls into it yet.
+
 ## Version 12
 Adds comma-separated book tags:
 

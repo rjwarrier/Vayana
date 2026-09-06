@@ -220,7 +220,34 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
     }
 }
 
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `book_aliases` (
+                `syncId` TEXT NOT NULL PRIMARY KEY,
+                `fileHash` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_book_aliases_fileHash` ON `book_aliases` (`fileHash`)")
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `tombstones` (
+                `syncId` TEXT NOT NULL PRIMARY KEY,
+                `entityType` TEXT NOT NULL,
+                `deletedAt` INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_tombstones_entityType` ON `tombstones` (`entityType`)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_tombstones_deletedAt` ON `tombstones` (`deletedAt`)")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
 )
