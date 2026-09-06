@@ -164,6 +164,7 @@ fun LibraryRoute(
     val importSummary by viewModel.importSummary.collectAsState()
     val importProgress by viewModel.importProgress.collectAsState()
     val syncProgress by viewModel.syncProgress.collectAsState()
+    val cloudBookDownloadProgress by viewModel.cloudBookDownloadProgress.collectAsState()
 
     LibraryScreen(
         modifier = modifier,
@@ -171,9 +172,11 @@ fun LibraryRoute(
         importSummary = importSummary,
         importProgress = importProgress,
         syncProgress = syncProgress,
+        cloudBookDownloadProgress = cloudBookDownloadProgress,
         onImportSummaryShown = viewModel::onImportSummaryShown,
         onImportProgressDismissed = viewModel::onImportProgressDismissed,
         onSyncProgressDismissed = viewModel::onSyncProgressDismissed,
+        onCloudBookDownloadProgressDismissed = viewModel::onCloudBookDownloadProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
         onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
@@ -261,9 +264,11 @@ private fun LibraryScreen(
     importSummary: ImportSummary?,
     importProgress: ImportProgressState?,
     syncProgress: GitHubSyncProgressState?,
+    cloudBookDownloadProgress: CloudBookDownloadProgressState?,
     onImportSummaryShown: () -> Unit,
     onImportProgressDismissed: () -> Unit,
     onSyncProgressDismissed: () -> Unit,
+    onCloudBookDownloadProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     onAddPhysicalBook: (String, String?) -> Unit,
@@ -322,8 +327,10 @@ private fun LibraryScreen(
     val initialSyncConfirmationDetail = stringResource(R.string.library_sync_initial_confirm_detail)
     val initialSyncConfirm = stringResource(R.string.library_sync_initial_confirm_yes)
     val initialSyncCancel = stringResource(R.string.library_sync_initial_confirm_no)
+    val activeDownloadBookId = cloudBookDownloadProgress?.takeIf { it.isRunning }?.bookId
 
     fun handleBookClick(book: Book) {
+        if (activeDownloadBookId != null) return
         when (book.fileAvailability) {
             BookFileAvailability.LOCAL -> onBookClick(book.id)
             BookFileAvailability.CLOUD_ONLY -> coroutineScope.launch {
@@ -441,6 +448,8 @@ private fun LibraryScreen(
                 books = uiState.books,
                 groupBy = uiState.controls.groupBy,
                 contentPadding = innerPadding,
+                downloadingBookId = activeDownloadBookId,
+                downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
                 onBookClick = ::handleBookClick,
             )
         }
@@ -457,6 +466,13 @@ private fun LibraryScreen(
         GitHubSyncProgressSheet(
             progress = syncProgress,
             onDismissRequest = onSyncProgressDismissed,
+        )
+    }
+
+    if (cloudBookDownloadProgress != null) {
+        CloudBookDownloadProgressSheet(
+            progress = cloudBookDownloadProgress,
+            onDismissRequest = onCloudBookDownloadProgressDismissed,
         )
     }
 
@@ -736,6 +752,69 @@ private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun CloudBookDownloadProgressSheet(
+    progress: CloudBookDownloadProgressState,
+    onDismissRequest: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = { if (!progress.isRunning) onDismissRequest() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Paddings.screenHorizontal)
+                .padding(bottom = Spacing.lg),
+        ) {
+            Text(text = stringResource(R.string.library_download_progress_title), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = progress.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            Text(
+                text = progress.detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            LinearProgressIndicator(
+                progress = { progress.fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.md),
+                strokeCap = StrokeCap.Round,
+            )
+            Text(
+                text = stringResource(
+                    R.string.library_download_progress_percent,
+                    (progress.fraction * 100f).roundToInt(),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.sm),
+            )
+            if (!progress.isRunning) {
+                Button(
+                    onClick = onDismissRequest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.md),
+                ) {
+                    Text(stringResource(R.string.library_import_done))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LibraryTopBar(
     controls: LibraryControls,
@@ -981,6 +1060,8 @@ private fun LibraryGrid(
     books: List<Book>,
     groupBy: LibraryGroupBy,
     contentPadding: PaddingValues,
+    downloadingBookId: Long?,
+    downloadProgress: Float?,
     onBookClick: (Book) -> Unit,
 ) {
     val lastOpenedBook = remember(books) {
@@ -1005,6 +1086,8 @@ private fun LibraryGrid(
             item(key = "hero:${lastOpenedBook.id}", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
                     book = lastOpenedBook,
+                    isDownloading = lastOpenedBook.id == downloadingBookId,
+                    downloadProgress = if (lastOpenedBook.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(lastOpenedBook) },
                     modifier = Modifier.animateItem(),
                 )
@@ -1014,7 +1097,13 @@ private fun LibraryGrid(
         if (sections == null) {
             val gridBooks = if (lastOpenedBook != null) books.filter { it.id != lastOpenedBook.id } else books
             gridItems(gridBooks, key = { it.id }) { book ->
-                BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book) })
+                BookCoverCell(
+                    book = book,
+                    isDownloading = book.id == downloadingBookId,
+                    downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                    modifier = Modifier.animateItem(),
+                    onClick = { onBookClick(book) },
+                )
             }
         } else {
             sections.forEach { section ->
@@ -1030,7 +1119,13 @@ private fun LibraryGrid(
                         )
                     }
                     gridItems(sectionBooks, key = { it.id }) { book ->
-                        BookCoverCell(book, modifier = Modifier.animateItem(), onClick = { onBookClick(book) })
+                        BookCoverCell(
+                            book = book,
+                            isDownloading = book.id == downloadingBookId,
+                            downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                            modifier = Modifier.animateItem(),
+                            onClick = { onBookClick(book) },
+                        )
                     }
                 }
             }
@@ -1041,13 +1136,15 @@ private fun LibraryGrid(
 @Composable
 private fun LibraryHeroCard(
     book: Book,
+    isDownloading: Boolean,
+    downloadProgress: Float?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(enabled = !isDownloading, onClick = onClick),
         shape = RoundedCornerShape(Radii.extraLargeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.shadowSmall,
@@ -1085,13 +1182,23 @@ private fun LibraryHeroCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        Icon(
-                            imageVector = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) Icons.Outlined.CloudDownload else Icons.Outlined.AutoStories,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconSmall),
-                        )
+                        if (isDownloading) {
+                            CircularProgressIndicator(
+                                progress = { downloadProgress ?: 0f },
+                                modifier = Modifier.size(Sizes.iconSmall),
+                                strokeWidth = Spacing.xs,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) Icons.Outlined.CloudDownload else Icons.Outlined.AutoStories,
+                                contentDescription = null,
+                                modifier = Modifier.size(Sizes.iconSmall),
+                            )
+                        }
                         Text(
-                            text = if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
+                            text = if (isDownloading) {
+                                stringResource(R.string.library_book_cloud_downloading)
+                            } else if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
                                 stringResource(R.string.library_cloud_book_badge)
                             } else {
                                 stringResource(R.string.library_continue_reading)
@@ -1187,10 +1294,12 @@ private fun List<Book>.sortedBySeriesNumber(): List<Book> = sortedWith(
 @Composable
 private fun BookCoverCell(
     book: Book,
+    isDownloading: Boolean,
+    downloadProgress: Float?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Column(modifier = modifier.clickable(onClick = onClick)) {
+    Column(modifier = modifier.clickable(enabled = !isDownloading, onClick = onClick)) {
         BookCover(book = book, modifier = Modifier.fillMaxWidth())
         Text(
             text = book.title,
@@ -1199,7 +1308,15 @@ private fun BookCoverCell(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.xs),
         )
-        if (book.readingPercent > 0f) {
+        if (isDownloading) {
+            LinearProgressIndicator(
+                progress = { downloadProgress ?: 0f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xs),
+                strokeCap = StrokeCap.Round,
+            )
+        } else if (book.readingPercent > 0f) {
             LinearProgressIndicator(
                 progress = { book.readingPercent.coerceIn(0f, 1f) },
                 modifier = Modifier
@@ -1213,14 +1330,27 @@ private fun BookCoverCell(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.CloudDownload,
-                    contentDescription = null,
-                    modifier = Modifier.size(Sizes.iconSmall),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        progress = { downloadProgress ?: 0f },
+                        modifier = Modifier.size(Sizes.iconSmall),
+                        strokeWidth = Spacing.xs,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconSmall),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Text(
-                    text = stringResource(R.string.library_cloud_book_badge),
+                    text = if (isDownloading) {
+                        stringResource(R.string.library_book_cloud_downloading)
+                    } else {
+                        stringResource(R.string.library_cloud_book_badge)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,

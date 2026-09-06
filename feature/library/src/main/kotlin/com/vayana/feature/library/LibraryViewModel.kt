@@ -36,6 +36,7 @@ import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.sync.asset.CloudAssetReference
 import com.vayana.core.sync.asset.CloudBookAssetTransfer
+import com.vayana.core.sync.asset.CloudBookFileDownloadPhase
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import com.vayana.core.sync.asset.GitHubRepository
@@ -89,6 +90,28 @@ enum class CloudBookDownloadResult {
     CONFIG_INCOMPLETE,
     ASSET_MISSING,
     FAILED,
+}
+
+enum class CloudBookDownloadProgressStep {
+    CHECKING_SETTINGS,
+    DOWNLOADING_FILE,
+    DECRYPTING_FILE,
+    SAVING_FILE,
+    DOWNLOADING_COVER,
+    COMPLETE,
+    FAILED,
+}
+
+data class CloudBookDownloadProgressState(
+    val bookId: Long,
+    val title: String,
+    val step: CloudBookDownloadProgressStep,
+    val detail: String,
+    val completedSteps: Int,
+    val totalSteps: Int = CloudBookDownloadProgressTotalSteps,
+    val isRunning: Boolean = true,
+) {
+    val fraction: Float = (completedSteps.toFloat() / totalSteps.toFloat()).coerceIn(0f, 1f)
 }
 
 sealed interface GitHubSyncNowResult {
@@ -238,6 +261,9 @@ class LibraryViewModel @Inject constructor(
 
     private val _syncProgress = MutableStateFlow<GitHubSyncProgressState?>(null)
     val syncProgress: StateFlow<GitHubSyncProgressState?> = _syncProgress
+
+    private val _cloudBookDownloadProgress = MutableStateFlow<CloudBookDownloadProgressState?>(null)
+    val cloudBookDownloadProgress: StateFlow<CloudBookDownloadProgressState?> = _cloudBookDownloadProgress
 
     private val _bookDetailMessage = MutableStateFlow<BookDetailMessage?>(null)
     val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
@@ -429,25 +455,61 @@ class LibraryViewModel @Inject constructor(
     }
 
     suspend fun downloadCloudBook(book: Book): CloudBookDownloadResult = withContext(dispatchers.io) {
-        val reference = book.fileAssetReference() ?: return@withContext CloudBookDownloadResult.ASSET_MISSING
+        updateCloudBookDownloadProgress(book, CloudBookDownloadProgressStep.CHECKING_SETTINGS, "Checking GitHub settings", completedSteps = 0)
+        val reference = book.fileAssetReference() ?: return@withContext finishCloudBookDownloadProgress(
+            book = book,
+            step = CloudBookDownloadProgressStep.FAILED,
+            detail = "Cloud book file is missing",
+            result = CloudBookDownloadResult.ASSET_MISSING,
+        )
         val settings = settingsRepository.snapshot.first()
-        if (!settings.githubSyncEnabled) return@withContext CloudBookDownloadResult.SYNC_DISABLED
-        val syncConfig = settings.gitHubSyncConfig() ?: return@withContext CloudBookDownloadResult.CONFIG_INCOMPLETE
+        if (!settings.githubSyncEnabled) {
+            return@withContext finishCloudBookDownloadProgress(
+                book = book,
+                step = CloudBookDownloadProgressStep.FAILED,
+                detail = "GitHub sync is turned off",
+                result = CloudBookDownloadResult.SYNC_DISABLED,
+            )
+        }
+        val syncConfig = settings.gitHubSyncConfig() ?: return@withContext finishCloudBookDownloadProgress(
+            book = book,
+            step = CloudBookDownloadProgressStep.FAILED,
+            detail = "GitHub settings are incomplete",
+            result = CloudBookDownloadResult.CONFIG_INCOMPLETE,
+        )
 
         runCatchingCancellable {
             val store = syncConfig.assetStore()
             val passphrase = syncConfig.passphrase.toCharArray()
             val staged = try {
+                updateCloudBookDownloadProgress(book, CloudBookDownloadProgressStep.DOWNLOADING_FILE, "Downloading book file", completedSteps = 1)
                 cloudBookAssetTransfer.downloadBookFile(
                     bookId = book.id,
                     reference = reference,
                     extension = book.format.name.lowercase(),
                     passphrase = passphrase,
                     store = store,
+                    onProgress = { phase ->
+                        when (phase) {
+                            CloudBookFileDownloadPhase.ENCRYPTED_BYTES_DOWNLOADED -> updateCloudBookDownloadProgress(
+                                book = book,
+                                step = CloudBookDownloadProgressStep.DECRYPTING_FILE,
+                                detail = "Decrypting book file",
+                                completedSteps = 2,
+                            )
+                            CloudBookFileDownloadPhase.PLAINTEXT_DECRYPTED -> updateCloudBookDownloadProgress(
+                                book = book,
+                                step = CloudBookDownloadProgressStep.SAVING_FILE,
+                                detail = "Saving book to this device",
+                                completedSteps = 3,
+                            )
+                        }
+                    },
                 )
             } finally {
                 passphrase.fill('\u0000')
             }
+            updateCloudBookDownloadProgress(book, CloudBookDownloadProgressStep.DOWNLOADING_COVER, "Checking cloud cover", completedSteps = 4)
             book.coverAssetReference()?.let { coverReference -> downloadCoverIfNeeded(book, coverReference, store) }
             // Older uploads (or books whose cover-upload never ran) carry no cover asset at
             // all in the cloud snapshot. Only fall back to extracting the cover straight from
@@ -457,8 +519,20 @@ class LibraryViewModel @Inject constructor(
             if (bookRepository.getById(book.id)?.coverPath.isNullOrBlank()) {
                 extractLocalCoverFallback(book.id, staged.relativePath)
             }
-            CloudBookDownloadResult.DOWNLOADED
-        }.getOrElse { CloudBookDownloadResult.FAILED }
+            return@runCatchingCancellable finishCloudBookDownloadProgress(
+                book = book,
+                step = CloudBookDownloadProgressStep.COMPLETE,
+                detail = "Book downloaded",
+                result = CloudBookDownloadResult.DOWNLOADED,
+            )
+        }.getOrElse {
+            finishCloudBookDownloadProgress(
+                book = book,
+                step = CloudBookDownloadProgressStep.FAILED,
+                detail = "Book download failed",
+                result = CloudBookDownloadResult.FAILED,
+            )
+        }
     }
 
     // Books that were locally imported (or downloaded) before cover extraction/upload existed,
@@ -791,6 +865,44 @@ class LibraryViewModel @Inject constructor(
         if (_syncProgress.value?.isRunning != true) {
             _syncProgress.value = null
         }
+    }
+
+    fun onCloudBookDownloadProgressDismissed() {
+        if (_cloudBookDownloadProgress.value?.isRunning != true) {
+            _cloudBookDownloadProgress.value = null
+        }
+    }
+
+    private fun updateCloudBookDownloadProgress(
+        book: Book,
+        step: CloudBookDownloadProgressStep,
+        detail: String,
+        completedSteps: Int,
+    ) {
+        _cloudBookDownloadProgress.value = CloudBookDownloadProgressState(
+            bookId = book.id,
+            title = book.title,
+            step = step,
+            detail = detail,
+            completedSteps = completedSteps,
+        )
+    }
+
+    private fun finishCloudBookDownloadProgress(
+        book: Book,
+        step: CloudBookDownloadProgressStep,
+        detail: String,
+        result: CloudBookDownloadResult,
+    ): CloudBookDownloadResult {
+        _cloudBookDownloadProgress.value = CloudBookDownloadProgressState(
+            bookId = book.id,
+            title = book.title,
+            step = step,
+            detail = detail,
+            completedSteps = if (step == CloudBookDownloadProgressStep.COMPLETE) CloudBookDownloadProgressTotalSteps else _cloudBookDownloadProgress.value?.completedSteps ?: 0,
+            isRunning = false,
+        )
+        return result
     }
 
     private fun updateSyncProgress(
@@ -1396,6 +1508,7 @@ private const val FinishedThreshold = 0.98f
 private const val MaxSyncFailureBodyChars = 400
 private const val MaxSyncFailureMessageChars = 600
 private const val GitHubSyncProgressTotalSteps = 5
+private const val CloudBookDownloadProgressTotalSteps = 5
 private const val MaxBookTags = 32
 private const val MaxBookTagChars = 40
 private const val MaxBookTagsCsvChars = 1_024

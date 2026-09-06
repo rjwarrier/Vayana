@@ -18,6 +18,11 @@ data class PreparedCloudAsset(
     val encryptedBytes: ByteArray,
 )
 
+enum class CloudBookFileDownloadPhase {
+    ENCRYPTED_BYTES_DOWNLOADED,
+    PLAINTEXT_DECRYPTED,
+}
+
 @Singleton
 class CloudBookAssetTransfer @Inject constructor(
     private val bookRepository: BookRepository,
@@ -63,10 +68,13 @@ class CloudBookAssetTransfer @Inject constructor(
         extension: String,
         passphrase: CharArray,
         store: CloudAssetStore,
+        onProgress: suspend (CloudBookFileDownloadPhase) -> Unit = {},
     ): StagedCloudAsset = withContext(dispatchers.io) {
         require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         val encryptedBytes = store.get(CloudAssetLayout.pathFor(reference.id))
+        onProgress(CloudBookFileDownloadPhase.ENCRYPTED_BYTES_DOWNLOADED)
         val plaintext = cipher.decrypt(encryptedBytes, passphrase, reference.aad())
+        onProgress(CloudBookFileDownloadPhase.PLAINTEXT_DECRYPTED)
         stager.stageDownloadedBook(bookId, reference, plaintext, extension)
     }
 

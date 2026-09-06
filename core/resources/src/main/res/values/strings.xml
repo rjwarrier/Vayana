@@ -68,6 +68,8 @@
     <string name="library_sync_progress_running">Running</string>
     <string name="library_sync_progress_done">Done</string>
     <string name="library_sync_progress_failed">Failed</string>
+    <string name="library_download_progress_title">Downloading book</string>
+    <string name="library_download_progress_percent">%1$d%% complete</string>
     <string name="library_settings_content_description">Open settings</string>
     <string name="library_book_detail_title">Book details</string>
     <string name="library_book_actions_content_description">Book actions</string>
@@ -98,6 +100,7 @@
     <string name="reading_days_single">1 day</string>
     <string name="reading_days_plural">%1$d days</string>
     <string name="library_continue_reading">Continue reading</string>
+    <string name="library_book_cloud_downloading">Downloading</string>
     <string name="library_edit_metadata">Edit metadata</string>
     <string name="library_edit_metadata_title">Edit metadata</string>
     <string name="library_edit_metadata_title_label">Title</string>

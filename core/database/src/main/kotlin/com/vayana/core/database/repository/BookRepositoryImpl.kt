@@ -307,27 +307,30 @@ class BookRepositoryImpl @Inject constructor(
             if (existing.fileAvailability == BookFileAvailability.LOCAL.name ||
                 existing.fileAvailability == BookFileAvailability.UPLOAD_PENDING.name
             ) {
-                if (!hasSameAsset) {
-                    bookDao.markFileAssetUploaded(
-                        id = existing.id,
-                        assetId = record.assetId,
-                        assetSha256 = record.assetSha256,
-                        assetSizeBytes = record.assetSizeBytes,
-                        assetUploadedAt = record.assetUploadedAt,
-                        updatedAt = maxOf(existing.updatedAt, record.updatedAt),
-                    )
+                val shouldApplyRemoteMetadata = record.updatedAt > existing.updatedAt
+                val merged = existing.copy(
+                    title = if (shouldApplyRemoteMetadata) record.title else existing.title,
+                    author = if (shouldApplyRemoteMetadata) record.author else existing.author,
+                    series = if (shouldApplyRemoteMetadata) record.series else existing.series,
+                    seriesNumber = if (shouldApplyRemoteMetadata) record.seriesNumber else existing.seriesNumber,
+                    description = if (shouldApplyRemoteMetadata) record.description else existing.description,
+                    tagsCsv = if (shouldApplyRemoteMetadata) record.tagsCsv.normalizedBookTagsCsv() else existing.tagsCsv,
+                    rating = if (shouldApplyRemoteMetadata) record.rating.coerceIn(0f, 5f) else existing.rating,
+                    fileAssetId = if (!hasSameAsset) record.assetId else existing.fileAssetId,
+                    fileAssetSha256 = if (!hasSameAsset) record.assetSha256 else existing.fileAssetSha256,
+                    fileAssetSizeBytes = if (!hasSameAsset) record.assetSizeBytes else existing.fileAssetSizeBytes,
+                    fileAssetUploadedAt = if (!hasSameAsset) record.assetUploadedAt else existing.fileAssetUploadedAt,
+                    coverAssetId = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetId else existing.coverAssetId,
+                    coverAssetSha256 = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetSha256 else existing.coverAssetSha256,
+                    coverAssetSizeBytes = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetSizeBytes else existing.coverAssetSizeBytes,
+                    coverAssetUploadedAt = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetUploadedAt else existing.coverAssetUploadedAt,
+                    updatedAt = maxOf(existing.updatedAt, record.updatedAt),
+                )
+                if (merged != existing) {
+                    bookDao.update(merged)
+                    return CloudBookMergeResult.UPDATED
                 }
-                if (!hasSameCoverAsset && record.coverAssetId != null && record.coverAssetSha256 != null && record.coverAssetSizeBytes != null && record.coverAssetUploadedAt != null) {
-                    bookDao.markCoverAssetUploaded(
-                        id = existing.id,
-                        assetId = record.coverAssetId,
-                        assetSha256 = record.coverAssetSha256,
-                        assetSizeBytes = record.coverAssetSizeBytes,
-                        assetUploadedAt = record.coverAssetUploadedAt,
-                        updatedAt = maxOf(existing.updatedAt, record.updatedAt),
-                    )
-                }
-                return if (!hasSameAsset || !hasSameCoverAsset) CloudBookMergeResult.UPDATED else CloudBookMergeResult.SKIPPED
+                return CloudBookMergeResult.SKIPPED
             }
 
             bookDao.update(record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath))
@@ -428,6 +431,12 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
 )
+
+private fun CloudBookRecord.hasCoverAsset(): Boolean =
+    coverAssetId != null &&
+        coverAssetSha256 != null &&
+        coverAssetSizeBytes != null &&
+        coverAssetUploadedAt != null
 
 private fun String?.normalizedBookTagsCsv(): String? =
     this?.split(",")
