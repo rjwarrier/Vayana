@@ -204,14 +204,18 @@ fun BookDetailRoute(
     val viewModel: LibraryViewModel = hiltViewModel()
     val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
     val book by bookFlow.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val libraryBooks by viewModel.libraryBooks.collectAsState()
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
     val allShelves by viewModel.shelves.collectAsState()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
+    var syncReadingProgressRunning by remember { mutableStateOf(false) }
 
     BookDetailScreen(
         modifier = modifier,
         book = book,
+        showSyncReadingProgress = uiState.githubSyncReady,
+        syncReadingProgressRunning = syncReadingProgressRunning,
         libraryBooks = libraryBooks,
         detailMessage = detailMessage,
         allShelves = allShelves,
@@ -239,6 +243,15 @@ fun BookDetailRoute(
         },
         onRemoveFromDevice = {
             viewModel.removeBookFromDevice(bookId)
+        },
+        onSyncReadingProgress = sync@{
+            if (syncReadingProgressRunning) return@sync GitHubSyncNowResult.SyncDisabled
+            syncReadingProgressRunning = true
+            try {
+                viewModel.syncNow(mode = GitHubSyncMode.READING_PROGRESS_ONLY)
+            } finally {
+                syncReadingProgressRunning = false
+            }
         },
         onImportQuotes = { text ->
             viewModel.importQuotes(bookId, text)
@@ -1415,6 +1428,8 @@ private data class BookShareImageOptions(
 private fun BookDetailScreen(
     modifier: Modifier = Modifier,
     book: Book?,
+    showSyncReadingProgress: Boolean,
+    syncReadingProgressRunning: Boolean,
     libraryBooks: List<Book>,
     detailMessage: BookDetailMessage?,
     allShelves: List<com.vayana.core.database.model.Shelf>,
@@ -1431,6 +1446,7 @@ private fun BookDetailScreen(
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onRemoveCover: () -> Unit,
     onRemoveFromDevice: () -> Unit,
+    onSyncReadingProgress: suspend () -> GitHubSyncNowResult,
     onImportQuotes: (String) -> Unit,
     onImportQuotesFile: (Uri) -> Unit,
     onDetailMessageShown: () -> Unit,
@@ -1439,6 +1455,7 @@ private fun BookDetailScreen(
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
@@ -1456,6 +1473,12 @@ private fun BookDetailScreen(
         if (uri != null) onReplaceCover(context.contentResolver, uri)
     }
     val shareBookTitle = stringResource(R.string.library_share_book)
+    val syncProgressOnlyCompleteMessage = stringResource(R.string.library_sync_progress_only_complete)
+    val syncProgressOnlyConflictsMessage = stringResource(R.string.library_sync_progress_only_conflicts)
+    val syncProgressOnlyFailedMessage = stringResource(R.string.library_sync_progress_only_failed)
+    val syncDisabledMessage = stringResource(R.string.library_sync_disabled)
+    val syncConfigMissingMessage = stringResource(R.string.library_sync_config_missing)
+    val syncStartedMessage = stringResource(R.string.library_sync_started)
 
     LaunchedEffect(detailMessageText) {
         val message = detailMessageText ?: return@LaunchedEffect
@@ -1691,11 +1714,82 @@ private fun BookDetailScreen(
                 }
                 item {
                     LinearProgressIndicator(progress = { book.readingPercent.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                    Text(
-                        text = stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt()),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(top = Spacing.xs),
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt()),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (showSyncReadingProgress) {
+                            TextButton(
+                                onClick = {
+                                    if (syncReadingProgressRunning) return@TextButton
+                                    coroutineScope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        val startedSnackbar = launch {
+                                            snackbarHostState.showSnackbar(syncStartedMessage)
+                                        }
+                                        when (val result = onSyncReadingProgress()) {
+                                            is GitHubSyncNowResult.Complete -> {
+                                                startedSnackbar.cancel()
+                                                snackbarHostState.currentSnackbarData?.dismiss()
+                                                val message = when {
+                                                    result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage.orEmpty())
+                                                    result.conflicts > 0 -> syncProgressOnlyConflictsMessage.format(
+                                                        result.progressUpdated,
+                                                        result.progressUploaded,
+                                                        result.conflicts,
+                                                    )
+                                                    else -> syncProgressOnlyCompleteMessage.format(result.progressUpdated, result.progressUploaded)
+                                                }
+                                                snackbarHostState.showSnackbar(message)
+                                            }
+                                            is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
+                                                startedSnackbar.cancel()
+                                                snackbarHostState.currentSnackbarData?.dismiss()
+                                                snackbarHostState.showSnackbar(syncProgressOnlyFailedMessage.format(result.message))
+                                            }
+                                            GitHubSyncNowResult.SyncDisabled -> {
+                                                startedSnackbar.cancel()
+                                                snackbarHostState.currentSnackbarData?.dismiss()
+                                                snackbarHostState.showSnackbar(syncDisabledMessage)
+                                            }
+                                            GitHubSyncNowResult.ConfigIncomplete -> {
+                                                startedSnackbar.cancel()
+                                                snackbarHostState.currentSnackbarData?.dismiss()
+                                                snackbarHostState.showSnackbar(syncConfigMissingMessage)
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !syncReadingProgressRunning,
+                                contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs),
+                            ) {
+                                if (syncReadingProgressRunning) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(Sizes.iconSmall),
+                                        strokeWidth = Spacing.xs,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Sync,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(Sizes.iconSmall),
+                                    )
+                                }
+                                Text(
+                                    text = stringResource(R.string.library_sync_progress_button),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier.padding(start = Spacing.xs),
+                                )
+                            }
+                        }
+                    }
                 }
                 if (book.hasStartedReading()) {
                     item {

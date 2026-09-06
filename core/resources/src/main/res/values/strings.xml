@@ -44,6 +44,7 @@
     <string name="library_sync_now_content_description">Sync now</string>
     <string name="library_sync_all">Full sync</string>
     <string name="library_sync_reading_progress_only">Reading progress only</string>
+    <string name="library_sync_progress_button">Sync</string>
     <string name="library_sync_started">Syncing with GitHub…</string>
     <string name="library_sync_progress_only_complete">Reading progress synced. Pulled %1$d; pushed %2$d.</string>
     <string name="library_sync_progress_only_conflicts">Reading progress synced. Pulled %1$d; pushed %2$d; kept local progress for %3$d conflicts.</string>
