@@ -507,6 +507,11 @@
     <string name="reader_progress_percent">%1$d%%</string>
     <string name="reader_progress_page_of">Page %1$d of %2$d</string>
     <string name="reader_progress_pages_left">%1$d pages left</string>
+    <string name="reader_reading_position_page">Page %1$d</string>
+    <string name="reader_reading_position_prompt_title">New read location found</string>
+    <string name="reader_reading_position_prompt_body">Your recent read location is %1$s. You are currently at %2$s. Do you want to go to that location or remain here?</string>
+    <string name="reader_reading_position_prompt_go">Go to recent location</string>
+    <string name="reader_reading_position_prompt_stay">Remain here</string>
     <string name="reader_header_clock_session">%1$s (Session - %2$d mts)</string>
     <string name="reader_header_session_minutes">%1$d mts</string>
     <string name="reader_footer_time_left_chapter">%1$s left in chapter</string>

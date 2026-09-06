@@ -166,6 +166,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val settings by viewModel.effectiveSettings.collectAsState()
     val usingCustomStyle by viewModel.usingCustomStyle.collectAsState()
     val dictionaryLookup by viewModel.dictionaryLookup.collectAsState()
+    val readingPositionPrompt by viewModel.readingPositionPrompt.collectAsState()
     val recentLookups by viewModel.recentLookups.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val context = LocalContext.current
@@ -196,6 +197,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 usingCustomStyle = usingCustomStyle,
                 onUseCustomStyleChange = viewModel::setUseCustomStyle,
                 dictionaryLookup = dictionaryLookup,
+                readingPositionPrompt = readingPositionPrompt,
                 recentLookups = recentLookups,
                 searchResults = searchResults,
                 onSearchQueryChange = viewModel::search,
@@ -204,6 +206,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onLookupWord = viewModel::lookupWord,
                 onSaveLookupAsNote = viewModel::saveLookupAsNote,
                 onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
+                onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
+                onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
                 onEngineReady = viewModel::bindEngine,
                 onTapPrevious = viewModel::previousPage,
                 onTapNext = viewModel::nextPage,
@@ -276,6 +280,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         usingCustomStyle = usingCustomStyle,
         onUseCustomStyleChange = viewModel::setUseCustomStyle,
         dictionaryLookup = dictionaryLookup,
+        readingPositionPrompt = readingPositionPrompt,
         recentLookups = recentLookups,
         searchResults = searchResults,
         onSearchQueryChange = viewModel::search,
@@ -284,6 +289,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onLookupWord = viewModel::lookupWord,
         onSaveLookupAsNote = viewModel::saveLookupAsNote,
         onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
+        onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
+        onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
         onEngineReady = viewModel::bindEngine,
         onTapPrevious = viewModel::previousPage,
         onTapNext = viewModel::nextPage,
@@ -346,6 +353,9 @@ private fun ReaderScreen(
     onLookupWord: (String) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
     onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
+    readingPositionPrompt: ReadingPositionPrompt?,
+    onAcceptReadingPositionPrompt: () -> Unit,
+    onDismissReadingPositionPrompt: () -> Unit,
     onEngineReady: (BookEngine) -> Unit,
     onTapPrevious: () -> Unit,
     onTapNext: () -> Unit,
@@ -761,6 +771,14 @@ private fun ReaderScreen(
             },
         )
     }
+
+    if (readingPositionPrompt != null) {
+        ReadingPositionPromptDialog(
+            prompt = readingPositionPrompt,
+            onGoToRecentLocation = onAcceptReadingPositionPrompt,
+            onStayHere = onDismissReadingPositionPrompt,
+        )
+    }
 }
 
 @Composable
@@ -769,7 +787,7 @@ private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long) {
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(top = Spacing.sm),
+            .padding(top = readerHeaderTopPadding),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -792,7 +810,7 @@ private fun ReaderSessionHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(start = Spacing.md, top = Spacing.sm),
+            .padding(start = Spacing.md, top = readerHeaderTopPadding),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -818,7 +836,7 @@ private fun ReaderTimeLeftHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(end = Spacing.md, top = Spacing.sm)
+            .padding(end = Spacing.md, top = readerHeaderTopPadding)
             .clickable(onClick = onToggle),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -1254,6 +1272,45 @@ private fun NoteDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.settings_reset_all_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ReadingPositionPromptDialog(
+    prompt: ReadingPositionPrompt,
+    onGoToRecentLocation: () -> Unit,
+    onStayHere: () -> Unit,
+) {
+    val recentLocation = prompt.targetPage?.let { page ->
+        stringResource(R.string.reader_reading_position_page, page)
+    } ?: stringResource(R.string.reader_progress_percent, (prompt.targetProgress * 100).roundToInt())
+    val currentLocation = prompt.currentPage?.let { page ->
+        stringResource(R.string.reader_reading_position_page, page)
+    } ?: stringResource(R.string.reader_progress_percent, (prompt.currentProgress * 100).roundToInt())
+
+    AlertDialog(
+        onDismissRequest = onStayHere,
+        title = { Text(stringResource(R.string.reader_reading_position_prompt_title)) },
+        text = {
+            Text(
+                text = stringResource(
+                    R.string.reader_reading_position_prompt_body,
+                    recentLocation,
+                    currentLocation,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            Button(onClick = onGoToRecentLocation) {
+                Text(stringResource(R.string.reader_reading_position_prompt_go))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onStayHere) {
+                Text(stringResource(R.string.reader_reading_position_prompt_stay))
             }
         },
     )
@@ -2062,6 +2119,7 @@ private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/eng
 private const val VolumeKeyLongPressMillis = 500L
 private const val EinkFullRefreshEveryPages = 6
 private const val EinkFlashDurationMillis = 120L
+private val readerHeaderTopPadding = Spacing.lg
 
 /** Below this width, landscape stays a single reader pane - matches Library's tablet-landscape breakpoint. */
 private const val TabletLandscapeMinWidthDp = 600

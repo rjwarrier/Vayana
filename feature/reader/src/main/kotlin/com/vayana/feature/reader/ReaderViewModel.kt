@@ -22,6 +22,7 @@ import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.filesystem.StorageRoots
+import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.DictionaryPackState
 import com.vayana.dictionary.api.DictionaryRepository
@@ -89,6 +90,7 @@ class ReaderViewModel @Inject constructor(
     private val wordLookupStatRepository: WordLookupStatRepository,
     private val readingSessionRepository: ReadingSessionRepository,
     private val vocabularyCardRepository: VocabularyCardRepository,
+    private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -99,6 +101,9 @@ class ReaderViewModel @Inject constructor(
 
     private val _dictionaryLookup = MutableStateFlow<DictionaryLookupState>(DictionaryLookupState.Hidden)
     val dictionaryLookup: StateFlow<DictionaryLookupState> = _dictionaryLookup
+
+    private val _readingPositionPrompt = MutableStateFlow<ReadingPositionPrompt?>(null)
+    val readingPositionPrompt: StateFlow<ReadingPositionPrompt?> = _readingPositionPrompt
 
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
@@ -137,6 +142,12 @@ class ReaderViewModel @Inject constructor(
     private var dictionaryPickerActive = false
     private var lastUsedHighlightColor: String = DefaultAnnotationColor
     private var autoMarkedSelectionCfi: String? = null
+    private val pageTurnAutoSyncGate = PageTurnAutoSyncGate(AutoSyncEveryPages)
+    private var autoProgressSyncJob: Job? = null
+    private var autoProgressSyncRequested = false
+    private var lastReaderWrittenLocator: String? = null
+    private var pendingRemoteReadingPosition: SavedReadingPosition? = null
+    private val readingPositionPromptDecider = ReadingPositionPromptDecider()
 
     /** Called once the [BookEngine] exists (i.e. once the WebView has been created by the Compose factory). */
     @OptIn(FlowPreview::class)
@@ -145,6 +156,9 @@ class ReaderViewModel @Inject constructor(
         cancelEngineJobs()
         boundEngine = engine
         bookOpen = false
+        _readingPositionPrompt.value = null
+        pendingRemoteReadingPosition = null
+        lastReaderWrittenLocator = null
 
         engineJobs += viewModelScope.launch {
             val book = bookRepository.getById(bookId)
@@ -193,6 +207,7 @@ class ReaderViewModel @Inject constructor(
                     } else if (savedLocator != null && book.readingPercent > 0.001f) {
                         engine.goTo(NavTarget.ToFraction(book.readingPercent.coerceIn(0f, 0.999f)))
                     }
+                    observeRemoteReadingProgress()
                 }
                 .onFailure { throwable ->
                     _uiState.value = ReaderUiState.Failed(throwable.message ?: "Could not open book")
@@ -201,10 +216,20 @@ class ReaderViewModel @Inject constructor(
 
         engineJobs += viewModelScope.launch {
             engine.location.filterNotNull().collect { locator ->
-                locator.cfi?.let { cfi -> bookRepository.updateLocator(bookId, cfi, locator.progression) }
-                onPageMoved()
                 _uiState.update { current ->
                     if (current is ReaderUiState.Loaded) current.copy(currentLocator = locator) else current
+                }
+                refreshReadingPositionPromptCurrentLocation(locator)
+                pendingRemoteReadingPosition?.let { remotePosition ->
+                    pendingRemoteReadingPosition = null
+                    showRemoteReadingPositionPromptIfNeeded(remotePosition, locator)
+                }
+                if (_readingPositionPrompt.value == null) {
+                    locator.cfi?.let { cfi ->
+                        lastReaderWrittenLocator = cfi
+                        bookRepository.updateLocator(bookId, cfi, locator.progression)
+                    }
+                    onPageMoved(locator)
                 }
             }
         }
@@ -560,6 +585,47 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    private fun observeRemoteReadingProgress() {
+        engineJobs += viewModelScope.launch {
+            bookRepository.remoteReadingProgressApplied.collect { remoteProgress ->
+                if (remoteProgress.bookId != bookId) return@collect
+                val remotePosition = SavedReadingPosition(
+                    locator = remoteProgress.locator,
+                    progress = remoteProgress.readingPercent,
+                    version = remoteProgress.version,
+                )
+                val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator
+                if (currentLocator == null) {
+                    pendingRemoteReadingPosition = remotePosition
+                } else {
+                    showRemoteReadingPositionPromptIfNeeded(remotePosition, currentLocator)
+                }
+            }
+        }
+    }
+
+    private fun showRemoteReadingPositionPromptIfNeeded(
+        remotePosition: SavedReadingPosition,
+        currentLocator: Locator,
+    ) {
+        // Auto-sync is push-only, but a remote echo of this reader's last saved locator
+        // should still stay quiet while the user is actively reading.
+        readingPositionPromptDecider.promptForRemote(
+            remotePosition = remotePosition,
+            currentLocator = currentLocator,
+            lastReaderWrittenLocator = lastReaderWrittenLocator,
+        )?.let { prompt -> _readingPositionPrompt.value = prompt }
+    }
+
+    private fun refreshReadingPositionPromptCurrentLocation(locator: Locator) {
+        _readingPositionPrompt.update { prompt ->
+            prompt?.copy(
+                currentProgress = locator.progression,
+                currentPage = locator.currentPage,
+            )
+        }
+    }
+
     private val readingTimeTracker = ReadingTimeTracker(IdleSessionTimeoutMs)
     private var readerResumed = false
     private var trackingJob: Job? = null
@@ -579,9 +645,47 @@ class ReaderViewModel @Inject constructor(
         trackingJob = null
     }
 
-    private fun onPageMoved() {
+    fun acceptReadingPositionPrompt() {
+        val prompt = _readingPositionPrompt.value ?: return
+        _readingPositionPrompt.value = null
+        lastReaderWrittenLocator = prompt.targetLocator
+        dispatch(
+            NavTarget.ToLocator(
+                Locator(cfi = prompt.targetLocator, href = null, progression = prompt.targetProgress, chapterTitle = null),
+            ),
+        )
+    }
+
+    fun dismissReadingPositionPrompt() {
+        _readingPositionPrompt.value = null
+        val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator ?: return
+        val currentCfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
+        lastReaderWrittenLocator = currentCfi
+        viewModelScope.launch {
+            bookRepository.updateLocator(bookId, currentCfi, currentLocator.progression)
+        }
+    }
+
+    private suspend fun onPageMoved(locator: Locator) {
         if (!readerResumed || !bookOpen) return
-        persistReadingTime(readingTimeTracker.interact(System.currentTimeMillis()))
+        persistReadingTimeNow(readingTimeTracker.interact(System.currentTimeMillis()))
+        if (pageTurnAutoSyncGate.onLocator(locator)) {
+            requestAutoProgressSync()
+        }
+    }
+
+    private fun requestAutoProgressSync() {
+        val runningJob = autoProgressSyncJob
+        if (runningJob?.isActive == true) {
+            autoProgressSyncRequested = true
+            return
+        }
+        autoProgressSyncJob = viewModelScope.launch {
+            do {
+                autoProgressSyncRequested = false
+                readingProgressOnlySyncer.syncLocalProgressToCloud()
+            } while (autoProgressSyncRequested)
+        }
     }
 
     private fun startReadingTimeTicker() {
@@ -597,10 +701,15 @@ class ReaderViewModel @Inject constructor(
     private fun persistReadingTime(update: ReadingTimeUpdate) {
         if (update.addedSeconds == 0L && update.session == null) return
         viewModelScope.launch {
-            if (update.addedSeconds > 0L) bookRepository.addReadingTime(bookId, update.addedSeconds)
-            update.session?.let { session ->
-                readingSessionRepository.record(bookId, session.startedAt, session.endedAt)
-            }
+            persistReadingTimeNow(update)
+        }
+    }
+
+    private suspend fun persistReadingTimeNow(update: ReadingTimeUpdate) {
+        if (update.addedSeconds == 0L && update.session == null) return
+        if (update.addedSeconds > 0L) bookRepository.addReadingTime(bookId, update.addedSeconds)
+        update.session?.let { session ->
+            readingSessionRepository.record(bookId, session.startedAt, session.endedAt)
         }
     }
 
@@ -611,6 +720,8 @@ class ReaderViewModel @Inject constructor(
         boundEngine = null
         dictionaryLookupJob?.cancel()
         dictionaryInstallJob?.cancel()
+        autoProgressSyncJob?.cancel()
+        autoProgressSyncJob = null
     }
 
     private fun cancelEngineJobs() {
@@ -758,6 +869,7 @@ private const val DefaultAnnotationColor = "yellow"
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
 private const val RecentLookupsLimit = 5
+private const val AutoSyncEveryPages = 3
 
 /** No page turn for this long ends the current reading session (PROMPT: idle stops a session). */
 private const val IdleSessionTimeoutMs = 5 * 60 * 1000L

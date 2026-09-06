@@ -25,6 +25,13 @@ data class ReadingProgressVersion(
     val updatedAt: Long,
 )
 
+data class RemoteReadingProgressApplied(
+    val bookId: Long,
+    val locator: String,
+    val readingPercent: Float,
+    val version: Long,
+)
+
 enum class ReadingProgressConflictReason {
     SAME_TIMESTAMP_DIFFERENT_LOCATOR,
     INCOMPATIBLE_FILE_REVISION,
@@ -74,6 +81,8 @@ enum class CloudBookMergeResult {
 
 interface BookRepository {
     fun observeAll(): Flow<List<Book>>
+
+    val remoteReadingProgressApplied: Flow<RemoteReadingProgressApplied>
 
     /** Soft-deleted books, newest deletion first - backs the "Recently deleted" restore screen. */
     fun observeDeleted(): Flow<List<Book>>

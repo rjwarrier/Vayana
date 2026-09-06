@@ -7,11 +7,19 @@ import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 
 class BookRepositoryImpl @Inject constructor(
     private val bookDao: BookDao,
 ) : BookRepository {
+    private val _remoteReadingProgressApplied = MutableSharedFlow<RemoteReadingProgressApplied>(
+        extraBufferCapacity = RemoteProgressEventBufferCapacity,
+    )
+
+    override val remoteReadingProgressApplied: Flow<RemoteReadingProgressApplied> =
+        _remoteReadingProgressApplied.asSharedFlow()
 
     override fun observeAll(): Flow<List<Book>> =
         bookDao.observeAll().map { entities -> entities.map { it.toDomain() } }
@@ -84,6 +92,14 @@ class BookRepositoryImpl @Inject constructor(
             startedReadingAt = startedReadingAt,
             finishedReadingAt = finishedReadingAt,
             totalReadingSeconds = totalReadingSeconds,
+        )
+        _remoteReadingProgressApplied.emit(
+            RemoteReadingProgressApplied(
+                bookId = book.id,
+                locator = locator,
+                readingPercent = readingPercent,
+                version = remoteVersion,
+            ),
         )
         return ReadingProgressMergeResult.AppliedRemote
     }
@@ -460,3 +476,4 @@ private fun String.normalizedBookTag(): String =
 private const val MaxBookTags = 32
 private const val MaxBookTagChars = 40
 private const val MaxBookTagsCsvChars = 1_024
+private const val RemoteProgressEventBufferCapacity = 32
