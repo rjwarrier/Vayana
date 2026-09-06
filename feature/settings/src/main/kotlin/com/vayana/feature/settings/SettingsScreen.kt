@@ -1323,6 +1323,8 @@ private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -
 private fun IntSetting.intDisplay(): (Int) -> String = when (this) {
     SettingsRegistry.ReaderFontSize -> { value -> (value / 100f).formatScale() }
     SettingsRegistry.ReaderSideMargin -> { value -> value.toString() }
+    SettingsRegistry.ReaderHeaderGap -> { value -> "${value}dp" }
+    SettingsRegistry.ReaderFooterGap -> { value -> "${value}dp" }
     SettingsRegistry.DailyReadingGoalMinutes -> { value -> value.toString() }
     SettingsRegistry.YearlyBooksGoal -> { value -> value.toString() }
     else -> { value -> value.toString() }
@@ -1484,6 +1486,8 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderFontFamily -> readerFontFamily
     SettingsRegistry.ReaderTheme -> readerTheme
     SettingsRegistry.ReaderSideMargin -> readerSideMarginPercent
+    SettingsRegistry.ReaderHeaderGap -> readerHeaderGapDp
+    SettingsRegistry.ReaderFooterGap -> readerFooterGapDp
     SettingsRegistry.ReaderPublisherStyles -> readerUsePublisherStyles
     SettingsRegistry.ReaderTapZoneMode -> readerTapZoneMode
     SettingsRegistry.ReaderVolumeKeys -> readerVolumeKeys
@@ -1523,6 +1527,8 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono jetpack typography"
         SettingsRegistry.ReaderTheme -> "reader page theme light sepia dark book"
         SettingsRegistry.ReaderSideMargin -> "reader page margin side layout width"
+        SettingsRegistry.ReaderHeaderGap -> "reader header gap top edge spacing clock session layout"
+        SettingsRegistry.ReaderFooterGap -> "reader footer gap bottom edge spacing page progress layout"
         SettingsRegistry.ReaderPublisherStyles -> "publisher style css page layout book"
         SettingsRegistry.ReaderTapZoneMode -> "tap zone page turn navigation gestures"
         SettingsRegistry.ReaderVolumeKeys -> "volume keys buttons page turn"

@@ -9,6 +9,8 @@ object PortableSettings {
         SettingsRegistry.ReaderFontFamily.key,
         SettingsRegistry.ReaderTheme.key,
         SettingsRegistry.ReaderSideMargin.key,
+        SettingsRegistry.ReaderHeaderGap.key,
+        SettingsRegistry.ReaderFooterGap.key,
         SettingsRegistry.ReaderPublisherStyles.key,
         SettingsRegistry.ReaderShowHeaders.key,
         SettingsRegistry.ReaderShowFooter.key,

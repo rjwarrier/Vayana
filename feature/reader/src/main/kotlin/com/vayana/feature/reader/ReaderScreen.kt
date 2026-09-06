@@ -117,6 +117,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -609,11 +611,13 @@ private fun ReaderScreen(
             ReaderClockHeader(
                 modifier = Modifier.align(Alignment.TopCenter),
                 nowMillis = nowMillis,
+                headerGap = settings.readerHeaderGapDp.dp,
             )
             ReaderSessionHeader(
                 modifier = Modifier.align(Alignment.TopStart),
                 nowMillis = nowMillis,
                 sessionStartMillis = sessionStartMillis,
+                headerGap = settings.readerHeaderGapDp.dp,
             )
         }
 
@@ -623,6 +627,7 @@ private fun ReaderScreen(
                 locator = uiState.currentLocator,
                 showBookTime = footerShowsBookTime,
                 onToggle = { footerShowsBookTime = !footerShowsBookTime },
+                headerGap = settings.readerHeaderGapDp.dp,
             )
         }
 
@@ -630,10 +635,12 @@ private fun ReaderScreen(
             ReaderPageNumberFooter(
                 modifier = Modifier.align(Alignment.BottomStart),
                 locator = uiState.currentLocator,
+                footerGap = settings.readerFooterGapDp.dp,
             )
             ReaderBookProgressFooter(
                 modifier = Modifier.align(Alignment.BottomEnd),
                 locator = uiState.currentLocator,
+                footerGap = settings.readerFooterGapDp.dp,
                 onLongPress = {
                     selectedPanel = ReaderPanel.CONTENTS
                     chromeVisible = true
@@ -782,12 +789,12 @@ private fun ReaderScreen(
 }
 
 @Composable
-private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long) {
+private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long, headerGap: Dp = readerHeaderTopPadding) {
     val clockText = remember(nowMillis) { DateFormat.format("hh:mm a", nowMillis).toString() }
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(top = readerHeaderTopPadding),
+            .padding(top = headerGap),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -805,12 +812,13 @@ private fun ReaderSessionHeader(
     modifier: Modifier = Modifier,
     nowMillis: Long,
     sessionStartMillis: Long,
+    headerGap: Dp = readerHeaderTopPadding,
 ) {
     val sessionMinutes = ((nowMillis - sessionStartMillis) / 60_000L).coerceAtLeast(0L).toInt()
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(start = readerHeaderHorizontalPadding, top = readerHeaderTopPadding),
+            .padding(start = readerHeaderHorizontalPadding, top = headerGap),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -829,6 +837,7 @@ private fun ReaderTimeLeftHeader(
     locator: Locator?,
     showBookTime: Boolean,
     onToggle: () -> Unit,
+    headerGap: Dp = readerHeaderTopPadding,
 ) {
     val minutesLeft = if (showBookTime) locator?.bookMinutesLeft else locator?.chapterMinutesLeft
     if (minutesLeft == null) return
@@ -836,7 +845,7 @@ private fun ReaderTimeLeftHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(end = readerHeaderHorizontalPadding, top = readerHeaderTopPadding)
+            .padding(end = readerHeaderHorizontalPadding, top = headerGap)
             .clickable(onClick = onToggle),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -854,6 +863,7 @@ private fun ReaderTimeLeftHeader(
 private fun ReaderPageNumberFooter(
     modifier: Modifier = Modifier,
     locator: Locator?,
+    footerGap: Dp = Spacing.sm,
 ) {
     val currentPage = locator?.currentPage
     val totalPages = locator?.totalPages
@@ -861,7 +871,7 @@ private fun ReaderPageNumberFooter(
     Surface(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(start = Spacing.md, bottom = Spacing.sm),
+            .padding(start = Spacing.md, bottom = footerGap),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -879,13 +889,14 @@ private fun ReaderPageNumberFooter(
 private fun ReaderBookProgressFooter(
     modifier: Modifier = Modifier,
     locator: Locator?,
+    footerGap: Dp = Spacing.sm,
     onLongPress: () -> Unit = {},
 ) {
     val progress = locator?.progression ?: return
     Surface(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(end = Spacing.md, bottom = Spacing.sm)
+            .padding(end = Spacing.md, bottom = footerGap)
             .combinedClickable(onClick = {}, onLongClick = onLongPress),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,

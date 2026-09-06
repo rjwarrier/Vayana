@@ -446,6 +446,10 @@
     <string name="settings_reader_theme_oled">OLED</string>
     <string name="settings_reader_side_margin_title">Side margin</string>
     <string name="settings_reader_side_margin_subtitle">Reserve space at the left and right of pages.</string>
+    <string name="settings_reader_header_gap_title">Header gap</string>
+    <string name="settings_reader_header_gap_subtitle">Space between the top of the screen and the reader header.</string>
+    <string name="settings_reader_footer_gap_title">Footer gap</string>
+    <string name="settings_reader_footer_gap_subtitle">Space between the bottom of the screen and the reader footer.</string>
     <string name="settings_reader_publisher_styles_title">Publisher styles</string>
     <string name="settings_reader_publisher_styles_subtitle">Respect book-provided typography where possible.</string>
     <string name="settings_reader_show_headers_title">Show headers</string>

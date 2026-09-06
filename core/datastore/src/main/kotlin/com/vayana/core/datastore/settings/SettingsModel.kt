@@ -88,6 +88,8 @@ data class SettingsSnapshot(
     val readerFontFamily: ReaderFontFamily = ReaderFontFamily.SERIF,
     val readerTheme: ReaderTheme = ReaderTheme.SYSTEM,
     val readerSideMarginPercent: Int = 10,
+    val readerHeaderGapDp: Int = 60,
+    val readerFooterGapDp: Int = 8,
     val readerUsePublisherStyles: Boolean = true,
     val readerTapZoneMode: TapZoneMode = TapZoneMode.THREE_ZONE,
     val readerVolumeKeys: Boolean = false,
@@ -224,6 +226,24 @@ object SettingsRegistry {
         group = SettingsGroup.READER_LAYOUT,
         range = 0..24,
         step = 2,
+    )
+    val ReaderHeaderGap: IntSetting = IntSetting(
+        key = "reader.header_gap_dp",
+        defaultValue = 60,
+        titleRes = R.string.settings_reader_header_gap_title,
+        subtitleRes = R.string.settings_reader_header_gap_subtitle,
+        group = SettingsGroup.READER_LAYOUT,
+        range = 0..120,
+        step = 4,
+    )
+    val ReaderFooterGap: IntSetting = IntSetting(
+        key = "reader.footer_gap_dp",
+        defaultValue = 8,
+        titleRes = R.string.settings_reader_footer_gap_title,
+        subtitleRes = R.string.settings_reader_footer_gap_subtitle,
+        group = SettingsGroup.READER_LAYOUT,
+        range = 0..80,
+        step = 4,
     )
     val ReaderPublisherStyles: BooleanSetting = BooleanSetting(
         key = "reader.publisher_styles",
@@ -377,6 +397,8 @@ object SettingsRegistry {
         ReaderFontFamily,
         ReaderTheme,
         ReaderSideMargin,
+        ReaderHeaderGap,
+        ReaderFooterGap,
         ReaderPublisherStyles,
         ReaderShowHeaders,
         ReaderShowFooter,
