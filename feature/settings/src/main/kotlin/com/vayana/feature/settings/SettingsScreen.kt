@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,10 +16,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,7 +38,6 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FormatSize
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
@@ -46,8 +51,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -111,6 +114,8 @@ private val SettingsPagePadding = 20.dp
 private val SettingsContentMaxWidth = 840.dp
 private val SettingsTwoColumnBreakpoint = 680.dp
 private val SettingsCategoryBadgeSize = 42.dp
+private val SettingsChoiceTabWidth = 124.dp
+private val SettingsChoiceTabHeight = 40.dp
 
 @Composable
 fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -1319,6 +1324,7 @@ private fun SettingRow(
 
 @Composable
 private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -> Unit) {
+    val display = setting.intDisplay()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1331,7 +1337,7 @@ private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "${setting.range.first}%",
+                text = display(setting.range.first),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1341,13 +1347,13 @@ private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Text(
-                    text = "$value%",
+                    text = display(value),
                     modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
             Text(
-                text = "${setting.range.last}%",
+                text = display(setting.range.last),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1359,6 +1365,14 @@ private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -
             steps = ((setting.range.last - setting.range.first) / setting.step - 1).coerceAtLeast(0),
         )
     }
+}
+
+private fun IntSetting.intDisplay(): (Int) -> String = when (this) {
+    SettingsRegistry.ReaderFontSize -> { value -> (value / 100f).formatScale() }
+    SettingsRegistry.ReaderSideMargin -> { value -> value.toString() }
+    SettingsRegistry.DailyReadingGoalMinutes -> { value -> value.toString() }
+    SettingsRegistry.YearlyBooksGoal -> { value -> value.toString() }
+    else -> { value -> value.toString() }
 }
 
 @Composable
@@ -1375,7 +1389,7 @@ private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "%.1fx".format(setting.range.start),
+                text = setting.range.start.formatScale(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1385,13 +1399,13 @@ private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Text(
-                    text = "%.1fx".format(value),
+                    text = value.formatScale(),
                     modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
             Text(
-                text = "%.1fx".format(setting.range.endInclusive),
+                text = setting.range.endInclusive.formatScale(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1403,6 +1417,16 @@ private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (
             steps = (((setting.range.endInclusive - setting.range.start) / setting.step).roundToInt() - 1).coerceAtLeast(0),
         )
     }
+}
+
+private fun Float.formatScale(): String {
+    val roundedToHundredth = (this * 100).roundToInt() / 100f
+    val label = if (roundedToHundredth % 1f == 0f) {
+        roundedToHundredth.toInt().toString()
+    } else {
+        "%.2f".format(Locale.getDefault(), roundedToHundredth).trimEnd('0').trimEnd('.')
+    }
+    return "${label}x"
 }
 
 @Composable
@@ -1435,8 +1459,12 @@ private fun StringSettingControl(setting: StringSetting, value: String, onUpdate
 
 @Composable
 private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate: (Any) -> Unit) {
-    var expanded by remember(setting.key) { mutableStateOf(false) }
-    val selectedOption = setting.options.firstOrNull { it.value == value }
+    val selectedIndex = setting.options.indexOfFirst { it.value == value }.coerceAtLeast(0)
+    val selectedOffset by animateDpAsState(
+        targetValue = SettingsChoiceTabWidth * selectedIndex,
+        label = "SettingsChoiceSelectedOffset",
+    )
+    val scrollState = rememberScrollState()
 
     Box(
         modifier = Modifier
@@ -1445,64 +1473,51 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Radii.medium))
-                .clickable { expanded = true },
+                .fillMaxWidth(),
             shape = RoundedCornerShape(Radii.medium),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             tonalElevation = Elevations.none,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            Box(
+                modifier = Modifier
+                    .horizontalScroll(scrollState)
+                    .padding(Spacing.xs),
             ) {
-                Text(
-                    text = selectedOption?.let { stringResource(it.labelRes) }.orEmpty(),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ) {
-            setting.options.forEach { option ->
-                val selected = option.value == value
-                DropdownMenuItem(
-                    text = {
+                Surface(
+                    modifier = Modifier
+                        .offset(x = selectedOffset)
+                        .width(SettingsChoiceTabWidth)
+                        .height(SettingsChoiceTabHeight),
+                    shape = RoundedCornerShape(Radii.small),
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    tonalElevation = Elevations.none,
+                ) {}
+                Row {
+                    setting.options.forEach { option ->
+                        val selected = option.value == value
                         Text(
                             text = stringResource(option.labelRes),
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier
+                                .width(SettingsChoiceTabWidth)
+                                .height(SettingsChoiceTabHeight)
+                                .clip(RoundedCornerShape(Radii.small))
+                                .clickable { onUpdate(option.value) }
+                                .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                            ),
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    },
-                    onClick = {
-                        expanded = false
-                        onUpdate(option.value)
-                    },
-                    leadingIcon = if (selected) {
-                        {
-                            Icon(
-                                imageVector = Icons.Outlined.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(Sizes.iconSmall),
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
+                    }
+                }
             }
         }
     }
