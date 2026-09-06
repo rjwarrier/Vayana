@@ -8,9 +8,13 @@ import java.io.File
 import java.io.FileOutputStream
 
 /** Saves [bitmap] to the app's cache and launches a share sheet for it as PNG. */
-fun Context.shareBitmap(bitmap: Bitmap, chooserTitle: String) {
+fun Context.shareBitmap(bitmap: Bitmap, chooserTitle: String, fileName: String? = null) {
     val dir = File(cacheDir, "shared_images").apply { mkdirs() }
-    val file = File(dir, "share_${System.currentTimeMillis()}.png")
+    val safeFileName = fileName
+        ?.let { File(it).name }
+        ?.takeIf { it.isNotBlank() }
+        ?: "share_${System.currentTimeMillis()}.png"
+    val file = File(dir, safeFileName)
     FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
     val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {

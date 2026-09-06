@@ -39,5 +39,5 @@ object Sizes {
     val shareCardAccentBarWidth = 2.dp
 
     /** Exported share-image side length in pixels — square, high enough res for social posts. */
-    const val shareCardExportPx = 1000
+    const val shareCardExportPx = 1600
 }

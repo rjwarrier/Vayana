@@ -62,6 +62,7 @@ fun ShareCardDialog(
     shareTextLabel: String,
     shareImageLabel: String,
     modifier: Modifier = Modifier,
+    shareImageFileName: String? = null,
     shareImageOptionsDialog: (@Composable (
         onDismiss: () -> Unit,
         onShareImage: () -> Unit,
@@ -81,7 +82,7 @@ fun ShareCardDialog(
             val captured = graphicsLayer.toImageBitmap().asAndroidBitmap()
             val exportSize = Sizes.shareCardExportPx
             val squared = Bitmap.createScaledBitmap(captured, exportSize, exportSize, true)
-            context.shareBitmap(squared, chooserTitle)
+            context.shareBitmap(squared, chooserTitle, shareImageFileName)
             isCapturing = false
             showImageOptions = false
             onDismiss()
@@ -102,7 +103,7 @@ fun ShareCardDialog(
             ) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(Radii.large))
+                        .clip(Radii.appIconShape)
                         .drawWithContent {
                             graphicsLayer.record { this@drawWithContent.drawContent() }
                             drawLayer(graphicsLayer)
@@ -190,6 +191,7 @@ fun QuoteShareCard(
         modifier = modifier
             .width(Sizes.shareCardWidth)
             .aspectRatio(1f)
+            .clip(Radii.appIconShape)
             .background(Palette.Navy900)
             .padding(Spacing.xl),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -275,11 +277,19 @@ fun BookShareCard(
     cover: @Composable () -> Unit,
 ) {
     val colors = theme.bookColors()
-    val visibleTags = if (showTags) tags.filter { it.isNotBlank() }.take(3) else emptyList()
+    val visibleTags = if (showTags) {
+        tags.map { it.sanitizedShareTag() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .take(MaxBookShareTags)
+    } else {
+        emptyList()
+    }
     Column(
         modifier = modifier
             .width(Sizes.shareCardWidth)
             .aspectRatio(1f)
+            .clip(Radii.appIconShape)
             .background(colors.background)
             .padding(Spacing.xl),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -328,15 +338,33 @@ fun BookShareCard(
                 }
                 if (showProgress || showReadTime || (showRating && !ratingValue.isNullOrBlank())) {
                     Spacer(modifier = Modifier.height(Spacing.md))
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
                         if (showProgress) {
-                            ShareStat(value = stat1Value, label = stat1Label, colors = colors)
+                            ShareStat(
+                                value = stat1Value,
+                                label = stat1Label,
+                                colors = colors,
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                         if (showReadTime) {
-                            ShareStat(value = stat2Value, label = stat2Label, colors = colors)
+                            ShareStat(
+                                value = stat2Value,
+                                label = stat2Label,
+                                colors = colors,
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                         if (showRating && !ratingValue.isNullOrBlank()) {
-                            ShareStat(value = ratingValue, label = ratingLabel, colors = colors)
+                            ShareStat(
+                                value = ratingValue,
+                                label = ratingLabel,
+                                colors = colors,
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
                 }
@@ -365,10 +393,22 @@ fun BookShareCard(
 }
 
 @Composable
-private fun ShareStat(value: String, label: String, colors: BookShareCardColors) {
-    Column {
-        Text(text = value, style = ShareCardTypography.statValue, color = colors.primaryText)
-        ShareCardCaption(text = label, color = colors.mutedText)
+private fun ShareStat(value: String, label: String, colors: BookShareCardColors, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = value,
+            style = ShareCardTypography.statValue,
+            color = colors.primaryText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = label,
+            style = ShareCardTypography.caption,
+            color = colors.mutedText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -401,3 +441,14 @@ private fun ShareCardTheme.bookColors(): BookShareCardColors = when (this) {
         divider = Palette.Navy600,
     )
 }
+
+private fun String.sanitizedShareTag(): String =
+    map { if (Character.isISOControl(it)) ' ' else it }
+        .joinToString("")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .take(MaxBookShareTagChars)
+        .trim()
+
+private const val MaxBookShareTags = 3
+private const val MaxBookShareTagChars = 24

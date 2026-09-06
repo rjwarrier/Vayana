@@ -97,7 +97,7 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?) {
-        bookDao.updateMetadata(id, title, author, series, seriesNumber, description, tagsCsv, System.currentTimeMillis())
+        bookDao.updateMetadata(id, title, author, series, seriesNumber, description, tagsCsv.normalizedBookTagsCsv(), System.currentTimeMillis())
     }
 
     override suspend fun updateRating(id: Long, rating: Float) {
@@ -395,7 +395,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         series = series,
         seriesNumber = seriesNumber,
         description = description,
-        tagsCsv = tagsCsv,
+        tagsCsv = tagsCsv.normalizedBookTagsCsv(),
         coverPath = coverPath,
         filePath = "",
         fileAvailability = BookFileAvailability.CLOUD_ONLY.name,
@@ -427,4 +427,27 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         customFontFamily = customFontFamily,
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
-    )
+)
+
+private fun String?.normalizedBookTagsCsv(): String? =
+    this?.split(",")
+        ?.map { it.normalizedBookTag() }
+        ?.filter { it.isNotEmpty() }
+        ?.distinctBy { it.lowercase() }
+        ?.take(MaxBookTags)
+        ?.joinToString(", ")
+        ?.take(MaxBookTagsCsvChars)
+        ?.trimEnd(',', ' ')
+        ?.ifBlank { null }
+
+private fun String.normalizedBookTag(): String =
+    map { if (Character.isISOControl(it)) ' ' else it }
+        .joinToString("")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .take(MaxBookTagChars)
+        .trim()
+
+private const val MaxBookTags = 32
+private const val MaxBookTagChars = 40
+private const val MaxBookTagsCsvChars = 1_024

@@ -146,6 +146,7 @@ import com.vayana.core.resources.R
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -1731,6 +1732,7 @@ private fun BookDetailScreen(
             chooserTitle = stringResource(R.string.share_card_image_chooser_title),
             shareTextLabel = stringResource(R.string.share_card_share_text),
             shareImageLabel = stringResource(R.string.share_card_share_image),
+            shareImageFileName = "${book.shareFileBaseName()}.png",
             shareImageOptionsDialog = { onDismiss, onShareImage, isCapturing ->
                 BookShareImageOptionsDialog(
                     options = shareImageOptions,
@@ -2152,7 +2154,7 @@ private fun EditMetadataDialog(
     var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
     var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
     var seriesNumber by remember(book.id) { mutableStateOf(book.seriesNumber.orEmpty()) }
-    var tagsCsv by remember(book.id) { mutableStateOf(book.tagsCsv.orEmpty()) }
+    var tagsCsv by remember(book.id) { mutableStateOf(book.tagsCsv.orEmpty().take(MaxBookTagsInputChars)) }
     val authorSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.author } }
     val seriesSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.series } }
     val tagSuggestions = remember(libraryBooks) { libraryBooks.flatMap { it.tags() }.distinctSortedIgnoreCase() }
@@ -2300,7 +2302,7 @@ private fun EditMetadataDialog(
 
                 TagSuggestionField(
                     value = tagsCsv,
-                    onValueChange = { tagsCsv = it },
+                    onValueChange = { tagsCsv = it.take(MaxBookTagsInputChars) },
                     suggestions = tagSuggestions,
                     textFieldColors = textFieldColors,
                 )
@@ -2806,8 +2808,9 @@ private fun BookDetailMessage.label(): String = when (this) {
 }
 
 private fun android.content.Context.shareBookFile(book: Book) {
-    val file = File(book.filePath)
-    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+    val source = File(book.filePath)
+    val sharedFile = source.copyToSharedBookFile(this, book.shareFileName(source))
+    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", sharedFile)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = book.format.shareMimeType()
         putExtra(Intent.EXTRA_STREAM, uri)
@@ -2815,6 +2818,39 @@ private fun android.content.Context.shareBookFile(book: Book) {
     }
     startActivity(Intent.createChooser(intent, getString(R.string.library_share_file)))
 }
+
+private fun File.copyToSharedBookFile(context: android.content.Context, fileName: String): File {
+    val dir = File(context.cacheDir, "shared_books").apply { mkdirs() }
+    return copyTo(File(dir, fileName), overwrite = true)
+}
+
+private fun Book.shareFileName(source: File): String {
+    val extension = source.extension.toShareFileExtension().ifBlank { format.defaultExtension() }
+    val suffix = extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
+    return "${shareFileBaseName()}$suffix"
+}
+
+private fun Book.shareFileBaseName(): String =
+    "${title.toShareFileSegment(fallback = "Book")}_${author.orEmpty().toShareFileSegment(fallback = "UnknownAuthor")}"
+
+private fun String.toShareFileSegment(fallback: String): String {
+    val segment = split(Regex("[^\\p{L}\\p{N}]+"))
+        .asSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString("") { word ->
+            word.lowercase(Locale.ROOT).replaceFirstChar { char ->
+                if (char.isLowerCase()) char.titlecase(Locale.ROOT) else char.toString()
+            }
+        }
+        .take(MaxSharedBookFileSegmentChars)
+    return segment.ifBlank { fallback }
+}
+
+private fun String.toShareFileExtension(): String =
+    lowercase(Locale.ROOT)
+        .filter { it in 'a'..'z' || it in '0'..'9' }
+        .take(MaxSharedBookFileExtensionChars)
 
 private fun Book.hasLocalReadableSource(): Boolean =
     format != BookFormat.PHYSICAL &&
@@ -2839,6 +2875,16 @@ private fun BookFormat.shareMimeType(): String = when (this) {
     -> "application/octet-stream"
 }
 
+private fun BookFormat.defaultExtension(): String = when (this) {
+    BookFormat.EPUB -> "epub"
+    BookFormat.PDF -> "pdf"
+    BookFormat.TXT -> "txt"
+    BookFormat.MOBI -> "mobi"
+    BookFormat.AZW3 -> "azw3"
+    BookFormat.FB2 -> "fb2"
+    BookFormat.PHYSICAL -> ""
+}
+
 private fun List<Book>.metadataSuggestions(selector: (Book) -> String?): List<String> =
     mapNotNull { book -> selector(book)?.trim()?.takeIf { it.isNotEmpty() } }
         .distinctBy { it.metadataKey() }
@@ -2856,7 +2902,7 @@ private fun List<String>.matchingMetadataSuggestions(value: String): List<String
 
 private fun List<String>.matchingTagSuggestions(value: String): List<String> {
     val existingTags = value.tags().map { it.metadataKey() }.toSet()
-    val query = value.substringAfterLast(',').trim()
+    val query = value.substringAfterLast(',').normalizedBookTag()
     if (query.isEmpty()) return emptyList()
     return filter { suggestion ->
         suggestion.contains(query, ignoreCase = true) &&
@@ -2866,7 +2912,7 @@ private fun List<String>.matchingTagSuggestions(value: String): List<String> {
 }
 
 private fun List<String>.distinctSortedIgnoreCase(): List<String> =
-    map { it.trim() }
+    map { it.normalizedBookTag() }
         .filter { it.isNotEmpty() }
         .distinctBy { it.metadataKey() }
         .sortedWith(String.CASE_INSENSITIVE_ORDER)
@@ -2875,16 +2921,20 @@ private fun Book.tags(): List<String> = tagsCsv.orEmpty().tags()
 
 private fun String.tags(): List<String> =
     split(",")
-        .map { it.trim() }
+        .map { it.normalizedBookTag() }
         .filter { it.isNotEmpty() }
+        .distinctBy { it.metadataKey() }
+        .take(MaxBookTags)
 
 private fun String.withCurrentTagSuggestion(suggestion: String): String {
     val before = substringBeforeLast(',', missingDelimiterValue = "")
     val prefix = before.trim().takeIf { it.isNotEmpty() }
+    val cleanSuggestion = suggestion.normalizedBookTag()
+    if (cleanSuggestion.isBlank()) return this
     return if (contains(',') && prefix != null) {
-        "$prefix, $suggestion, "
+        "$prefix, $cleanSuggestion, "
     } else {
-        "$suggestion, "
+        "$cleanSuggestion, "
     }
 }
 
@@ -2901,6 +2951,14 @@ private fun List<Book>.hasSeriesNumberCollision(currentBookId: Long, series: Str
 }
 
 private fun String.metadataKey(): String = trim().lowercase()
+
+private fun String.normalizedBookTag(): String =
+    map { if (Character.isISOControl(it)) ' ' else it }
+        .joinToString("")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .take(MaxBookTagChars)
+        .trim()
 
 @Composable
 private fun Book.seriesDisplay(): String = listOfNotNull(
@@ -3057,6 +3115,11 @@ private fun Book.hasStartedReading(): Boolean =
 
 private const val MetadataSuggestionLimit = 5
 private const val TagSuggestionLimit = 6
+private const val MaxBookTags = 32
+private const val MaxBookTagChars = 40
+private const val MaxBookTagsInputChars = 1_024
+private const val MaxSharedBookFileSegmentChars = 80
+private const val MaxSharedBookFileExtensionChars = 8
 private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f
 

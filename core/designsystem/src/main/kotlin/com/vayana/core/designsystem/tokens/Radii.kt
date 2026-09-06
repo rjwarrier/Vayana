@@ -29,4 +29,5 @@ object Radii {
     val fabShape = RoundedCornerShape(large)
     val sheetShape = RoundedCornerShape(topStart = sheetTop, topEnd = sheetTop)
     val coverShape = RoundedCornerShape(small)
+    val appIconShape = RoundedCornerShape(percent = 22)
 }

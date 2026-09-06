@@ -1367,11 +1367,22 @@ private fun List<Book>.filterByQuery(query: String): List<Book> {
 
 private fun String.normalizedTagsCsv(): String? =
     split(",")
-        .map { it.trim() }
+        .map { it.normalizedBookTag() }
         .filter { it.isNotEmpty() }
         .distinctBy { it.lowercase() }
+        .take(MaxBookTags)
         .joinToString(", ")
+        .take(MaxBookTagsCsvChars)
+        .trimEnd(',', ' ')
         .ifBlank { null }
+
+private fun String.normalizedBookTag(): String =
+    map { if (Character.isISOControl(it)) ' ' else it }
+        .joinToString("")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .take(MaxBookTagChars)
+        .trim()
 
 private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
     LibrarySort.IMPORT_DATE -> sortedWith(compareByDescending<Book> { it.createdAt }.thenBy { it.title.lowercase() })
@@ -1385,5 +1396,8 @@ private const val FinishedThreshold = 0.98f
 private const val MaxSyncFailureBodyChars = 400
 private const val MaxSyncFailureMessageChars = 600
 private const val GitHubSyncProgressTotalSteps = 5
+private const val MaxBookTags = 32
+private const val MaxBookTagChars = 40
+private const val MaxBookTagsCsvChars = 1_024
 
 private val SupportedCoverExtensions = setOf("jpg", "jpeg", "png", "webp")
