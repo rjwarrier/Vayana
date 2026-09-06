@@ -133,6 +133,13 @@
     <string name="library_source_duplicate">That file is already in your library.</string>
     <string name="library_source_unsupported">Only EPUB replacement is supported right now.</string>
     <string name="library_source_failed">Could not replace the source file.</string>
+    <string name="library_remove_from_device">Remove from this device</string>
+    <string name="library_remove_from_device_title">Remove local file?</string>
+    <string name="library_remove_from_device_body">This deletes the stored book file from this device only. The book stays in your cloud library and can be downloaded again.</string>
+    <string name="library_remove_from_device_confirm">Remove local file</string>
+    <string name="library_remove_from_device_done">Removed from this device.</string>
+    <string name="library_remove_from_device_unavailable">Sync this book to the cloud before removing its local file.</string>
+    <string name="library_remove_from_device_failed">Could not remove the local file.</string>
     <string name="library_delete_book">Delete book</string>
     <string name="library_delete_title">Delete this book?</string>
     <string name="library_delete_body">This removes it from the library. The stored file is kept for maintenance cleanup later.</string>

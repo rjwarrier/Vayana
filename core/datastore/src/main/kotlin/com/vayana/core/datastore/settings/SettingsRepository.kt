@@ -13,7 +13,7 @@ interface SettingsRepository {
 
     suspend fun resetAll()
 
-    suspend fun exportToMap(): Map<String, String>
+    suspend fun exportToMap(includeNonExportable: Boolean = false): Map<String, String>
 
     suspend fun importFromMap(values: Map<String, String>)
 }

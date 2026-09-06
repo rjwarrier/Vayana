@@ -60,7 +60,7 @@ class BookRepositoryImpl @Inject constructor(
                 reason = ReadingProgressConflictReason.INCOMPATIBLE_FILE_REVISION,
             )
         }
-        val localVersion = book.lastReadAt ?: book.updatedAt
+        val localVersion = book.lastReadAt ?: 0L
         val remoteVersion = lastReadAt ?: remoteUpdatedAt
         if (localVersion > remoteVersion) {
             return ReadingProgressMergeResult.LocalNewer
@@ -228,6 +228,9 @@ class BookRepositoryImpl @Inject constructor(
             updatedAt = System.currentTimeMillis(),
         )
     }
+
+    override suspend fun removeLocalFile(id: Long): Boolean =
+        bookDao.removeLocalFile(id, System.currentTimeMillis()) > 0
 
     override suspend fun markFileAssetUploaded(
         id: Long,

@@ -74,6 +74,9 @@ sealed interface BookDetailMessage {
     data object SOURCE_DUPLICATE : BookDetailMessage
     data object SOURCE_UNSUPPORTED : BookDetailMessage
     data object SOURCE_FAILED : BookDetailMessage
+    data object LOCAL_FILE_REMOVED : BookDetailMessage
+    data object LOCAL_FILE_REMOVE_UNAVAILABLE : BookDetailMessage
+    data object LOCAL_FILE_REMOVE_FAILED : BookDetailMessage
     data class QUOTES_IMPORTED(val count: Int) : BookDetailMessage
     data object MARKED_FINISHED : BookDetailMessage
 }
@@ -152,6 +155,8 @@ private data class ReadingProgressMergeSummary(
     val failed: Boolean = false,
     val missingRemoteSnapshot: Boolean = false,
     val failureMessage: String? = null,
+    val remoteSnapshotJson: String? = null,
+    val remoteSnapshotSha: String? = null,
 ) {
     val conflictCount: Int
         get() = conflicts.size
@@ -361,6 +366,12 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun removeBookFromDevice(bookId: Long) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { removeLocalFileFromLibrary(bookId) }
+        }
+    }
+
     fun importQuotes(bookId: Long, quotesText: String) {
         viewModelScope.launch {
             val quotes = withContext(dispatchers.default) {
@@ -481,7 +492,22 @@ class LibraryViewModel @Inject constructor(
             }
         updateSyncProgress(GitHubSyncProgressStep.READING_CLOUD, "Reading cloud library", completedSteps = 1)
         val progressMerge = pullReadingProgress(store)
-        if ((progressMerge.missingRemoteSnapshot || progressMerge.failed) && !allowInitialSync) {
+        if (progressMerge.failed) {
+            finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
+            return@withContext GitHubSyncNowResult.Complete(
+                uploaded = 0,
+                failed = 0,
+                progressUpdated = 0,
+                cloudBooksCreated = 0,
+                cloudBooksUpdated = 0,
+                conflicts = 0,
+                skipped = 0,
+                pullFailed = true,
+                metadataSynced = false,
+                failureMessage = progressMerge.failureMessage,
+            )
+        }
+        if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
             finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress needs confirmation")
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
         }
@@ -494,7 +520,7 @@ class LibraryViewModel @Inject constructor(
         val cloudLibraryMerge = if (progressMerge.missingRemoteSnapshot) {
             CloudLibraryMergeSummary()
         } else {
-            mergeCloudLibrary(store)
+            mergeCloudLibrary(progressMerge.remoteSnapshotJson.orEmpty(), store)
         }
         val booksBeforeRepair = bookRepository.observeAll().first()
         val repairedCovers = repairMissingCoversFromLocalFiles(booksBeforeRepair)
@@ -594,7 +620,7 @@ class LibraryViewModel @Inject constructor(
                 .toJsonString()
                 .toByteArray(Charsets.UTF_8)
             store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
-            store.putSyncDocument("vayana/snapshot-latest.json", snapshotBytes)
+            store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, progressMerge.remoteSnapshotSha)
         }.exceptionOrNull()
         finishSyncProgress(
             step = if (metadataError == null && failed == 0 && !cloudLibraryMerge.failed) {
@@ -627,10 +653,16 @@ class LibraryViewModel @Inject constructor(
 
     private suspend fun pullReadingProgress(store: GitHubContentsAssetStore): ReadingProgressMergeSummary =
         runCatchingCancellable {
-            val snapshotJson = store.getSyncDocument("vayana/snapshot-latest.json").toString(Charsets.UTF_8)
+            val remoteDocument = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
+            val snapshotJson = remoteDocument.bytes.toString(Charsets.UTF_8)
             val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
             val localDeviceLabel = settingsRepository.snapshot.first().deviceLabelForSync()
-            remoteSnapshot.progresses.fold(ReadingProgressMergeSummary()) { summary, progress ->
+            remoteSnapshot.progresses.fold(
+                ReadingProgressMergeSummary(
+                    remoteSnapshotJson = snapshotJson,
+                    remoteSnapshotSha = remoteDocument.sha,
+                ),
+            ) { summary, progress ->
                 val mergeResult = bookRepository.applySyncedReadingProgress(
                     syncId = progress.syncId,
                     fileHash = progress.fileHash,
@@ -667,9 +699,8 @@ class LibraryViewModel @Inject constructor(
             }
         }
 
-    private suspend fun mergeCloudLibrary(store: GitHubContentsAssetStore): CloudLibraryMergeSummary =
+    private suspend fun mergeCloudLibrary(snapshotJson: String, store: GitHubContentsAssetStore): CloudLibraryMergeSummary =
         runCatchingCancellable {
-            val snapshotJson = store.getSyncDocument("vayana/snapshot-latest.json").toString(Charsets.UTF_8)
             parsePortableCloudBooks(snapshotJson).fold(CloudLibraryMergeSummary()) { summary, cloudBook ->
                 val record = cloudBook.toRecord() ?: return@fold summary.copy(skipped = summary.skipped + 1)
                 val mergeResult = bookRepository.mergeCloudBook(record)
@@ -1002,6 +1033,23 @@ class LibraryViewModel @Inject constructor(
         }.getOrElse { BookDetailMessage.COVER_FAILED }
     }
 
+    private suspend fun removeLocalFileFromLibrary(bookId: Long): BookDetailMessage {
+        val book = bookRepository.getById(bookId) ?: return BookDetailMessage.LOCAL_FILE_REMOVE_FAILED
+        if (!book.canRemoveLocalFileFromDevice()) return BookDetailMessage.LOCAL_FILE_REMOVE_UNAVAILABLE
+        return runCatchingCancellable {
+            val localFile = storageRoots.resolve(book.filePath)
+            val rootPath = storageRoots.rootDir.canonicalFile.toPath()
+            val localPath = localFile.canonicalFile.toPath()
+            if (!localPath.startsWith(rootPath)) return@runCatchingCancellable BookDetailMessage.LOCAL_FILE_REMOVE_FAILED
+            if (localFile.exists() && !localFile.delete()) return@runCatchingCancellable BookDetailMessage.LOCAL_FILE_REMOVE_FAILED
+            if (bookRepository.removeLocalFile(book.id)) {
+                BookDetailMessage.LOCAL_FILE_REMOVED
+            } else {
+                BookDetailMessage.LOCAL_FILE_REMOVE_UNAVAILABLE
+            }
+        }.getOrElse { BookDetailMessage.LOCAL_FILE_REMOVE_FAILED }
+    }
+
     private fun finishImportRow(rowId: String, result: ImportResult): ImportResult {
         updateImportRow(rowId, result.status)
         return result
@@ -1114,6 +1162,15 @@ private fun Book.coverNeedsUpload(storageRoots: StorageRoots): Boolean {
         Hashing.sha256(coverFile.readBytes()) != coverAssetSha256
     }.getOrDefault(true)
 }
+
+private fun Book.canRemoveLocalFileFromDevice(): Boolean =
+    format != BookFormat.PHYSICAL &&
+        fileAvailability == BookFileAvailability.LOCAL &&
+        filePath.isNotBlank() &&
+        !fileAssetId.isNullOrBlank() &&
+        !fileAssetSha256.isNullOrBlank() &&
+        fileAssetSizeBytes != null &&
+        fileAssetUploadedAt != null
 
 private fun PortableAsset.toCloudAssetReference(): CloudAssetReference? =
     runCatchingCancellable {

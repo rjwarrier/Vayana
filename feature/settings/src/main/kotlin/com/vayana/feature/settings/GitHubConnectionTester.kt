@@ -22,7 +22,7 @@ class GitHubConnectionTester @Inject constructor(
     private val dispatchers: DispatcherProvider,
 ) {
     suspend fun test(): GitHubConnectionTestOutcome = withContext(dispatchers.io) {
-        val settings = settingsRepository.exportToMap()
+        val settings = settingsRepository.exportToMap(includeNonExportable = true)
         val owner = settings[SettingsRegistry.GithubOwner.key].orEmpty().trim()
         val repo = settings[SettingsRegistry.GithubRepository.key].orEmpty().trim()
         val branch = settings[SettingsRegistry.GithubBranch.key].orEmpty().trim().ifBlank { "main" }

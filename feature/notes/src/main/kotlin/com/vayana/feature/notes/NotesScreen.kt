@@ -135,6 +135,9 @@ private fun NotesScreen(
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var sharingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    val deleteUndoMessage = stringResource(R.string.notes_delete_undo_message)
+    val deleteUndoAction = stringResource(R.string.notes_delete_undo_action)
+    val shareContentDescription = stringResource(R.string.notes_share_content_description)
 
     val activeBookItem = remember(selectedBookId, booksWithNotes) {
         booksWithNotes.firstOrNull { it.book.id == selectedBookId }
@@ -360,8 +363,8 @@ private fun NotesScreen(
                         onSoftDeleteAnnotation(annotation.id)
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
-                                message = context.getString(R.string.notes_delete_undo_message),
-                                actionLabel = context.getString(R.string.notes_delete_undo_action),
+                                message = deleteUndoMessage,
+                                actionLabel = deleteUndoAction,
                             )
                             if (result == SnackbarResult.ActionPerformed) {
                                 onUndoDeleteAnnotation(annotation.id)
@@ -406,7 +409,7 @@ private fun NotesScreen(
                         bookTitle = book?.title,
                         chapterTitle = annotation.chapterTitle,
                     ),
-                    context.getString(R.string.notes_share_content_description),
+                    shareContentDescription,
                 )
                 sharingAnnotation = null
             },
@@ -1234,4 +1237,3 @@ private fun Context.shareHighlightsMarkdown(book: Book, annotations: List<Annota
         chooserTitle = getString(R.string.notes_export_markdown_content_description),
     )
 }
-

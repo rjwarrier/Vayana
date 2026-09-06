@@ -51,6 +51,12 @@ class GitHubContentsAssetStore(
         putContents(path, bytes, "Sync Vayana metadata $path", replaceExisting = true)
     }
 
+    suspend fun putSyncDocumentIfUnchanged(path: String, bytes: ByteArray, expectedSha: String?): Unit = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        expectedSha?.let { require(it.matches(GitHubObjectShaRegex)) { "Invalid expected GitHub object SHA" } }
+        putContentsWithKnownSha(path, bytes, "Sync Vayana metadata $path", expectedSha)
+    }
+
     suspend fun getSyncDocument(path: String): ByteArray = withContext(dispatcher) {
         validateSyncDocumentPath(path)
         val response = client.execute(
@@ -66,6 +72,40 @@ class GitHubContentsAssetStore(
         }
         require(response.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
         response.body
+    }
+
+    suspend fun getSyncDocumentWithSha(path: String): GitHubSyncDocument = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "GET",
+                url = contentsUrl(path, includeRef = true),
+                headers = jsonHeaders(),
+                maxResponseBytes = MaxSyncDocumentJsonBytes,
+            ),
+        )
+        if (response.statusCode != HttpURLConnection.HTTP_OK) {
+            throw GitHubAssetStoreException("GitHub metadata download failed", response.statusCode, response.safeBodyText())
+        }
+        val bodyText = response.bodyText()
+        val sha = bodyText.extractJsonString("sha")
+            ?.takeIf { it.matches(GitHubObjectShaRegex) }
+            ?: throw GitHubAssetStoreException(
+                message = "GitHub metadata response was missing a valid SHA",
+                statusCode = response.statusCode,
+                responseBody = response.safeBodyText(),
+            )
+        val encoding = bodyText.extractJsonString("encoding")
+        require(encoding == "base64") { "GitHub metadata response used an unsupported encoding" }
+        val content = bodyText.extractJsonString("content")
+            ?: throw GitHubAssetStoreException(
+                message = "GitHub metadata response was missing content",
+                statusCode = response.statusCode,
+                responseBody = response.safeBodyText(),
+            )
+        val bytes = Base64.getMimeDecoder().decode(content)
+        require(bytes.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
+        GitHubSyncDocument(bytes = bytes, sha = sha)
     }
 
     suspend fun testConnection(): GitHubConnectionTestResult = withContext(dispatcher) {
@@ -114,6 +154,25 @@ class GitHubContentsAssetStore(
             }
         }
         val response = checkNotNull(lastResponse)
+        throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
+    }
+
+    private fun putContentsWithKnownSha(path: String, bytes: ByteArray, message: String, expectedSha: String?) {
+        require(bytes.isNotEmpty()) { "Cloud asset upload is empty" }
+        val maxBytes = if (path.endsWith(".json")) MaxSyncDocumentBytes else MaxEncryptedAssetBytes
+        require(bytes.size <= maxBytes) { "Cloud upload is too large" }
+        val body = buildPutBody(message, bytes, expectedSha)
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "PUT",
+                url = contentsUrl(path),
+                headers = jsonHeaders(),
+                body = body.toByteArray(Charsets.UTF_8),
+            ),
+        )
+        if (response.statusCode in setOf(HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED)) {
+            return
+        }
         throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
     }
 
@@ -217,6 +276,11 @@ sealed interface GitHubConnectionTestResult {
     data object Connected : GitHubConnectionTestResult
     data object ReadyForInitialSync : GitHubConnectionTestResult
 }
+
+data class GitHubSyncDocument(
+    val bytes: ByteArray,
+    val sha: String,
+)
 
 data class GitHubHttpRequest(
     val method: String,
@@ -369,6 +433,7 @@ private const val NetworkTimeoutMillis = 30_000
 private const val MaxPutAttempts = 3
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024
 private const val MaxSyncDocumentBytes = 8 * 1024 * 1024
+private const val MaxSyncDocumentJsonBytes = MaxSyncDocumentBytes * 2
 private const val MaxHttpResponseBytes = MaxEncryptedAssetBytes + 1024
 private const val MaxGitHubMetadataBytes = 256 * 1024
 private const val MaxErrorBodyChars = 4_096

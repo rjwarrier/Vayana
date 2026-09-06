@@ -107,6 +107,58 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun getSyncDocumentWithShaReadsContentsMetadataAndDecodesContent() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(
+                200,
+                """
+                {
+                  "sha": "$ExistingSha",
+                  "encoding": "base64",
+                  "content": "${Base64.getMimeEncoder().encodeToString("""{"books":[]}""".toByteArray())}"
+                }
+                """.trimIndent().toByteArray(),
+            ),
+        )
+        val store = testStore(client)
+
+        val document = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
+
+        assertContentEquals("""{"books":[]}""".toByteArray(), document.bytes)
+        assertEquals(ExistingSha, document.sha)
+        assertEquals("application/vnd.github+json", client.requests.single().headers["Accept"])
+        assertEquals(16 * 1024 * 1024, client.requests.single().maxResponseBytes)
+    }
+
+    @Test
+    fun putSyncDocumentIfUnchangedUsesExpectedShaWithoutRefreshingIt() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"content":{"sha":"new-sha"}}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray(), ExistingSha)
+
+        assertEquals(listOf("PUT"), client.requests.map { it.method })
+        assertTrue(client.requests.single().bodyText().contains(""""sha":"$ExistingSha""""))
+    }
+
+    @Test
+    fun putSyncDocumentIfUnchangedDoesNotRefetchAfterConflict() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(409, """{"message":"branch changed"}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val failure = assertFailsWith<GitHubAssetStoreException> {
+            store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray(), ExistingSha)
+        }
+
+        assertEquals(409, failure.statusCode)
+        assertEquals(listOf("PUT"), client.requests.map { it.method })
+    }
+
+    @Test
     fun testConnectionReadsLatestSnapshotWithoutWriting() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),

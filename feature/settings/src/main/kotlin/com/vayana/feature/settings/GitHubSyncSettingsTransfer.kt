@@ -29,7 +29,7 @@ class GitHubSyncSettingsTransfer @Inject constructor(
     private val cipher = CloudAssetCipher()
 
     suspend fun exportTo(destination: Uri): GitHubSyncSettingsTransferOutcome = withContext(dispatchers.io) {
-        val settings = settingsRepository.exportToMap()
+        val settings = settingsRepository.exportToMap(includeNonExportable = true)
         val passphrase = settings[SettingsRegistry.GithubSyncPassphrase.key].orEmpty().toCharArray()
         if (passphrase.isEmpty()) return@withContext GitHubSyncSettingsTransferOutcome.MissingPassphrase
         try {
@@ -51,7 +51,7 @@ class GitHubSyncSettingsTransfer @Inject constructor(
     }
 
     suspend fun importFrom(source: Uri): GitHubSyncSettingsTransferOutcome = withContext(dispatchers.io) {
-        val currentPassphrase = settingsRepository.exportToMap()[SettingsRegistry.GithubSyncPassphrase.key].orEmpty().toCharArray()
+        val currentPassphrase = settingsRepository.exportToMap(includeNonExportable = true)[SettingsRegistry.GithubSyncPassphrase.key].orEmpty().toCharArray()
         if (currentPassphrase.isEmpty()) return@withContext GitHubSyncSettingsTransferOutcome.MissingPassphrase
         try {
             val input = context.contentResolver.openInputStream(source)

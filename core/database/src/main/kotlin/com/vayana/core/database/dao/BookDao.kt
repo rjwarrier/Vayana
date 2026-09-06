@@ -195,6 +195,21 @@ interface BookDao {
     @Query(
         """
         UPDATE books
+        SET fileAvailability = 'CLOUD_ONLY',
+            filePath = '',
+            updatedAt = :updatedAt
+        WHERE id = :id
+            AND fileAssetId IS NOT NULL
+            AND fileAssetSha256 IS NOT NULL
+            AND fileAssetSizeBytes IS NOT NULL
+            AND fileAssetUploadedAt IS NOT NULL
+        """,
+    )
+    suspend fun removeLocalFile(id: Long, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE books
         SET fileAssetId = :assetId,
             fileAssetSha256 = :assetSha256,
             fileAssetSizeBytes = :assetSizeBytes,

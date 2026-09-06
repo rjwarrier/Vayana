@@ -50,9 +50,11 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { preferences -> preferences.clear() }
     }
 
-    override suspend fun exportToMap(): Map<String, String> {
+    override suspend fun exportToMap(includeNonExportable: Boolean): Map<String, String> {
         val preferences = dataStore.data.first()
-        return SettingsRegistry.all.associate { setting -> setting.key to preferences.read(setting).serializeSettingValue() }
+        return SettingsRegistry.all
+            .filter { setting -> includeNonExportable || setting.isExportable }
+            .associate { setting -> setting.key to preferences.read(setting).serializeSettingValue() }
     }
 
     override suspend fun importFromMap(values: Map<String, String>) {
@@ -146,6 +148,9 @@ private fun Setting<out Any>.preferencesKey(): Preferences.Key<*> = when (this) 
 }
 
 private fun Any.serializeSettingValue(): String = if (this is Enum<*>) name else toString()
+
+private val Setting<out Any>.isExportable: Boolean
+    get() = this !is StringSetting || exportable
 
 private class MutablePreferencesWriter(val preferences: MutablePreferences)
 

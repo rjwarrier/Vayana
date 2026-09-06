@@ -224,6 +224,9 @@ fun BookDetailRoute(
         onRemoveCover = {
             viewModel.removeCover(bookId)
         },
+        onRemoveFromDevice = {
+            viewModel.removeBookFromDevice(bookId)
+        },
         onImportQuotes = { text ->
             viewModel.importQuotes(bookId, text)
         },
@@ -1233,6 +1236,7 @@ private fun BookDetailScreen(
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onRemoveCover: () -> Unit,
+    onRemoveFromDevice: () -> Unit,
     onImportQuotes: (String) -> Unit,
     onImportQuotesFile: (Uri) -> Unit,
     onDetailMessageShown: () -> Unit,
@@ -1247,6 +1251,7 @@ private fun BookDetailScreen(
     var showCoverPreview by remember { mutableStateOf(false) }
     var showImportQuotesDialog by remember { mutableStateOf(false) }
     var showShareBookDialog by remember { mutableStateOf(false) }
+    var showRemoveFromDeviceDialog by remember { mutableStateOf(false) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
@@ -1254,6 +1259,7 @@ private fun BookDetailScreen(
     val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceCover(context.contentResolver, uri)
     }
+    val shareBookTitle = stringResource(R.string.library_share_book)
 
     LaunchedEffect(detailMessageText) {
         val message = detailMessageText ?: return@LaunchedEffect
@@ -1303,21 +1309,21 @@ private fun BookDetailScreen(
                             modifier = Modifier.size(Sizes.iconLarge),
                         )
                     }
-                    if (book.format != BookFormat.PHYSICAL) {
-                    FloatingActionButton(
-                        onClick = { onContinueReading(book.id) },
-                        modifier = Modifier.size(Sizes.fab),
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoStories,
-                            contentDescription = stringResource(R.string.library_continue_reading),
-                            modifier = Modifier.size(Sizes.iconLarge),
-                        )
-                    }
+                    if (book.hasLocalReadableSource()) {
+                        FloatingActionButton(
+                            onClick = { onContinueReading(book.id) },
+                            modifier = Modifier.size(Sizes.fab),
+                            shape = CircleShape,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AutoStories,
+                                contentDescription = stringResource(R.string.library_continue_reading),
+                                modifier = Modifier.size(Sizes.iconLarge),
+                            )
+                        }
                     }
                 }
             }
@@ -1499,11 +1505,19 @@ private fun BookDetailScreen(
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_book), modifier = Modifier.padding(start = Spacing.sm))
                         }
-                        if (book.format != BookFormat.PHYSICAL) {
+                        if (book.hasLocalReadableSource()) {
                             ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Outlined.Share, contentDescription = null)
                                 Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
                             }
+                        }
+                        if (book.canRemoveLocalFileFromDevice()) {
+                            ElevatedButton(onClick = { showRemoveFromDeviceDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Outlined.Delete, contentDescription = null)
+                                Text(text = stringResource(R.string.library_remove_from_device), modifier = Modifier.padding(start = Spacing.sm))
+                            }
+                        }
+                        if (book.format != BookFormat.PHYSICAL) {
                             ElevatedButton(onClick = { sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Outlined.AutoStories, contentDescription = null)
                                 Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
@@ -1544,6 +1558,27 @@ private fun BookDetailScreen(
             },
             title = { Text(stringResource(R.string.library_delete_title)) },
             text = { Text(stringResource(R.string.library_delete_body)) },
+        )
+    }
+
+    if (showRemoveFromDeviceDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveFromDeviceDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRemoveFromDeviceDialog = false
+                        onRemoveFromDevice()
+                    },
+                ) { Text(stringResource(R.string.library_remove_from_device_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveFromDeviceDialog = false }) {
+                    Text(stringResource(R.string.settings_reset_all_cancel))
+                }
+            },
+            title = { Text(stringResource(R.string.library_remove_from_device_title)) },
+            text = { Text(stringResource(R.string.library_remove_from_device_body)) },
         )
     }
 
@@ -1597,7 +1632,7 @@ private fun BookDetailScreen(
             onShareText = {
                 context.shareTextWithChooser(
                     book.toShareText(context),
-                    context.getString(R.string.library_share_book),
+                    shareBookTitle,
                 )
                 showShareBookDialog = false
             },
@@ -2323,6 +2358,9 @@ private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.SOURCE_DUPLICATE -> stringResource(R.string.library_source_duplicate)
     BookDetailMessage.SOURCE_UNSUPPORTED -> stringResource(R.string.library_source_unsupported)
     BookDetailMessage.SOURCE_FAILED -> stringResource(R.string.library_source_failed)
+    BookDetailMessage.LOCAL_FILE_REMOVED -> stringResource(R.string.library_remove_from_device_done)
+    BookDetailMessage.LOCAL_FILE_REMOVE_UNAVAILABLE -> stringResource(R.string.library_remove_from_device_unavailable)
+    BookDetailMessage.LOCAL_FILE_REMOVE_FAILED -> stringResource(R.string.library_remove_from_device_failed)
     is BookDetailMessage.QUOTES_IMPORTED -> stringResource(R.string.library_quotes_imported_message, count)
     BookDetailMessage.MARKED_FINISHED -> stringResource(R.string.library_marked_finished)
 }
@@ -2337,6 +2375,18 @@ private fun android.content.Context.shareBookFile(book: Book) {
     }
     startActivity(Intent.createChooser(intent, getString(R.string.library_share_file)))
 }
+
+private fun Book.hasLocalReadableSource(): Boolean =
+    format != BookFormat.PHYSICAL &&
+        fileAvailability == BookFileAvailability.LOCAL &&
+        filePath.isNotBlank()
+
+private fun Book.canRemoveLocalFileFromDevice(): Boolean =
+    hasLocalReadableSource() &&
+        !fileAssetId.isNullOrBlank() &&
+        !fileAssetSha256.isNullOrBlank() &&
+        fileAssetSizeBytes != null &&
+        fileAssetUploadedAt != null
 
 private fun BookFormat.shareMimeType(): String = when (this) {
     BookFormat.EPUB -> "application/epub+zip"

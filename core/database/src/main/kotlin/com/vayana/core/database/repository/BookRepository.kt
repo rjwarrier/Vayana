@@ -160,6 +160,9 @@ interface BookRepository {
         assetUploadedAt: Long,
     )
 
+    /** Marks a cloud-backed book as file-less on this device. Returns false if no cloud asset is attached. */
+    suspend fun removeLocalFile(id: Long): Boolean
+
     suspend fun markFileAssetUploaded(
         id: Long,
         assetId: String,
