@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -77,11 +79,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.datastore.settings.BooleanSetting
 import com.vayana.core.datastore.settings.ChoiceSetting
@@ -104,6 +108,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
+
+private val SettingsPagePadding = 20.dp
+private val SettingsContentMaxWidth = 840.dp
+private val SettingsTwoColumnBreakpoint = 680.dp
+private val SettingsCategoryBadgeSize = 42.dp
 
 @Composable
 fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -175,7 +184,7 @@ private fun SettingsScreen(
                 title = {
                     Text(
                         text = selectedGroup?.let { stringResource(it.titleRes) } ?: stringResource(R.string.settings_title),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                     )
                 },
                 navigationIcon = {
@@ -468,49 +477,66 @@ private fun SettingsHub(
     onPickRestoreFile: (Uri) -> Unit,
     onDismissBackupState: () -> Unit,
 ) {
+    val categoryEntries = SettingsGroup.entries.mapNotNull { group ->
+        val settingCount = SettingsRegistry.all.count { it.group == group }
+        if (settingCount > 0) group to settingCount else null
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = Paddings.screenHorizontal,
-            top = contentPadding.calculateTopPadding(),
-            end = Paddings.screenHorizontal,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+            start = SettingsPagePadding,
+            top = contentPadding.calculateTopPadding() + SettingsPagePadding,
+            end = SettingsPagePadding,
+            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
     ) {
         item {
-            SettingsSearchField(query = query, onQueryChange = onQueryChange)
+            SettingsContentContainer {
+                SettingsSearchField(query = query, onQueryChange = onQueryChange)
+            }
         }
         if (query.isBlank()) {
-            item { SettingsProfileCard(settings = settings) }
             item {
-                BackupRestoreCard(
-                    backupState = backupState,
-                    onCreateBackup = onCreateBackup,
-                    onPickRestoreFile = onPickRestoreFile,
-                    onDismissBackupState = onDismissBackupState,
-                )
+                SettingsContentContainer {
+                    SettingsProfileCard(settings = settings)
+                }
             }
-            items(SettingsGroup.entries, key = { it.name }) { group ->
-                val groupSettings = SettingsRegistry.all.filter { it.group == group }
-                if (groupSettings.isNotEmpty()) {
-                    SettingsGroupCard(
-                        group = group,
-                        settingCount = groupSettings.size,
-                        onClick = { onGroupSelected(group) },
+            item {
+                SettingsContentContainer {
+                    BackupRestoreCard(
+                        backupState = backupState,
+                        onCreateBackup = onCreateBackup,
+                        onPickRestoreFile = onPickRestoreFile,
+                        onDismissBackupState = onDismissBackupState,
+                    )
+                }
+            }
+            item {
+                SettingsContentContainer {
+                    SettingsCategoryCards(
+                        categoryEntries = categoryEntries,
+                        onGroupSelected = onGroupSelected,
                     )
                 }
             }
         } else if (visibleSettings.isEmpty()) {
-            item { SettingsNoMatches() }
+            item {
+                SettingsContentContainer {
+                    SettingsNoMatches()
+                }
+            }
         } else {
             items(visibleSettings, key = { it.key }) { setting ->
-                SettingRow(
-                    setting = setting,
-                    value = settings.valueFor(setting),
-                    onUpdate = onUpdate,
-                    onReset = onReset,
-                )
+                SettingsContentContainer {
+                    SettingRow(
+                        setting = setting,
+                        value = settings.valueFor(setting),
+                        onUpdate = onUpdate,
+                        onReset = onReset,
+                    )
+                }
             }
         }
     }
@@ -535,42 +561,93 @@ private fun SettingsGroupDetail(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = Paddings.screenHorizontal,
-            top = contentPadding.calculateTopPadding(),
-            end = Paddings.screenHorizontal,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+            start = SettingsPagePadding,
+            top = contentPadding.calculateTopPadding() + SettingsPagePadding,
+            end = SettingsPagePadding,
+            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
     ) {
         if (group != null) {
             item {
-                SettingsGroupHero(group = group, settingCount = groupSettings.size)
+                SettingsContentContainer {
+                    SettingsGroupHero(group = group, settingCount = groupSettings.size)
+                }
             }
         }
         items(groupSettings, key = { it.key }) { setting ->
-            SettingRow(
-                setting = setting,
-                value = settings.valueFor(setting),
-                onUpdate = onUpdate,
-                onReset = onReset,
-            )
+            SettingsContentContainer {
+                SettingRow(
+                    setting = setting,
+                    value = settings.valueFor(setting),
+                    onUpdate = onUpdate,
+                    onReset = onReset,
+                )
+            }
         }
         if (group == SettingsGroup.SYNC) {
             item {
-                GitHubConnectionTestCard(
-                    state = githubConnectionTestState,
-                    onTest = onTestGitHubConnection,
-                    onDismiss = onDismissGitHubConnectionTestState,
-                )
+                SettingsContentContainer {
+                    GitHubConnectionTestCard(
+                        state = githubConnectionTestState,
+                        onTest = onTestGitHubConnection,
+                        onDismiss = onDismissGitHubConnectionTestState,
+                    )
+                }
             }
             item {
-                GitHubSyncSettingsTransferCard(
-                    state = githubSyncSettingsTransferState,
-                    onExport = onExportGitHubSyncSettings,
-                    onImport = onImportGitHubSyncSettings,
-                    onDismiss = onDismissGitHubSyncSettingsTransferState,
-                )
+                SettingsContentContainer {
+                    GitHubSyncSettingsTransferCard(
+                        state = githubSyncSettingsTransferState,
+                        onExport = onExportGitHubSyncSettings,
+                        onImport = onImportGitHubSyncSettings,
+                        onDismiss = onDismissGitHubSyncSettingsTransferState,
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsCategoryCards(
+    categoryEntries: List<Pair<SettingsGroup, Int>>,
+    onGroupSelected: (SettingsGroup) -> Unit,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth >= SettingsTwoColumnBreakpoint) 2 else 1
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+            categoryEntries.chunked(columns).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+                ) {
+                    row.forEach { (group, settingCount) ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            SettingsGroupCard(
+                                group = group,
+                                settingCount = settingCount,
+                                onClick = { onGroupSelected(group) },
+                            )
+                        }
+                    }
+                    repeat(columns - row.size) {
+                        Box(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsContentContainer(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(modifier = Modifier.widthIn(max = SettingsContentMaxWidth)) {
+            content()
         }
     }
 }
@@ -584,9 +661,9 @@ private fun GitHubConnectionTestCard(
     val working = state is GitHubConnectionTestState.Working
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLarge),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
     ) {
         Column(
             modifier = Modifier
@@ -675,9 +752,9 @@ private fun GitHubSyncSettingsTransferCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLarge),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
     ) {
         Column(
             modifier = Modifier
@@ -761,9 +838,9 @@ private fun GitHubSyncSettingsTransferCard(
 private fun SettingsGroupHero(group: SettingsGroup, settingCount: Int) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLargeIncreased),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
     ) {
         Row(
             modifier = Modifier.padding(Paddings.card),
@@ -787,7 +864,7 @@ private fun SettingsGroupHero(group: SettingsGroup, settingCount: Int) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(group.titleRes),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
@@ -842,9 +919,9 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
 private fun SettingsProfileCard(settings: SettingsSnapshot) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLargeIncreased),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
     ) {
         Column(
             modifier = Modifier.padding(Paddings.card),
@@ -933,9 +1010,9 @@ private fun BackupRestoreCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLargeIncreased),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
     ) {
         Column(
             modifier = Modifier
@@ -1075,11 +1152,11 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radii.extraLarge))
+            .clip(RoundedCornerShape(Radii.large))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(Radii.extraLarge),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
     ) {
         Row(
             modifier = Modifier.padding(Paddings.card),
@@ -1087,23 +1164,23 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Surface(
-                modifier = Modifier.size(Sizes.touchTarget),
-                shape = RoundedCornerShape(Radii.large),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(SettingsCategoryBadgeSize),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                contentColor = MaterialTheme.colorScheme.primary,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = group.icon(),
                         contentDescription = null,
-                        modifier = Modifier.size(Sizes.icon),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(group.titleRes),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1134,7 +1211,7 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = stringResource(R.string.settings_category_open_content_description),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 )
             }
         }
@@ -1207,7 +1284,7 @@ private fun SettingRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.largeIncreased),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = Elevations.none,
     ) {
         Column(
