@@ -810,7 +810,7 @@ private fun ReaderSessionHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(start = Spacing.md, top = readerHeaderTopPadding),
+            .padding(start = readerHeaderHorizontalPadding, top = readerHeaderTopPadding),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
@@ -836,7 +836,7 @@ private fun ReaderTimeLeftHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
-            .padding(end = Spacing.md, top = readerHeaderTopPadding)
+            .padding(end = readerHeaderHorizontalPadding, top = readerHeaderTopPadding)
             .clickable(onClick = onToggle),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -2119,7 +2119,8 @@ private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/eng
 private const val VolumeKeyLongPressMillis = 500L
 private const val EinkFullRefreshEveryPages = 6
 private const val EinkFlashDurationMillis = 120L
-private val readerHeaderTopPadding = Spacing.lg
+private val readerHeaderTopPadding = Spacing.xxxl + Spacing.md
+private val readerHeaderHorizontalPadding = Spacing.xl
 
 /** Below this width, landscape stays a single reader pane - matches Library's tablet-landscape breakpoint. */
 private const val TabletLandscapeMinWidthDp = 600
