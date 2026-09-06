@@ -41,8 +41,11 @@ interface BookDao {
     @Query("DELETE FROM books WHERE id = :id AND isDeleted = 1")
     suspend fun purge(id: Long)
 
-    @Query("UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, updatedAt: Long)
+    @Query("UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, tagsCsv = :tagsCsv, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?, updatedAt: Long)
+
+    @Query("UPDATE books SET rating = :rating, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateRating(id: Long, rating: Float, updatedAt: Long)
 
     @Query(
         """

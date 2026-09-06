@@ -27,6 +27,7 @@ data class PortableCloudBook(
     val series: String?,
     val seriesNumber: String?,
     val description: String?,
+    val tagsCsv: String?,
     val format: String,
     val fileHash: String,
     val fileAsset: PortableAsset,
@@ -77,6 +78,7 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                     series = book.optBoundedString("series", MaxTitleChars),
                     seriesNumber = book.optBoundedString("seriesNumber", MaxTitleChars),
                     description = book.optBoundedString("description", MaxDescriptionChars),
+                    tagsCsv = book.optBoundedString("tagsCsv", MaxTagsCsvChars),
                     format = format,
                     fileHash = fileHash,
                     fileAsset = asset,
@@ -178,6 +180,7 @@ private const val MaxLocatorChars = 16_384
 private const val MaxDeviceLabelChars = 120
 private const val MaxTitleChars = 512
 private const val MaxDescriptionChars = 16_384
+private const val MaxTagsCsvChars = 2_048
 private const val MaxFormatChars = 32
 private const val MaxAssetIdChars = 128
 private const val MaxSha256Chars = 128

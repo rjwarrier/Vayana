@@ -37,6 +37,7 @@ data class CloudBookRecord(
     val series: String?,
     val seriesNumber: String?,
     val description: String?,
+    val tagsCsv: String?,
     val format: BookFormat,
     val fileHash: String,
     val assetId: String,
@@ -99,7 +100,9 @@ interface BookRepository {
 
     suspend fun recordBookOpened(id: Long)
 
-    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?)
+    suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?)
+
+    suspend fun updateRating(id: Long, rating: Float)
 
     suspend fun updateCover(id: Long, coverPath: String?)
 

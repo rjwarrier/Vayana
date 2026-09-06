@@ -96,8 +96,12 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.recordBookOpened(id, System.currentTimeMillis())
     }
 
-    override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?) {
-        bookDao.updateMetadata(id, title, author, series, seriesNumber, description, System.currentTimeMillis())
+    override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?) {
+        bookDao.updateMetadata(id, title, author, series, seriesNumber, description, tagsCsv, System.currentTimeMillis())
+    }
+
+    override suspend fun updateRating(id: Long, rating: Float) {
+        bookDao.updateRating(id, rating.coerceIn(0f, 5f), System.currentTimeMillis())
     }
 
     override suspend fun updateCover(id: Long, coverPath: String?) {
@@ -124,6 +128,7 @@ class BookRepositoryImpl @Inject constructor(
             series = series,
             seriesNumber = seriesNumber,
             description = description,
+            tagsCsv = null,
             coverPath = coverPath,
             filePath = filePath,
             fileAvailability = BookFileAvailability.LOCAL.name,
@@ -351,6 +356,7 @@ internal fun BookEntity.toDomain(): Book = Book(
     series = series,
     seriesNumber = seriesNumber,
     description = description,
+    tagsCsv = tagsCsv,
     coverPath = coverPath,
     filePath = filePath,
     fileAvailability = runCatching { BookFileAvailability.valueOf(fileAvailability) }.getOrDefault(BookFileAvailability.LOCAL),
@@ -389,6 +395,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         series = series,
         seriesNumber = seriesNumber,
         description = description,
+        tagsCsv = tagsCsv,
         coverPath = coverPath,
         filePath = "",
         fileAvailability = BookFileAvailability.CLOUD_ONLY.name,

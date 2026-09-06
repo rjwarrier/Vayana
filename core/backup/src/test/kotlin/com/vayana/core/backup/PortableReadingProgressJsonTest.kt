@@ -81,6 +81,7 @@ class PortableReadingProgressJsonTest {
                   "syncId": "book-cloud",
                   "title": "Remote Book",
                   "author": "Writer",
+                  "tagsCsv": "sci-fi, favorite",
                   "format": "EPUB",
                   "fileHash": "hash-cloud",
                   "fileAsset": {
@@ -111,6 +112,7 @@ class PortableReadingProgressJsonTest {
         assertEquals(1, books.size)
         assertEquals("book-cloud", books.single().syncId)
         assertEquals("Remote Book", books.single().title)
+        assertEquals("sci-fi, favorite", books.single().tagsCsv)
         assertEquals("abcdEFGH1234_wxyz", books.single().fileAsset.id)
         assertEquals("coverEFGH1234_wxyz", books.single().coverAsset?.id)
         assertEquals(0.35f, books.single().readingPercent)

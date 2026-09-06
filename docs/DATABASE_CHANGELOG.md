@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 12
+Adds comma-separated book tags:
+
+- `books` gains nullable `tagsCsv` for user-entered tags. Existing books migrate with no tags.
+- Tags are normalized on metadata save and exported in portable book metadata for backup/sync.
+
 ## Version 11
 Adds cloud-backed file state for GitHub sync:
 

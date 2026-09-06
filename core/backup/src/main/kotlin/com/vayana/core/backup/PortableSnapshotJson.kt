@@ -27,6 +27,7 @@ private fun PortableBook.toJson(): JSONObject =
         .putOptional("series", series)
         .putOptional("seriesNumber", seriesNumber)
         .putOptional("description", description)
+        .putOptional("tagsCsv", tagsCsv)
         .put("format", format)
         .put("fileHash", fileHash)
         .put("fileAvailability", fileAvailability)

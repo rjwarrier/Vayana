@@ -35,9 +35,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
@@ -60,6 +62,7 @@ import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
@@ -106,6 +109,7 @@ import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.designsystem.sharecard.BookShareCard
 import com.vayana.core.designsystem.sharecard.ShareCardDialog
+import com.vayana.core.designsystem.sharecard.ShareCardTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -114,6 +118,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -212,8 +218,11 @@ fun BookDetailRoute(
         onSetReadNext = { queued -> viewModel.setReadNext(bookId, queued) },
         onBack = onBack,
         onContinueReading = onContinueReading,
-        onUpdateMetadata = { title, author, series, seriesNumber, description ->
-            viewModel.updateMetadata(bookId, title, author, series, seriesNumber, description)
+        onUpdateMetadata = { title, author, series, seriesNumber, description, tagsCsv ->
+            viewModel.updateMetadata(bookId, title, author, series, seriesNumber, description, tagsCsv)
+        },
+        onUpdateRating = { rating ->
+            viewModel.updateRating(bookId, rating)
         },
         onReplaceSource = { contentResolver, uri ->
             viewModel.replaceSource(bookId, contentResolver, uri)
@@ -506,7 +515,10 @@ private fun AddPhysicalBookDialog(onDismiss: () -> Unit, onConfirm: (String, Str
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.library_add_physical_book_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
                 Text(
                     text = stringResource(R.string.library_add_physical_book_hint),
                     style = MaterialTheme.typography.bodyMedium,
@@ -1218,6 +1230,19 @@ private fun BookCoverCell(
     }
 }
 
+private data class BookShareImageOptions(
+    val theme: ShareCardTheme = ShareCardTheme.LIGHT,
+    val showCover: Boolean = true,
+    val showAuthor: Boolean = true,
+    val showStatus: Boolean = true,
+    val showProgress: Boolean = true,
+    val showReadTime: Boolean = true,
+    val showRating: Boolean = true,
+    val showTags: Boolean = true,
+    val showImportedDate: Boolean = true,
+    val showTagline: Boolean = true,
+)
+
 @Composable
 private fun BookDetailScreen(
     modifier: Modifier = Modifier,
@@ -1232,7 +1257,8 @@ private fun BookDetailScreen(
     onSetReadNext: (Boolean) -> Unit,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
-    onUpdateMetadata: (String, String, String, String, String) -> Unit,
+    onUpdateMetadata: (String, String, String, String, String, String) -> Unit,
+    onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onRemoveCover: () -> Unit,
@@ -1252,6 +1278,8 @@ private fun BookDetailScreen(
     var showImportQuotesDialog by remember { mutableStateOf(false) }
     var showShareBookDialog by remember { mutableStateOf(false) }
     var showRemoveFromDeviceDialog by remember { mutableStateOf(false) }
+    var actionsExpanded by remember { mutableStateOf(false) }
+    var shareImageOptions by remember { mutableStateOf(BookShareImageOptions()) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
@@ -1287,6 +1315,89 @@ private fun BookDetailScreen(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(start = Spacing.sm),
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                if (book != null) {
+                    Box {
+                        IconButton(onClick = { actionsExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.MoreVert,
+                                contentDescription = stringResource(R.string.library_book_actions_content_description),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = actionsExpanded,
+                            onDismissRequest = { actionsExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_import_quotes)) },
+                                leadingIcon = { Icon(Icons.Outlined.EditNote, contentDescription = null) },
+                                onClick = {
+                                    actionsExpanded = false
+                                    showImportQuotesDialog = true
+                                },
+                            )
+                            if (book.hasLocalReadableSource()) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_share_file)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
+                                    onClick = {
+                                        actionsExpanded = false
+                                        context.shareBookFile(book)
+                                    },
+                                )
+                            }
+                            if (book.canRemoveLocalFileFromDevice()) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_remove_from_device)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                                    onClick = {
+                                        actionsExpanded = false
+                                        showRemoveFromDeviceDialog = true
+                                    },
+                                )
+                            }
+                            if (book.format != BookFormat.PHYSICAL) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_replace_source_file)) },
+                                    leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
+                                    onClick = {
+                                        actionsExpanded = false
+                                        sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*"))
+                                    },
+                                )
+                            }
+                            if (book.finishedReadingAt == null && book.readingPercent < 1f) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_mark_finished)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Check, contentDescription = null) },
+                                    onClick = {
+                                        actionsExpanded = false
+                                        onMarkFinished()
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(R.string.library_delete_book),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                onClick = {
+                                    actionsExpanded = false
+                                    showDeleteDialog = true
+                                },
+                            )
+                        }
+                    }
+                }
             }
         },
         floatingActionButton = {
@@ -1386,6 +1497,15 @@ private fun BookDetailScreen(
                                     modifier = Modifier.padding(top = Spacing.xs),
                                 )
                             }
+                            BookRatingRow(
+                                rating = book.rating,
+                                onRatingChange = onUpdateRating,
+                                modifier = Modifier.padding(top = Spacing.sm),
+                            )
+                            BookTagsRow(
+                                tags = book.tags(),
+                                modifier = Modifier.padding(top = Spacing.sm),
+                            )
                             Surface(
                                 modifier = Modifier.padding(top = Spacing.md),
                                 shape = MaterialTheme.shapes.small,
@@ -1487,7 +1607,7 @@ private fun BookDetailScreen(
                         if (book.format != BookFormat.PHYSICAL) {
                             val isQueued = book.readNextAddedAt != null
                             ElevatedButton(onClick = { onSetReadNext(!isQueued) }, modifier = Modifier.fillMaxWidth()) {
-                                Icon(if (isQueued) Icons.Outlined.Check else Icons.Outlined.PlaylistAdd, contentDescription = null)
+                                Icon(if (isQueued) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.PlaylistAdd, contentDescription = null)
                                 Text(
                                     text = stringResource(if (isQueued) R.string.library_read_next_remove else R.string.library_read_next_add),
                                     modifier = Modifier.padding(start = Spacing.sm),
@@ -1504,34 +1624,6 @@ private fun BookDetailScreen(
                         ElevatedButton(onClick = { showShareBookDialog = true }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Text(text = stringResource(R.string.library_share_book), modifier = Modifier.padding(start = Spacing.sm))
-                        }
-                        if (book.hasLocalReadableSource()) {
-                            ElevatedButton(onClick = { context.shareBookFile(book) }, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Outlined.Share, contentDescription = null)
-                                Text(text = stringResource(R.string.library_share_file), modifier = Modifier.padding(start = Spacing.sm))
-                            }
-                        }
-                        if (book.canRemoveLocalFileFromDevice()) {
-                            ElevatedButton(onClick = { showRemoveFromDeviceDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Outlined.Delete, contentDescription = null)
-                                Text(text = stringResource(R.string.library_remove_from_device), modifier = Modifier.padding(start = Spacing.sm))
-                            }
-                        }
-                        if (book.format != BookFormat.PHYSICAL) {
-                            ElevatedButton(onClick = { sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Outlined.AutoStories, contentDescription = null)
-                                Text(text = stringResource(R.string.library_replace_source_file), modifier = Modifier.padding(start = Spacing.sm))
-                            }
-                        }
-                        if (book.finishedReadingAt == null && book.readingPercent < 1f) {
-                            ElevatedButton(onClick = onMarkFinished, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Outlined.Check, contentDescription = null)
-                                Text(text = stringResource(R.string.library_mark_finished), modifier = Modifier.padding(start = Spacing.sm))
-                            }
-                        }
-                        TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.Delete, contentDescription = null)
-                            Text(text = stringResource(R.string.library_delete_book), modifier = Modifier.padding(start = Spacing.sm))
                         }
                     }
                 }
@@ -1587,9 +1679,9 @@ private fun BookDetailScreen(
             book = book,
             libraryBooks = libraryBooks,
             onDismiss = { showEditDialog = false },
-            onSave = { title, author, series, seriesNumber ->
+            onSave = { title, author, series, seriesNumber, tagsCsv ->
                 showEditDialog = false
-                onUpdateMetadata(title, author, series, seriesNumber, book.description.orEmpty())
+                onUpdateMetadata(title, author, series, seriesNumber, book.description.orEmpty(), tagsCsv)
             },
         )
     }
@@ -1600,7 +1692,7 @@ private fun BookDetailScreen(
             onDismiss = { showEditDescriptionDialog = false },
             onSave = { description ->
                 showEditDescriptionDialog = false
-                onUpdateMetadata(book.title, book.author.orEmpty(), book.series.orEmpty(), book.seriesNumber.orEmpty(), description)
+                onUpdateMetadata(book.title, book.author.orEmpty(), book.series.orEmpty(), book.seriesNumber.orEmpty(), description, book.tagsCsv.orEmpty())
             },
         )
     }
@@ -1639,6 +1731,15 @@ private fun BookDetailScreen(
             chooserTitle = stringResource(R.string.share_card_image_chooser_title),
             shareTextLabel = stringResource(R.string.share_card_share_text),
             shareImageLabel = stringResource(R.string.share_card_share_image),
+            shareImageOptionsDialog = { onDismiss, onShareImage, isCapturing ->
+                BookShareImageOptionsDialog(
+                    options = shareImageOptions,
+                    onOptionsChange = { shareImageOptions = it },
+                    onDismiss = onDismiss,
+                    onShareImage = onShareImage,
+                    isCapturing = isCapturing,
+                )
+            },
         ) {
             val readSeconds = book.totalReadingSeconds
             BookShareCard(
@@ -1653,12 +1754,265 @@ private fun BookDetailScreen(
                 stat1Label = stringResource(R.string.share_card_stat_progress_label),
                 stat2Value = stringResource(R.string.share_card_stat_hours, (readSeconds / 3600).toInt(), ((readSeconds % 3600) / 60).toInt()),
                 stat2Label = stringResource(R.string.share_card_stat_read_time_label),
+                ratingValue = book.rating.takeIf { it > 0f }?.let { stringResource(R.string.share_card_stat_rating_value, it) },
+                ratingLabel = stringResource(R.string.share_card_stat_rating_label),
+                tags = book.tags(),
                 footerLeft = stringResource(R.string.library_imported_on, book.createdAt.formatDate()),
                 footerRight = stringResource(R.string.share_card_tagline),
                 watermark = stringResource(R.string.share_card_watermark),
+                theme = shareImageOptions.theme,
+                showCover = shareImageOptions.showCover,
+                showAuthor = shareImageOptions.showAuthor,
+                showStatus = shareImageOptions.showStatus,
+                showProgress = shareImageOptions.showProgress,
+                showReadTime = shareImageOptions.showReadTime,
+                showRating = shareImageOptions.showRating,
+                showTags = shareImageOptions.showTags,
+                showImportedDate = shareImageOptions.showImportedDate,
+                showTagline = shareImageOptions.showTagline,
             ) {
                 BookCover(book = book)
             }
+        }
+    }
+}
+
+@Composable
+private fun BookShareImageOptionsDialog(
+    options: BookShareImageOptions,
+    onOptionsChange: (BookShareImageOptions) -> Unit,
+    onDismiss: () -> Unit,
+    onShareImage: () -> Unit,
+    isCapturing: Boolean,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.share_card_image_options_title)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Text(
+                    text = stringResource(R.string.share_card_image_options_theme),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    FilterChip(
+                        selected = options.theme == ShareCardTheme.LIGHT,
+                        onClick = { onOptionsChange(options.copy(theme = ShareCardTheme.LIGHT)) },
+                        label = { Text(stringResource(R.string.share_card_image_options_light)) },
+                    )
+                    FilterChip(
+                        selected = options.theme == ShareCardTheme.DARK,
+                        onClick = { onOptionsChange(options.copy(theme = ShareCardTheme.DARK)) },
+                        label = { Text(stringResource(R.string.share_card_image_options_dark)) },
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.share_card_image_options_include),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                ShareImageOptionRow(
+                    checked = options.showCover,
+                    label = stringResource(R.string.share_card_image_options_cover),
+                    onCheckedChange = { onOptionsChange(options.copy(showCover = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showAuthor,
+                    label = stringResource(R.string.share_card_image_options_author),
+                    onCheckedChange = { onOptionsChange(options.copy(showAuthor = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showStatus,
+                    label = stringResource(R.string.share_card_image_options_status),
+                    onCheckedChange = { onOptionsChange(options.copy(showStatus = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showProgress,
+                    label = stringResource(R.string.share_card_image_options_progress),
+                    onCheckedChange = { onOptionsChange(options.copy(showProgress = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showReadTime,
+                    label = stringResource(R.string.share_card_image_options_read_time),
+                    onCheckedChange = { onOptionsChange(options.copy(showReadTime = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showRating,
+                    label = stringResource(R.string.share_card_image_options_rating),
+                    onCheckedChange = { onOptionsChange(options.copy(showRating = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showTags,
+                    label = stringResource(R.string.share_card_image_options_tags),
+                    onCheckedChange = { onOptionsChange(options.copy(showTags = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showImportedDate,
+                    label = stringResource(R.string.share_card_image_options_imported_date),
+                    onCheckedChange = { onOptionsChange(options.copy(showImportedDate = it)) },
+                )
+                ShareImageOptionRow(
+                    checked = options.showTagline,
+                    label = stringResource(R.string.share_card_image_options_tagline),
+                    onCheckedChange = { onOptionsChange(options.copy(showTagline = it)) },
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onShareImage, enabled = !isCapturing) {
+                if (isCapturing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(Sizes.iconSmall),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text(stringResource(R.string.share_card_share_image))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShareImageOptionRow(
+    checked: Boolean,
+    label: String,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun BookRatingRow(
+    rating: Float,
+    onRatingChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val normalizedRating = ((rating * 2f).roundToInt() / 2f).coerceIn(0f, 5f)
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.library_rating_label),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = if (normalizedRating > 0f) {
+                    stringResource(R.string.library_rating_value, normalizedRating)
+                } else {
+                    stringResource(R.string.library_rating_unrated)
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            repeat(5) { index ->
+                val starNumber = index + 1
+                HalfStepStar(
+                    rating = normalizedRating,
+                    starNumber = starNumber,
+                    onRatingChange = onRatingChange,
+                )
+            }
+            if (normalizedRating > 0f) {
+                TextButton(onClick = { onRatingChange(0f) }) {
+                    Text(stringResource(R.string.library_rating_clear))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookTagsRow(
+    tags: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    if (tags.isEmpty()) return
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        tags.forEach { tag ->
+            Surface(
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            ) {
+                Text(
+                    text = tag,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HalfStepStar(
+    rating: Float,
+    starNumber: Int,
+    onRatingChange: (Float) -> Unit,
+) {
+    val halfRating = starNumber - 0.5f
+    val fullRating = starNumber.toFloat()
+    val halfLabel = stringResource(R.string.library_rating_set_content_description, halfRating)
+    val fullLabel = stringResource(R.string.library_rating_set_content_description, fullRating)
+    Box(
+        modifier = Modifier
+            .size(Sizes.touchTarget),
+        contentAlignment = Alignment.Center,
+    ) {
+        val icon = when {
+            rating >= fullRating -> Icons.Filled.Star
+            rating >= halfRating -> Icons.AutoMirrored.Filled.StarHalf
+            else -> Icons.Outlined.StarBorder
+        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (rating >= halfRating) Palette.Gold500 else MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(Sizes.iconLarge),
+        )
+        Row(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .clickable(onClickLabel = halfLabel) { onRatingChange(halfRating) },
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .clickable(onClickLabel = fullLabel) { onRatingChange(fullRating) },
+            )
         }
     }
 }
@@ -1792,14 +2146,16 @@ private fun EditMetadataDialog(
     book: Book,
     libraryBooks: List<Book>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit,
+    onSave: (String, String, String, String, String) -> Unit,
 ) {
     var title by remember(book.id) { mutableStateOf(book.title) }
     var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
     var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
     var seriesNumber by remember(book.id) { mutableStateOf(book.seriesNumber.orEmpty()) }
+    var tagsCsv by remember(book.id) { mutableStateOf(book.tagsCsv.orEmpty()) }
     val authorSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.author } }
     val seriesSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.series } }
+    val tagSuggestions = remember(libraryBooks) { libraryBooks.flatMap { it.tags() }.distinctSortedIgnoreCase() }
     val duplicateSeriesNumber = remember(book.id, libraryBooks, series, seriesNumber) {
         libraryBooks.hasSeriesNumberCollision(
             currentBookId = book.id,
@@ -1942,6 +2298,13 @@ private fun EditMetadataDialog(
                     }
                 }
 
+                TagSuggestionField(
+                    value = tagsCsv,
+                    onValueChange = { tagsCsv = it },
+                    suggestions = tagSuggestions,
+                    textFieldColors = textFieldColors,
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1956,7 +2319,7 @@ private fun EditMetadataDialog(
                         Text(stringResource(R.string.library_edit_metadata_cancel))
                     }
                     Button(
-                        onClick = { onSave(title, author, series, seriesNumber) },
+                        onClick = { onSave(title, author, series, seriesNumber, tagsCsv) },
                         enabled = canSave,
                         shape = RoundedCornerShape(Radii.full),
                     ) {
@@ -2133,6 +2496,82 @@ private fun MetadataSuggestionField(
                         onClick = {
                             onValueChange(suggestion)
                             expanded = false
+                        },
+                        label = {
+                            Text(
+                                text = suggestion,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        shape = RoundedCornerShape(Radii.full),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagSuggestionField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    suggestions: List<String>,
+    textFieldColors: androidx.compose.material3.TextFieldColors,
+    modifier: Modifier = Modifier,
+) {
+    val focusRequester = remember { FocusRequester() }
+    val matches = remember(value, suggestions) { suggestions.matchingTagSuggestions(value) }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
+            label = { Text(stringResource(R.string.library_edit_metadata_tags_label)) },
+            supportingText = { Text(stringResource(R.string.library_edit_metadata_tags_supporting)) },
+            singleLine = true,
+            shape = RoundedCornerShape(Radii.medium),
+            colors = textFieldColors,
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Category,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingIcon = {
+                if (value.isNotEmpty()) {
+                    IconButton(onClick = {
+                        onValueChange("")
+                        focusRequester.requestFocus()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.input_clear_content_description),
+                        )
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+        )
+
+        if (matches.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                matches.take(6).forEach { suggestion ->
+                    SuggestionChip(
+                        onClick = {
+                            onValueChange(value.withCurrentTagSuggestion(suggestion))
+                            focusRequester.requestFocus()
                         },
                         label = {
                             Text(
@@ -2351,6 +2790,7 @@ private fun GitHubSyncProgressState.statusFor(step: GitHubSyncProgressStep): Git
 @Composable
 private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.METADATA_SAVED -> stringResource(R.string.library_metadata_saved)
+    BookDetailMessage.RATING_SAVED -> stringResource(R.string.library_rating_saved)
     BookDetailMessage.COVER_UPDATED -> stringResource(R.string.library_cover_updated)
     BookDetailMessage.COVER_REMOVED -> stringResource(R.string.library_cover_removed)
     BookDetailMessage.COVER_FAILED -> stringResource(R.string.library_cover_failed)
@@ -2412,6 +2852,40 @@ private fun List<String>.matchingMetadataSuggestions(value: String): List<String
     }.filterNot { suggestion ->
         suggestion.equals(query, ignoreCase = true)
     }.take(MetadataSuggestionLimit)
+}
+
+private fun List<String>.matchingTagSuggestions(value: String): List<String> {
+    val existingTags = value.tags().map { it.metadataKey() }.toSet()
+    val query = value.substringAfterLast(',').trim()
+    if (query.isEmpty()) return emptyList()
+    return filter { suggestion ->
+        suggestion.contains(query, ignoreCase = true) &&
+            suggestion.metadataKey() !in existingTags &&
+            !suggestion.equals(query, ignoreCase = true)
+    }.take(TagSuggestionLimit)
+}
+
+private fun List<String>.distinctSortedIgnoreCase(): List<String> =
+    map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.metadataKey() }
+        .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
+private fun Book.tags(): List<String> = tagsCsv.orEmpty().tags()
+
+private fun String.tags(): List<String> =
+    split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
+private fun String.withCurrentTagSuggestion(suggestion: String): String {
+    val before = substringBeforeLast(',', missingDelimiterValue = "")
+    val prefix = before.trim().takeIf { it.isNotEmpty() }
+    return if (contains(',') && prefix != null) {
+        "$prefix, $suggestion, "
+    } else {
+        "$suggestion, "
+    }
 }
 
 private fun List<Book>.hasSeriesNumberCollision(currentBookId: Long, series: String, seriesNumber: String): Boolean {
@@ -2582,6 +3056,7 @@ private fun Book.hasStartedReading(): Boolean =
     startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
 
 private const val MetadataSuggestionLimit = 5
+private const val TagSuggestionLimit = 6
 private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f
 

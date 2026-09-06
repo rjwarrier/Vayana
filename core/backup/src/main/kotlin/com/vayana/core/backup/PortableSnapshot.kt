@@ -22,6 +22,7 @@ data class PortableBook(
     val series: String?,
     val seriesNumber: String?,
     val description: String?,
+    val tagsCsv: String?,
     val format: String,
     val fileHash: String,
     val fileAvailability: String,

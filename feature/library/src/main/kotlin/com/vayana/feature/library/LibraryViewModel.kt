@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
@@ -67,6 +68,7 @@ enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSU
 
 sealed interface BookDetailMessage {
     data object METADATA_SAVED : BookDetailMessage
+    data object RATING_SAVED : BookDetailMessage
     data object COVER_UPDATED : BookDetailMessage
     data object COVER_REMOVED : BookDetailMessage
     data object COVER_FAILED : BookDetailMessage
@@ -325,7 +327,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { bookRepository.setReadNext(bookId, queued) }
     }
 
-    fun updateMetadata(bookId: Long, title: String, author: String, series: String, seriesNumber: String, description: String) {
+    fun updateMetadata(bookId: Long, title: String, author: String, series: String, seriesNumber: String, description: String, tagsCsv: String) {
         val normalizedTitle = title.trim()
         if (normalizedTitle.isBlank()) return
         viewModelScope.launch {
@@ -336,8 +338,17 @@ class LibraryViewModel @Inject constructor(
                 series = series.trim().ifBlank { null },
                 seriesNumber = seriesNumber.trim().ifBlank { null },
                 description = description.trim().ifBlank { null },
+                tagsCsv = tagsCsv.normalizedTagsCsv(),
             )
             _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
+        }
+    }
+
+    fun updateRating(bookId: Long, rating: Float) {
+        val normalizedRating = ((rating * 2f).roundToInt() / 2f).coerceIn(0f, 5f)
+        viewModelScope.launch {
+            bookRepository.updateRating(bookId, normalizedRating)
+            _bookDetailMessage.value = BookDetailMessage.RATING_SAVED
         }
     }
 
@@ -1192,6 +1203,7 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         series = series,
         seriesNumber = seriesNumber,
         description = description,
+        tagsCsv = tagsCsv,
         format = format,
         fileHash = fileHash,
         assetId = fileAsset.id,
@@ -1348,9 +1360,18 @@ private fun List<Book>.filterByQuery(query: String): List<Book> {
             book.author.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
             book.series.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
             book.seriesNumber.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
+            book.tagsCsv.orEmpty().contains(normalizedQuery, ignoreCase = true) ||
             book.description.orEmpty().contains(normalizedQuery, ignoreCase = true)
     }
 }
+
+private fun String.normalizedTagsCsv(): String? =
+    split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
+        .joinToString(", ")
+        .ifBlank { null }
 
 private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
     LibrarySort.IMPORT_DATE -> sortedWith(compareByDescending<Book> { it.createdAt }.thenBy { it.title.lowercase() })

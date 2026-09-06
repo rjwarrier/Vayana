@@ -77,6 +77,7 @@ class SnapshotExporter @Inject constructor(
         series = series,
         seriesNumber = seriesNumber,
         description = description,
+        tagsCsv = tagsCsv,
         format = format,
         fileHash = fileHash,
         fileAvailability = fileAvailability,

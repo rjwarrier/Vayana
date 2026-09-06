@@ -19,6 +19,7 @@ data class BookEntity(
     val series: String?,
     val seriesNumber: String?,
     val description: String?,
+    val tagsCsv: String? = null,
     val coverPath: String?,
     val filePath: String,
     val fileAvailability: String = "LOCAL",
