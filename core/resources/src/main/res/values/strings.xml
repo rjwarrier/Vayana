@@ -309,6 +309,18 @@
     <string name="statistics_goals_yearly_label">This year</string>
     <string name="statistics_goals_yearly_value">%1$d / %2$d books</string>
 
+    <string name="help_title">Help &amp; About</string>
+    <string name="help_back_content_description">Back</string>
+    <string name="help_heading">Getting the most out of vayana</string>
+    <string name="help_section_library_title">Library</string>
+    <string name="help_section_reader_title">Reader</string>
+    <string name="help_section_notes_title">Notes</string>
+    <string name="help_section_statistics_title">Statistics</string>
+    <string name="help_section_search_title">Search</string>
+    <string name="help_section_sync_title">Backup &amp; Sync</string>
+    <string name="help_section_trash_title">Recently Deleted</string>
+    <string name="help_section_settings_title">Settings</string>
+
     <string name="settings_title">Settings</string>
     <string name="settings_search_placeholder">Try “theme”, “font”, or “page”</string>
     <string name="settings_profile_title">vayana library</string>
@@ -317,6 +329,7 @@
     <string name="settings_no_matches_title">No matching settings</string>
     <string name="settings_no_matches_body">Try a different word from a setting name or description.</string>
     <string name="settings_back_content_description">Back</string>
+    <string name="settings_help_content_description">Help &amp; About</string>
     <string name="settings_reset_one_content_description">Reset setting</string>
     <string name="settings_reset_all_content_description">Reset all settings</string>
     <string name="settings_reset_all_title">Reset all settings?</string>

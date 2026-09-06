@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":feature:statistics"))
     implementation(project(":feature:reader"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:help"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

@@ -16,6 +16,7 @@ import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenR
 import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
 import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
 import com.vayana.feature.notes.NotesRoute
+import com.vayana.feature.help.HelpRoute as HelpScreenRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
 import com.vayana.feature.statistics.StatisticsRoute
@@ -61,7 +62,13 @@ fun VayanaNavHost(
             VocabularyReviewScreenRoute(onBack = { navController.popBackStack() })
         }
         composable<SettingsRoute> {
-            SettingsScreenRoute(onBack = { navController.popBackStack() })
+            SettingsScreenRoute(
+                onBack = { navController.popBackStack() },
+                onHelpClick = { navController.navigate(HelpRoute) },
+            )
+        }
+        composable<HelpRoute> {
+            HelpScreenRoute(onBack = { navController.popBackStack() })
         }
         composable<RecentlyDeletedRoute> {
             RecentlyDeletedScreenRoute(onBack = { navController.popBackStack() })

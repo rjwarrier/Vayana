@@ -1,6 +1,7 @@
 package com.vayana.feature.settings
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
@@ -53,6 +55,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -114,11 +118,9 @@ private val SettingsPagePadding = 20.dp
 private val SettingsContentMaxWidth = 840.dp
 private val SettingsTwoColumnBreakpoint = 680.dp
 private val SettingsCategoryBadgeSize = 42.dp
-private val SettingsChoiceTabWidth = 124.dp
-private val SettingsChoiceTabHeight = 40.dp
 
 @Composable
-fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsRoute(onBack: () -> Unit, onHelpClick: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val settings by viewModel.settings.collectAsState()
     val backupState by viewModel.backupState.collectAsState()
@@ -134,6 +136,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         githubSyncSettingsTransferState = githubSyncSettingsTransferState,
         githubConnectionTestState = githubConnectionTestState,
         onBack = onBack,
+        onHelpClick = onHelpClick,
         onUpdate = viewModel::update,
         onReset = viewModel::reset,
         onResetAll = viewModel::resetAll,
@@ -160,6 +163,7 @@ private fun SettingsScreen(
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
     onBack: () -> Unit,
+    onHelpClick: () -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onResetAll: () -> Unit,
@@ -180,6 +184,8 @@ private fun SettingsScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     val visibleSettings = remember(query) { SettingsRegistry.all.filterByQuery(query) }
 
+    BackHandler(enabled = selectedGroup != null) { selectedGroup = null }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -199,6 +205,12 @@ private fun SettingsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onHelpClick) {
+                        Icon(
+                            imageVector = Icons.Outlined.HelpOutline,
+                            contentDescription = stringResource(R.string.settings_help_content_description),
+                        )
+                    }
                     IconButton(onClick = { showResetAllDialog = true }) {
                         Icon(
                             imageVector = Icons.Outlined.RestartAlt,
@@ -501,11 +513,6 @@ private fun SettingsHub(
             }
         }
         if (query.isBlank()) {
-            item {
-                SettingsContentContainer {
-                    SettingsProfileCard()
-                }
-            }
             item {
                 SettingsContentContainer {
                     BackupRestoreCard(
@@ -909,60 +916,6 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
     )
-}
-
-@Composable
-private fun SettingsProfileCard() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
-    ) {
-        Column(
-            modifier = Modifier.padding(Paddings.card),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                SettingsIconBubble(
-                    icon = Icons.Outlined.AutoStories,
-                    selected = true,
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_profile_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_profile_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(Radii.full),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                ) {
-                    Text(
-                        text = stringResource(R.string.app_tagline),
-                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
-        }
-    }
 }
 
 @Composable
@@ -1459,66 +1412,61 @@ private fun StringSettingControl(setting: StringSetting, value: String, onUpdate
 
 @Composable
 private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate: (Any) -> Unit) {
-    val selectedIndex = setting.options.indexOfFirst { it.value == value }.coerceAtLeast(0)
-    val selectedOffset by animateDpAsState(
-        targetValue = SettingsChoiceTabWidth * selectedIndex,
-        label = "SettingsChoiceSelectedOffset",
-    )
     val scrollState = rememberScrollState()
-
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(scrollState)
             .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(Radii.medium),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            tonalElevation = Elevations.none,
-        ) {
-            Box(
-                modifier = Modifier
-                    .horizontalScroll(scrollState)
-                    .padding(Spacing.xs),
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .offset(x = selectedOffset)
-                        .width(SettingsChoiceTabWidth)
-                        .height(SettingsChoiceTabHeight),
-                    shape = RoundedCornerShape(Radii.small),
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    tonalElevation = Elevations.none,
-                ) {}
-                Row {
-                    setting.options.forEach { option ->
-                        val selected = option.value == value
-                        Text(
-                            text = stringResource(option.labelRes),
-                            modifier = Modifier
-                                .width(SettingsChoiceTabWidth)
-                                .height(SettingsChoiceTabHeight)
-                                .clip(RoundedCornerShape(Radii.small))
-                                .clickable { onUpdate(option.value) }
-                                .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                            ),
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+        setting.options.forEach { option ->
+            val selected = option.value == value
+            val cornerRadius by animateDpAsState(
+                targetValue = if (selected) Radii.full else Radii.small,
+                label = "SettingsChoiceChipCorner",
+            )
+            FilterChip(
+                selected = selected,
+                onClick = { onUpdate(option.value) },
+                label = {
+                    Text(
+                        text = stringResource(option.labelRes),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                        ),
+                    )
+                },
+                leadingIcon = if (selected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.iconSmall),
                         )
                     }
-                }
-            }
+                } else {
+                    null
+                },
+                shape = RoundedCornerShape(cornerRadius),
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selected,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    selectedBorderColor = MaterialTheme.colorScheme.primary,
+                    borderWidth = 1.dp,
+                    selectedBorderWidth = 0.dp,
+                ),
+            )
         }
     }
 }

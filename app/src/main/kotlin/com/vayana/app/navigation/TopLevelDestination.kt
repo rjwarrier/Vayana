@@ -29,6 +29,9 @@ sealed interface TopLevelRoute {
 data object SettingsRoute
 
 @Serializable
+data object HelpRoute
+
+@Serializable
 data object RecentlyDeletedRoute
 
 @Serializable
