@@ -230,6 +230,18 @@ private data class ReadingProgressOnlyPushSummary(
     val failureMessage: String? = null,
 )
 
+data class BookProgressChange(
+    val bookId: Long,
+    val previousLocator: String?,
+    val previousPercent: Float,
+    val newPercent: Float,
+)
+
+data class BookProgressSyncOutcome(
+    val result: GitHubSyncNowResult,
+    val progressChange: BookProgressChange?,
+)
+
 enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
 
 enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
@@ -614,6 +626,42 @@ class LibraryViewModel @Inject constructor(
             }
         }
         return result
+    }
+
+    /**
+     * Reading-progress-only sync, scoped to a caller-visible "did this exact book move?" check.
+     * The underlying merge (like any other sync entry point) applies immediately - there's no
+     * preview step - so this snapshots the book before and diffs against a fresh read after,
+     * rather than trusting the reactive [observeBook] flow to have recomposed by the time this
+     * suspend call returns. The caller uses the result to offer a keep/revert choice: whichever
+     * screen triggered this is exactly the one already showing this book's progress, so it's the
+     * right place to ask, no matter that the write already happened underneath.
+     */
+    suspend fun syncReadingProgressForBook(bookId: Long): BookProgressSyncOutcome {
+        val before = bookRepository.getById(bookId)
+        val result = syncNow(mode = GitHubSyncMode.READING_PROGRESS_ONLY)
+        val after = bookRepository.getById(bookId)
+        // Only offer to revert when there was a real prior position to protect - a book going
+        // from "never opened" to some synced progress isn't a conflict, just filling in data.
+        val changed = if (before != null && after != null && !before.lastLocator.isNullOrBlank() &&
+            (before.lastLocator != after.lastLocator || before.readingPercent != after.readingPercent)
+        ) {
+            BookProgressChange(
+                bookId = bookId,
+                previousLocator = before.lastLocator,
+                previousPercent = before.readingPercent,
+                newPercent = after.readingPercent,
+            )
+        } else {
+            null
+        }
+        return BookProgressSyncOutcome(result, changed)
+    }
+
+    /** Reverts to a specific book's pre-sync position - the "stay" side of the prompt above. */
+    fun revertReadingProgress(bookId: Long, locator: String?, percent: Float) {
+        val cfi = locator?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch { bookRepository.updateLocator(bookId, cfi, percent) }
     }
 
     private suspend fun runSyncNow(

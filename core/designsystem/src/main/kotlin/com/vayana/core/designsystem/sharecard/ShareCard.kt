@@ -19,7 +19,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +42,7 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import com.vayana.core.common.shareBitmap
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.ShareCardTypography
@@ -133,7 +133,7 @@ fun ShareCardDialog(
                         modifier = Modifier.weight(1f),
                     ) {
                         if (isCapturing) {
-                            CircularProgressIndicator(
+                            VayanaCircularProgressIndicator(
                                 modifier = Modifier.height(Sizes.iconSmall),
                                 color = MaterialTheme.colorScheme.onPrimary,
                             )

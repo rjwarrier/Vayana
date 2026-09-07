@@ -231,6 +231,12 @@ class ReaderViewModel @Inject constructor(
                         engine.goTo(NavTarget.ToFraction(book.readingPercent.coerceIn(0f, 0.999f)))
                     }
                     observeRemoteReadingProgress()
+                    // The sync merge/prompt design intends a conflict to "surface... when the
+                    // book opens" - previously this only got checked lazily, once the page-turn
+                    // auto-sync gate happened to fire a few pages in. Check once immediately so a
+                    // conflict that existed before this session started is caught up front,
+                    // instead of reading a stretch of pages on a stale position first.
+                    requestAutoProgressSync()
                 }
                 .onFailure { throwable ->
                     _uiState.value = ReaderUiState.Failed(throwable.message ?: "Could not open book")
@@ -621,6 +627,12 @@ class ReaderViewModel @Inject constructor(
         engineJobs += viewModelScope.launch {
             bookRepository.remoteReadingProgressApplied.collect { remoteProgress ->
                 if (remoteProgress.bookId != bookId) return@collect
+                // Don't silently swap out a conflict the user hasn't responded to yet - a second
+                // remote update arriving before they've chosen would either overwrite the prompt
+                // they're mid-decision on, or race with whichever they pick. Rare (needs two other
+                // devices pushing in quick succession), but if it still hasn't resolved by the
+                // next auto-sync tick, it'll be re-evaluated fresh then anyway.
+                if (_readingPositionPrompt.value != null) return@collect
                 val remotePosition = SavedReadingPosition(
                     locator = remoteProgress.locator,
                     progress = remoteProgress.readingPercent,
@@ -640,8 +652,10 @@ class ReaderViewModel @Inject constructor(
         remotePosition: SavedReadingPosition,
         currentLocator: Locator,
     ) {
-        // Auto-sync is push-only, but a remote echo of this reader's last saved locator
-        // should still stay quiet while the user is actively reading.
+        // Sync applies remote-newer progress unconditionally; this only decides whether to
+        // interrupt the user about it. A remote echo of this reader's own last saved locator
+        // (routine solo-reading auto-sync) should stay quiet - only a genuinely different
+        // position, most often from another device, is worth asking about.
         readingPositionPromptDecider.promptForRemote(
             remotePosition = remotePosition,
             currentLocator = currentLocator,

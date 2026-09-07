@@ -72,7 +72,6 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -137,6 +136,7 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.theme.vayanaFadeIn
@@ -677,7 +677,7 @@ private fun ReaderScreen(
         }
 
         if (uiState is ReaderUiState.Loading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            VayanaCircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
         if (uiState is ReaderUiState.Failed) {
             Text(
@@ -1129,7 +1129,7 @@ private fun DictionaryLookupContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+            VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
             Text(
                 text = stringResource(
                     if (state is DictionaryLookupState.Installing) {

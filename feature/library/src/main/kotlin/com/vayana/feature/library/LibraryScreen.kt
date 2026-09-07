@@ -135,6 +135,8 @@ import coil3.compose.AsyncImage
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -210,12 +212,19 @@ fun BookDetailRoute(
     val allShelves by viewModel.shelves.collectAsState()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
+    var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
 
     BookDetailScreen(
         modifier = modifier,
         book = book,
         showSyncReadingProgress = uiState.githubSyncReady,
         syncReadingProgressRunning = syncReadingProgressRunning,
+        progressChangePrompt = progressChangePrompt,
+        onKeepSyncedProgress = { progressChangePrompt = null },
+        onRevertSyncedProgress = { prompt ->
+            viewModel.revertReadingProgress(prompt.bookId, prompt.previousLocator, prompt.previousPercent)
+            progressChangePrompt = null
+        },
         libraryBooks = libraryBooks,
         detailMessage = detailMessage,
         allShelves = allShelves,
@@ -248,7 +257,9 @@ fun BookDetailRoute(
             if (syncReadingProgressRunning) return@sync GitHubSyncNowResult.SyncDisabled
             syncReadingProgressRunning = true
             try {
-                viewModel.syncNow(mode = GitHubSyncMode.READING_PROGRESS_ONLY)
+                val outcome = viewModel.syncReadingProgressForBook(bookId)
+                outcome.progressChange?.let { progressChangePrompt = it }
+                outcome.result
             } finally {
                 syncReadingProgressRunning = false
             }
@@ -626,7 +637,7 @@ private fun ImportProgressSheet(progress: ImportProgressState, onDismissRequest:
                 modifier = Modifier.padding(top = Spacing.xs),
             )
             if (progress.isRunning) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
+                VayanaLinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
             }
             if (progress.rows.isEmpty()) {
                 Text(
@@ -676,7 +687,7 @@ private fun ImportStatusIcon(status: ImportRowStatus) {
     when (status) {
         ImportRowStatus.COPYING,
         ImportRowStatus.PARSING,
-        -> CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+        -> VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
         ImportRowStatus.IMPORTED,
         ImportRowStatus.DUPLICATE,
         -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(Sizes.icon))
@@ -773,7 +784,7 @@ private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus) {
 @Composable
 private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus) {
     when (status) {
-        GitHubSyncStepStatus.RUNNING -> CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+        GitHubSyncStepStatus.RUNNING -> VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
         GitHubSyncStepStatus.DONE -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(Sizes.icon))
         GitHubSyncStepStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(Sizes.icon))
         GitHubSyncStepStatus.WAITING -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = Modifier.size(Sizes.icon))
@@ -880,7 +891,7 @@ private fun LibraryTopBar(
                             enabled = !syncRunning,
                         ) {
                             if (syncRunning) {
-                                CircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+                                VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
                             } else {
                                 Icon(
                                     imageVector = Icons.Outlined.Sync,
@@ -1430,6 +1441,9 @@ private fun BookDetailScreen(
     book: Book?,
     showSyncReadingProgress: Boolean,
     syncReadingProgressRunning: Boolean,
+    progressChangePrompt: BookProgressChange?,
+    onKeepSyncedProgress: () -> Unit,
+    onRevertSyncedProgress: (BookProgressChange) -> Unit,
     libraryBooks: List<Book>,
     detailMessage: BookDetailMessage?,
     allShelves: List<com.vayana.core.database.model.Shelf>,
@@ -1771,7 +1785,7 @@ private fun BookDetailScreen(
                                 contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs),
                             ) {
                                 if (syncReadingProgressRunning) {
-                                    CircularProgressIndicator(
+                                    VayanaCircularProgressIndicator(
                                         modifier = Modifier.size(Sizes.iconSmall),
                                         strokeWidth = Spacing.xs,
                                     )
@@ -1933,6 +1947,37 @@ private fun BookDetailScreen(
             },
             title = { Text(stringResource(R.string.library_remove_from_device_title)) },
             text = { Text(stringResource(R.string.library_remove_from_device_body)) },
+        )
+    }
+
+    progressChangePrompt?.let { prompt ->
+        AlertDialog(
+            onDismissRequest = { onRevertSyncedProgress(prompt) },
+            confirmButton = {
+                TextButton(onClick = onKeepSyncedProgress) {
+                    Text(stringResource(R.string.library_book_progress_sync_prompt_keep))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onRevertSyncedProgress(prompt) }) {
+                    Text(
+                        stringResource(
+                            R.string.library_book_progress_sync_prompt_revert,
+                            (prompt.previousPercent * 100).roundToInt(),
+                        ),
+                    )
+                }
+            },
+            title = { Text(stringResource(R.string.library_book_progress_sync_prompt_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.library_book_progress_sync_prompt_body,
+                        (prompt.previousPercent * 100).roundToInt(),
+                        (prompt.newPercent * 100).roundToInt(),
+                    ),
+                )
+            },
         )
     }
 
@@ -2126,7 +2171,7 @@ private fun BookShareImageOptionsDialog(
         confirmButton = {
             Button(onClick = onShareImage, enabled = !isCapturing) {
                 if (isCapturing) {
-                    CircularProgressIndicator(
+                    VayanaCircularProgressIndicator(
                         modifier = Modifier.size(Sizes.iconSmall),
                         color = MaterialTheme.colorScheme.onPrimary,
                     )

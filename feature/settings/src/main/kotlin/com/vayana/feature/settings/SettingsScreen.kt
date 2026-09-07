@@ -53,7 +53,6 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -102,6 +101,7 @@ import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.datastore.settings.StringSetting
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Elevations
@@ -349,7 +349,7 @@ private fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                        VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
                         Text(stringResource(R.string.settings_restore_reading))
                     }
                 },
@@ -718,7 +718,7 @@ private fun GitHubConnectionTestCard(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (working) {
-                    CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
                 } else {
                     Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
                 }
@@ -829,7 +829,7 @@ private fun GitHubSyncSettingsTransferCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
                     Text(stringResource(R.string.settings_github_transfer_working), style = MaterialTheme.typography.bodySmall)
                 }
                 GitHubSyncSettingsTransferState.ExportComplete -> BackupStatusRow(
@@ -1010,7 +1010,7 @@ private fun BackupRestoreCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
                     Text(stringResource(R.string.settings_backup_working), style = MaterialTheme.typography.bodySmall)
                 }
                 BackupUiState.BackupComplete -> BackupStatusRow(
