@@ -1174,14 +1174,6 @@ private fun List<Annotation>.filterByQuery(query: String, filter: NotesFilter): 
     }
 }
 
-private fun Context.shareText(text: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    startActivity(Intent.createChooser(intent, getString(R.string.notes_share_content_description)))
-}
-
 private fun Context.shareAnnotations(annotations: List<Annotation>) {
     val text = annotations.joinToString(separator = "\n\n") { annotation ->
         buildString {

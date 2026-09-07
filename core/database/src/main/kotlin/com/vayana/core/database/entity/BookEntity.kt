@@ -10,7 +10,10 @@ import java.util.UUID
  * never absolute — resolved through `StorageRoots` (`:core:filesystem`) so relocating the
  * library is a single migration job, not a data-model change.
  */
-@Entity(tableName = "books", indices = [Index(value = ["syncId"], unique = true)])
+@Entity(
+    tableName = "books",
+    indices = [Index(value = ["syncId"], unique = true), Index(value = ["fileHash"])],
+)
 data class BookEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val syncId: String = "book-${UUID.randomUUID()}",

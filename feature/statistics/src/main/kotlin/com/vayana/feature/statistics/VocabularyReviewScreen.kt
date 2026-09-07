@@ -70,7 +70,11 @@ fun VocabularyReviewRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         when {
             !loaded -> Unit
             cards.isEmpty() -> VocabularyReviewEmptyState(contentPadding = innerPadding)
-            index >= cards.size -> VocabularyReviewDoneState(contentPadding = innerPadding, onBack = onBack)
+            index >= cards.size -> VocabularyReviewDoneState(
+                contentPadding = innerPadding,
+                onBack = onBack,
+                onReviewMore = viewModel::reviewMore,
+            )
             else -> VocabularyReviewCardScreen(
                 contentPadding = innerPadding,
                 card = cards[index],
@@ -231,7 +235,7 @@ private fun VocabularyReviewEmptyState(contentPadding: PaddingValues) {
 }
 
 @Composable
-private fun VocabularyReviewDoneState(contentPadding: PaddingValues, onBack: () -> Unit) {
+private fun VocabularyReviewDoneState(contentPadding: PaddingValues, onBack: () -> Unit, onReviewMore: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -257,7 +261,10 @@ private fun VocabularyReviewDoneState(contentPadding: PaddingValues, onBack: () 
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.padding(top = Spacing.sm),
             )
-            Button(onClick = onBack, modifier = Modifier.padding(top = Spacing.lg)) {
+            Button(onClick = onReviewMore, modifier = Modifier.padding(top = Spacing.lg)) {
+                Text(stringResource(R.string.vocabulary_review_more))
+            }
+            OutlinedButton(onClick = onBack, modifier = Modifier.padding(top = Spacing.sm)) {
                 Text(stringResource(R.string.notes_back_content_description))
             }
         }

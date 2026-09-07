@@ -1,5 +1,7 @@
 package com.vayana.core.database.repository
 
+import androidx.room.withTransaction
+import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.model.Book
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 
 class BookRepositoryImpl @Inject constructor(
+    private val database: VayanaDatabase,
     private val bookDao: BookDao,
 ) : BookRepository {
     private val _remoteReadingProgressApplied = MutableSharedFlow<RemoteReadingProgressApplied>(
@@ -50,58 +53,62 @@ class BookRepositoryImpl @Inject constructor(
         if (locator.isBlank() || remoteUpdatedAt <= 0L || readingPercent !in 0f..1f) {
             return ReadingProgressMergeResult.InvalidRemote
         }
-        val book = bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash)
-            ?: return ReadingProgressMergeResult.NoLocalMatch
-        val local = book.readingProgressVersion()
-        val remote = ReadingProgressVersion(
-            syncId = syncId,
-            fileHash = fileHash,
-            locator = locator,
-            readingPercent = readingPercent,
-            lastReadAt = lastReadAt,
-            updatedAt = remoteUpdatedAt,
-        )
-        if (book.syncId == syncId && book.fileHash != fileHash) {
-            return ReadingProgressMergeResult.ConflictLocalKept(
-                local = local,
-                remote = remote,
-                reason = ReadingProgressConflictReason.INCOMPATIBLE_FILE_REVISION,
+        // The read-then-write below must be atomic: a concurrent local page-turn write between the
+        // read and the write here could otherwise be silently clobbered by a stale merge decision.
+        val (result, appliedEvent) = database.withTransaction {
+            val book = bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash)
+                ?: return@withTransaction ReadingProgressMergeResult.NoLocalMatch to null
+            val local = book.readingProgressVersion()
+            val remote = ReadingProgressVersion(
+                syncId = syncId,
+                fileHash = fileHash,
+                locator = locator,
+                readingPercent = readingPercent,
+                lastReadAt = lastReadAt,
+                updatedAt = remoteUpdatedAt,
             )
-        }
-        val localVersion = book.lastReadAt ?: 0L
-        val remoteVersion = lastReadAt ?: remoteUpdatedAt
-        if (localVersion > remoteVersion) {
-            return ReadingProgressMergeResult.LocalNewer
-        }
-        if (localVersion == remoteVersion && book.lastLocator != locator) {
-            return ReadingProgressMergeResult.ConflictLocalKept(
-                local = local,
-                remote = remote,
-                reason = ReadingProgressConflictReason.SAME_TIMESTAMP_DIFFERENT_LOCATOR,
+            if (book.syncId == syncId && book.fileHash != fileHash) {
+                return@withTransaction ReadingProgressMergeResult.ConflictLocalKept(
+                    local = local,
+                    remote = remote,
+                    reason = ReadingProgressConflictReason.INCOMPATIBLE_FILE_REVISION,
+                ) to null
+            }
+            val localVersion = book.lastReadAt ?: 0L
+            val remoteVersion = lastReadAt ?: remoteUpdatedAt
+            if (localVersion > remoteVersion) {
+                return@withTransaction ReadingProgressMergeResult.LocalNewer to null
+            }
+            if (localVersion == remoteVersion && book.lastLocator != locator) {
+                return@withTransaction ReadingProgressMergeResult.ConflictLocalKept(
+                    local = local,
+                    remote = remote,
+                    reason = ReadingProgressConflictReason.SAME_TIMESTAMP_DIFFERENT_LOCATOR,
+                ) to null
+            }
+            if (localVersion == remoteVersion) {
+                return@withTransaction ReadingProgressMergeResult.LocalNewer to null
+            }
+            bookDao.applySyncedReadingProgress(
+                id = book.id,
+                locator = locator,
+                readingPercent = readingPercent,
+                lastReadAt = remoteVersion,
+                remoteUpdatedAt = remoteUpdatedAt,
+                startedReadingAt = startedReadingAt,
+                finishedReadingAt = finishedReadingAt,
+                totalReadingSeconds = totalReadingSeconds,
             )
-        }
-        if (localVersion == remoteVersion) {
-            return ReadingProgressMergeResult.LocalNewer
-        }
-        bookDao.applySyncedReadingProgress(
-            id = book.id,
-            locator = locator,
-            readingPercent = readingPercent,
-            lastReadAt = remoteVersion,
-            remoteUpdatedAt = remoteUpdatedAt,
-            startedReadingAt = startedReadingAt,
-            finishedReadingAt = finishedReadingAt,
-            totalReadingSeconds = totalReadingSeconds,
-        )
-        _remoteReadingProgressApplied.emit(
-            RemoteReadingProgressApplied(
+            val event = RemoteReadingProgressApplied(
                 bookId = book.id,
                 locator = locator,
                 readingPercent = readingPercent,
                 version = remoteVersion,
-            ),
-        )
-        return ReadingProgressMergeResult.AppliedRemote
+            )
+            ReadingProgressMergeResult.AppliedRemote to event
+        }
+        appliedEvent?.let { _remoteReadingProgressApplied.emit(it) }
+        return result
     }
 
     override suspend fun addReadingTime(id: Long, addedSeconds: Long) {
@@ -134,8 +141,8 @@ class BookRepositoryImpl @Inject constructor(
         filePath: String,
         format: BookFormat,
         fileHash: String,
-    ): Book? {
-        if (bookDao.findByHash(fileHash) != null) return null
+    ): Book? = database.withTransaction {
+        if (bookDao.findByHash(fileHash) != null) return@withTransaction null
 
         val now = System.currentTimeMillis()
         val entity = BookEntity(
@@ -165,7 +172,7 @@ class BookRepositoryImpl @Inject constructor(
             totalReadingSeconds = 0L,
         )
         val id = bookDao.insert(entity)
-        return entity.copy(id = id).toDomain()
+        entity.copy(id = id).toDomain()
     }
 
     override suspend fun replaceSource(
@@ -179,9 +186,9 @@ class BookRepositoryImpl @Inject constructor(
         filePath: String,
         format: BookFormat,
         fileHash: String,
-    ): Boolean {
+    ): Boolean = database.withTransaction {
         val existing = bookDao.findByHash(fileHash)
-        if (existing != null && existing.id != id) return false
+        if (existing != null && existing.id != id) return@withTransaction false
         bookDao.replaceSource(
             id = id,
             title = title,
@@ -195,7 +202,7 @@ class BookRepositoryImpl @Inject constructor(
             fileHash = fileHash,
             updatedAt = System.currentTimeMillis(),
         )
-        return true
+        true
     }
 
     override suspend fun softDelete(id: Long) {
@@ -310,6 +317,10 @@ class BookRepositoryImpl @Inject constructor(
         if (record.syncId.isBlank() || record.title.isBlank() || record.fileHash.isBlank()) {
             return CloudBookMergeResult.SKIPPED
         }
+        return database.withTransaction { mergeCloudBookLocked(record) }
+    }
+
+    private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
         val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
         if (existing != null) {
             val hasSameAsset = existing.fileAssetId == record.assetId &&

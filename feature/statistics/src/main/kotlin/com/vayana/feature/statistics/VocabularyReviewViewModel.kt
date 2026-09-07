@@ -31,6 +31,11 @@ class VocabularyReviewViewModel @Inject constructor(
         loadBatch()
     }
 
+    /** Loads another batch after finishing one, instead of forcing the user to leave and re-enter. */
+    fun reviewMore() {
+        loadBatch()
+    }
+
     private fun loadBatch() {
         viewModelScope.launch {
             _cards.value = vocabularyCardRepository.getForReview(ReviewBatchSize)

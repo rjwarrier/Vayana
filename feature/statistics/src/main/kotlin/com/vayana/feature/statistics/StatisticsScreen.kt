@@ -2,6 +2,7 @@ package com.vayana.feature.statistics
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
@@ -25,6 +31,7 @@ import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -32,15 +39,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
@@ -50,6 +61,11 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun StatisticsRoute(onReviewVocabulary: () -> Unit, modifier: Modifier = Modifier) {
@@ -113,7 +129,26 @@ private fun StatisticsDashboard(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item {
-            ReadingMixCard(summary = summary)
+            ReadingActivityCard(
+                dailyMinutes = summary.dailyReadingMinutes,
+                recentWeekMinutes = summary.recentWeekReadingMinutes,
+                streakDays = summary.currentStreakDays,
+            )
+        }
+        summary.readingPace?.let { pace ->
+            item {
+                ReadingPaceCard(pace = pace)
+            }
+        }
+        summary.readingHabits?.let { habits ->
+            item {
+                ReadingHabitsCard(habits = habits)
+            }
+        }
+        if (summary.dailyGoalMinutes > 0 || summary.yearlyGoalBooks > 0) {
+            item {
+                GoalsCard(summary = summary)
+            }
         }
         item {
             StatisticTile(
@@ -156,24 +191,28 @@ private fun StatisticsDashboard(
                 )
             }
         }
-        if (summary.currentStreakDays > 0) {
+        if (summary.uniqueAuthorCount > 0 || summary.topSeries != null) {
             item {
-                StatisticTile(
-                    icon = Icons.Outlined.LocalFireDepartment,
-                    title = stringResource(R.string.statistics_streak_title),
-                    value = stringResource(R.string.statistics_streak_value, summary.currentStreakDays),
-                    supportingText = stringResource(R.string.statistics_streak_support),
+                AuthorSeriesCard(
+                    uniqueAuthorCount = summary.uniqueAuthorCount,
+                    topAuthor = summary.topAuthor,
+                    topSeries = summary.topSeries,
                 )
             }
         }
-        if (summary.dailyGoalMinutes > 0 || summary.yearlyGoalBooks > 0) {
+        if (summary.genreStats.isNotEmpty()) {
             item {
-                GoalsCard(summary = summary)
+                GenreBreakdownCard(genres = summary.genreStats)
             }
         }
         if (summary.topLookedUpWords.isNotEmpty()) {
             item {
                 TopWordsCard(words = summary.topLookedUpWords)
+            }
+        }
+        summary.vocabularyGrowth?.let { growth ->
+            item {
+                VocabularyGrowthCard(growth = growth)
             }
         }
         if (vocabularyCardCount > 0) {
@@ -345,6 +384,200 @@ private fun GoalRow(modifier: Modifier = Modifier, label: String, valueText: Str
 }
 
 @Composable
+private fun ReadingHabitsCard(habits: ReadingHabits) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Text(text = stringResource(R.string.statistics_habits_title), style = MaterialTheme.typography.titleMedium)
+            habits.busiestDayOfWeek?.let { day ->
+                HabitFactRow(
+                    stringResource(
+                        R.string.statistics_habits_busiest_day,
+                        day.getDisplayName(TextStyle.FULL, Locale.getDefault()),
+                    ),
+                )
+            }
+            if (habits.averageSessionMinutes > 0) {
+                HabitFactRow(stringResource(R.string.statistics_habits_average_session, habits.averageSessionMinutes))
+            }
+            habits.averageDaysToFinish?.let { days ->
+                HabitFactRow(stringResource(R.string.statistics_habits_days_to_finish, days))
+            }
+            if (habits.booksFinishedLastYear > 0) {
+                HabitFactRow(stringResource(R.string.statistics_habits_last_year, habits.booksFinishedLastYear))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HabitFactRow(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(Sizes.iconSmall / 3)
+                .clip(RoundedCornerShape(Radii.full))
+                .background(MaterialTheme.colorScheme.primary),
+        )
+        Text(text = text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun AuthorSeriesCard(uniqueAuthorCount: Int, topAuthor: AuthorStat?, topSeries: SeriesProgress?) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Text(text = stringResource(R.string.statistics_authors_title), style = MaterialTheme.typography.titleMedium)
+            if (uniqueAuthorCount > 0) {
+                HabitFactRow(stringResource(R.string.statistics_authors_unique_count, uniqueAuthorCount))
+            }
+            topAuthor?.let { author ->
+                HabitFactRow(
+                    stringResource(
+                        R.string.statistics_authors_most_read,
+                        author.author,
+                        formatSessionDuration(author.totalSeconds),
+                    ),
+                )
+            }
+            topSeries?.let { series ->
+                HabitFactRow(
+                    stringResource(
+                        R.string.statistics_authors_series_progress,
+                        series.seriesName,
+                        series.finishedCount,
+                        series.totalCount,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreBreakdownCard(genres: List<GenreStat>) {
+    val maxSeconds = genres.maxOfOrNull { it.totalSeconds }?.coerceAtLeast(1L) ?: 1L
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Text(text = stringResource(R.string.statistics_genres_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.statistics_genres_support),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            genres.forEach { genre ->
+                GenreRow(genre = genre, maxSeconds = maxSeconds, modifier = Modifier.padding(top = Spacing.md))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreRow(genre: GenreStat, maxSeconds: Long, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = genre.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = stringResource(R.string.statistics_genres_row_value, genre.bookCount, formatSessionDuration(genre.totalSeconds)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .padding(top = Spacing.xs)
+                .fillMaxWidth()
+                .height(Sizes.iconSmall / 4)
+                .clip(RoundedCornerShape(Radii.full))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth((genre.totalSeconds.toFloat() / maxSeconds).coerceIn(0.04f, 1f))
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(Radii.full))
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
+    }
+}
+
+@Composable
+private fun VocabularyGrowthCard(growth: VocabularyGrowth) {
+    val maxCount = growth.weeklyNewCards.maxOrNull()?.coerceAtLeast(1) ?: 1
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = stringResource(R.string.statistics_vocabulary_growth_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = stringResource(R.string.statistics_vocabulary_growth_mastered, (growth.masteredFraction * 100).roundToInt()),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            LinearProgressIndicator(
+                progress = { growth.masteredFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.sm),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.lg)
+                    .height(Sizes.chartHeight / 2),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                growth.weeklyNewCards.forEach { count ->
+                    val fraction = if (count <= 0) 0f else (count.toFloat() / maxCount).coerceIn(0.08f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(fraction)
+                            .clip(RoundedCornerShape(topStart = Radii.extraSmall, topEnd = Radii.extraSmall))
+                            .background(
+                                if (count > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            ),
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.statistics_vocabulary_growth_support),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+    }
+}
+
+@Composable
 private fun TopWordsCard(words: List<WordLookupStat>) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -380,8 +613,24 @@ private fun TopWordsCard(words: List<WordLookupStat>) {
 }
 
 @Composable
-private fun ReadingMixCard(summary: StatisticsSummary) {
-    val maxValue = listOf(summary.readingBooks, summary.finishedBooks, summary.totalAnnotations).maxOrNull()?.coerceAtLeast(1) ?: 1
+private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentWeekMinutes: Int, streakDays: Int) {
+    val today = remember { LocalDate.now() }
+    val weeks = remember(dailyMinutes) { dailyMinutes.chunked(7) }
+    val monthLabels = remember(weeks) {
+        var lastMonth: java.time.Month? = null
+        weeks.map { week ->
+            val month = week.first().date.month
+            (month != lastMonth).also { if (it) lastMonth = month }
+                .let { isNewMonth -> if (isNewMonth) month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) else null }
+        }
+    }
+    val scrollState = rememberLazyListState()
+    var selectedDay by remember { mutableStateOf<DailyReadingMinutes?>(null) }
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM d, yyyy") }
+    LaunchedEffect(weeks.size) {
+        if (weeks.isNotEmpty()) scrollState.scrollToItem(weeks.lastIndex)
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -390,38 +639,99 @@ private fun ReadingMixCard(summary: StatisticsSummary) {
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(modifier = Modifier.padding(Paddings.card)) {
-            Text(
-                text = stringResource(R.string.statistics_chart_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg)
-                    .height(Sizes.chartHeight),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
-                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                ChartBar(
-                    label = stringResource(R.string.statistics_chart_reading),
-                    value = summary.readingBooks,
-                    maxValue = maxValue,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                ChartBar(
-                    label = stringResource(R.string.statistics_chart_finished),
-                    value = summary.finishedBooks,
-                    maxValue = maxValue,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.weight(1f),
-                )
-                ChartBar(
-                    label = stringResource(R.string.statistics_chart_notes),
-                    value = summary.totalAnnotations,
-                    maxValue = maxValue,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.weight(1f),
+                Column {
+                    Text(text = stringResource(R.string.statistics_activity_title), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = selectedDay?.let { day ->
+                            stringResource(R.string.statistics_activity_day_detail, day.date.format(dateFormatter), day.minutes)
+                        } ?: stringResource(R.string.statistics_activity_support, recentWeekMinutes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (streakDays > 0) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                        Text(
+                            text = stringResource(R.string.statistics_streak_value, streakDays),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+            Row(modifier = Modifier.padding(top = Spacing.lg)) {
+                DayOfWeekLabels()
+                LazyRow(
+                    state = scrollState,
+                    modifier = Modifier.padding(start = Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(HeatmapCellGap),
+                ) {
+                    items(weeks.size) { weekIndex ->
+                        WeekColumn(
+                            week = weeks[weekIndex],
+                            monthLabel = monthLabels[weekIndex],
+                            today = today,
+                            isSelected = { it == selectedDay },
+                            onDayClick = { day -> selectedDay = if (day == selectedDay) null else day },
+                        )
+                    }
+                }
+            }
+            HeatmapLegend(modifier = Modifier.padding(top = Spacing.md).align(Alignment.End))
+        }
+    }
+}
+
+@Composable
+private fun DayOfWeekLabels() {
+    Column(verticalArrangement = Arrangement.spacedBy(HeatmapCellGap)) {
+        Spacer(modifier = Modifier.height(HeatmapMonthLabelHeight))
+        // GitHub shows every other label (Mon/Wed/Fri) so they don't crowd the small row height.
+        listOf(null, "Mon", null, "Wed", null, "Fri", null).forEach { label ->
+            Box(modifier = Modifier.height(HeatmapCellSize), contentAlignment = Alignment.CenterStart) {
+                label?.let {
+                    Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekColumn(
+    week: List<DailyReadingMinutes>,
+    monthLabel: String?,
+    today: LocalDate,
+    isSelected: (DailyReadingMinutes) -> Boolean,
+    onDayClick: (DailyReadingMinutes) -> Unit,
+) {
+    Column {
+        Box(modifier = Modifier.height(HeatmapMonthLabelHeight)) {
+            monthLabel?.let {
+                Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(HeatmapCellGap)) {
+            week.forEach { day ->
+                HeatmapCell(
+                    day = day,
+                    isToday = day.date == today,
+                    isSelected = isSelected(day),
+                    onClick = { onDayClick(day) },
                 )
             }
         }
@@ -429,36 +739,89 @@ private fun ReadingMixCard(summary: StatisticsSummary) {
 }
 
 @Composable
-private fun ChartBar(label: String, value: Int, maxValue: Int, color: Color, modifier: Modifier = Modifier) {
-    val targetFraction = (value.toFloat() / maxValue).coerceIn(0.08f, 1f)
-    val animatedFraction by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = vayanaSpring(),
-        label = "ChartBarFraction",
+private fun HeatmapCell(day: DailyReadingMinutes, isToday: Boolean, isSelected: Boolean, onClick: () -> Unit) {
+    if (day.isFuture) {
+        Spacer(modifier = Modifier.size(HeatmapCellSize))
+        return
+    }
+    val level = activityLevel(day.minutes)
+    val baseColor = when (level) {
+        0 -> MaterialTheme.colorScheme.surfaceContainerHighest
+        else -> MaterialTheme.colorScheme.primary.copy(alpha = HeatmapLevelAlphas[level])
+    }
+    Box(
+        modifier = Modifier
+            .size(HeatmapCellSize)
+            .clip(RoundedCornerShape(Radii.extraSmall))
+            .background(baseColor)
+            .then(
+                if (isToday || isSelected) {
+                    Modifier.border(HeatmapTodayBorderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(Radii.extraSmall))
+                } else {
+                    Modifier
+                },
+            )
+            .clickable(onClick = onClick),
     )
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom,
+}
+
+@Composable
+private fun HeatmapLegend(modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Text(text = stringResource(R.string.statistics_activity_legend_less), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        HeatmapLevelAlphas.indices.forEach { level ->
+            val color = if (level == 0) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primary.copy(alpha = HeatmapLevelAlphas[level])
+            Box(
+                modifier = Modifier
+                    .size(HeatmapCellSize)
+                    .clip(RoundedCornerShape(Radii.extraSmall))
+                    .background(color),
+            )
+        }
+        Text(text = stringResource(R.string.statistics_activity_legend_more), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Fixed minute thresholds rather than relative-to-max buckets, so a single long session one day
+ *  doesn't wash out every other day's color by comparison - the scale means the same thing every time. */
+private fun activityLevel(minutes: Int): Int = when {
+    minutes <= 0 -> 0
+    minutes < 15 -> 1
+    minutes < 30 -> 2
+    minutes < 60 -> 3
+    else -> 4
+}
+
+private val HeatmapLevelAlphas = listOf(0f, 0.3f, 0.5f, 0.75f, 1f)
+private val HeatmapCellSize = 11.dp
+private val HeatmapCellGap = 3.dp
+private val HeatmapMonthLabelHeight = 16.dp
+private val HeatmapTodayBorderWidth = 1.5.dp
+
+@Composable
+private fun ReadingPaceCard(pace: ReadingPaceEstimate) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
     ) {
-        Text(text = value.toString(), style = MaterialTheme.typography.labelLarge)
-        Box(
-            modifier = Modifier
-                .padding(top = Spacing.xs)
-                .widthIn(min = Sizes.chartBarMinWidth, max = Sizes.chartBarMaxWidth)
-                .fillMaxWidth()
-                .height(Sizes.chartBarMaxHeight * animatedFraction)
-                .clip(RoundedCornerShape(topStart = Radii.small, topEnd = Radii.small))
-                .background(color),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
+        Row(
+            modifier = Modifier.padding(Paddings.card),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(imageVector = Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null)
+            Column {
+                Text(text = stringResource(R.string.statistics_pace_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = stringResource(R.string.statistics_pace_body, pace.bookTitle, pace.estimatedDaysRemaining),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

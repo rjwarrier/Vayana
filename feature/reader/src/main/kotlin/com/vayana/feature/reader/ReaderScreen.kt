@@ -80,6 +80,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -188,9 +190,31 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
         configuration.screenWidthDp >= TabletLandscapeMinWidthDp
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val syncPushedMessage = stringResource(R.string.reader_sync_progress_pushed)
+    val syncPulledMessage = stringResource(R.string.reader_sync_progress_pulled)
+    val syncSyncedMessage = stringResource(R.string.reader_sync_progress_synced)
+    val syncConfigIncompleteMessage = stringResource(R.string.reader_sync_progress_config_missing)
+    val syncCloudMissingMessage = stringResource(R.string.reader_sync_progress_cloud_missing)
+    val syncFailedMessage = stringResource(R.string.reader_sync_progress_failed)
+    LaunchedEffect(Unit) {
+        viewModel.syncMessages.collect { message ->
+            val text = when (message) {
+                is ReaderSyncMessage.Pushed -> syncPushedMessage
+                is ReaderSyncMessage.Pulled -> syncPulledMessage
+                is ReaderSyncMessage.Synced -> syncSyncedMessage.format(message.pulled, message.pushed)
+                ReaderSyncMessage.ConfigIncomplete -> syncConfigIncompleteMessage
+                ReaderSyncMessage.CloudMissing -> syncCloudMissingMessage
+                is ReaderSyncMessage.Failed -> syncFailedMessage.format(message.reason.orEmpty())
+            }
+            snackbarHostState.showSnackbar(text)
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
     if (showNotesSidePanel) {
         var notesSidePanelVisible by rememberSaveable { mutableStateOf(true) }
-        Box(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
             ReaderScreen(
                 modifier = Modifier.weight(if (notesSidePanelVisible) ReaderPaneWeight else 1f).fillMaxHeight(),
@@ -272,11 +296,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             )
         }
         }
-        return
-    }
-
+    } else {
     ReaderScreen(
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         uiState = uiState,
         settings = settings,
         usingCustomStyle = usingCustomStyle,
@@ -328,6 +350,12 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onResume = viewModel::onResume,
         onBack = onBack,
     )
+    }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+    )
+    }
 }
 
 private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, SEARCH }
@@ -405,9 +433,9 @@ private fun ReaderScreen(
         val menuStart = width / 3f
         val menuEnd = menuStart * 2f
         when {
+            chromeVisible -> chromeVisible = false
             x < menuStart -> onTapPrevious()
             x > menuEnd -> onTapNext()
-            chromeVisible -> chromeVisible = false
             else -> {
                 selectedPanel = ReaderPanel.STYLE
                 chromeVisible = true
@@ -1518,7 +1546,8 @@ private fun ReaderPanelButton(icon: ImageVector, labelRes: Int, selected: Boolea
 
 @Composable
 private fun ContentsPanel(uiState: ReaderUiState, onOpenTocEntry: (String) -> Unit) {
-    val entries = (uiState as? ReaderUiState.Loaded)?.toc.orEmpty().flattenToc()
+    val toc = (uiState as? ReaderUiState.Loaded)?.toc.orEmpty()
+    val entries = remember(toc) { toc.flattenToc() }
     LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
         items(entries, key = { "${it.depth}:${it.entry.href}:${it.entry.title}" }) { item ->
             TextButton(onClick = { onOpenTocEntry(item.entry.href) }) {

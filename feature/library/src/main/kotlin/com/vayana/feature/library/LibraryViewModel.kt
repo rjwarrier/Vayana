@@ -14,6 +14,8 @@ import com.vayana.core.backup.PortableReadingPositionAlternative
 import com.vayana.core.backup.PortableSyncConflict
 import com.vayana.core.backup.SnapshotExporter
 import com.vayana.core.backup.patchPortableReadingProgressOnly
+import com.vayana.core.backup.PortableAnnotation
+import com.vayana.core.backup.parsePortableAnnotations
 import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.backup.toJsonString
@@ -27,6 +29,8 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.Shelf
+import com.vayana.core.database.repository.AnnotationMergeResult
+import com.vayana.core.database.repository.AnnotationRecord
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.CloudBookMergeResult
@@ -36,6 +40,8 @@ import com.vayana.core.database.repository.ReadingProgressVersion
 import com.vayana.core.database.repository.ShelfRepository
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.diagnostics.DiagnosticCategory
+import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.CloudAssetReference
 import com.vayana.core.sync.asset.CloudBookAssetTransfer
 import com.vayana.core.sync.asset.CloudBookFileDownloadPhase
@@ -51,8 +57,11 @@ import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,6 +70,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
@@ -204,6 +215,15 @@ private data class CloudLibraryMergeSummary(
     val failureMessage: String? = null,
 )
 
+private data class AnnotationMergeSummary(
+    val created: Int = 0,
+    val updated: Int = 0,
+    val skipped: Int = 0,
+    val conflicts: Int = 0,
+    val failed: Boolean = false,
+    val failureMessage: String? = null,
+)
+
 private data class ReadingProgressOnlyPushSummary(
     val pushed: Int = 0,
     val failed: Boolean = false,
@@ -240,26 +260,30 @@ class LibraryViewModel @Inject constructor(
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
+    private val diagnosticsLogStore: DiagnosticsLogStore,
     @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val controls = MutableStateFlow(LibraryControls())
 
     /** [Book.coverPath] and [Book.filePath] come back root-relative; resolve both before UI use. */
-    private val allBooks: Flow<List<Book>> = bookRepository.observeAll()
-        .map { books -> books.map { it.withAbsolutePaths() } }
+    private val allBooks: Flow<List<Book>> = bookRepository.observeAll().withAbsolutePaths()
 
     val libraryBooks: StateFlow<List<Book>> =
         allBooks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val uiState: StateFlow<LibraryUiState> = combine(libraryBooks, controls, settingsRepository.snapshot) { books, controls, settings ->
+    private val githubSyncReady: Flow<Boolean> = settingsRepository.snapshot
+        .map { it.isGitHubSyncReady() }
+        .distinctUntilChanged()
+
+    val uiState: StateFlow<LibraryUiState> = combine(libraryBooks, controls, githubSyncReady) { books, controls, syncReady ->
         LibraryUiState(
             books = books
                 .filterBy(controls.filter)
                 .filterByQuery(controls.query)
                 .sortedBy(controls.sort),
             controls = controls,
-            githubSyncReady = settings.isGitHubSyncReady(),
+            githubSyncReady = syncReady,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
@@ -303,7 +327,7 @@ class LibraryViewModel @Inject constructor(
     }
 
     val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
-        .map { books -> books.map { it.withAbsolutePaths() } }
+        .withAbsolutePaths()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun restoreBook(bookId: Long) {
@@ -322,11 +346,11 @@ class LibraryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val readNextQueue: StateFlow<List<Book>> = bookRepository.observeReadNextQueue()
-        .map { books -> books.map { it.withAbsolutePaths() } }
+        .withAbsolutePaths()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun observeBooksForShelf(shelfId: Long): StateFlow<List<Book>> = shelfRepository.observeBooksForShelf(shelfId)
-        .map { books -> books.map { it.withAbsolutePaths() } }
+        .withAbsolutePaths()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun observeShelvesForBook(bookId: Long): StateFlow<List<Shelf>> = shelfRepository.observeShelvesForBook(bookId)
@@ -575,6 +599,26 @@ class LibraryViewModel @Inject constructor(
     suspend fun syncNow(
         allowInitialSync: Boolean = false,
         mode: GitHubSyncMode = GitHubSyncMode.FULL,
+    ): GitHubSyncNowResult {
+        val result = runSyncNow(allowInitialSync, mode)
+        if (result is GitHubSyncNowResult.Complete && (result.pullFailed || !result.metadataSynced)) {
+            withContext(dispatchers.io) {
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "LibraryViewModel.syncNow",
+                    message = buildString {
+                        append(if (result.pullFailed) "Cloud progress pull failed" else "Metadata sync failed")
+                        result.failureMessage?.let { append(": ").append(it) }
+                    },
+                )
+            }
+        }
+        return result
+    }
+
+    private suspend fun runSyncNow(
+        allowInitialSync: Boolean,
+        mode: GitHubSyncMode,
     ): GitHubSyncNowResult = withContext(dispatchers.io) {
         updateSyncProgress(GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
         val settings = settingsRepository.snapshot.first()
@@ -670,6 +714,13 @@ class LibraryViewModel @Inject constructor(
             CloudLibraryMergeSummary()
         } else {
             mergeCloudLibrary(progressMerge.remoteSnapshotJson.orEmpty(), store)
+        }
+        // Must run after cloudLibraryMerge: an annotation whose book was just created above can
+        // only resolve its bookSyncId to a local row once that book actually exists.
+        val annotationMerge = if (progressMerge.missingRemoteSnapshot) {
+            AnnotationMergeSummary()
+        } else {
+            mergeCloudAnnotations(progressMerge.remoteSnapshotJson.orEmpty())
         }
         val booksBeforeRepair = bookRepository.observeAll().first()
         val repairedCovers = repairMissingCoversFromLocalFiles(booksBeforeRepair)
@@ -770,7 +821,16 @@ class LibraryViewModel @Inject constructor(
                 .toByteArray(Charsets.UTF_8)
             store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
             store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, progressMerge.remoteSnapshotSha)
-        }.exceptionOrNull()
+        }.exceptionOrNull()?.let { throwable ->
+            // Uploads above already happened and aren't lost - a conflict here just means another
+            // device saved a snapshot while this sync was uploading. Say so explicitly rather than
+            // reporting a generic failure, since a retry will be fast (already-uploaded books skip).
+            if (throwable.isGitHubConflict()) {
+                GitHubConcurrentSyncException(throwable)
+            } else {
+                throwable
+            }
+        }
         finishSyncProgress(
             step = if (metadataError == null && failed == 0 && !cloudLibraryMerge.failed) {
                 GitHubSyncProgressStep.COMPLETE
@@ -793,10 +853,10 @@ class LibraryViewModel @Inject constructor(
             cloudBooksCreated = cloudLibraryMerge.created,
             cloudBooksUpdated = cloudLibraryMerge.updated,
             conflicts = progressMerge.conflictCount,
-            skipped = progressMerge.skipped + cloudLibraryMerge.skipped,
-            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed) && !allowInitialSync,
+            skipped = progressMerge.skipped + cloudLibraryMerge.skipped + annotationMerge.skipped,
+            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || annotationMerge.failed) && !allowInitialSync,
             metadataSynced = metadataError == null,
-            failureMessage = metadataError?.syncFailureMessage() ?: cloudLibraryMerge.failureMessage,
+            failureMessage = metadataError?.syncFailureMessage() ?: cloudLibraryMerge.failureMessage ?: annotationMerge.failureMessage,
         )
     }
 
@@ -850,58 +910,119 @@ class LibraryViewModel @Inject constructor(
 
     private suspend fun mergeCloudLibrary(snapshotJson: String, store: GitHubContentsAssetStore): CloudLibraryMergeSummary =
         runCatchingCancellable {
-            parsePortableCloudBooks(snapshotJson).fold(CloudLibraryMergeSummary()) { summary, cloudBook ->
-                val record = cloudBook.toRecord() ?: return@fold summary.copy(skipped = summary.skipped + 1)
-                val mergeResult = bookRepository.mergeCloudBook(record)
-                val coverDownloaded = downloadCloudCoverIfNeeded(cloudBook, record, store)
-                when (mergeResult) {
-                    CloudBookMergeResult.CREATED -> summary.copy(
-                        created = summary.created + 1,
-                        coversDownloaded = summary.coversDownloaded + coverDownloaded,
-                    )
-                    CloudBookMergeResult.UPDATED -> summary.copy(
-                        updated = summary.updated + 1,
-                        coversDownloaded = summary.coversDownloaded + coverDownloaded,
-                    )
-                    CloudBookMergeResult.SKIPPED -> summary.copy(
-                        skipped = summary.skipped + 1,
-                        coversDownloaded = summary.coversDownloaded + coverDownloaded,
-                    )
+            // Merging is DB-only and fast; do it sequentially first so cover downloads below only
+            // ever run against already-merged rows. The downloads themselves are the network-bound
+            // part - for a library with many new/changed covers, running them one at a time was the
+            // dominant cost of a fresh-device sync. Fan them out with bounded concurrency instead.
+            var created = 0
+            var updated = 0
+            var skipped = 0
+            val coverTargets = ArrayList<Pair<PortableCloudBook, CloudBookRecord>>()
+            for (cloudBook in parsePortableCloudBooks(snapshotJson)) {
+                val record = cloudBook.toRecord()
+                if (record == null) {
+                    skipped += 1
+                    continue
                 }
+                when (bookRepository.mergeCloudBook(record)) {
+                    CloudBookMergeResult.CREATED -> created += 1
+                    CloudBookMergeResult.UPDATED -> updated += 1
+                    CloudBookMergeResult.SKIPPED -> skipped += 1
+                }
+                coverTargets += cloudBook to record
             }
+            val coversDownloaded = downloadCloudCoversConcurrently(coverTargets, store)
+            CloudLibraryMergeSummary(created = created, updated = updated, skipped = skipped, coversDownloaded = coversDownloaded)
         }.getOrElse { throwable ->
             CloudLibraryMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun downloadCloudCoversConcurrently(
+        targets: List<Pair<PortableCloudBook, CloudBookRecord>>,
+        store: GitHubContentsAssetStore,
+    ): Int = coroutineScope {
+        val permits = Semaphore(MaxConcurrentCoverDownloads)
+        targets.map { (cloudBook, record) ->
+            async {
+                permits.withPermit {
+                    runCatchingCancellable { downloadCloudCoverIfNeeded(cloudBook, record, store) }.getOrDefault(0)
+                }
+            }
+        }.sumOf { it.await() }
+    }
+
+    private suspend fun mergeCloudAnnotations(snapshotJson: String): AnnotationMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var updated = 0
+            var skipped = 0
+            var conflicts = 0
+            for (remote in parsePortableAnnotations(snapshotJson)) {
+                val record = remote.toRecord()
+                if (record == null) {
+                    skipped += 1
+                    continue
+                }
+                when (annotationRepository.mergeCloudAnnotation(record)) {
+                    AnnotationMergeResult.CREATED -> created += 1
+                    AnnotationMergeResult.UPDATED -> updated += 1
+                    AnnotationMergeResult.KEPT_LOCAL_OVER_CONFLICT -> conflicts += 1
+                    AnnotationMergeResult.NO_CHANGE, AnnotationMergeResult.NO_LOCAL_BOOK -> skipped += 1
+                }
+            }
+            AnnotationMergeSummary(created = created, updated = updated, skipped = skipped, conflicts = conflicts)
+        }.getOrElse { throwable ->
+            AnnotationMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
 
     private suspend fun pushReadingProgressOnly(
         remoteSnapshotJson: String,
         remoteSnapshotSha: String?,
         store: GitHubContentsAssetStore,
-    ): ReadingProgressOnlyPushSummary =
-        runCatchingCancellable {
-            val result = patchPortableReadingProgressOnly(
-                jsonText = remoteSnapshotJson,
-                patches = bookRepository.observeAll().first().map { book ->
-                    PortableReadingProgressPatch(
-                        fileHash = book.fileHash,
-                        lastLocator = book.lastLocator,
-                        readingPercent = book.readingPercent,
-                        lastReadAt = book.lastReadAt,
-                        startedReadingAt = book.startedReadingAt,
-                        finishedReadingAt = book.finishedReadingAt,
-                        totalReadingSeconds = book.totalReadingSeconds,
-                    )
-                },
-                exportedAt = System.currentTimeMillis(),
-            )
-            if (result.patched > 0) {
-                val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
-                store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, remoteSnapshotSha)
+    ): ReadingProgressOnlyPushSummary {
+        var jsonText = remoteSnapshotJson
+        var sha = remoteSnapshotSha
+        var lastFailure: Throwable? = null
+        repeat(MaxProgressOnlyPushAttempts) { attemptIndex ->
+            val attempt = runCatchingCancellable {
+                val result = patchPortableReadingProgressOnly(
+                    jsonText = jsonText,
+                    patches = bookRepository.observeAll().first().map { book ->
+                        PortableReadingProgressPatch(
+                            fileHash = book.fileHash,
+                            lastLocator = book.lastLocator,
+                            readingPercent = book.readingPercent,
+                            lastReadAt = book.lastReadAt,
+                            startedReadingAt = book.startedReadingAt,
+                            finishedReadingAt = book.finishedReadingAt,
+                            totalReadingSeconds = book.totalReadingSeconds,
+                        )
+                    },
+                    exportedAt = System.currentTimeMillis(),
+                )
+                if (result.patched > 0) {
+                    val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
+                    store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, sha)
+                }
+                ReadingProgressOnlyPushSummary(pushed = result.patched)
             }
-            ReadingProgressOnlyPushSummary(pushed = result.patched)
-        }.getOrElse { throwable ->
-            ReadingProgressOnlyPushSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+            attempt.onSuccess { result -> return result }
+            val throwable = attempt.exceptionOrNull()
+            lastFailure = throwable
+            // Another device wrote to the snapshot between our pull and this push - re-fetch the
+            // now-current document and re-apply our patch on top of it, rather than failing outright.
+            if (throwable?.isGitHubConflict() != true || attemptIndex == MaxProgressOnlyPushAttempts - 1) {
+                return ReadingProgressOnlyPushSummary(failed = true, failureMessage = throwable?.syncFailureMessage())
+            }
+            val refetch = runCatchingCancellable { store.getSyncDocumentWithSha("vayana/snapshot-latest.json") }
+            val document = refetch.getOrElse { refetchFailure ->
+                return ReadingProgressOnlyPushSummary(failed = true, failureMessage = refetchFailure.syncFailureMessage())
+            }
+            jsonText = document.bytes.toString(Charsets.UTF_8)
+            sha = document.sha
         }
+        return ReadingProgressOnlyPushSummary(failed = true, failureMessage = lastFailure?.syncFailureMessage())
+    }
 
     private suspend fun downloadCloudCoverIfNeeded(
         cloudBook: PortableCloudBook,
@@ -1304,6 +1425,9 @@ class LibraryViewModel @Inject constructor(
         filePath = filePath.takeIf { it.isNotBlank() }?.let { storageRoots.resolve(it).absolutePath }.orEmpty(),
     )
 
+    private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> =
+        map { books -> books.map { it.withAbsolutePaths() } }
+
     private fun saveCover(bytes: ByteArray): File {
         val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.jpg")
         coverFile.writeBytes(bytes)
@@ -1439,6 +1563,24 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
     )
 }
 
+private fun PortableAnnotation.toRecord(): AnnotationRecord? {
+    val type = runCatchingCancellable { AnnotationType.valueOf(type.uppercase()) }.getOrNull() ?: return null
+    return AnnotationRecord(
+        syncId = syncId,
+        bookSyncId = bookSyncId,
+        type = type,
+        colorKey = colorKey,
+        locator = locator,
+        chapterTitle = chapterTitle,
+        chapterHref = chapterHref,
+        selectedText = selectedText,
+        readerNote = readerNote,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        isDeleted = isDeleted,
+    )
+}
+
 private data class GitHubSyncConfig(
     val owner: String,
     val repository: String,
@@ -1520,8 +1662,13 @@ private fun GitHubSyncConfig.canBuildRepository(): Boolean =
         )
     }.isSuccess
 
+/** Wraps a 409 on the final snapshot save so the message can explain the uploads weren't lost. */
+private class GitHubConcurrentSyncException(cause: Throwable) : Exception(cause)
+
 private fun Throwable.syncFailureMessage(): String =
     when (this) {
+        is GitHubConcurrentSyncException ->
+            "Another device saved changes while this sync was uploading. Your uploads are safe - sync again to finish."
         is GitHubAssetStoreException -> buildString {
             append(message ?: "GitHub request failed")
             responseBody.takeIf { it.isNotBlank() }?.let { body ->
@@ -1535,6 +1682,9 @@ private fun Throwable.syncFailureMessage(): String =
 private fun Throwable.isMissingRemoteSnapshot(): Boolean =
     this is GitHubAssetStoreException &&
         (statusCode == 404 || (statusCode == 409 && responseBody.contains("Git Repository is empty", ignoreCase = true)))
+
+private fun Throwable.isGitHubConflict(): Boolean =
+    this is GitHubAssetStoreException && statusCode == 409
 
 private fun String.syncPathSegment(): String =
     trim()
@@ -1601,6 +1751,8 @@ private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
 private const val FinishedThreshold = 0.98f
 private const val MaxSyncFailureBodyChars = 400
 private const val MaxSyncFailureMessageChars = 600
+private const val MaxProgressOnlyPushAttempts = 2
+private const val MaxConcurrentCoverDownloads = 4
 private const val GitHubSyncProgressTotalSteps = 5
 private const val CloudBookDownloadProgressTotalSteps = 5
 private const val MaxBookTags = 32

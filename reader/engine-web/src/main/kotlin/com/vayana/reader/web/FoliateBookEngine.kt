@@ -38,6 +38,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
+private const val LogTag = "FoliateReader"
 private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
@@ -156,7 +157,9 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                Log.d("FoliateReader", "[${message.messageLevel()}] ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                if (Log.isLoggable(LogTag, Log.DEBUG)) {
+                    Log.d(LogTag, "[${message.messageLevel()}] ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                }
                 return true
             }
         }
@@ -324,7 +327,9 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     }
 
     private fun handleEvent(type: String, payload: JSONObject) {
-        Log.d("FoliateReader", "event: $type $payload")
+        if (Log.isLoggable(LogTag, Log.DEBUG)) {
+            Log.d(LogTag, "event: $type $payload")
+        }
         when (type) {
             "ready" -> {
                 jsReady = true
@@ -359,7 +364,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val results = payload.optJSONArray("results")?.toSearchResults() ?: emptyList()
                 _events.tryEmit(EngineEvent.SearchCompleted(query, results))
             }
-            "log" -> Log.d("FoliateReader", "bridge: $payload")
+            "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")
                 openResult?.complete(Result.failure(IllegalStateException(message)))

@@ -8,6 +8,7 @@ import com.vayana.core.sync.asset.GitHubConnectionTestResult
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import com.vayana.core.sync.asset.GitHubRepository
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 sealed interface GitHubConnectionTestOutcome {
@@ -45,6 +46,8 @@ class GitHubConnectionTester @Inject constructor(
             }
         } catch (exception: GitHubAssetStoreException) {
             GitHubConnectionTestOutcome.Failed("${exception.statusCode}: ${exception.responseBody}")
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (throwable: Throwable) {
             GitHubConnectionTestOutcome.Failed(throwable.message ?: "GitHub connection test failed")
         }

@@ -1,6 +1,9 @@
 package com.vayana.core.database.repository
 
+import androidx.room.withTransaction
+import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.AnnotationDao
+import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.entity.AnnotationEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
@@ -9,7 +12,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class AnnotationRepositoryImpl @Inject constructor(
+    private val database: VayanaDatabase,
     private val annotationDao: AnnotationDao,
+    private val bookDao: BookDao,
 ) : AnnotationRepository {
 
     override fun observeAll(): Flow<List<Annotation>> =
@@ -73,8 +78,54 @@ class AnnotationRepositoryImpl @Inject constructor(
     }
 
     override suspend fun purge(id: Long) {
-        val annotation = annotationDao.getById(id) ?: return
-        annotationDao.delete(annotation)
+        annotationDao.purge(id)
+    }
+
+    override suspend fun mergeCloudAnnotation(record: AnnotationRecord): AnnotationMergeResult = database.withTransaction {
+        val existing = annotationDao.findBySyncId(record.syncId)
+        if (existing == null) {
+            if (record.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE
+            val bookId = bookDao.findBySyncId(record.bookSyncId)?.id
+                ?: return@withTransaction AnnotationMergeResult.NO_LOCAL_BOOK
+            annotationDao.insert(
+                AnnotationEntity(
+                    syncId = record.syncId,
+                    bookId = bookId,
+                    type = record.type.name,
+                    colorKey = record.colorKey,
+                    locator = record.locator,
+                    chapterTitle = record.chapterTitle,
+                    chapterHref = record.chapterHref,
+                    selectedText = record.selectedText,
+                    readerNote = record.readerNote,
+                    createdAt = record.createdAt,
+                    updatedAt = record.updatedAt,
+                    isDeleted = false,
+                ),
+            )
+            return@withTransaction AnnotationMergeResult.CREATED
+        }
+        // Never let sync silently delete or resurrect data on its own judgement: if the two sides
+        // disagree on whether this annotation is deleted, whichever state is already showing here
+        // keeps winning, and the disagreement is just reported rather than acted on.
+        if (existing.isDeleted != record.isDeleted) {
+            return@withTransaction AnnotationMergeResult.KEPT_LOCAL_OVER_CONFLICT
+        }
+        if (existing.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE
+        if (record.updatedAt <= existing.updatedAt) return@withTransaction AnnotationMergeResult.NO_CHANGE
+        annotationDao.update(
+            existing.copy(
+                type = record.type.name,
+                colorKey = record.colorKey,
+                locator = record.locator,
+                chapterTitle = record.chapterTitle,
+                chapterHref = record.chapterHref,
+                selectedText = record.selectedText,
+                readerNote = record.readerNote,
+                updatedAt = record.updatedAt,
+            ),
+        )
+        AnnotationMergeResult.UPDATED
     }
 }
 

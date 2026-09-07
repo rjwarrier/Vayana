@@ -2,6 +2,10 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 14
+Adds a non-unique index on `books.fileHash`. `findByHash`/`findActiveBySyncIdOrHash` run on every
+import dedupe check and every GitHub sync merge; without an index those were full table scans.
+
 ## Version 13
 Adds identity-reconciliation and hard-deletion bookkeeping for GitHub sync milestone 1
 (docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md §4, §10):

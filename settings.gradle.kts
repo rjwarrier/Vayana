@@ -27,6 +27,7 @@ include(":core:database")
 include(":core:datastore")
 include(":core:filesystem")
 include(":core:sync")
+include(":core:diagnostics")
 
 include(":feature:library")
 include(":feature:reader")

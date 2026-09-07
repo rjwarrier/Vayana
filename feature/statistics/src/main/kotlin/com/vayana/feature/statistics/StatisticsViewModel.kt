@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.ReadingSession
+import com.vayana.core.database.model.VocabularyCard
 import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
@@ -13,15 +14,71 @@ import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+
+data class DailyReadingMinutes(
+    val date: LocalDate,
+    /** Minutes read that day, or [FutureDayMinutes] for a date after today (a trailing cell in
+     *  the current, still-incomplete week of the grid) - distinct from a past day that had zero. */
+    val minutes: Int,
+) {
+    val isFuture: Boolean get() = minutes == FutureDayMinutes
+}
+
+const val FutureDayMinutes = -1
+
+data class ReadingPaceEstimate(
+    val bookTitle: String,
+    val estimatedDaysRemaining: Int,
+)
+
+/** One tag treated as a genre: how many books carry it and how much time has gone into them. */
+data class GenreStat(
+    val name: String,
+    val bookCount: Int,
+    val totalSeconds: Long,
+)
+
+data class ReadingHabits(
+    val busiestDayOfWeek: DayOfWeek?,
+    val averageSessionMinutes: Int,
+    /** Average days from starting a book to finishing it, across books with both timestamps. */
+    val averageDaysToFinish: Int?,
+    val booksFinishedLastYear: Int,
+)
+
+data class AuthorStat(
+    val author: String,
+    val bookCount: Int,
+    val totalSeconds: Long,
+)
+
+/** How much of an author's imported catalog has actually been finished - "of what I own", not a
+ *  claim about the author's or series' true total, which this app has no way to know. */
+data class SeriesProgress(
+    val seriesName: String,
+    val finishedCount: Int,
+    val totalCount: Int,
+)
+
+data class VocabularyGrowth(
+    val masteredFraction: Float,
+    /** Last [VocabularyGrowthWeeks] weeks of new-card counts, oldest first. */
+    val weeklyNewCards: List<Int>,
+)
 
 data class StatisticsSummary(
     val totalBooks: Int = 0,
@@ -36,9 +93,23 @@ data class StatisticsSummary(
     val longestSessionSeconds: Long = 0L,
     val currentStreakDays: Int = 0,
     val todayReadingMinutes: Int = 0,
+    val recentWeekReadingMinutes: Int = 0,
     val dailyGoalMinutes: Int = 0,
     val booksFinishedThisYear: Int = 0,
     val yearlyGoalBooks: Int = 0,
+    /** Sunday-aligned weeks ending this week, oldest first, sized to a whole number of 7-day
+     *  columns so the UI can chunk it directly with no partial-week special-casing - a
+     *  GitHub-style contribution grid. Between [MinActivityGridWeeks] and [ActivityGridWeeks]
+     *  weeks wide depending on how long there's been any activity to show. */
+    val dailyReadingMinutes: List<DailyReadingMinutes> = emptyList(),
+    val readingPace: ReadingPaceEstimate? = null,
+    /** Tags treated as genres, richest (most time invested) first. */
+    val genreStats: List<GenreStat> = emptyList(),
+    val readingHabits: ReadingHabits? = null,
+    val uniqueAuthorCount: Int = 0,
+    val topAuthor: AuthorStat? = null,
+    val topSeries: SeriesProgress? = null,
+    val vocabularyGrowth: VocabularyGrowth? = null,
 )
 
 @HiltViewModel
@@ -50,25 +121,47 @@ class StatisticsViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
     vocabularyCardRepository: VocabularyCardRepository,
 ) : ViewModel() {
-    val summary: StateFlow<StatisticsSummary> = combine(
+    private val coreInputs = combine(
         bookRepository.observeAll(),
         annotationRepository.observeAll(),
         wordLookupStatRepository.observeTop(TopLookedUpWordsLimit),
         readingSessionRepository.observeAll(),
         settingsRepository.snapshot,
-    ) { books, annotations, topWords, sessions, settings ->
-        books.toSummary(annotations, topWords, sessions, settings.dailyReadingGoalMinutes, settings.yearlyBooksGoal)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+    ) { books, annotations, topWords, sessions, settings -> CoreInputs(books, annotations, topWords, sessions, settings) }
+
+    val summary: StateFlow<StatisticsSummary> = combine(
+        coreInputs,
+        vocabularyCardRepository.observeAll(),
+    ) { inputs, vocabularyCards ->
+        inputs.books.toSummary(
+            annotations = inputs.annotations,
+            topWords = inputs.topWords,
+            sessions = inputs.sessions,
+            vocabularyCards = vocabularyCards,
+            dailyGoalMinutes = inputs.settings.dailyReadingGoalMinutes,
+            yearlyGoalBooks = inputs.settings.yearlyBooksGoal,
+        )
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
 
     val vocabularyCardCount: StateFlow<Int> = vocabularyCardRepository.observeAll()
         .map { it.size }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }
+
+private data class CoreInputs(
+    val books: List<Book>,
+    val annotations: List<Annotation>,
+    val topWords: List<WordLookupStat>,
+    val sessions: List<ReadingSession>,
+    val settings: com.vayana.core.datastore.settings.SettingsSnapshot,
+)
 
 private fun List<Book>.toSummary(
     annotations: List<Annotation>,
     topWords: List<WordLookupStat>,
     sessions: List<ReadingSession>,
+    vocabularyCards: List<VocabularyCard>,
     dailyGoalMinutes: Int,
     yearlyGoalBooks: Int,
 ): StatisticsSummary {
@@ -76,19 +169,43 @@ private fun List<Book>.toSummary(
     val countedSessions = sessions.filter { it.durationSeconds >= MinCountedSessionSeconds }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
-    val readingDates = countedSessions.map { Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate() }.toSet()
+    // One pass over sessions, keyed by day, backs the streak check, the activity chart, and the
+    // pace estimate below - the alternative (re-filtering the session list per day) is quadratic
+    // in the chart window for no benefit.
+    val secondsByDate: Map<LocalDate, Long> = countedSessions
+        .groupingBy { Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate() }
+        .fold(0L) { total, session -> total + session.durationSeconds }
     var streak = 0
     var probe = today
     // A streak "survives" a still-open today with zero sessions - it only breaks once yesterday
     // is also missing, so reading last night still shows a live streak this morning.
-    if (!readingDates.contains(today)) probe = today.minusDays(1)
-    while (readingDates.contains(probe)) {
+    if (today !in secondsByDate) probe = today.minusDays(1)
+    while (probe in secondsByDate) {
         streak++
         probe = probe.minusDays(1)
     }
-    val todaySeconds = sessions.filter {
-        Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate() == today
-    }.sumOf { it.durationSeconds }
+    // Sunday-start week columns, GitHub-style: the grid always ends on this week's Saturday
+    // regardless of what day "today" is, so the column count and shape never change day to day -
+    // only how many trailing cells in the last column are still in the future.
+    val daysSinceSunday = today.dayOfWeek.value % 7
+    val currentWeekStart = today.minusDays(daysSinceSunday.toLong())
+    val maxLookbackStart = currentWeekStart.minusWeeks((ActivityGridWeeks - 1).toLong())
+    val minLookbackStart = currentWeekStart.minusWeeks((MinActivityGridWeeks - 1).toLong())
+    // A brand-new library has no reason to drag in 53 weeks of empty squares before the first
+    // book was even added - start the grid at the first real activity instead, still bounded to
+    // at least MinActivityGridWeeks (so day one doesn't look like a single bare column) and at
+    // most ActivityGridWeeks (so a long-lived library still gets the familiar year view).
+    val earliestActivityDate = (sessions.minOfOrNull { it.startedAt } ?: minOfOrNull { it.createdAt })
+        ?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+    val earliestWeekStart = earliestActivityDate?.let { date -> date.minusDays((date.dayOfWeek.value % 7).toLong()) }
+    val gridStart = (earliestWeekStart ?: minLookbackStart).coerceIn(maxLookbackStart, minLookbackStart)
+    val totalWeeks = ((currentWeekStart.toEpochDay() - gridStart.toEpochDay()) / 7 + 1).toInt()
+    val dailyReadingMinutes = (0 until totalWeeks * 7).map { offset ->
+        val date = gridStart.plusDays(offset.toLong())
+        val minutes = if (date.isAfter(today)) FutureDayMinutes else ((secondsByDate[date] ?: 0L) / 60L).toInt()
+        DailyReadingMinutes(date = date, minutes = minutes)
+    }
+    val recentWeekMinutes = (0 until 7).sumOf { daysAgo -> ((secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L) / 60L).toInt() }
     val finishedThisYear = count { book ->
         book.finishedReadingAt?.let { Instant.ofEpochMilli(it).atZone(zone).year == today.year } == true
     }
@@ -99,19 +216,141 @@ private fun List<Book>.toSummary(
         averageProgressPercent = average.coerceIn(0, 100),
         totalAnnotations = annotations.size,
         notesWithText = annotations.count { it.readerNote?.isNotBlank() == true },
+        // A fixed pick (e.g. always the oldest) would show the same highlight forever. Rotate
+        // through eligible highlights by day so the "revisit" card actually resurfaces different ones.
         highlightToRevisit = annotations
             .filter { it.selectedText.isNotBlank() }
             .sortedBy { it.createdAt }
-            .firstOrNull(),
+            .let { eligible -> eligible.takeIf { it.isNotEmpty() }?.let { it[(today.toEpochDay() % it.size).toInt()] } },
         topLookedUpWords = topWords,
         sessionCount = countedSessions.size,
         longestSessionSeconds = countedSessions.maxOfOrNull { it.durationSeconds } ?: 0L,
         currentStreakDays = streak,
-        todayReadingMinutes = (todaySeconds / 60L).toInt(),
+        todayReadingMinutes = ((secondsByDate[today] ?: 0L) / 60L).toInt(),
+        recentWeekReadingMinutes = recentWeekMinutes,
         dailyGoalMinutes = dailyGoalMinutes,
         booksFinishedThisYear = finishedThisYear,
         yearlyGoalBooks = yearlyGoalBooks,
+        dailyReadingMinutes = dailyReadingMinutes,
+        readingPace = readingPaceEstimate(secondsByDate, today),
+        genreStats = genreStats(),
+        readingHabits = readingHabits(countedSessions, zone, today),
+        uniqueAuthorCount = mapNotNull { it.author?.trim()?.lowercase()?.ifBlank { null } }.distinct().size,
+        topAuthor = topAuthor(),
+        topSeries = topSeries(),
+        vocabularyGrowth = vocabularyGrowth(vocabularyCards, zone, today),
     )
+}
+
+/**
+ * "At this pace, you'll finish X in about N days": extrapolates the book's own historical
+ * seconds-read-per-percent-progress rate to the remaining percentage, then divides by how many
+ * seconds/day the last week actually averaged. Deliberately book-specific (not a generic reading
+ * speed) since it's already exactly what the book's own totalReadingSeconds/readingPercent encode -
+ * no word count or reading-speed assumption needed.
+ */
+private fun List<Book>.readingPaceEstimate(secondsByDate: Map<LocalDate, Long>, today: LocalDate): ReadingPaceEstimate? {
+    val currentBook = filter { it.readingPercent > 0.01f && it.readingPercent < FinishedThreshold && it.totalReadingSeconds > 0L }
+        .maxByOrNull { it.lastReadAt ?: 0L }
+        ?: return null
+    val recentSecondsPerDay = (0 until PaceWindowDays)
+        .sumOf { daysAgo -> secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L }
+        .toDouble() / PaceWindowDays
+    if (recentSecondsPerDay <= 0.0) return null
+    val secondsPerPercent = currentBook.totalReadingSeconds / currentBook.readingPercent
+    val remainingSeconds = secondsPerPercent * (1f - currentBook.readingPercent)
+    val estimatedDays = ceil(remainingSeconds / recentSecondsPerDay).toInt().coerceAtLeast(1)
+    if (estimatedDays > MaxEstimatedDays) return null
+    return ReadingPaceEstimate(bookTitle = currentBook.title, estimatedDaysRemaining = estimatedDays)
+}
+
+/** Tags are the only per-book categorical field this app has (no parsed EPUB genre metadata) -
+ *  treat them as genres. A book can carry several, so it contributes to each of its tags' totals. */
+private fun List<Book>.genreStats(): List<GenreStat> {
+    val totals = LinkedHashMap<String, GenreStat>()
+    for (book in this) {
+        for (tag in book.tagsCsv.splitTags()) {
+            val key = tag.lowercase()
+            val existing = totals[key]
+            totals[key] = GenreStat(
+                name = existing?.name ?: tag,
+                bookCount = (existing?.bookCount ?: 0) + 1,
+                totalSeconds = (existing?.totalSeconds ?: 0L) + book.totalReadingSeconds,
+            )
+        }
+    }
+    return totals.values.sortedByDescending { it.totalSeconds }.take(MaxGenreStats)
+}
+
+private fun String?.splitTags(): List<String> =
+    this?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+
+private fun List<Book>.readingHabits(countedSessions: List<ReadingSession>, zone: ZoneId, today: LocalDate): ReadingHabits? {
+    val finishDurationsDays = mapNotNull { book ->
+        val started = book.startedReadingAt
+        val finished = book.finishedReadingAt
+        if (started == null || finished == null || finished <= started) return@mapNotNull null
+        TimeUnit.MILLISECONDS.toDays(finished - started).toInt()
+    }
+    val averageDaysToFinish = if (finishDurationsDays.isEmpty()) null else finishDurationsDays.average().roundToInt().coerceAtLeast(1)
+    val lastYear = today.year - 1
+    val finishedLastYear = count { book ->
+        book.finishedReadingAt?.let { Instant.ofEpochMilli(it).atZone(zone).year == lastYear } == true
+    }
+    if (countedSessions.isEmpty() && averageDaysToFinish == null && finishedLastYear == 0) return null
+    val secondsByDayOfWeek = countedSessions
+        .groupingBy { Instant.ofEpochMilli(it.startedAt).atZone(zone).dayOfWeek }
+        .fold(0L) { total, session -> total + session.durationSeconds }
+    val busiestDay = secondsByDayOfWeek.maxByOrNull { it.value }?.key
+    val averageSessionMinutes = if (countedSessions.isEmpty()) {
+        0
+    } else {
+        (countedSessions.sumOf { it.durationSeconds } / countedSessions.size / 60L).toInt()
+    }
+    return ReadingHabits(
+        busiestDayOfWeek = busiestDay,
+        averageSessionMinutes = averageSessionMinutes,
+        averageDaysToFinish = averageDaysToFinish,
+        booksFinishedLastYear = finishedLastYear,
+    )
+}
+
+private fun List<Book>.topAuthor(): AuthorStat? {
+    val totals = LinkedHashMap<String, AuthorStat>()
+    for (book in this) {
+        val author = book.author?.trim()?.ifBlank { null } ?: continue
+        val key = author.lowercase()
+        val existing = totals[key]
+        totals[key] = AuthorStat(
+            author = existing?.author ?: author,
+            bookCount = (existing?.bookCount ?: 0) + 1,
+            totalSeconds = (existing?.totalSeconds ?: 0L) + book.totalReadingSeconds,
+        )
+    }
+    return totals.values.maxByOrNull { it.totalSeconds }?.takeIf { it.totalSeconds > 0L }
+}
+
+private fun List<Book>.topSeries(): SeriesProgress? {
+    val bySeriesName = filter { !it.series.isNullOrBlank() }.groupBy { it.series!!.trim() }
+    return bySeriesName.entries
+        .map { (name, books) -> SeriesProgress(name, books.count { it.readingPercent >= FinishedThreshold }, books.size) }
+        .filter { it.totalCount > 1 }
+        .maxByOrNull { it.totalCount }
+}
+
+private fun vocabularyGrowth(cards: List<VocabularyCard>, zone: ZoneId, today: LocalDate): VocabularyGrowth? {
+    if (cards.isEmpty()) return null
+    val masteredFraction = cards.count { it.known }.toFloat() / cards.size
+    val currentWeekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
+    val weeklyNewCards = (VocabularyGrowthWeeks - 1 downTo 0).map { weeksAgo ->
+        val weekStart = currentWeekStart.minusWeeks(weeksAgo.toLong())
+        val weekEndExclusive = weekStart.plusWeeks(1)
+        cards.count { card ->
+            val date = Instant.ofEpochMilli(card.createdAt).atZone(zone).toLocalDate()
+            !date.isBefore(weekStart) && date.isBefore(weekEndExclusive)
+        }
+    }
+    return VocabularyGrowth(masteredFraction = masteredFraction, weeklyNewCards = weeklyNewCards)
 }
 
 private const val TopLookedUpWordsLimit = 8
@@ -120,3 +359,20 @@ private const val FinishedThreshold = 0.98f
 
 /** Sessions shorter than this are noise (an accidental open) and are dropped from the count/highest stat. */
 private const val MinCountedSessionSeconds = 60L
+
+/** Widest the reading-activity contribution grid ever grows, in Sunday-start weeks (~1 year). */
+const val ActivityGridWeeks = 53
+
+/** Narrowest the grid ever shrinks to, even for a library with only a day or two of history. */
+private const val MinActivityGridWeeks = 4
+
+/** Trailing window used to estimate current reading pace. */
+private const val PaceWindowDays = 7
+
+/** Caps an absurd extrapolation (e.g. one lucky session skewing a near-zero recent pace) from
+ *  showing something like "in 4000 days" instead of just not showing a pace at all. */
+private const val MaxEstimatedDays = 365
+
+private const val MaxGenreStats = 6
+
+const val VocabularyGrowthWeeks = 8

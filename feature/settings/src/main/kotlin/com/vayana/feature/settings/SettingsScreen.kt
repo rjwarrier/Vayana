@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
@@ -120,7 +121,12 @@ private val SettingsTwoColumnBreakpoint = 680.dp
 private val SettingsCategoryBadgeSize = 42.dp
 
 @Composable
-fun SettingsRoute(onBack: () -> Unit, onHelpClick: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsRoute(
+    onBack: () -> Unit,
+    onHelpClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val settings by viewModel.settings.collectAsState()
     val backupState by viewModel.backupState.collectAsState()
@@ -137,6 +143,7 @@ fun SettingsRoute(onBack: () -> Unit, onHelpClick: () -> Unit, modifier: Modifie
         githubConnectionTestState = githubConnectionTestState,
         onBack = onBack,
         onHelpClick = onHelpClick,
+        onDiagnosticsClick = onDiagnosticsClick,
         onUpdate = viewModel::update,
         onReset = viewModel::reset,
         onResetAll = viewModel::resetAll,
@@ -164,6 +171,7 @@ private fun SettingsScreen(
     githubConnectionTestState: GitHubConnectionTestState,
     onBack: () -> Unit,
     onHelpClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onResetAll: () -> Unit,
@@ -205,6 +213,12 @@ private fun SettingsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onDiagnosticsClick) {
+                        Icon(
+                            imageVector = Icons.Outlined.BugReport,
+                            contentDescription = stringResource(R.string.settings_diagnostics_content_description),
+                        )
+                    }
                     IconButton(onClick = onHelpClick) {
                         Icon(
                             imageVector = Icons.Outlined.HelpOutline,

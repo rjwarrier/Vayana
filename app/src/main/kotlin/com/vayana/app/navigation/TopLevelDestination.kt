@@ -32,6 +32,9 @@ data object SettingsRoute
 data object HelpRoute
 
 @Serializable
+data object DiagnosticsRoute
+
+@Serializable
 data object RecentlyDeletedRoute
 
 @Serializable

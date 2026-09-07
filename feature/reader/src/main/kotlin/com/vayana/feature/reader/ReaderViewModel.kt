@@ -8,6 +8,7 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
+import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
@@ -23,6 +24,8 @@ import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
+import com.vayana.core.sync.progress.ReadingProgressSyncResult
+import com.vayana.core.sync.progress.ReadingProgressSyncStatus
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.DictionaryPackState
 import com.vayana.dictionary.api.DictionaryRepository
@@ -41,18 +44,33 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** One-shot snackbar-worthy outcomes from background reading-progress sync. */
+sealed interface ReaderSyncMessage {
+    data class Pushed(val count: Int) : ReaderSyncMessage
+    data class Pulled(val count: Int) : ReaderSyncMessage
+    data class Synced(val pulled: Int, val pushed: Int) : ReaderSyncMessage
+    data object ConfigIncomplete : ReaderSyncMessage
+    data object CloudMissing : ReaderSyncMessage
+    data class Failed(val reason: String?) : ReaderSyncMessage
+}
 
 sealed interface ReaderUiState {
     data object Loading : ReaderUiState
@@ -91,6 +109,7 @@ class ReaderViewModel @Inject constructor(
     private val readingSessionRepository: ReadingSessionRepository,
     private val vocabularyCardRepository: VocabularyCardRepository,
     private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
+    private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -145,7 +164,11 @@ class ReaderViewModel @Inject constructor(
     private val pageTurnAutoSyncGate = PageTurnAutoSyncGate(AutoSyncEveryPages)
     private var autoProgressSyncJob: Job? = null
     private var autoProgressSyncRequested = false
+    private val _syncMessages = Channel<ReaderSyncMessage>(Channel.BUFFERED)
+    val syncMessages: Flow<ReaderSyncMessage> = _syncMessages.receiveAsFlow()
+    private var lastSyncIssueSignature: String? = null
     private var lastReaderWrittenLocator: String? = null
+    private var locatorPersistJob: Job? = null
     private var pendingRemoteReadingPosition: SavedReadingPosition? = null
     private val readingPositionPromptDecider = ReadingPositionPromptDecider()
 
@@ -177,7 +200,7 @@ class ReaderViewModel @Inject constructor(
             }
 
             val localFile = storageRoots.resolve(book.filePath)
-            if (!localFile.isFile) {
+            if (!withContext(dispatchers.io) { localFile.isFile }) {
                 _uiState.value = ReaderUiState.Failed("This book file is missing from this device.")
                 return@launch
             }
@@ -227,7 +250,13 @@ class ReaderViewModel @Inject constructor(
                 if (_readingPositionPrompt.value == null) {
                     locator.cfi?.let { cfi ->
                         lastReaderWrittenLocator = cfi
-                        bookRepository.updateLocator(bookId, cfi, locator.progression)
+                        // The WebView bridge can fire several 'relocate' events for a single page
+                        // turn in quick succession; debounce so each one doesn't hit Room.
+                        locatorPersistJob?.cancel()
+                        locatorPersistJob = viewModelScope.launch {
+                            delay(LocatorPersistDebounceMillis)
+                            bookRepository.updateLocator(bookId, cfi, locator.progression)
+                        }
                     }
                     onPageMoved(locator)
                 }
@@ -576,7 +605,10 @@ class ReaderViewModel @Inject constructor(
 
     private fun observeAnnotations(engine: BookEngine) {
         engineJobs += viewModelScope.launch {
-            annotationRepository.observeForBook(bookId).collect { annotations ->
+            // Room's Flow re-emits whenever the annotations table is invalidated by any write
+            // (even to a different book), not just when this book's rows actually changed - skip
+            // the JS round trip when the content is identical to what we last rendered.
+            annotationRepository.observeForBook(bookId).distinctUntilChanged().collect { annotations ->
                 engine.renderAnnotations(annotations.mapNotNull { it.toReaderAnnotation() })
                 _uiState.update { current ->
                     if (current is ReaderUiState.Loaded) current.copy(annotations = annotations) else current
@@ -643,6 +675,21 @@ class ReaderViewModel @Inject constructor(
         persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
         trackingJob?.cancel()
         trackingJob = null
+        flushPendingLocatorWrite()
+    }
+
+    /** Guarantees the last-seen position is saved immediately, bypassing the debounce, when the
+     *  reader is about to go away (backgrounded or destroyed) and might not get another event. */
+    private fun flushPendingLocatorWrite() {
+        val job = locatorPersistJob ?: return
+        if (!job.isActive) return
+        job.cancel()
+        locatorPersistJob = null
+        val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator ?: return
+        val cfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch {
+            bookRepository.updateLocator(bookId, cfi, currentLocator.progression)
+        }
     }
 
     fun acceptReadingPositionPrompt() {
@@ -683,9 +730,43 @@ class ReaderViewModel @Inject constructor(
         autoProgressSyncJob = viewModelScope.launch {
             do {
                 autoProgressSyncRequested = false
-                readingProgressOnlySyncer.syncLocalProgressToCloud()
+                val result = readingProgressOnlySyncer.syncReadingProgress()
+                // Throttled means we didn't actually check anything; looping immediately would
+                // just spin until the window clears. A later page turn will trigger a fresh call.
+                if (result.status == ReadingProgressSyncStatus.THROTTLED) break
+                emitSyncMessage(result)
             } while (autoProgressSyncRequested)
         }
+    }
+
+    private fun emitSyncMessage(result: ReadingProgressSyncResult) {
+        val message: ReaderSyncMessage = when (result.status) {
+            ReadingProgressSyncStatus.PUSHED -> ReaderSyncMessage.Pushed(result.pushed)
+            ReadingProgressSyncStatus.PULLED -> ReaderSyncMessage.Pulled(result.pulled)
+            ReadingProgressSyncStatus.SYNCED -> ReaderSyncMessage.Synced(pulled = result.pulled, pushed = result.pushed)
+            ReadingProgressSyncStatus.CONFIG_INCOMPLETE -> ReaderSyncMessage.ConfigIncomplete
+            ReadingProgressSyncStatus.CLOUD_MISSING -> ReaderSyncMessage.CloudMissing
+            ReadingProgressSyncStatus.FAILED -> ReaderSyncMessage.Failed(result.failureMessage)
+            ReadingProgressSyncStatus.NO_CHANGES,
+            ReadingProgressSyncStatus.THROTTLED,
+            ReadingProgressSyncStatus.SYNC_DISABLED,
+            -> return
+        }
+        // Issues repeat identically every auto-sync trigger while the underlying cause persists
+        // (e.g. offline). Only surface a given issue once until either it changes or a sync succeeds.
+        val issueSignature = when (message) {
+            is ReaderSyncMessage.ConfigIncomplete -> "config"
+            is ReaderSyncMessage.CloudMissing -> "cloud_missing"
+            is ReaderSyncMessage.Failed -> "failed:${message.reason}"
+            else -> null
+        }
+        if (issueSignature != null) {
+            if (issueSignature == lastSyncIssueSignature) return
+            lastSyncIssueSignature = issueSignature
+        } else {
+            lastSyncIssueSignature = null
+        }
+        _syncMessages.trySend(message)
     }
 
     private fun startReadingTimeTicker() {
@@ -716,6 +797,7 @@ class ReaderViewModel @Inject constructor(
     override fun onCleared() {
         trackingJob?.cancel()
         trackingJob = null
+        flushPendingLocatorWrite()
         cancelEngineJobs()
         boundEngine = null
         dictionaryLookupJob?.cancel()
@@ -868,6 +950,7 @@ private fun String.toDictionaryWord(): String? {
 private const val DefaultAnnotationColor = "yellow"
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
+private const val LocatorPersistDebounceMillis = 400L
 private const val RecentLookupsLimit = 5
 private const val AutoSyncEveryPages = 3
 

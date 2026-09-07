@@ -194,12 +194,16 @@ class GitHubContentsAssetStore(
     }
 
     private fun findExistingSha(path: String): String? {
+        // GitHub's metadata response embeds the file's full base64 content (for files under ~1MB)
+        // even though only the "sha" field is needed here - the response can be nearly as large as
+        // the file itself, not a small fixed metadata payload, so this needs the same cap as a
+        // document read, not the small MaxGitHubMetadataBytes used for asset-path SHA lookups.
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
                 headers = jsonHeaders(),
-                maxResponseBytes = MaxGitHubMetadataBytes,
+                maxResponseBytes = MaxSyncDocumentJsonBytes,
             ),
         )
         return when (response.statusCode) {

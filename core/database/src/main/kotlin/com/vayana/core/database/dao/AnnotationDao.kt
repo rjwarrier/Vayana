@@ -1,7 +1,6 @@
 package com.vayana.core.database.dao
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -20,6 +19,11 @@ interface AnnotationDao {
     @Query("SELECT * FROM annotations WHERE id = :id")
     suspend fun getById(id: Long): AnnotationEntity?
 
+    /** Unlike [observeAll]/[observeForBook], deliberately not filtered by isDeleted - sync merge
+     *  needs to see the current deletion state to decide how to reconcile it. */
+    @Query("SELECT * FROM annotations WHERE syncId = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): AnnotationEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(annotation: AnnotationEntity): Long
 
@@ -36,8 +40,8 @@ interface AnnotationDao {
     suspend fun restore(id: Long, updatedAt: Long)
 
     /** Permanently purges an already soft-deleted row - never call this directly on a live one. */
-    @Delete
-    suspend fun delete(annotation: AnnotationEntity)
+    @Query("DELETE FROM annotations WHERE id = :id AND isDeleted = 1")
+    suspend fun purge(id: Long)
 
     @Query("SELECT * FROM annotations ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<AnnotationEntity>

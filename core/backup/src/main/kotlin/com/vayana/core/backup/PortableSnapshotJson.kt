@@ -3,6 +3,58 @@ package com.vayana.core.backup
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Reads just the "annotations" array out of a full portable snapshot - the counterpart to
+ * [parsePortableCloudBooks]/[parsePortableReadingProgressSnapshot], which read other slices of
+ * the same document. There is no full-snapshot reader by design: each sync consumer decodes only
+ * the fields it actually merges.
+ */
+fun parsePortableAnnotations(jsonText: String): List<PortableAnnotation> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("annotations") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotAnnotations) { "Portable snapshot has too many annotations" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val syncId = obj.optSnapshotBoundedString("syncId", MaxSnapshotSyncIdChars) ?: continue
+            val bookSyncId = obj.optSnapshotBoundedString("bookSyncId", MaxSnapshotSyncIdChars) ?: continue
+            val type = obj.optSnapshotBoundedString("type", MaxSnapshotEnumChars) ?: continue
+            val colorKey = obj.optSnapshotBoundedString("colorKey", MaxSnapshotEnumChars) ?: continue
+            val locator = obj.optSnapshotBoundedString("locator", MaxSnapshotLocatorChars) ?: continue
+            val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L } ?: continue
+            val updatedAt = obj.optLong("updatedAt", 0L).takeIf { it > 0L } ?: continue
+            add(
+                PortableAnnotation(
+                    syncId = syncId,
+                    bookSyncId = bookSyncId,
+                    type = type,
+                    colorKey = colorKey,
+                    locator = locator,
+                    chapterTitle = obj.optSnapshotBoundedString("chapterTitle", MaxSnapshotTitleChars),
+                    chapterHref = obj.optSnapshotBoundedString("chapterHref", MaxSnapshotLocatorChars),
+                    selectedText = obj.optString("selectedText").take(MaxSnapshotTextChars),
+                    readerNote = obj.optSnapshotBoundedString("readerNote", MaxSnapshotTextChars),
+                    createdAt = createdAt,
+                    updatedAt = updatedAt,
+                    isDeleted = obj.optBoolean("isDeleted", false),
+                ),
+            )
+        }
+    }
+}
+
+private fun JSONObject.optSnapshotBoundedString(name: String, maxChars: Int): String? =
+    optString(name).trim().takeIf { it.isNotEmpty() && it.length <= maxChars }
+
+private const val MaxPortableSnapshotJsonChars = 16 * 1024 * 1024
+private const val MaxPortableSnapshotAnnotations = 100_000
+private const val MaxSnapshotSyncIdChars = 120
+private const val MaxSnapshotEnumChars = 40
+private const val MaxSnapshotLocatorChars = 16_384
+private const val MaxSnapshotTitleChars = 512
+private const val MaxSnapshotTextChars = 16_384
+
 fun PortableSnapshot.toJsonString(): String =
     JSONObject()
         .put("formatVersion", formatVersion)
