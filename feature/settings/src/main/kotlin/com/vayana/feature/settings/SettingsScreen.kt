@@ -93,6 +93,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.datastore.settings.BooleanSetting
+import com.vayana.core.datastore.settings.ImportedFont
 import com.vayana.core.datastore.settings.ChoiceSetting
 import com.vayana.core.datastore.settings.FloatSetting
 import com.vayana.core.datastore.settings.IntSetting
@@ -133,6 +134,7 @@ fun SettingsRoute(
     val restorePreview by viewModel.restorePreview.collectAsState()
     val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
     val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsState()
+    val readerFontImportState by viewModel.readerFontImportState.collectAsState()
 
     SettingsScreen(
         modifier = modifier,
@@ -141,6 +143,7 @@ fun SettingsRoute(
         restorePreview = restorePreview,
         githubSyncSettingsTransferState = githubSyncSettingsTransferState,
         githubConnectionTestState = githubConnectionTestState,
+        readerFontImportState = readerFontImportState,
         onBack = onBack,
         onHelpClick = onHelpClick,
         onDiagnosticsClick = onDiagnosticsClick,
@@ -153,10 +156,13 @@ fun SettingsRoute(
         onExportGitHubSyncSettings = viewModel::exportGitHubSyncSettings,
         onImportGitHubSyncSettings = viewModel::importGitHubSyncSettings,
         onTestGitHubConnection = viewModel::testGitHubConnection,
+        onImportReaderFont = viewModel::importReaderFont,
+        onSelectReaderCustomFont = viewModel::selectReaderCustomFont,
         onDismissGitHubSyncSettingsTransferState = viewModel::dismissGitHubSyncSettingsTransferState,
         onDismissGitHubConnectionTestState = viewModel::dismissGitHubConnectionTestState,
         onDismissRestorePreview = viewModel::dismissRestorePreview,
         onDismissBackupState = viewModel::dismissBackupState,
+        onDismissReaderFontImportState = viewModel::dismissReaderFontImportState,
     )
 }
 
@@ -169,6 +175,7 @@ private fun SettingsScreen(
     restorePreview: RestorePreviewState,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
+    readerFontImportState: ReaderFontImportState,
     onBack: () -> Unit,
     onHelpClick: () -> Unit,
     onDiagnosticsClick: () -> Unit,
@@ -181,8 +188,11 @@ private fun SettingsScreen(
     onExportGitHubSyncSettings: (Uri) -> Unit,
     onImportGitHubSyncSettings: (Uri) -> Unit,
     onTestGitHubConnection: () -> Unit,
+    onImportReaderFont: (Uri) -> Unit,
+    onSelectReaderCustomFont: (String?) -> Unit,
     onDismissGitHubSyncSettingsTransferState: () -> Unit,
     onDismissGitHubConnectionTestState: () -> Unit,
+    onDismissReaderFontImportState: () -> Unit,
     onDismissRestorePreview: () -> Unit,
     onDismissBackupState: () -> Unit,
 ) {
@@ -269,13 +279,17 @@ private fun SettingsScreen(
                     settings = settings,
                     githubSyncSettingsTransferState = githubSyncSettingsTransferState,
                     githubConnectionTestState = githubConnectionTestState,
+                    readerFontImportState = readerFontImportState,
                     onUpdate = onUpdate,
                     onReset = onReset,
                     onExportGitHubSyncSettings = onExportGitHubSyncSettings,
                     onImportGitHubSyncSettings = onImportGitHubSyncSettings,
                     onTestGitHubConnection = onTestGitHubConnection,
+                    onImportReaderFont = onImportReaderFont,
+                    onSelectReaderCustomFont = onSelectReaderCustomFont,
                     onDismissGitHubSyncSettingsTransferState = onDismissGitHubSyncSettingsTransferState,
                     onDismissGitHubConnectionTestState = onDismissGitHubConnectionTestState,
+                    onDismissReaderFontImportState = onDismissReaderFontImportState,
                 )
             }
         }
@@ -573,13 +587,17 @@ private fun SettingsGroupDetail(
     settings: SettingsSnapshot,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
+    readerFontImportState: ReaderFontImportState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
     onImportGitHubSyncSettings: (Uri) -> Unit,
     onTestGitHubConnection: () -> Unit,
+    onImportReaderFont: (Uri) -> Unit,
+    onSelectReaderCustomFont: (String?) -> Unit,
     onDismissGitHubSyncSettingsTransferState: () -> Unit,
     onDismissGitHubConnectionTestState: () -> Unit,
+    onDismissReaderFontImportState: () -> Unit,
 ) {
     val groupSettings = SettingsRegistry.all.filter { it.group == group }
     LazyColumn(
@@ -607,6 +625,20 @@ private fun SettingsGroupDetail(
                     onUpdate = onUpdate,
                     onReset = onReset,
                 )
+            }
+        }
+        if (group == SettingsGroup.READER_TYPOGRAPHY) {
+            item {
+                SettingsContentContainer {
+                    ReaderCustomFontsCard(
+                        fonts = settings.readerImportedFonts,
+                        selectedFontId = settings.readerCustomFontId,
+                        importState = readerFontImportState,
+                        onImport = onImportReaderFont,
+                        onSelectFont = onSelectReaderCustomFont,
+                        onDismissImportState = onDismissReaderFontImportState,
+                    )
+                }
             }
         }
         if (group == SettingsGroup.SYNC) {
@@ -751,6 +783,108 @@ private fun GitHubConnectionTestCard(
                     onDismiss = onDismiss,
                 )
                 GitHubConnectionTestState.Idle -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReaderCustomFontsCard(
+    fonts: List<ImportedFont>,
+    selectedFontId: String?,
+    importState: ReaderFontImportState,
+    onImport: (Uri) -> Unit,
+    onSelectFont: (String?) -> Unit,
+    onDismissImportState: () -> Unit,
+) {
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(onImport)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = Elevations.none,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(Paddings.card)
+                .vayanaAnimateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(icon = Icons.Outlined.FormatSize, selected = false)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_reader_custom_fonts_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_reader_custom_fonts_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            FilledTonalButton(
+                onClick = { importLauncher.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/font-woff", "application/font-woff2", "application/octet-stream", "*/*")) },
+                enabled = importState !is ReaderFontImportState.Working,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (importState is ReaderFontImportState.Working) {
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                } else {
+                    Icon(imageVector = Icons.Outlined.FileUpload, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                }
+                Text(stringResource(R.string.settings_reader_custom_fonts_import), modifier = Modifier.padding(start = Spacing.xs))
+            }
+
+            if (fonts.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    fonts.forEach { font ->
+                        FilterChip(
+                            selected = selectedFontId == font.id,
+                            onClick = { onSelectFont(font.id) },
+                            label = { Text(font.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingIcon = if (selectedFontId == font.id) {
+                                { Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall)) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+                TextButton(onClick = { onSelectFont(null) }) {
+                    Text(stringResource(R.string.settings_reader_custom_fonts_use_builtin))
+                }
+            }
+
+            when (importState) {
+                ReaderFontImportState.Idle -> Unit
+                ReaderFontImportState.Working -> Text(
+                    text = stringResource(R.string.settings_reader_custom_fonts_importing),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                is ReaderFontImportState.Imported -> BackupStatusRow(
+                    message = stringResource(R.string.settings_reader_custom_fonts_imported, importState.displayName),
+                    isError = false,
+                    onDismiss = onDismissImportState,
+                )
+                is ReaderFontImportState.Failed -> BackupStatusRow(
+                    message = stringResource(R.string.settings_reader_custom_fonts_failed, importState.message),
+                    isError = true,
+                    onDismiss = onDismissImportState,
+                )
             }
         }
     }
@@ -1538,7 +1672,7 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.Motion -> "motion animation reduce transitions"
         SettingsRegistry.ReaderFontSize -> "reader font size text scale typography"
         SettingsRegistry.ReaderLineHeight -> "reader line height spacing text typography"
-        SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono jetpack typography"
+        SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono custom imported font typography"
         SettingsRegistry.ReaderTheme -> "reader page theme light sepia dark book"
         SettingsRegistry.ReaderSideMargin -> "reader page margin side layout width"
         SettingsRegistry.ReaderHeaderGap -> "reader header gap top edge spacing clock session layout"

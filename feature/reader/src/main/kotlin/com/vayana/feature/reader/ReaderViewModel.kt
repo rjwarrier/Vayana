@@ -143,6 +143,7 @@ class ReaderViewModel @Inject constructor(
                 readerFontSizePercent = override.fontSizePercent ?: snapshot.readerFontSizePercent,
                 readerLineHeight = override.lineHeight ?: snapshot.readerLineHeight,
                 readerFontFamily = override.fontFamily ?: snapshot.readerFontFamily,
+                readerCustomFontId = if (override.fontFamily == null) snapshot.readerCustomFontId else null,
                 readerSideMarginPercent = override.sideMarginPercent ?: snapshot.readerSideMarginPercent,
             )
         }
@@ -171,12 +172,15 @@ class ReaderViewModel @Inject constructor(
     private var locatorPersistJob: Job? = null
     private var pendingRemoteReadingPosition: SavedReadingPosition? = null
     private val readingPositionPromptDecider = ReadingPositionPromptDecider()
+    private val _activeReadingSessionSeconds = MutableStateFlow(0L)
+    val activeReadingSessionSeconds: StateFlow<Long> = _activeReadingSessionSeconds
 
     /** Called once the [BookEngine] exists (i.e. once the WebView has been created by the Compose factory). */
     @OptIn(FlowPreview::class)
     fun bindEngine(engine: BookEngine) {
         if (boundEngine === engine) return
         cancelEngineJobs()
+        boundEngine?.close()
         boundEngine = engine
         bookOpen = false
         _readingPositionPrompt.value = null
@@ -296,6 +300,15 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    fun releaseEngine(engine: BookEngine) {
+        if (boundEngine === engine) {
+            cancelEngineJobs()
+            boundEngine = null
+            bookOpen = false
+        }
+        engine.close()
+    }
+
     private val _searchResults = MutableStateFlow<List<com.vayana.reader.api.SearchResult>>(emptyList())
     val searchResults: StateFlow<List<com.vayana.reader.api.SearchResult>> = _searchResults
     private var lastSearchQuery: String = ""
@@ -395,8 +408,18 @@ class ReaderViewModel @Inject constructor(
         if (_bookStyleOverride.value != null) {
             updateBookOverride { it.copy(fontFamily = fontFamily) }
         } else {
-            viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontFamily, fontFamily) }
+            viewModelScope.launch {
+                settingsRepository.updateReaderCustomFontId(null)
+                settingsRepository.update(SettingsRegistry.ReaderFontFamily, fontFamily)
+            }
         }
+    }
+
+    fun updateCustomFont(fontId: String?) {
+        if (_bookStyleOverride.value != null) {
+            updateBookOverride { it.copy(fontFamily = null) }
+        }
+        viewModelScope.launch { settingsRepository.updateReaderCustomFontId(fontId) }
     }
 
     fun updateReaderTheme(theme: ReaderTheme) {
@@ -419,7 +442,7 @@ class ReaderViewModel @Inject constructor(
                 BookStyleOverride(
                     fontSizePercent = snapshot.readerFontSizePercent,
                     lineHeight = snapshot.readerLineHeight,
-                    fontFamily = snapshot.readerFontFamily,
+                    fontFamily = if (snapshot.readerCustomFontId == null) snapshot.readerFontFamily else null,
                     sideMarginPercent = snapshot.readerSideMarginPercent,
                 )
             }
@@ -601,7 +624,8 @@ class ReaderViewModel @Inject constructor(
             style = BookStyle(
                 fontSizePercent = snapshot.readerFontSizePercent,
                 lineHeight = snapshot.readerLineHeight,
-                fontFamily = snapshot.readerFontFamily.cssFamily,
+                fontFamily = snapshot.readerFontFamilyCss,
+                customFontFileName = snapshot.selectedImportedFont?.fileName,
                 sideMarginPercent = snapshot.readerSideMarginPercent,
                 bionicReading = snapshot.readerBionicReading,
             ),
@@ -672,16 +696,32 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    private val readingTimeTracker = ReadingTimeTracker(IdleSessionTimeoutMs)
+    private val readingTimeTracker = ReadingSessionContinuationStore.take(bookId) ?: ReadingTimeTracker(
+        idleTimeoutMillis = IdleSessionTimeoutMs,
+        continuationGraceMillis = SessionContinuationGraceMs,
+    )
     private var readerResumed = false
     private var trackingJob: Job? = null
 
+    init {
+        viewModelScope.launch {
+            ReadingSessionContinuationStore.drainExpired(System.currentTimeMillis()).forEach { (expiredBookId, update) ->
+                update.session?.let { session ->
+                    readingSessionRepository.record(
+                        bookId = expiredBookId,
+                        startedAt = session.startedAt,
+                        endedAt = session.endedAt,
+                        durationSeconds = session.durationSeconds,
+                    )
+                }
+            }
+        }
+        _activeReadingSessionSeconds.value = readingTimeTracker.elapsedSeconds
+    }
+
     fun onResume() {
         readerResumed = true
-        if (bookOpen) {
-            readingTimeTracker.resume(System.currentTimeMillis())
-            startReadingTimeTicker()
-        }
+        persistReadingTime(readingTimeTracker.flush(System.currentTimeMillis()))
     }
 
     fun onPause() {
@@ -729,10 +769,15 @@ class ReaderViewModel @Inject constructor(
 
     private suspend fun onPageMoved(locator: Locator) {
         if (!readerResumed || !bookOpen) return
-        persistReadingTimeNow(readingTimeTracker.interact(System.currentTimeMillis()))
         if (pageTurnAutoSyncGate.onLocator(locator)) {
             requestAutoProgressSync()
         }
+    }
+
+    fun onReaderInteraction() {
+        if (!readerResumed || !bookOpen) return
+        persistReadingTime(readingTimeTracker.interact(System.currentTimeMillis()))
+        startReadingTimeTicker()
     }
 
     private fun requestAutoProgressSync() {
@@ -789,7 +834,9 @@ class ReaderViewModel @Inject constructor(
             while (true) {
                 delay(10_000L)
                 persistReadingTime(readingTimeTracker.flush(System.currentTimeMillis()))
+                if (!readingTimeTracker.isTimingActive) break
             }
+            trackingJob = null
         }
     }
 
@@ -803,16 +850,20 @@ class ReaderViewModel @Inject constructor(
     private suspend fun persistReadingTimeNow(update: ReadingTimeUpdate) {
         if (update.addedSeconds == 0L && update.session == null) return
         if (update.addedSeconds > 0L) bookRepository.addReadingTime(bookId, update.addedSeconds)
+        _activeReadingSessionSeconds.value = update.activeSessionSeconds
         update.session?.let { session ->
-            readingSessionRepository.record(bookId, session.startedAt, session.endedAt)
+            readingSessionRepository.record(bookId, session.startedAt, session.endedAt, session.durationSeconds)
         }
     }
 
     override fun onCleared() {
         trackingJob?.cancel()
         trackingJob = null
+        persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
+        ReadingSessionContinuationStore.put(bookId, readingTimeTracker)
         flushPendingLocatorWrite()
         cancelEngineJobs()
+        boundEngine?.close()
         boundEngine = null
         dictionaryLookupJob?.cancel()
         dictionaryInstallJob?.cancel()
@@ -892,6 +943,12 @@ class ReaderViewModel @Inject constructor(
     }
 }
 
+private val SettingsSnapshot.selectedImportedFont
+    get() = readerCustomFontId?.let { selectedId -> readerImportedFonts.firstOrNull { it.id == selectedId } }
+
+private val SettingsSnapshot.readerFontFamilyCss: String
+    get() = if (selectedImportedFont != null) "'VayanaImportedReaderFont', serif" else readerFontFamily.cssFamily
+
 private val ReaderFontFamily.cssFamily: String
     get() = when (this) {
         ReaderFontFamily.SERIF -> "serif"
@@ -970,6 +1027,7 @@ private const val AutoSyncEveryPages = 3
 
 /** No page turn for this long ends the current reading session (PROMPT: idle stops a session). */
 private const val IdleSessionTimeoutMs = 5 * 60 * 1000L
+private const val SessionContinuationGraceMs = 60 * 1000L
 
 private const val SearchDebounceMillis = 400L
 private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")

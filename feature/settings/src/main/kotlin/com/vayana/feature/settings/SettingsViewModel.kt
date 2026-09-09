@@ -1,23 +1,33 @@
 package com.vayana.feature.settings
 
+import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.datastore.settings.ImportedFont
 import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsRepository
+import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.filesystem.StorageRoots
 import com.vayana.feature.settings.backup.BackupInspection
 import com.vayana.feature.settings.backup.BackupManager
 import com.vayana.feature.settings.backup.BackupOutcome
 import com.vayana.feature.settings.backup.InspectOutcome
 import com.vayana.feature.settings.backup.RestoreOutcome
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
+import java.util.UUID
 
 sealed interface BackupUiState {
     data object Idle : BackupUiState
@@ -53,12 +63,21 @@ sealed interface RestorePreviewState {
     data class Failed(val message: String) : RestorePreviewState
 }
 
+sealed interface ReaderFontImportState {
+    data object Idle : ReaderFontImportState
+    data object Working : ReaderFontImportState
+    data class Imported(val displayName: String) : ReaderFontImportState
+    data class Failed(val message: String) : ReaderFontImportState
+}
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
     private val gitHubSyncSettingsTransfer: GitHubSyncSettingsTransfer,
     private val gitHubConnectionTester: GitHubConnectionTester,
+    private val storageRoots: StorageRoots,
 ) : ViewModel() {
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
@@ -69,6 +88,9 @@ class SettingsViewModel @Inject constructor(
     private val _restorePreview = MutableStateFlow<RestorePreviewState>(RestorePreviewState.Idle)
     val restorePreview: StateFlow<RestorePreviewState> = _restorePreview
 
+    private val _readerFontImportState = MutableStateFlow<ReaderFontImportState>(ReaderFontImportState.Idle)
+    val readerFontImportState: StateFlow<ReaderFontImportState> = _readerFontImportState
+
     private val _githubSyncSettingsTransferState = MutableStateFlow<GitHubSyncSettingsTransferState>(GitHubSyncSettingsTransferState.Idle)
     val githubSyncSettingsTransferState: StateFlow<GitHubSyncSettingsTransferState> = _githubSyncSettingsTransferState
 
@@ -76,7 +98,39 @@ class SettingsViewModel @Inject constructor(
     val githubConnectionTestState: StateFlow<GitHubConnectionTestState> = _githubConnectionTestState
 
     fun <T : Any> update(setting: Setting<T>, value: T) {
-        viewModelScope.launch { settingsRepository.update(setting, value) }
+        viewModelScope.launch {
+            if (setting == SettingsRegistry.ReaderFontFamily) {
+                settingsRepository.updateReaderCustomFontId(null)
+            }
+            settingsRepository.update(setting, value)
+        }
+    }
+
+    fun importReaderFont(source: Uri) {
+        viewModelScope.launch {
+            _readerFontImportState.value = ReaderFontImportState.Working
+            val result = withContext(Dispatchers.IO) { copyReaderFont(context, storageRoots, source) }
+            result.fold(
+                onSuccess = { font ->
+                    val updatedFonts = (settings.value.readerImportedFonts.filterNot { it.id == font.id } + font)
+                        .distinctBy { it.fileName }
+                    settingsRepository.updateReaderImportedFonts(updatedFonts)
+                    settingsRepository.updateReaderCustomFontId(font.id)
+                    _readerFontImportState.value = ReaderFontImportState.Imported(font.displayName)
+                },
+                onFailure = { throwable ->
+                    _readerFontImportState.value = ReaderFontImportState.Failed(throwable.message ?: "Could not import this font")
+                },
+            )
+        }
+    }
+
+    fun selectReaderCustomFont(fontId: String?) {
+        viewModelScope.launch { settingsRepository.updateReaderCustomFontId(fontId) }
+    }
+
+    fun dismissReaderFontImportState() {
+        _readerFontImportState.value = ReaderFontImportState.Idle
     }
 
     fun reset(setting: Setting<out Any>) {
@@ -169,3 +223,37 @@ class SettingsViewModel @Inject constructor(
         _restorePreview.value = RestorePreviewState.Idle
     }
 }
+
+private val SupportedFontExtensions = setOf("ttf", "otf", "woff", "woff2")
+
+private fun copyReaderFont(context: Context, storageRoots: StorageRoots, source: Uri): Result<ImportedFont> = runCatching {
+    val displayName = context.contentResolver.displayName(source)
+    val extension = displayName.substringAfterLast('.', missingDelimiterValue = "")
+        .lowercase(Locale.US)
+        .takeIf { it in SupportedFontExtensions }
+        ?: throw IllegalArgumentException("Choose a .ttf, .otf, .woff, or .woff2 font file")
+    val id = UUID.randomUUID().toString()
+    val fileName = "$id.$extension"
+    val destination = storageRoots.fontsDir.resolve(fileName)
+    context.contentResolver.openInputStream(source)?.use { input ->
+        destination.outputStream().use { output -> input.copyTo(output) }
+    } ?: throw IllegalArgumentException("Could not read the selected font file")
+    ImportedFont(id = id, displayName = displayName.cleanDisplayName(), fileName = fileName)
+}
+
+private fun android.content.ContentResolver.displayName(uri: Uri): String {
+    query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (index >= 0 && cursor.moveToFirst()) {
+            val name = cursor.getString(index)
+            if (!name.isNullOrBlank()) return name
+        }
+    }
+    return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "Imported font"
+}
+
+private fun String.cleanDisplayName(): String =
+    substringBeforeLast('.', missingDelimiterValue = this)
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .ifBlank { "Imported font" }

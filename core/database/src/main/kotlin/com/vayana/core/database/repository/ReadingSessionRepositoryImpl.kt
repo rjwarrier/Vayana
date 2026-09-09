@@ -17,8 +17,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     override fun observeForBook(bookId: Long): Flow<List<ReadingSession>> =
         readingSessionDao.observeForBook(bookId).map { entities -> entities.map { it.toDomain() } }
 
-    override suspend fun record(bookId: Long, startedAt: Long, endedAt: Long) {
-        val durationSeconds = ((endedAt - startedAt) / 1000L).coerceAtLeast(0L)
+    override suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long?) {
+        val durationSeconds = (durationSeconds ?: ((endedAt - startedAt) / 1000L)).coerceAtLeast(0L)
         if (durationSeconds <= 0L) return
         readingSessionDao.insert(
             ReadingSessionEntity(

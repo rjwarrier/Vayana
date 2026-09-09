@@ -23,8 +23,12 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Context.vayanaSettingsDataStore by preferencesDataStore(name = "vayana_settings")
+private val ReaderImportedFontsKey = stringPreferencesKey("reader.imported_fonts")
+private val ReaderCustomFontIdKey = stringPreferencesKey("reader.custom_font_id")
 
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
@@ -40,6 +44,26 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun <T : Any> update(setting: Setting<T>, value: T) {
         dataStore.edit { preferences -> preferences.write(setting, value) }
+    }
+
+    override suspend fun updateReaderImportedFonts(fonts: List<ImportedFont>) {
+        dataStore.edit { preferences ->
+            preferences[ReaderImportedFontsKey] = fonts.serializeImportedFonts()
+            val selectedId = preferences[ReaderCustomFontIdKey]
+            if (selectedId != null && fonts.none { it.id == selectedId }) {
+                preferences.remove(ReaderCustomFontIdKey)
+            }
+        }
+    }
+
+    override suspend fun updateReaderCustomFontId(fontId: String?) {
+        dataStore.edit { preferences ->
+            if (fontId.isNullOrBlank()) {
+                preferences.remove(ReaderCustomFontIdKey)
+            } else {
+                preferences[ReaderCustomFontIdKey] = fontId
+            }
+        }
     }
 
     override suspend fun reset(setting: Setting<out Any>) {
@@ -73,37 +97,44 @@ abstract class SettingsModule {
     abstract fun bindSettingsRepository(repository: DataStoreSettingsRepository): SettingsRepository
 }
 
-private fun Preferences.toSnapshot(): SettingsSnapshot = SettingsSnapshot(
-    themeMode = read(SettingsRegistry.ThemeMode),
-    displayProfile = read(SettingsRegistry.DisplayProfile),
-    darkVariant = read(SettingsRegistry.DarkVariant),
-    motionSetting = read(SettingsRegistry.Motion),
-    readerFontSizePercent = read(SettingsRegistry.ReaderFontSize),
-    readerLineHeight = read(SettingsRegistry.ReaderLineHeight),
-    readerFontFamily = read(SettingsRegistry.ReaderFontFamily),
-    readerTheme = read(SettingsRegistry.ReaderTheme),
-    readerSideMarginPercent = read(SettingsRegistry.ReaderSideMargin),
-    readerHeaderGapDp = read(SettingsRegistry.ReaderHeaderGap),
-    readerFooterGapDp = read(SettingsRegistry.ReaderFooterGap),
-    readerUsePublisherStyles = read(SettingsRegistry.ReaderPublisherStyles),
-    readerTapZoneMode = read(SettingsRegistry.ReaderTapZoneMode),
-    readerVolumeKeys = read(SettingsRegistry.ReaderVolumeKeys),
-    readerKeepAwake = read(SettingsRegistry.ReaderKeepAwake),
-    readerShowHeaders = read(SettingsRegistry.ReaderShowHeaders),
-    readerShowFooter = read(SettingsRegistry.ReaderShowFooter),
-    readerAutoMarkSelection = read(SettingsRegistry.ReaderAutoMarkSelection),
-    readerBionicReading = read(SettingsRegistry.ReaderBionicReading),
-    dailyReadingGoalMinutes = read(SettingsRegistry.DailyReadingGoalMinutes),
-    yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
-    landscapeTwoColumnLayout = read(SettingsRegistry.LandscapeTwoColumnLayout),
-    kindleDeviceName = read(SettingsRegistry.KindleDeviceName),
-    githubSyncEnabled = read(SettingsRegistry.GithubSyncEnabled),
-    githubOwner = read(SettingsRegistry.GithubOwner),
-    githubRepository = read(SettingsRegistry.GithubRepository),
-    githubBranch = read(SettingsRegistry.GithubBranch),
-    githubToken = read(SettingsRegistry.GithubToken),
-    githubSyncPassphrase = read(SettingsRegistry.GithubSyncPassphrase),
-)
+private fun Preferences.toSnapshot(): SettingsSnapshot {
+    val importedFonts = readImportedFonts()
+    return SettingsSnapshot(
+        themeMode = read(SettingsRegistry.ThemeMode),
+        displayProfile = read(SettingsRegistry.DisplayProfile),
+        darkVariant = read(SettingsRegistry.DarkVariant),
+        motionSetting = read(SettingsRegistry.Motion),
+        readerFontSizePercent = read(SettingsRegistry.ReaderFontSize),
+        readerLineHeight = read(SettingsRegistry.ReaderLineHeight),
+        readerFontFamily = read(SettingsRegistry.ReaderFontFamily),
+        readerImportedFonts = importedFonts,
+        readerCustomFontId = this[ReaderCustomFontIdKey]?.takeIf { selectedId ->
+            importedFonts.any { it.id == selectedId }
+        },
+        readerTheme = read(SettingsRegistry.ReaderTheme),
+        readerSideMarginPercent = read(SettingsRegistry.ReaderSideMargin),
+        readerHeaderGapDp = read(SettingsRegistry.ReaderHeaderGap),
+        readerFooterGapDp = read(SettingsRegistry.ReaderFooterGap),
+        readerUsePublisherStyles = read(SettingsRegistry.ReaderPublisherStyles),
+        readerTapZoneMode = read(SettingsRegistry.ReaderTapZoneMode),
+        readerVolumeKeys = read(SettingsRegistry.ReaderVolumeKeys),
+        readerKeepAwake = read(SettingsRegistry.ReaderKeepAwake),
+        readerShowHeaders = read(SettingsRegistry.ReaderShowHeaders),
+        readerShowFooter = read(SettingsRegistry.ReaderShowFooter),
+        readerAutoMarkSelection = read(SettingsRegistry.ReaderAutoMarkSelection),
+        readerBionicReading = read(SettingsRegistry.ReaderBionicReading),
+        dailyReadingGoalMinutes = read(SettingsRegistry.DailyReadingGoalMinutes),
+        yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
+        landscapeTwoColumnLayout = read(SettingsRegistry.LandscapeTwoColumnLayout),
+        kindleDeviceName = read(SettingsRegistry.KindleDeviceName),
+        githubSyncEnabled = read(SettingsRegistry.GithubSyncEnabled),
+        githubOwner = read(SettingsRegistry.GithubOwner),
+        githubRepository = read(SettingsRegistry.GithubRepository),
+        githubBranch = read(SettingsRegistry.GithubBranch),
+        githubToken = read(SettingsRegistry.GithubToken),
+        githubSyncPassphrase = read(SettingsRegistry.GithubSyncPassphrase),
+    )
+}
 
 @Suppress("UNCHECKED_CAST")
 private fun <T : Any> Preferences.read(setting: Setting<T>): T = when (setting) {
@@ -158,3 +189,33 @@ private class MutablePreferencesWriter(val preferences: MutablePreferences)
 
 private fun <T : Any> MutablePreferences.write(setting: Setting<T>, value: T) =
     MutablePreferencesWriter(this).write(setting, value)
+
+private fun Preferences.readImportedFonts(): List<ImportedFont> {
+    val encoded = this[ReaderImportedFontsKey].orEmpty()
+    if (encoded.isBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(encoded)
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+                val displayName = item.optString("displayName").takeIf { it.isNotBlank() } ?: continue
+                val fileName = item.optString("fileName").takeIf { it.isNotBlank() } ?: continue
+                add(ImportedFont(id = id, displayName = displayName, fileName = fileName))
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+private fun List<ImportedFont>.serializeImportedFonts(): String {
+    val array = JSONArray()
+    forEach { font ->
+        array.put(
+            JSONObject()
+                .put("id", font.id)
+                .put("displayName", font.displayName)
+                .put("fileName", font.fileName),
+        )
+    }
+    return array.toString()
+}

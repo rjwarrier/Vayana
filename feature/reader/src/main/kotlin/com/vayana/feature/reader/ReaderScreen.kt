@@ -101,9 +101,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -173,6 +176,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val readingPositionPrompt by viewModel.readingPositionPrompt.collectAsState()
     val recentLookups by viewModel.recentLookups.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
+    val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsState()
     val context = LocalContext.current
     val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
@@ -235,6 +239,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
                 onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
                 onEngineReady = viewModel::bindEngine,
+                onEngineReleased = viewModel::releaseEngine,
+                activeReadingSessionSeconds = activeReadingSessionSeconds,
+                onReaderInteraction = viewModel::onReaderInteraction,
                 onTapPrevious = viewModel::previousPage,
                 onTapNext = viewModel::nextPage,
                 onOpenTocEntry = viewModel::openTocEntry,
@@ -258,6 +265,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onFontSizeChange = viewModel::updateFontSize,
                 onLineHeightChange = viewModel::updateLineHeight,
                 onFontFamilyChange = viewModel::updateFontFamily,
+                onCustomFontChange = viewModel::updateCustomFont,
                 onReaderThemeChange = viewModel::updateReaderTheme,
                 onSideMarginChange = viewModel::updateSideMargin,
                 onVolumeKeysChange = viewModel::updateVolumeKeys,
@@ -316,6 +324,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
         onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
         onEngineReady = viewModel::bindEngine,
+        onEngineReleased = viewModel::releaseEngine,
+        activeReadingSessionSeconds = activeReadingSessionSeconds,
+        onReaderInteraction = viewModel::onReaderInteraction,
         onTapPrevious = viewModel::previousPage,
         onTapNext = viewModel::nextPage,
         onOpenTocEntry = viewModel::openTocEntry,
@@ -339,6 +350,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onFontSizeChange = viewModel::updateFontSize,
         onLineHeightChange = viewModel::updateLineHeight,
         onFontFamilyChange = viewModel::updateFontFamily,
+        onCustomFontChange = viewModel::updateCustomFont,
         onReaderThemeChange = viewModel::updateReaderTheme,
         onSideMarginChange = viewModel::updateSideMargin,
         onVolumeKeysChange = viewModel::updateVolumeKeys,
@@ -387,6 +399,9 @@ private fun ReaderScreen(
     onAcceptReadingPositionPrompt: () -> Unit,
     onDismissReadingPositionPrompt: () -> Unit,
     onEngineReady: (BookEngine) -> Unit,
+    onEngineReleased: (BookEngine) -> Unit,
+    activeReadingSessionSeconds: Long,
+    onReaderInteraction: () -> Unit,
     onTapPrevious: () -> Unit,
     onTapNext: () -> Unit,
     onOpenTocEntry: (String) -> Unit,
@@ -403,6 +418,7 @@ private fun ReaderScreen(
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
+    onCustomFontChange: (String?) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
@@ -418,10 +434,11 @@ private fun ReaderScreen(
     var selectedPanel by remember { mutableStateOf(ReaderPanel.CONTENTS) }
     var noteDialogVisible by remember { mutableStateOf(false) }
     var footerShowsBookTime by remember { mutableStateOf(false) }
-    val sessionStartMillis = remember { System.currentTimeMillis() }
-    var nowMillis by remember { mutableLongStateOf(sessionStartMillis) }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
+    val onEngineReleasedState = rememberUpdatedState(onEngineReleased)
+    val onReaderInteractionState = rememberUpdatedState(onReaderInteraction)
     val onPauseState = rememberUpdatedState(onPause)
     val onResumeState = rememberUpdatedState(onResume)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -453,6 +470,7 @@ private fun ReaderScreen(
                 false
             } else {
                 if (action == AndroidKeyEvent.ACTION_UP) {
+                    onReaderInteraction()
                     if (heldMillis >= VolumeKeyLongPressMillis) {
                         onBack()
                     } else {
@@ -569,6 +587,7 @@ private fun ReaderScreen(
                         KeyEventType.KeyUp -> {
                             val heldMillis = if (volumeKeyDownAt == 0L) 0L else System.currentTimeMillis() - volumeKeyDownAt
                             volumeKeyDownAt = 0L
+                            onReaderInteraction()
                             if (heldMillis >= VolumeKeyLongPressMillis) {
                                 onBack()
                             } else {
@@ -612,6 +631,7 @@ private fun ReaderScreen(
                                 downTime = event.eventTime
                             }
                             MotionEvent.ACTION_UP -> {
+                                onReaderInteractionState.value()
                                 val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
                                 if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
                                     onReaderTapState.value(event.x, view.width)
@@ -622,15 +642,22 @@ private fun ReaderScreen(
                     }
                 }
                 webViewRef = webView
-                onEngineReadyState.value(FoliateBookEngine(webView, context.applicationContext))
+                val engine = FoliateBookEngine(webView, context.applicationContext)
+                onEngineReadyState.value(engine)
                 FrameLayout(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    tag = engine
                     addView(webView)
                 }
             },
             onRelease = { container ->
-                webViewRef?.destroy()
-                webViewRef = null
+                (container.tag as? BookEngine)?.let { engine ->
+                    onEngineReleasedState.value(engine)
+                }
+                if (webViewRef?.parent === container) {
+                    webViewRef = null
+                }
+                container.tag = null
                 container.removeAllViews()
             },
         )
@@ -643,8 +670,7 @@ private fun ReaderScreen(
             )
             ReaderSessionHeader(
                 modifier = Modifier.align(Alignment.TopStart),
-                nowMillis = nowMillis,
-                sessionStartMillis = sessionStartMillis,
+                activeReadingSessionSeconds = activeReadingSessionSeconds,
                 headerGap = settings.readerHeaderGapDp.dp,
             )
         }
@@ -719,6 +745,7 @@ private fun ReaderScreen(
                 onFontSizeChange = onFontSizeChange,
                 onLineHeightChange = onLineHeightChange,
                 onFontFamilyChange = onFontFamilyChange,
+                onCustomFontChange = onCustomFontChange,
                 onReaderThemeChange = onReaderThemeChange,
                 onSideMarginChange = onSideMarginChange,
                 onVolumeKeysChange = onVolumeKeysChange,
@@ -838,11 +865,10 @@ private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long, he
 @Composable
 private fun ReaderSessionHeader(
     modifier: Modifier = Modifier,
-    nowMillis: Long,
-    sessionStartMillis: Long,
+    activeReadingSessionSeconds: Long,
     headerGap: Dp = readerHeaderTopPadding,
 ) {
-    val sessionMinutes = ((nowMillis - sessionStartMillis) / 60_000L).coerceAtLeast(0L).toInt()
+    val sessionMinutes = (activeReadingSessionSeconds / 60L).coerceAtLeast(0L).toInt()
     Surface(
         modifier = modifier
             .statusBarsPadding()
@@ -957,6 +983,14 @@ private fun readerChromeSurfaceColor(): Color =
     } else {
         MaterialTheme.colorScheme.surfaceContainerHigh
     }
+
+@Composable
+private fun readerChromeTopBorderColor(settings: SettingsSnapshot, chromeColor: Color): Color? {
+    if (LocalDisplayProfile.current != DisplayProfile.E_INK) return null
+    val pageColor = settings.readerBackgroundColor()
+    if (!pageColor.isSameIshAs(chromeColor)) return null
+    return if ((pageColor.luminance() + chromeColor.luminance()) / 2f > 0.5f) Palette.Amoled else Palette.White
+}
 
 @Composable
 private fun readerChromeElevation() =
@@ -1372,6 +1406,7 @@ private fun ReaderChrome(
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
+    onCustomFontChange: (String?) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
@@ -1386,11 +1421,29 @@ private fun ReaderChrome(
     onSearchResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
     onClearSearch: () -> Unit,
 ) {
+    val chromeSurfaceColor = readerChromeSurfaceColor()
+    val chromeTopBorderColor = readerChromeTopBorderColor(settings, chromeSurfaceColor)
+    val surfaceModifier = modifier
+        .fillMaxWidth()
+        .navigationBarsPadding()
+        .then(
+            if (chromeTopBorderColor != null) {
+                Modifier.drawBehind {
+                    drawLine(
+                        color = chromeTopBorderColor,
+                        start = Offset.Zero,
+                        end = Offset(size.width, 0f),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                }
+            } else {
+                Modifier
+            },
+        )
+
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding(),
-        color = readerChromeSurfaceColor(),
+        modifier = surfaceModifier,
+        color = chromeSurfaceColor,
         shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
         tonalElevation = readerChromeElevation(),
         shadowElevation = readerChromeElevation(),
@@ -1494,6 +1547,7 @@ private fun ReaderChrome(
                         onFontSizeChange = onFontSizeChange,
                         onLineHeightChange = onLineHeightChange,
                         onFontFamilyChange = onFontFamilyChange,
+                        onCustomFontChange = onCustomFontChange,
                         onReaderThemeChange = onReaderThemeChange,
                         onSideMarginChange = onSideMarginChange,
                         onVolumeKeysChange = onVolumeKeysChange,
@@ -1869,6 +1923,7 @@ private fun StylePanel(
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
+    onCustomFontChange: (String?) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
@@ -1969,9 +2024,16 @@ private fun StylePanel(
         ) {
             ReaderFontFamily.entries.forEach { family ->
                 FilterChip(
-                    selected = settings.readerFontFamily == family,
+                    selected = settings.readerCustomFontId == null && settings.readerFontFamily == family,
                     onClick = { onFontFamilyChange(family) },
                     label = { Text(family.label()) },
+                )
+            }
+            settings.readerImportedFonts.forEach { font ->
+                FilterChip(
+                    selected = settings.readerCustomFontId == font.id,
+                    onClick = { onCustomFontChange(font.id) },
+                    label = { Text(font.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 )
             }
         }
@@ -2153,6 +2215,7 @@ private fun SettingsSnapshot.readerBackgroundColor(): Color = when {
 }
 
 private const val ReaderHudStandardAlpha = 0.9f
+private const val SimilarReaderChromeColorDelta = 0.12f
 private const val MaxDisplayedDictionarySenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
@@ -2184,6 +2247,11 @@ private fun Float.roundToStep(setting: FloatSetting): Float =
     ((this / setting.step).roundToInt() * setting.step).coerceIn(setting.range.start, setting.range.endInclusive)
 
 private fun Float.roundToTenth(): Float = (this * 10).roundToInt() / 10f
+
+private fun Color.isSameIshAs(other: Color): Boolean =
+    abs(red - other.red) <= SimilarReaderChromeColorDelta &&
+        abs(green - other.green) <= SimilarReaderChromeColorDelta &&
+        abs(blue - other.blue) <= SimilarReaderChromeColorDelta
 
 private fun Context.copyTextToClipboard(text: String) {
     val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

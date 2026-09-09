@@ -8,5 +8,5 @@ interface ReadingSessionRepository {
     fun observeForBook(bookId: Long): Flow<List<ReadingSession>>
 
     /** Records a finished session. Callers should drop sessions that never really started (0s). */
-    suspend fun record(bookId: Long, startedAt: Long, endedAt: Long)
+    suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long? = null)
 }

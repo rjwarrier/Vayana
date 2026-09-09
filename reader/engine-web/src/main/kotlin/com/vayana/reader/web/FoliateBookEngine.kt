@@ -42,6 +42,7 @@ private const val LogTag = "FoliateReader"
 private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
+private const val IMPORTED_FONT_FAMILY = "VayanaImportedReaderFont"
 private const val ReaderOpenTimeoutMillis = 60_000L
 private const val EinkBackgroundArgb = -0x1
 private const val EinkForegroundArgb = -0x1000000
@@ -94,6 +95,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 bytes.inputStream(),
             )
         }
+        .addPathHandler("/fonts/") { path -> serveFont(path) }
         .addPathHandler("/book/") { path ->
             val file = currentBookFile ?: return@addPathHandler null
             val mimeType = file.readerMimeType()
@@ -129,6 +131,24 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         }
         val encoding = if (mimeType.startsWith("text/") || mimeType == "application/json") "utf-8" else null
         return WebResourceResponse(mimeType, encoding, stream)
+    }
+
+    private fun serveFont(path: String): WebResourceResponse? {
+        val fontFileName = path.trimStart('/').substringAfterLast('/')
+        if (fontFileName.isBlank()) return null
+        val fontsDir = File(appContext.getExternalFilesDir(null) ?: appContext.filesDir, "fonts")
+        val file = File(fontsDir, fontFileName)
+        val safeRoot = fontsDir.canonicalFile
+        val safeFile = file.canonicalFile
+        if (!safeFile.path.startsWith(safeRoot.path) || !safeFile.isFile || !safeFile.canRead()) return null
+        return WebResourceResponse(
+            safeFile.readerFontMimeType(),
+            null,
+            200,
+            "OK",
+            mapOf("Cache-Control" to "max-age=31536000"),
+            safeFile.inputStream(),
+        )
     }
 
     init {
@@ -217,6 +237,13 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         // draw that the OEM's E-Ink refresh logic handles far more cleanly.
         webView.setLayerType(if (isEinkTheme) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
         val css = buildString {
+            style.customFontFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
+                append("@font-face{")
+                append("font-family:'$IMPORTED_FONT_FAMILY';")
+                append("src:url('$ORIGIN/fonts/$fileName');")
+                append("font-display:swap;")
+                append("}")
+            }
             append("html{")
             append("background:${theme.backgroundColorArgb.toCssColor()} !important;")
             append("}")
@@ -412,6 +439,15 @@ private fun JSONObject.optMinutesOrNull(name: String): Int? =
     if (has(name) && !isNull(name)) ceil(getDouble(name)).toInt().coerceAtLeast(0) else null
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
+
+private fun File.readerFontMimeType(): String =
+    when (extension.lowercase()) {
+        "ttf" -> "font/ttf"
+        "otf" -> "font/otf"
+        "woff" -> "font/woff"
+        "woff2" -> "font/woff2"
+        else -> "application/octet-stream"
+    }
 
 private fun File.readerMimeType(): String =
     when (extension.lowercase()) {

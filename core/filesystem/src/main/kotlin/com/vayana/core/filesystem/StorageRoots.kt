@@ -18,6 +18,7 @@ class StorageRoots @Inject constructor(@ApplicationContext context: Context) {
 
     val booksDir: File get() = File(rootDir, "books").apply { mkdirs() }
     val coversDir: File get() = File(rootDir, "covers").apply { mkdirs() }
+    val fontsDir: File get() = File(rootDir, "fonts").apply { mkdirs() }
 
     fun resolve(rootRelativePath: String): File = File(rootDir, rootRelativePath)
 

@@ -78,6 +78,12 @@ class ChoiceSetting<T>(
 
 data class ChoiceOption<T : Any>(val value: T, @param:StringRes val labelRes: Int)
 
+data class ImportedFont(
+    val id: String,
+    val displayName: String,
+    val fileName: String,
+)
+
 data class SettingsSnapshot(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val displayProfile: DisplayProfile = DisplayProfile.STANDARD,
@@ -86,6 +92,8 @@ data class SettingsSnapshot(
     val readerFontSizePercent: Int = 100,
     val readerLineHeight: Float = 1.5f,
     val readerFontFamily: ReaderFontFamily = ReaderFontFamily.SERIF,
+    val readerImportedFonts: List<ImportedFont> = emptyList(),
+    val readerCustomFontId: String? = null,
     val readerTheme: ReaderTheme = ReaderTheme.SYSTEM,
     val readerSideMarginPercent: Int = 10,
     val readerHeaderGapDp: Int = 60,

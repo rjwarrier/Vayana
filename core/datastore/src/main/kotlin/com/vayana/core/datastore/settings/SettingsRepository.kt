@@ -9,6 +9,10 @@ interface SettingsRepository {
 
     suspend fun <T : Any> update(setting: Setting<T>, value: T)
 
+    suspend fun updateReaderImportedFonts(fonts: List<ImportedFont>)
+
+    suspend fun updateReaderCustomFontId(fontId: String?)
+
     suspend fun reset(setting: Setting<out Any>)
 
     suspend fun resetAll()

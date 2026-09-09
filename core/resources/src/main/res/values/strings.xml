@@ -468,6 +468,13 @@
     <string name="settings_reader_font_family_serif">Serif</string>
     <string name="settings_reader_font_family_sans">Sans</string>
     <string name="settings_reader_font_family_mono">Mono</string>
+    <string name="settings_reader_custom_fonts_title">Custom fonts</string>
+    <string name="settings_reader_custom_fonts_subtitle">Import font files for book text. Supports TTF, OTF, WOFF, and WOFF2.</string>
+    <string name="settings_reader_custom_fonts_import">Import font</string>
+    <string name="settings_reader_custom_fonts_importing">Importing font…</string>
+    <string name="settings_reader_custom_fonts_imported">Imported %1$s.</string>
+    <string name="settings_reader_custom_fonts_failed">Font import failed. %1$s</string>
+    <string name="settings_reader_custom_fonts_use_builtin">Use built-in fonts</string>
     <string name="settings_reader_theme_title">Reader theme</string>
     <string name="settings_reader_theme_subtitle">Choose the page colors used while reading.</string>
     <string name="settings_reader_theme_system">System</string>
