@@ -102,7 +102,11 @@ class AnnotationRepositoryImpl @Inject constructor(
     }
 
     override suspend fun mergeCloudAnnotation(record: AnnotationRecord): AnnotationMergeResult = database.withTransaction {
-        if (tombstoneDao.findBySyncId(record.syncId) != null && !record.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE
+        val tombstone = tombstoneDao.findBySyncId(record.syncId)
+        if (tombstone != null && !record.isDeleted) {
+            if (record.updatedAt <= tombstone.deletedAt) return@withTransaction AnnotationMergeResult.NO_CHANGE
+            tombstoneDao.deleteBySyncId(record.syncId)
+        }
         val existing = annotationDao.findBySyncId(record.syncId)
         if (existing == null) {
             if (record.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE

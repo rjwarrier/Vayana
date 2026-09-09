@@ -62,8 +62,11 @@ class VocabularyCardRepositoryImpl @Inject constructor(
         val existing = vocabularyCardDao.findBySyncId(record.syncId)
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val remoteVersion = record.lastReviewedAt ?: record.createdAt
-        if (tombstone != null && (existing == null || remoteVersion <= tombstone.deletedAt)) {
-            return@withTransaction VocabularyCardMergeResult.SKIPPED
+        if (tombstone != null) {
+            if (remoteVersion <= tombstone.deletedAt && (existing == null || (existing.lastReviewedAt ?: existing.createdAt) <= tombstone.deletedAt)) {
+                return@withTransaction VocabularyCardMergeResult.SKIPPED
+            }
+            tombstoneDao.deleteBySyncId(record.syncId)
         }
         val localBookId = record.bookSyncId?.let { bookDao.findActiveBySyncIdOrAlias(it, bookAliasDao)?.id }
         if (existing == null) {

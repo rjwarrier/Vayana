@@ -12,3 +12,6 @@ internal suspend fun BookDao.findActiveBySyncIdOrAlias(
     val alias = bookAliasDao.findBySyncId(syncId) ?: return null
     return findByHash(alias.fileHash)
 }
+
+internal fun shelfMembershipTombstoneSyncId(bookSyncId: String, shelfSyncId: String): String =
+    "shelf_membership:$bookSyncId:$shelfSyncId"

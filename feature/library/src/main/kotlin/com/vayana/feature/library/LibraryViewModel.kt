@@ -1185,18 +1185,50 @@ class LibraryViewModel @Inject constructor(
         }
 
     private suspend fun applyCloudTombstone(tombstone: PortableTombstone): Int = when (tombstone.entityType) {
-        TombstoneEntityType.BOOK -> bookDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
-        TombstoneEntityType.ANNOTATION -> annotationDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+        TombstoneEntityType.BOOK -> {
+            val book = bookDao.findAnyBySyncId(tombstone.syncId)
+            if (book != null && book.updatedAt > tombstone.deletedAt) {
+                tombstoneDao.deleteBySyncId(tombstone.syncId)
+                0
+            } else {
+                bookDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+            }
+        }
+        TombstoneEntityType.ANNOTATION -> {
+            val annotation = annotationDao.findBySyncId(tombstone.syncId)
+            if (annotation != null && annotation.updatedAt > tombstone.deletedAt) {
+                tombstoneDao.deleteBySyncId(tombstone.syncId)
+                0
+            } else {
+                annotationDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+            }
+        }
         TombstoneEntityType.SHELF -> {
             val shelf = shelfDao.findBySyncId(tombstone.syncId) ?: return 0
-            if (shelf.updatedAt > tombstone.deletedAt) return 0
+            if (shelf.updatedAt > tombstone.deletedAt) {
+                tombstoneDao.deleteBySyncId(tombstone.syncId)
+                return 0
+            }
             shelfDao.deleteBySyncId(tombstone.syncId)
         }
         TombstoneEntityType.VOCABULARY_CARD -> {
             val card = vocabularyCardDao.findBySyncId(tombstone.syncId) ?: return 0
             val cardVersion = card.lastReviewedAt ?: card.createdAt
-            if (cardVersion > tombstone.deletedAt) return 0
+            if (cardVersion > tombstone.deletedAt) {
+                tombstoneDao.deleteBySyncId(tombstone.syncId)
+                return 0
+            }
             vocabularyCardDao.deleteBySyncId(tombstone.syncId)
+        }
+        TombstoneEntityType.SHELF_MEMBERSHIP -> {
+            val parts = tombstone.syncId.removePrefix("shelf_membership:").split(":", limit = 2)
+            if (parts.size != 2) return 0
+            val membershipCreatedAt = shelfDao.membershipCreatedAtBySyncIds(bookSyncId = parts[0], shelfSyncId = parts[1])
+            if (membershipCreatedAt != null && membershipCreatedAt > tombstone.deletedAt) {
+                tombstoneDao.deleteBySyncId(tombstone.syncId)
+                return 0
+            }
+            shelfDao.removeBookFromShelfBySyncIds(bookSyncId = parts[0], shelfSyncId = parts[1], deletedAt = tombstone.deletedAt)
         }
         else -> 0
     }

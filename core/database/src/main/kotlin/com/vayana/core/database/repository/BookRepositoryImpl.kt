@@ -344,8 +344,11 @@ class BookRepositoryImpl @Inject constructor(
     private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
-        if (tombstone != null && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
-            return CloudBookMergeResult.SKIPPED
+        if (tombstone != null) {
+            if (record.updatedAt <= tombstone.deletedAt && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
+                return CloudBookMergeResult.SKIPPED
+            }
+            tombstoneDao.deleteBySyncId(record.syncId)
         }
         if (existing != null) {
             if (existing.syncId != record.syncId) {

@@ -46,6 +46,22 @@ interface ShelfDao {
     suspend fun removeBookFromShelf(bookId: Long, shelfId: Long)
 
     @Query(
+        "SELECT book_shelf_cross_ref.createdAt FROM book_shelf_cross_ref " +
+            "INNER JOIN books ON books.id = book_shelf_cross_ref.bookId " +
+            "INNER JOIN shelves ON shelves.id = book_shelf_cross_ref.shelfId " +
+            "WHERE books.syncId = :bookSyncId AND shelves.syncId = :shelfSyncId LIMIT 1",
+    )
+    suspend fun membershipCreatedAtBySyncIds(bookSyncId: String, shelfSyncId: String): Long?
+
+    @Query(
+        "DELETE FROM book_shelf_cross_ref WHERE " +
+            "bookId = (SELECT id FROM books WHERE syncId = :bookSyncId LIMIT 1) AND " +
+            "shelfId = (SELECT id FROM shelves WHERE syncId = :shelfSyncId LIMIT 1) AND " +
+            "createdAt <= :deletedAt",
+    )
+    suspend fun removeBookFromShelfBySyncIds(bookSyncId: String, shelfSyncId: String, deletedAt: Long): Int
+
+    @Query(
         "SELECT books.* FROM books INNER JOIN book_shelf_cross_ref ON books.id = book_shelf_cross_ref.bookId " +
             "WHERE book_shelf_cross_ref.shelfId = :shelfId AND books.isDeleted = 0 ORDER BY books.title COLLATE NOCASE ASC",
     )

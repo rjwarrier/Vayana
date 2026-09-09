@@ -55,11 +55,31 @@ class ShelfRepositoryImpl @Inject constructor(
     override fun observeShelfBookCount(shelfId: Long): Flow<Int> = shelfDao.observeShelfBookCount(shelfId)
 
     override suspend fun addBookToShelf(bookId: Long, shelfId: Long) {
-        shelfDao.addBookToShelf(BookShelfCrossRefEntity(bookId = bookId, shelfId = shelfId, createdAt = System.currentTimeMillis()))
+        database.withTransaction {
+            val book = bookDao.getById(bookId)
+            val shelf = shelfDao.getById(shelfId)
+            if (book != null && shelf != null) {
+                tombstoneDao.deleteBySyncId(shelfMembershipTombstoneSyncId(book.syncId, shelf.syncId))
+            }
+            shelfDao.addBookToShelf(BookShelfCrossRefEntity(bookId = bookId, shelfId = shelfId, createdAt = System.currentTimeMillis()))
+        }
     }
 
     override suspend fun removeBookFromShelf(bookId: Long, shelfId: Long) {
-        shelfDao.removeBookFromShelf(bookId, shelfId)
+        database.withTransaction {
+            val book = bookDao.getById(bookId)
+            val shelf = shelfDao.getById(shelfId)
+            if (book != null && shelf != null) {
+                tombstoneDao.upsert(
+                    TombstoneEntity(
+                        syncId = shelfMembershipTombstoneSyncId(book.syncId, shelf.syncId),
+                        entityType = TombstoneEntityType.SHELF_MEMBERSHIP,
+                        deletedAt = System.currentTimeMillis(),
+                    ),
+                )
+            }
+            shelfDao.removeBookFromShelf(bookId, shelfId)
+        }
     }
 
     override suspend fun mergeCloudShelf(record: CloudShelfRecord): ShelfMergeResult = database.withTransaction {
@@ -68,8 +88,11 @@ class ShelfRepositoryImpl @Inject constructor(
         }
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val existing = shelfDao.findBySyncId(record.syncId)
-        if (tombstone != null && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
-            return@withTransaction ShelfMergeResult.SKIPPED
+        if (tombstone != null) {
+            if (record.updatedAt <= tombstone.deletedAt && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
+                return@withTransaction ShelfMergeResult.SKIPPED
+            }
+            tombstoneDao.deleteBySyncId(record.syncId)
         }
         if (existing == null) {
             shelfDao.insert(ShelfEntity(syncId = record.syncId, name = record.name, createdAt = record.createdAt, updatedAt = record.updatedAt))
@@ -85,6 +108,12 @@ class ShelfRepositoryImpl @Inject constructor(
         val shelf = shelfDao.findBySyncId(record.shelfSyncId) ?: return@withTransaction ShelfMembershipMergeResult.SKIPPED
         if (tombstoneDao.findBySyncId(record.bookSyncId) != null || tombstoneDao.findBySyncId(record.shelfSyncId) != null) {
             return@withTransaction ShelfMembershipMergeResult.SKIPPED
+        }
+        val membershipTombstoneId = shelfMembershipTombstoneSyncId(record.bookSyncId, record.shelfSyncId)
+        val membershipTombstone = tombstoneDao.findBySyncId(membershipTombstoneId)
+        if (membershipTombstone != null) {
+            if (record.createdAt <= membershipTombstone.deletedAt) return@withTransaction ShelfMembershipMergeResult.SKIPPED
+            tombstoneDao.deleteBySyncId(membershipTombstoneId)
         }
         val inserted = shelfDao.addBookToShelfIfAbsent(
             BookShelfCrossRefEntity(bookId = book.id, shelfId = shelf.id, createdAt = record.createdAt),

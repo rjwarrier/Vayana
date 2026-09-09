@@ -5,4 +5,5 @@ object TombstoneEntityType {
     const val SHELF = "shelf"
     const val VOCABULARY_CARD = "vocabulary_card"
     const val ANNOTATION = "annotation"
+    const val SHELF_MEMBERSHIP = "shelf_membership"
 }

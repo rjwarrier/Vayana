@@ -590,7 +590,8 @@ class PortableReadingProgressJsonTest {
                 {"syncId":"book-remote","fileHash":"sha-a","createdAt":900}
               ],
               "tombstones": [
-                {"syncId":"shelf-deleted","entityType":"shelf","deletedAt":1500}
+                {"syncId":"shelf-deleted","entityType":"shelf","deletedAt":1500},
+                {"syncId":"shelf_membership:book-a:shelf-a","entityType":"shelf_membership","deletedAt":1600}
               ]
             }
         """.trimIndent()
@@ -606,7 +607,9 @@ class PortableReadingProgressJsonTest {
         assertEquals("luminous", cards.single().word)
         assertEquals(true, cards.single().known)
         assertEquals("book-remote", aliases.single().syncId)
-        assertEquals("shelf", tombstones.single().entityType)
+        assertEquals(2, tombstones.size)
+        assertEquals("shelf", tombstones[0].entityType)
+        assertEquals("shelf_membership", tombstones[1].entityType)
     }
 
     @Test
