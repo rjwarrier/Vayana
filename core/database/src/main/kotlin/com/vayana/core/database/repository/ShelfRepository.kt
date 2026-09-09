@@ -43,4 +43,7 @@ interface ShelfRepository {
     suspend fun mergeCloudShelf(record: CloudShelfRecord): ShelfMergeResult
 
     suspend fun mergeCloudMembership(record: CloudShelfMembershipRecord): ShelfMembershipMergeResult
+
+    /** Applies a cloud shelf-membership deletion tombstone, resolving [bookSyncId] through book aliases. Returns rows removed. */
+    suspend fun applyMembershipTombstone(bookSyncId: String, shelfSyncId: String, deletedAt: Long): Int
 }

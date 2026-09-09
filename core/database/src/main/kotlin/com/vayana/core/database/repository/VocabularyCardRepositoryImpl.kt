@@ -49,7 +49,7 @@ class VocabularyCardRepositoryImpl @Inject constructor(
     override suspend fun delete(id: Long) {
         database.withTransaction {
             vocabularyCardDao.getById(id)?.let { card ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = card.syncId, entityType = TombstoneEntityType.VOCABULARY_CARD, deletedAt = System.currentTimeMillis()))
+                tombstoneDao.upsert(TombstoneEntity(syncId = card.syncId, entityType = TombstoneEntityType.VOCABULARY_CARD.value, deletedAt = System.currentTimeMillis()))
             }
             vocabularyCardDao.delete(id)
         }
@@ -62,11 +62,9 @@ class VocabularyCardRepositoryImpl @Inject constructor(
         val existing = vocabularyCardDao.findBySyncId(record.syncId)
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val remoteVersion = record.lastReviewedAt ?: record.createdAt
-        if (tombstone != null) {
-            if (remoteVersion <= tombstone.deletedAt && (existing == null || (existing.lastReviewedAt ?: existing.createdAt) <= tombstone.deletedAt)) {
-                return@withTransaction VocabularyCardMergeResult.SKIPPED
-            }
-            tombstoneDao.deleteBySyncId(record.syncId)
+        val existingVersion = existing?.let { it.lastReviewedAt ?: it.createdAt }
+        if (tombstone != null && tombstoneDao.supersedes(tombstone, remoteVersion, existingVersion)) {
+            return@withTransaction VocabularyCardMergeResult.SKIPPED
         }
         val localBookId = record.bookSyncId?.let { bookDao.findActiveBySyncIdOrAlias(it, bookAliasDao)?.id }
         if (existing == null) {

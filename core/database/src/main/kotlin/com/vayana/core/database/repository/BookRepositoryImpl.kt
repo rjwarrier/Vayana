@@ -215,7 +215,7 @@ class BookRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         database.withTransaction {
             bookDao.getById(id)?.let { book ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK, deletedAt = now))
+                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK.value, deletedAt = now))
             }
             bookDao.softDelete(id, now)
         }
@@ -232,7 +232,7 @@ class BookRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         database.withTransaction {
             bookDao.getById(id)?.let { book ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK, deletedAt = now))
+                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK.value, deletedAt = now))
             }
             bookDao.purge(id)
         }
@@ -344,11 +344,8 @@ class BookRepositoryImpl @Inject constructor(
     private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
-        if (tombstone != null) {
-            if (record.updatedAt <= tombstone.deletedAt && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
-                return CloudBookMergeResult.SKIPPED
-            }
-            tombstoneDao.deleteBySyncId(record.syncId)
+        if (tombstone != null && tombstoneDao.supersedes(tombstone, record.updatedAt, existing?.updatedAt)) {
+            return CloudBookMergeResult.SKIPPED
         }
         if (existing != null) {
             if (existing.syncId != record.syncId) {

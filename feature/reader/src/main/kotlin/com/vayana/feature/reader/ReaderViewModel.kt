@@ -8,6 +8,7 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
+import com.vayana.core.common.ApplicationScope
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
@@ -42,6 +43,7 @@ import com.vayana.reader.api.ReaderSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -111,6 +113,7 @@ class ReaderViewModel @Inject constructor(
     private val vocabularyCardRepository: VocabularyCardRepository,
     private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
     private val dispatchers: DispatcherProvider,
+    @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -171,6 +174,9 @@ class ReaderViewModel @Inject constructor(
     private var lastSyncIssueSignature: String? = null
     private var lastReaderWrittenLocator: String? = null
     private var locatorPersistJob: Job? = null
+
+    /** The locator the debounced write still owes the database, or null once that write has landed. */
+    private var pendingLocatorWrite: PendingLocatorWrite? = null
     private var pendingRemoteReadingPosition: SavedReadingPosition? = null
     private val readingPositionPromptDecider = ReadingPositionPromptDecider()
     private val _activeReadingSessionSeconds = MutableStateFlow(0L)
@@ -263,10 +269,13 @@ class ReaderViewModel @Inject constructor(
                         lastReaderWrittenLocator = cfi
                         // The WebView bridge can fire several 'relocate' events for a single page
                         // turn in quick succession; debounce so each one doesn't hit Room.
+                        val write = PendingLocatorWrite(cfi, locator.progression)
+                        pendingLocatorWrite = write
                         locatorPersistJob?.cancel()
                         locatorPersistJob = viewModelScope.launch {
                             delay(LocatorPersistDebounceMillis)
-                            bookRepository.updateLocator(bookId, cfi, locator.progression)
+                            bookRepository.updateLocator(bookId, write.cfi, write.progression)
+                            if (pendingLocatorWrite === write) pendingLocatorWrite = null
                         }
                     }
                     onPageMoved(locator)
@@ -736,14 +745,17 @@ class ReaderViewModel @Inject constructor(
     /** Guarantees the last-seen position is saved immediately, bypassing the debounce, when the
      *  reader is about to go away (backgrounded or destroyed) and might not get another event. */
     private fun flushPendingLocatorWrite() {
-        val job = locatorPersistJob ?: return
-        if (!job.isActive) return
-        job.cancel()
+        locatorPersistJob?.cancel()
         locatorPersistJob = null
-        val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator ?: return
-        val cfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
-        viewModelScope.launch {
-            bookRepository.updateLocator(bookId, cfi, currentLocator.progression)
+        // Gate on the owed write, never on the debounce job's isActive: onCleared() runs *after* ViewModel.clear()
+        // has already cancelled viewModelScope, so the job is always inactive there and an isActive check would
+        // skip exactly the flush this function exists for.
+        val write = pendingLocatorWrite ?: return
+        pendingLocatorWrite = null
+        // applicationScope, not viewModelScope: same reason - a launch on the cancelled viewModelScope from
+        // onCleared() would silently never run its body.
+        applicationScope.launch {
+            bookRepository.updateLocator(bookId, write.cfi, write.progression)
         }
     }
 
@@ -860,8 +872,14 @@ class ReaderViewModel @Inject constructor(
     override fun onCleared() {
         trackingJob?.cancel()
         trackingJob = null
-        persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
+        // viewModelScope's Job is already cancelled by the time onCleared() runs (androidx.lifecycle.ViewModel.clear()
+        // closes it before invoking onCleared()), so a viewModelScope.launch here would never run its body. Use the
+        // process-lifetime applicationScope instead so this final flush actually reaches the database.
+        val finalUpdate = readingTimeTracker.pause(System.currentTimeMillis())
         ReadingSessionContinuationStore.put(bookId, readingTimeTracker)
+        if (finalUpdate.addedSeconds != 0L || finalUpdate.session != null) {
+            applicationScope.launch { persistReadingTimeNow(finalUpdate) }
+        }
         flushPendingLocatorWrite()
         cancelEngineJobs()
         boundEngine?.close()
@@ -977,6 +995,12 @@ private val SettingsSnapshot.readTheme: ReadTheme
 
 private fun androidx.compose.ui.graphics.Color.toReadTheme(textColor: androidx.compose.ui.graphics.Color): ReadTheme =
     ReadTheme(backgroundColorArgb = toArgb(), textColorArgb = textColor.toArgb())
+
+/** A locator write the debounce still owes the database, kept so teardown can flush it without the job. */
+private data class PendingLocatorWrite(
+    val cfi: String,
+    val progression: Float,
+)
 
 private data class BookStyleOverride(
     val fontSizePercent: Int? = null,

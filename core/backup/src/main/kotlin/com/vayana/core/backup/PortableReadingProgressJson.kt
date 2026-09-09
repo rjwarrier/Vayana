@@ -122,7 +122,7 @@ fun patchPortableReadingProgressOnly(
         patched += 1
     }
 
-    val sessionsAdded = root.appendMissingReadingSessions(readingSessions, books)
+    val sessionsAdded = root.appendMissingReadingSessions(readingSessions)
     val wordLookupCountersMerged = root.mergeWordLookupCounters(wordLookupCounters)
     val changed = patched > 0 || sessionsAdded > 0 || wordLookupCountersMerged > 0
 
@@ -180,17 +180,13 @@ private fun JSONObject.mergeWordLookupCounters(wordLookupCounters: List<Portable
 
 private fun wordLookupCounterKey(word: String, writerOrigin: String): String = "$word\u0000$writerOrigin"
 
-private fun JSONObject.appendMissingReadingSessions(
-    readingSessions: List<PortableReadingSession>,
-    books: JSONArray,
-): Int {
+private fun JSONObject.appendMissingReadingSessions(readingSessions: List<PortableReadingSession>): Int {
     if (readingSessions.isEmpty()) return 0
-    val knownBookSyncIds = buildSet {
-        for (index in 0 until books.length()) {
-            val bookSyncId = books.optJSONObject(index)?.optBoundedString("syncId", MaxSyncIdChars) ?: continue
-            add(bookSyncId)
-        }
-    }
+    // Deliberately not gated on the session's book already being present in this document's "books" array:
+    // progress-only sync never uploads book/asset metadata (that's a full sync's job), so a session for a
+    // just-imported book would otherwise never leave the device it started on. A pulling device that doesn't
+    // know the book yet just skips the session in ReadingSessionRepositoryImpl.mergeCloudSession (a safe,
+    // self-healing no-op) until a future sync catches it up on the book.
     val sessions = optJSONArray("readingSessions") ?: JSONArray().also { put("readingSessions", it) }
     require(sessions.length() <= MaxPortableProgressReadingSessions) { "Portable snapshot has too many reading sessions" }
     val existingSessionSyncIds = buildSet {
@@ -204,7 +200,6 @@ private fun JSONObject.appendMissingReadingSessions(
         if (sessions.length() >= MaxPortableProgressReadingSessions) return@forEach
         if (session.syncId.isBlank() || session.syncId.length > MaxSyncIdChars) return@forEach
         if (session.bookSyncId.isBlank() || session.bookSyncId.length > MaxSyncIdChars) return@forEach
-        if (session.bookSyncId !in knownBookSyncIds) return@forEach
         if (session.syncId in existingSessionSyncIds) return@forEach
         if (session.startedAt <= 0L || session.endedAt < session.startedAt || session.durationSeconds <= 0L) return@forEach
         sessions.put(

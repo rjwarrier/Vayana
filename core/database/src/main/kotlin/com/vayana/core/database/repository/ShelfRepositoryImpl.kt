@@ -40,7 +40,7 @@ class ShelfRepositoryImpl @Inject constructor(
     override suspend fun delete(id: Long) {
         database.withTransaction {
             shelfDao.getById(id)?.let { shelf ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = shelf.syncId, entityType = TombstoneEntityType.SHELF, deletedAt = System.currentTimeMillis()))
+                tombstoneDao.upsert(TombstoneEntity(syncId = shelf.syncId, entityType = TombstoneEntityType.SHELF.value, deletedAt = System.currentTimeMillis()))
             }
             shelfDao.delete(id)
         }
@@ -73,7 +73,7 @@ class ShelfRepositoryImpl @Inject constructor(
                 tombstoneDao.upsert(
                     TombstoneEntity(
                         syncId = shelfMembershipTombstoneSyncId(book.syncId, shelf.syncId),
-                        entityType = TombstoneEntityType.SHELF_MEMBERSHIP,
+                        entityType = TombstoneEntityType.SHELF_MEMBERSHIP.value,
                         deletedAt = System.currentTimeMillis(),
                     ),
                 )
@@ -88,11 +88,8 @@ class ShelfRepositoryImpl @Inject constructor(
         }
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val existing = shelfDao.findBySyncId(record.syncId)
-        if (tombstone != null) {
-            if (record.updatedAt <= tombstone.deletedAt && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
-                return@withTransaction ShelfMergeResult.SKIPPED
-            }
-            tombstoneDao.deleteBySyncId(record.syncId)
+        if (tombstone != null && tombstoneDao.supersedes(tombstone, record.updatedAt, existing?.updatedAt)) {
+            return@withTransaction ShelfMergeResult.SKIPPED
         }
         if (existing == null) {
             shelfDao.insert(ShelfEntity(syncId = record.syncId, name = record.name, createdAt = record.createdAt, updatedAt = record.updatedAt))
@@ -111,15 +108,32 @@ class ShelfRepositoryImpl @Inject constructor(
         }
         val membershipTombstoneId = shelfMembershipTombstoneSyncId(record.bookSyncId, record.shelfSyncId)
         val membershipTombstone = tombstoneDao.findBySyncId(membershipTombstoneId)
-        if (membershipTombstone != null) {
-            if (record.createdAt <= membershipTombstone.deletedAt) return@withTransaction ShelfMembershipMergeResult.SKIPPED
-            tombstoneDao.deleteBySyncId(membershipTombstoneId)
+        if (membershipTombstone != null && tombstoneDao.supersedes(membershipTombstone, record.createdAt)) {
+            return@withTransaction ShelfMembershipMergeResult.SKIPPED
         }
         val inserted = shelfDao.addBookToShelfIfAbsent(
             BookShelfCrossRefEntity(bookId = book.id, shelfId = shelf.id, createdAt = record.createdAt),
         )
         if (inserted >= 0L) ShelfMembershipMergeResult.CREATED else ShelfMembershipMergeResult.SKIPPED
     }
+
+    override suspend fun applyMembershipTombstone(bookSyncId: String, shelfSyncId: String, deletedAt: Long): Int =
+        database.withTransaction {
+            val book = bookDao.findActiveBySyncIdOrAlias(bookSyncId, bookAliasDao) ?: return@withTransaction 0
+            val shelf = shelfDao.findBySyncId(shelfSyncId) ?: return@withTransaction 0
+            val membershipCreatedAt = shelfDao.membershipCreatedAt(book.id, shelf.id) ?: return@withTransaction 0
+            // Key off book.syncId, not the incoming bookSyncId: the latter may be an alias, while every
+            // locally written membership tombstone uses the canonical syncId. Keying off the alias would
+            // make appliesOver's deleteBySyncId miss a local tombstone that outranks this deletion, leaving
+            // the local delete to re-apply next sync and undo a legitimate remote re-add.
+            val tombstone = TombstoneEntity(
+                syncId = shelfMembershipTombstoneSyncId(book.syncId, shelfSyncId),
+                entityType = TombstoneEntityType.SHELF_MEMBERSHIP.value,
+                deletedAt = deletedAt,
+            )
+            if (!tombstoneDao.appliesOver(tombstone, membershipCreatedAt)) return@withTransaction 0
+            shelfDao.removeBookFromShelfIfCreatedBefore(book.id, shelf.id, deletedAt)
+        }
 }
 
 private fun ShelfEntity.toDomain(): Shelf = Shelf(id = id, name = name, createdAt = createdAt, updatedAt = updatedAt)

@@ -309,7 +309,14 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override fun events(): Flow<EngineEvent> = _events
 
+    private var closed = false
+
     override fun close() {
+        // Idempotent: ReaderViewModel.onCleared() and the AndroidView's own onRelease callback can both
+        // reach the same engine instance under teardown-ordering races (rotation, fast back-navigation),
+        // and WebView.destroy() is not safe to call twice.
+        if (closed) return
+        closed = true
         openResult?.complete(Result.failure(IllegalStateException("Reader closed before the book opened")))
         openResult = null
         pendingOpen = null

@@ -22,6 +22,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -112,9 +113,14 @@ class SettingsViewModel @Inject constructor(
             val result = withContext(Dispatchers.IO) { copyReaderFont(context, storageRoots, source) }
             result.fold(
                 onSuccess = { font ->
-                    val updatedFonts = (settings.value.readerImportedFonts.filterNot { it.id == font.id } + font)
-                        .distinctBy { it.fileName }
+                    // Read through the repository, not `settings.value`: that StateFlow is WhileSubscribed(5s) and
+                    // reports the empty default whenever nothing is collecting, which would wipe the existing list.
+                    val existingFonts = settingsRepository.snapshot.first().readerImportedFonts
+                    // Every import mints a fresh UUID for both id and fileName, so identity can never dedupe.
+                    // Re-importing the same face is a replace: match on display name and drop the superseded copy.
+                    val updatedFonts = existingFonts.filterNot { it.displayName.equals(font.displayName, ignoreCase = true) } + font
                     settingsRepository.updateReaderImportedFonts(updatedFonts)
+                    withContext(Dispatchers.IO) { pruneOrphanFontFiles(storageRoots, updatedFonts) }
                     settingsRepository.updateReaderCustomFontId(font.id)
                     _readerFontImportState.value = ReaderFontImportState.Imported(font.displayName)
                 },
@@ -239,6 +245,18 @@ private fun copyReaderFont(context: Context, storageRoots: StorageRoots, source:
         destination.outputStream().use { output -> input.copyTo(output) }
     } ?: throw IllegalArgumentException("Could not read the selected font file")
     ImportedFont(id = id, displayName = displayName.cleanDisplayName(), fileName = fileName)
+}
+
+/**
+ * Deletes every file in the fonts directory no [fonts] entry still points at. Each import writes a new
+ * `<uuid>.<ext>` file, so a replaced or dropped entry would otherwise leave its bytes on disk forever with
+ * nothing left to reference them.
+ */
+private fun pruneOrphanFontFiles(storageRoots: StorageRoots, fonts: List<ImportedFont>) {
+    val referenced = fonts.mapTo(mutableSetOf()) { it.fileName }
+    storageRoots.fontsDir.listFiles()?.forEach { file ->
+        if (file.isFile && file.name !in referenced) runCatching { file.delete() }
+    }
 }
 
 private fun android.content.ContentResolver.displayName(uri: Uri): String {

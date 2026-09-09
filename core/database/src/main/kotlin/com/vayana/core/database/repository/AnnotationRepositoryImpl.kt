@@ -78,7 +78,7 @@ class AnnotationRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         database.withTransaction {
             annotationDao.getById(id)?.let { annotation ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION, deletedAt = now))
+                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION.value, deletedAt = now))
             }
             annotationDao.softDelete(id, now)
         }
@@ -95,7 +95,7 @@ class AnnotationRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         database.withTransaction {
             annotationDao.getById(id)?.let { annotation ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION, deletedAt = now))
+                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION.value, deletedAt = now))
             }
             annotationDao.purge(id)
         }
@@ -103,11 +103,12 @@ class AnnotationRepositoryImpl @Inject constructor(
 
     override suspend fun mergeCloudAnnotation(record: AnnotationRecord): AnnotationMergeResult = database.withTransaction {
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
-        if (tombstone != null && !record.isDeleted) {
-            if (record.updatedAt <= tombstone.deletedAt) return@withTransaction AnnotationMergeResult.NO_CHANGE
-            tombstoneDao.deleteBySyncId(record.syncId)
-        }
         val existing = annotationDao.findBySyncId(record.syncId)
+        if (tombstone != null && !record.isDeleted &&
+            tombstoneDao.supersedes(tombstone, record.updatedAt, existing?.updatedAt)
+        ) {
+            return@withTransaction AnnotationMergeResult.NO_CHANGE
+        }
         if (existing == null) {
             if (record.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE
             val bookId = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao)?.id

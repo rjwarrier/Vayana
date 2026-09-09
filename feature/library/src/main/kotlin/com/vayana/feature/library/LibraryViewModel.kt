@@ -75,6 +75,7 @@ import com.vayana.core.database.repository.VocabularyCardMergeResult
 import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupCounterMergeResult
 import com.vayana.core.database.repository.WordLookupStatRepository
+import com.vayana.core.database.repository.appliesOver
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.diagnostics.DiagnosticCategory
@@ -243,46 +244,61 @@ private data class ReadingProgressMergeSummary(
         get() = conflicts.size
 }
 
+/**
+ * Common shape shared by every per-entity cloud-merge summary, so the overall sync result can be folded
+ * from a plain list of these instead of a hand-written N-term OR/sum/elvis chain naming every entity type
+ * (previously duplicated, with drift, between the main sync path and the conflict-rebase retry path).
+ */
+private interface SyncMergeOutcome {
+    val failed: Boolean
+    val skipped: Int
+    val failureMessage: String?
+}
+
+private fun List<SyncMergeOutcome>.anyFailed(): Boolean = any { it.failed }
+private fun List<SyncMergeOutcome>.totalSkipped(): Int = sumOf { it.skipped }
+private fun List<SyncMergeOutcome>.firstFailureMessage(): String? = firstNotNullOfOrNull { it.failureMessage }
+
 private data class CloudLibraryMergeSummary(
     val created: Int = 0,
     val updated: Int = 0,
-    val skipped: Int = 0,
+    override val skipped: Int = 0,
     val coversDownloaded: Int = 0,
-    val failed: Boolean = false,
-    val failureMessage: String? = null,
-)
+    override val failed: Boolean = false,
+    override val failureMessage: String? = null,
+) : SyncMergeOutcome
 
 private data class ReadingSessionMergeSummary(
     val created: Int = 0,
-    val skipped: Int = 0,
-    val failed: Boolean = false,
-    val failureMessage: String? = null,
-)
+    override val skipped: Int = 0,
+    override val failed: Boolean = false,
+    override val failureMessage: String? = null,
+) : SyncMergeOutcome
 
 private data class WordLookupCounterMergeSummary(
     val merged: Int = 0,
-    val skipped: Int = 0,
-    val failed: Boolean = false,
-    val failureMessage: String? = null,
-)
+    override val skipped: Int = 0,
+    override val failed: Boolean = false,
+    override val failureMessage: String? = null,
+) : SyncMergeOutcome
 
 private data class AnnotationMergeSummary(
     val created: Int = 0,
     val updated: Int = 0,
-    val skipped: Int = 0,
+    override val skipped: Int = 0,
     val conflicts: Int = 0,
-    val failed: Boolean = false,
-    val failureMessage: String? = null,
-)
+    override val failed: Boolean = false,
+    override val failureMessage: String? = null,
+) : SyncMergeOutcome
 
 private data class GenericSyncMergeSummary(
     val created: Int = 0,
     val updated: Int = 0,
-    val skipped: Int = 0,
+    override val skipped: Int = 0,
     val appliedDeletes: Int = 0,
-    val failed: Boolean = false,
-    val failureMessage: String? = null,
-)
+    override val failed: Boolean = false,
+    override val failureMessage: String? = null,
+) : SyncMergeOutcome
 
 private data class ReadingProgressOnlyPushSummary(
     val pushed: Int = 0,
@@ -293,6 +309,17 @@ private data class ReadingProgressOnlyPushSummary(
 private data class SnapshotMetadataSaveResult(
     val synced: Boolean,
     val failureMessage: String? = null,
+    val extraBooksCreated: Int = 0,
+    val extraBooksUpdated: Int = 0,
+    val extraSkipped: Int = 0,
+    val extraConflicts: Int = 0,
+    val extraFailed: Boolean = false,
+)
+
+private data class SnapshotRebaseMerge(
+    val summary: ReadingProgressMergeSummary,
+    val booksCreated: Int = 0,
+    val booksUpdated: Int = 0,
 )
 
 data class BookProgressChange(
@@ -976,8 +1003,18 @@ class LibraryViewModel @Inject constructor(
             expectedSha = progressMerge.remoteSnapshotSha,
             conflicts = progressMerge.conflicts,
         )
+        // A rebase (409-conflict retry) may have pulled and merged additional remote data into the local DB after
+        // the counts above were computed; fold its deltas in so the reported summary reflects what actually synced.
+        val entityMerges = listOf(
+            cloudLibraryMerge, tombstoneMerge, bookAliasMerge, shelfMerge, shelfMembershipMerge,
+            vocabularyCardMerge, readingSessionMerge, wordLookupCounterMerge, annotationMerge,
+        )
+        val totalBooksCreated = cloudLibraryMerge.created + metadataSave.extraBooksCreated
+        val totalBooksUpdated = cloudLibraryMerge.updated + metadataSave.extraBooksUpdated
+        val totalSkipped = progressMerge.skipped + entityMerges.totalSkipped() + metadataSave.extraSkipped
+        val anyPullFailed = progressMerge.failed || entityMerges.anyFailed() || metadataSave.extraFailed
         finishSyncProgress(
-            step = if (metadataSave.synced && failed == 0 && !cloudLibraryMerge.failed && !tombstoneMerge.failed && !bookAliasMerge.failed && !shelfMerge.failed && !shelfMembershipMerge.failed && !vocabularyCardMerge.failed && !readingSessionMerge.failed && !wordLookupCounterMerge.failed && !annotationMerge.failed) {
+            step = if (metadataSave.synced && failed == 0 && !anyPullFailed) {
                 GitHubSyncProgressStep.COMPLETE
             } else {
                 GitHubSyncProgressStep.FAILED
@@ -987,21 +1024,21 @@ class LibraryViewModel @Inject constructor(
             failedBooks = failed,
             uploadedCovers = uploadedCovers,
             progressUpdated = progressMerge.applied,
-            cloudBooksCreated = cloudLibraryMerge.created,
-            cloudBooksUpdated = cloudLibraryMerge.updated,
+            cloudBooksCreated = totalBooksCreated,
+            cloudBooksUpdated = totalBooksUpdated,
             downloadedCovers = cloudLibraryMerge.coversDownloaded,
         )
         GitHubSyncNowResult.Complete(
             uploaded = uploaded,
             failed = failed,
             progressUpdated = progressMerge.applied,
-            cloudBooksCreated = cloudLibraryMerge.created,
-            cloudBooksUpdated = cloudLibraryMerge.updated,
-            conflicts = progressMerge.conflictCount,
-            skipped = progressMerge.skipped + cloudLibraryMerge.skipped + tombstoneMerge.skipped + bookAliasMerge.skipped + shelfMerge.skipped + shelfMembershipMerge.skipped + vocabularyCardMerge.skipped + readingSessionMerge.skipped + wordLookupCounterMerge.skipped + annotationMerge.skipped,
-            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || tombstoneMerge.failed || bookAliasMerge.failed || shelfMerge.failed || shelfMembershipMerge.failed || vocabularyCardMerge.failed || readingSessionMerge.failed || wordLookupCounterMerge.failed || annotationMerge.failed) && !allowInitialSync,
+            cloudBooksCreated = totalBooksCreated,
+            cloudBooksUpdated = totalBooksUpdated,
+            conflicts = progressMerge.conflictCount + metadataSave.extraConflicts,
+            skipped = totalSkipped,
+            pullFailed = anyPullFailed && !allowInitialSync,
             metadataSynced = metadataSave.synced,
-            failureMessage = metadataSave.failureMessage ?: cloudLibraryMerge.failureMessage ?: tombstoneMerge.failureMessage ?: bookAliasMerge.failureMessage ?: shelfMerge.failureMessage ?: shelfMembershipMerge.failureMessage ?: vocabularyCardMerge.failureMessage ?: readingSessionMerge.failureMessage ?: wordLookupCounterMerge.failureMessage ?: annotationMerge.failureMessage,
+            failureMessage = metadataSave.failureMessage ?: entityMerges.firstFailureMessage(),
         )
     }
 
@@ -1184,53 +1221,47 @@ class LibraryViewModel @Inject constructor(
             GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
 
-    private suspend fun applyCloudTombstone(tombstone: PortableTombstone): Int = when (tombstone.entityType) {
-        TombstoneEntityType.BOOK -> {
-            val book = bookDao.findAnyBySyncId(tombstone.syncId)
-            if (book != null && book.updatedAt > tombstone.deletedAt) {
-                tombstoneDao.deleteBySyncId(tombstone.syncId)
-                0
-            } else {
-                bookDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+    private suspend fun applyCloudTombstone(tombstone: PortableTombstone): Int {
+        // Unrecognized entityType (e.g. a newer app version's tombstone kind synced down): leave it stored for
+        // when this device updates, apply nothing now. TombstoneEntityType.fromValue's null return, plus the
+        // exhaustive `when` below with no `else`, means a *known* type added later fails to compile here until
+        // handled, instead of silently falling through to 0 the way an `else` branch would.
+        val type = TombstoneEntityType.fromValue(tombstone.entityType) ?: return 0
+        val entity = TombstoneEntity(syncId = tombstone.syncId, entityType = tombstone.entityType, deletedAt = tombstone.deletedAt)
+        return when (type) {
+            TombstoneEntityType.BOOK -> {
+                val book = bookDao.findAnyBySyncId(tombstone.syncId)
+                if (book != null && !tombstoneDao.appliesOver(entity, book.updatedAt)) {
+                    0
+                } else {
+                    bookDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+                }
+            }
+            TombstoneEntityType.ANNOTATION -> {
+                val annotation = annotationDao.findBySyncId(tombstone.syncId)
+                if (annotation != null && !tombstoneDao.appliesOver(entity, annotation.updatedAt)) {
+                    0
+                } else {
+                    annotationDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+                }
+            }
+            TombstoneEntityType.SHELF -> {
+                val shelf = shelfDao.findBySyncId(tombstone.syncId) ?: return 0
+                if (!tombstoneDao.appliesOver(entity, shelf.updatedAt)) return 0
+                shelfDao.deleteBySyncId(tombstone.syncId)
+            }
+            TombstoneEntityType.VOCABULARY_CARD -> {
+                val card = vocabularyCardDao.findBySyncId(tombstone.syncId) ?: return 0
+                val cardVersion = card.lastReviewedAt ?: card.createdAt
+                if (!tombstoneDao.appliesOver(entity, cardVersion)) return 0
+                vocabularyCardDao.deleteBySyncId(tombstone.syncId)
+            }
+            TombstoneEntityType.SHELF_MEMBERSHIP -> {
+                val parts = tombstone.syncId.removePrefix("shelf_membership:").split(":", limit = 2)
+                if (parts.size != 2) return 0
+                shelfRepository.applyMembershipTombstone(bookSyncId = parts[0], shelfSyncId = parts[1], deletedAt = tombstone.deletedAt)
             }
         }
-        TombstoneEntityType.ANNOTATION -> {
-            val annotation = annotationDao.findBySyncId(tombstone.syncId)
-            if (annotation != null && annotation.updatedAt > tombstone.deletedAt) {
-                tombstoneDao.deleteBySyncId(tombstone.syncId)
-                0
-            } else {
-                annotationDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
-            }
-        }
-        TombstoneEntityType.SHELF -> {
-            val shelf = shelfDao.findBySyncId(tombstone.syncId) ?: return 0
-            if (shelf.updatedAt > tombstone.deletedAt) {
-                tombstoneDao.deleteBySyncId(tombstone.syncId)
-                return 0
-            }
-            shelfDao.deleteBySyncId(tombstone.syncId)
-        }
-        TombstoneEntityType.VOCABULARY_CARD -> {
-            val card = vocabularyCardDao.findBySyncId(tombstone.syncId) ?: return 0
-            val cardVersion = card.lastReviewedAt ?: card.createdAt
-            if (cardVersion > tombstone.deletedAt) {
-                tombstoneDao.deleteBySyncId(tombstone.syncId)
-                return 0
-            }
-            vocabularyCardDao.deleteBySyncId(tombstone.syncId)
-        }
-        TombstoneEntityType.SHELF_MEMBERSHIP -> {
-            val parts = tombstone.syncId.removePrefix("shelf_membership:").split(":", limit = 2)
-            if (parts.size != 2) return 0
-            val membershipCreatedAt = shelfDao.membershipCreatedAtBySyncIds(bookSyncId = parts[0], shelfSyncId = parts[1])
-            if (membershipCreatedAt != null && membershipCreatedAt > tombstone.deletedAt) {
-                tombstoneDao.deleteBySyncId(tombstone.syncId)
-                return 0
-            }
-            shelfDao.removeBookFromShelfBySyncIds(bookSyncId = parts[0], shelfSyncId = parts[1], deletedAt = tombstone.deletedAt)
-        }
-        else -> 0
     }
 
     private suspend fun mergeCloudReadingSessions(snapshotJson: String): ReadingSessionMergeSummary =
@@ -1295,6 +1326,22 @@ class LibraryViewModel @Inject constructor(
     ): SnapshotMetadataSaveResult {
         var latestExpectedSha = expectedSha
         var latestConflicts = conflicts
+        // Rebasing on a 409 pulls and merges real remote data (new books, shelves, etc.) into the local DB. These
+        // accumulators keep that work visible in the result the caller reports, instead of the caller silently
+        // continuing to show only the pre-conflict counts computed before any rebase happened.
+        var rebaseBooksCreated = 0
+        var rebaseBooksUpdated = 0
+        var rebaseSkipped = 0
+        var rebaseFailed = false
+        fun result(synced: Boolean, failureMessage: String? = null) = SnapshotMetadataSaveResult(
+            synced = synced,
+            failureMessage = failureMessage,
+            extraBooksCreated = rebaseBooksCreated,
+            extraBooksUpdated = rebaseBooksUpdated,
+            extraSkipped = rebaseSkipped,
+            extraConflicts = latestConflicts.size - conflicts.size,
+            extraFailed = rebaseFailed,
+        )
         repeat(MaxSnapshotMetadataSaveAttempts) { attemptIndex ->
             val saveAttempt = runCatchingCancellable {
                 val snapshotBytes = snapshotExporter.export()
@@ -1304,37 +1351,44 @@ class LibraryViewModel @Inject constructor(
                 store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
                 store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, latestExpectedSha)
             }
-            saveAttempt.onSuccess { return SnapshotMetadataSaveResult(synced = true) }
+            saveAttempt.onSuccess { return result(synced = true) }
             val throwable = saveAttempt.exceptionOrNull()
-            if (throwable?.isGitHubConflict() != true || attemptIndex == MaxSnapshotMetadataSaveAttempts - 1) {
-                return SnapshotMetadataSaveResult(
+            if (throwable?.isGitHubConflict() != true) {
+                return result(synced = false, failureMessage = throwable?.syncFailureMessage() ?: "Snapshot save failed")
+            }
+            if (attemptIndex == MaxSnapshotMetadataSaveAttempts - 1) {
+                // The book/cover uploads earlier in this sync already succeeded; only this small metadata
+                // pointer write lost the race to another device's concurrent save. Say so explicitly rather
+                // than surfacing the raw GitHub 409, which reads as if the whole sync failed.
+                return result(
                     synced = false,
-                    failureMessage = throwable?.syncFailureMessage() ?: "Snapshot save failed",
+                    failureMessage = "Another device saved changes while this sync was uploading. Your uploads are safe - sync again to finish.",
                 )
             }
 
             val currentDocument = runCatchingCancellable { store.getSyncDocumentWithSha("vayana/snapshot-latest.json") }
                 .getOrElse { refetchFailure ->
-                    return SnapshotMetadataSaveResult(
-                        synced = false,
-                        failureMessage = refetchFailure.syncFailureMessage(),
-                    )
+                    return result(synced = false, failureMessage = refetchFailure.syncFailureMessage())
                 }
             val currentJson = currentDocument.bytes.toString(Charsets.UTF_8)
             val rebase = mergeRemoteSnapshotForMetadataRebase(currentJson, store)
-            if (rebase.failed) {
-                return SnapshotMetadataSaveResult(synced = false, failureMessage = rebase.failureMessage)
+            rebaseBooksCreated += rebase.booksCreated
+            rebaseBooksUpdated += rebase.booksUpdated
+            rebaseSkipped += rebase.summary.skipped
+            if (rebase.summary.failed) {
+                rebaseFailed = true
+                return result(synced = false, failureMessage = rebase.summary.failureMessage)
             }
             latestExpectedSha = currentDocument.sha
-            latestConflicts = latestConflicts + rebase.conflicts
+            latestConflicts = latestConflicts + rebase.summary.conflicts
         }
-        return SnapshotMetadataSaveResult(synced = false, failureMessage = "Snapshot save failed")
+        return result(synced = false, failureMessage = "Snapshot save failed")
     }
 
     private suspend fun mergeRemoteSnapshotForMetadataRebase(
         snapshotJson: String,
         store: GitHubContentsAssetStore,
-    ): ReadingProgressMergeSummary = runCatchingCancellable {
+    ): SnapshotRebaseMerge = runCatchingCancellable {
         val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
         val tombstoneMerge = mergeCloudTombstones(snapshotJson)
         val cloudLibraryMerge = mergeCloudLibrary(snapshotJson, store)
@@ -1345,40 +1399,18 @@ class LibraryViewModel @Inject constructor(
         val readingSessionMerge = mergeCloudReadingSessions(snapshotJson)
         val wordLookupCounterMerge = mergeCloudWordLookupCounters(snapshotJson)
         val annotationMerge = mergeCloudAnnotations(snapshotJson)
-        val failureMessage = cloudLibraryMerge.failureMessage
-            ?: tombstoneMerge.failureMessage
-            ?: bookAliasMerge.failureMessage
-            ?: shelfMerge.failureMessage
-            ?: shelfMembershipMerge.failureMessage
-            ?: vocabularyCardMerge.failureMessage
-            ?: readingSessionMerge.failureMessage
-            ?: wordLookupCounterMerge.failureMessage
-            ?: annotationMerge.failureMessage
-        progressMerge.copy(
-            failed = progressMerge.failed ||
-                cloudLibraryMerge.failed ||
-                tombstoneMerge.failed ||
-                bookAliasMerge.failed ||
-                shelfMerge.failed ||
-                shelfMembershipMerge.failed ||
-                vocabularyCardMerge.failed ||
-                readingSessionMerge.failed ||
-                wordLookupCounterMerge.failed ||
-                annotationMerge.failed,
-            failureMessage = progressMerge.failureMessage ?: failureMessage,
-            skipped = progressMerge.skipped +
-                cloudLibraryMerge.skipped +
-                tombstoneMerge.skipped +
-                bookAliasMerge.skipped +
-                shelfMerge.skipped +
-                shelfMembershipMerge.skipped +
-                vocabularyCardMerge.skipped +
-                readingSessionMerge.skipped +
-                wordLookupCounterMerge.skipped +
-                annotationMerge.skipped,
+        val entityMerges = listOf(
+            cloudLibraryMerge, tombstoneMerge, bookAliasMerge, shelfMerge, shelfMembershipMerge,
+            vocabularyCardMerge, readingSessionMerge, wordLookupCounterMerge, annotationMerge,
         )
+        val summary = progressMerge.copy(
+            failed = progressMerge.failed || entityMerges.anyFailed(),
+            failureMessage = progressMerge.failureMessage ?: entityMerges.firstFailureMessage(),
+            skipped = progressMerge.skipped + entityMerges.totalSkipped(),
+        )
+        SnapshotRebaseMerge(summary = summary, booksCreated = cloudLibraryMerge.created, booksUpdated = cloudLibraryMerge.updated)
     }.getOrElse { throwable ->
-        ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        SnapshotRebaseMerge(summary = ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage()))
     }
 
     private suspend fun pushReadingProgressOnly(

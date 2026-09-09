@@ -458,8 +458,8 @@ class PortableReadingProgressJsonTest {
                     durationSeconds = 60,
                 ),
                 PortableReadingSession(
-                    syncId = "session-unknown-book",
-                    bookSyncId = "missing-book",
+                    syncId = "session-book-not-yet-in-snapshot",
+                    bookSyncId = "book-pending-full-sync",
                     startedAt = 70000,
                     endedAt = 130000,
                     durationSeconds = 60,
@@ -471,10 +471,17 @@ class PortableReadingProgressJsonTest {
         val sessions = root.getJSONArray("readingSessions")
 
         assertEquals(0, result.patched)
-        assertEquals(1, result.sessionsAdded)
+        // Progress-only sync never uploads book/asset metadata, so a session must still be appended even when
+        // its book (e.g. one imported moments ago) hasn't reached this document's "books" array yet via a full
+        // sync - otherwise that session would never leave the device it started on. The pulling side handles an
+        // as-yet-unknown book by skipping the session gracefully (ReadingSessionRepositoryImpl.mergeCloudSession)
+        // until a later sync catches it up.
+        assertEquals(2, result.sessionsAdded)
         assertEquals(2000, root.getLong("exportedAt"))
-        assertEquals(2, sessions.length())
+        assertEquals(3, sessions.length())
         assertEquals("session-new", sessions.getJSONObject(1).getString("syncId"))
+        assertEquals("session-book-not-yet-in-snapshot", sessions.getJSONObject(2).getString("syncId"))
+        assertEquals("book-pending-full-sync", sessions.getJSONObject(2).getString("bookSyncId"))
     }
 
     @Test
