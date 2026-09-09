@@ -44,16 +44,70 @@ fun parsePortableAnnotations(jsonText: String): List<PortableAnnotation> {
     }
 }
 
+fun parsePortableReadingSessions(jsonText: String): List<PortableReadingSession> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("readingSessions") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotReadingSessions) { "Portable snapshot has too many reading sessions" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val syncId = obj.optSnapshotBoundedString("syncId", MaxSnapshotSyncIdChars) ?: continue
+            val bookSyncId = obj.optSnapshotBoundedString("bookSyncId", MaxSnapshotSyncIdChars) ?: continue
+            val startedAt = obj.optLong("startedAt", 0L).takeIf { it > 0L } ?: continue
+            val endedAt = obj.optLong("endedAt", 0L).takeIf { it >= startedAt } ?: continue
+            val durationSeconds = obj.optLong("durationSeconds", 0L).takeIf { it > 0L } ?: continue
+            add(
+                PortableReadingSession(
+                    syncId = syncId,
+                    bookSyncId = bookSyncId,
+                    startedAt = startedAt,
+                    endedAt = endedAt,
+                    durationSeconds = durationSeconds,
+                ),
+            )
+        }
+    }
+}
+
+fun parsePortableWordLookupCounters(jsonText: String): List<PortableWordLookupCounter> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("wordLookupCounters") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotWordLookupCounters) { "Portable snapshot has too many word lookup counters" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val word = obj.optSnapshotBoundedString("word", MaxSnapshotWordChars)?.lowercase() ?: continue
+            val writerOrigin = obj.optSnapshotBoundedString("writerOrigin", MaxSnapshotWriterOriginChars) ?: continue
+            val count = obj.optInt("count", 0).takeIf { it > 0 } ?: continue
+            val lastLookedUpAt = obj.optLong("lastLookedUpAt", 0L).takeIf { it > 0L } ?: continue
+            add(
+                PortableWordLookupCounter(
+                    word = word,
+                    writerOrigin = writerOrigin,
+                    count = count,
+                    lastLookedUpAt = lastLookedUpAt,
+                ),
+            )
+        }
+    }
+}
+
 private fun JSONObject.optSnapshotBoundedString(name: String, maxChars: Int): String? =
     optString(name).trim().takeIf { it.isNotEmpty() && it.length <= maxChars }
 
 private const val MaxPortableSnapshotJsonChars = 16 * 1024 * 1024
 private const val MaxPortableSnapshotAnnotations = 100_000
+private const val MaxPortableSnapshotReadingSessions = 200_000
+private const val MaxPortableSnapshotWordLookupCounters = 100_000
 private const val MaxSnapshotSyncIdChars = 120
 private const val MaxSnapshotEnumChars = 40
 private const val MaxSnapshotLocatorChars = 16_384
 private const val MaxSnapshotTitleChars = 512
 private const val MaxSnapshotTextChars = 16_384
+private const val MaxSnapshotWordChars = 120
+private const val MaxSnapshotWriterOriginChars = 120
 
 fun PortableSnapshot.toJsonString(): String =
     JSONObject()

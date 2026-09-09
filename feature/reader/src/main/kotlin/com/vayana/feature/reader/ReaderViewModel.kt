@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -915,7 +916,7 @@ class ReaderViewModel @Inject constructor(
         }
         dictionaryLookupJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.LookingUp(word)
-            wordLookupStatRepository.recordLookup(word)
+            wordLookupStatRepository.recordLookup(word, settingsRepository.snapshot.first().lookupWriterOrigin())
             val entry = try {
                 dictionaryRepository.lookupEnglish(word)
             } catch (throwable: CancellationException) {
@@ -942,6 +943,9 @@ class ReaderViewModel @Inject constructor(
         else -> pendingDictionaryWord
     }
 }
+
+private fun SettingsSnapshot.lookupWriterOrigin(): String =
+    kindleDeviceName.trim().ifBlank { "Vayana Sync" }
 
 private val SettingsSnapshot.selectedImportedFont
     get() = readerCustomFontId?.let { selectedId -> readerImportedFonts.firstOrNull { it.id == selectedId } }

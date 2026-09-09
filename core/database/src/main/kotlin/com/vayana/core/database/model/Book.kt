@@ -22,6 +22,7 @@ enum class BookFileAvailability {
  */
 data class Book(
     val id: Long,
+    val syncId: String,
     val title: String,
     val author: String?,
     val series: String?,

@@ -41,6 +41,9 @@ data object RecentlyDeletedRoute
 data object VocabularyReviewRoute
 
 @Serializable
+data object LearnWordsRoute
+
+@Serializable
 data object ShelvesRoute
 
 @Serializable

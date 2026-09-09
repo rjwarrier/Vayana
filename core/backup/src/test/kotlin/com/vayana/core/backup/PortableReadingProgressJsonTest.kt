@@ -413,6 +413,167 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
+    fun progressOnlyPatchAppendsMissingReadingSessions() {
+        val result = patchPortableReadingProgressOnly(
+            jsonText =
+                """
+                {
+                  "exportedAt": 1000,
+                  "books": [
+                    {
+                      "syncId": "book-a",
+                      "fileHash": "hash-a",
+                      "lastLocator": "epubcfi(/6/2)",
+                      "readingPercent": 0.2,
+                      "lastReadAt": 1000,
+                      "updatedAt": 1000
+                    }
+                  ],
+                  "readingSessions": [
+                    {
+                      "syncId": "session-existing",
+                      "bookSyncId": "book-a",
+                      "startedAt": 1000,
+                      "endedAt": 61000,
+                      "durationSeconds": 60
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            patches = emptyList(),
+            exportedAt = 2000,
+            readingSessions = listOf(
+                PortableReadingSession(
+                    syncId = "session-existing",
+                    bookSyncId = "book-a",
+                    startedAt = 1000,
+                    endedAt = 61000,
+                    durationSeconds = 60,
+                ),
+                PortableReadingSession(
+                    syncId = "session-new",
+                    bookSyncId = "book-a",
+                    startedAt = 70000,
+                    endedAt = 130000,
+                    durationSeconds = 60,
+                ),
+                PortableReadingSession(
+                    syncId = "session-unknown-book",
+                    bookSyncId = "missing-book",
+                    startedAt = 70000,
+                    endedAt = 130000,
+                    durationSeconds = 60,
+                ),
+            ),
+        )
+
+        val root = JSONObject(result.jsonText)
+        val sessions = root.getJSONArray("readingSessions")
+
+        assertEquals(0, result.patched)
+        assertEquals(1, result.sessionsAdded)
+        assertEquals(2000, root.getLong("exportedAt"))
+        assertEquals(2, sessions.length())
+        assertEquals("session-new", sessions.getJSONObject(1).getString("syncId"))
+    }
+
+    @Test
+    fun parsesPortableReadingSessionsFromSnapshot() {
+        val sessions = parsePortableReadingSessions(
+            """
+            {
+              "readingSessions": [
+                {
+                  "syncId": "session-a",
+                  "bookSyncId": "book-a",
+                  "startedAt": 1000,
+                  "endedAt": 61000,
+                  "durationSeconds": 60
+                },
+                {
+                  "syncId": "session-invalid",
+                  "bookSyncId": "book-a",
+                  "startedAt": 1000,
+                  "endedAt": 999,
+                  "durationSeconds": 60
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, sessions.size)
+        assertEquals("session-a", sessions.single().syncId)
+        assertEquals("book-a", sessions.single().bookSyncId)
+        assertEquals(60, sessions.single().durationSeconds)
+    }
+
+    @Test
+    fun progressOnlyPatchMergesWordLookupCounters() {
+        val result = patchPortableReadingProgressOnly(
+            jsonText = """
+            {
+              "exportedAt": 1000,
+              "books": [],
+              "wordLookupCounters": [
+                {"word":"ember","writerOrigin":"Phone","count":2,"lastLookedUpAt":1200}
+              ]
+            }
+            """.trimIndent(),
+            patches = emptyList(),
+            exportedAt = 2000,
+            wordLookupCounters = listOf(
+                PortableWordLookupCounter(
+                    word = "Ember",
+                    writerOrigin = "Phone",
+                    count = 3,
+                    lastLookedUpAt = 1500,
+                ),
+                PortableWordLookupCounter(
+                    word = "luminous",
+                    writerOrigin = "Tablet",
+                    count = 1,
+                    lastLookedUpAt = 1600,
+                ),
+            ),
+        )
+
+        val root = JSONObject(result.jsonText)
+        val counters = root.getJSONArray("wordLookupCounters")
+
+        assertEquals(0, result.patched)
+        assertEquals(2, result.wordLookupCountersMerged)
+        assertEquals(2000, root.getLong("exportedAt"))
+        assertEquals(2, counters.length())
+        assertEquals("ember", counters.getJSONObject(0).getString("word"))
+        assertEquals(3, counters.getJSONObject(0).getInt("count"))
+        assertEquals(1500, counters.getJSONObject(0).getLong("lastLookedUpAt"))
+        assertEquals("luminous", counters.getJSONObject(1).getString("word"))
+        assertEquals("Tablet", counters.getJSONObject(1).getString("writerOrigin"))
+    }
+
+    @Test
+    fun parsesPortableWordLookupCountersFromSnapshot() {
+        val counters = parsePortableWordLookupCounters(
+            """
+            {
+              "wordLookupCounters": [
+                {"word":"Ember","writerOrigin":"Phone","count":2,"lastLookedUpAt":1200},
+                {"word":"bad","writerOrigin":"Phone","count":0,"lastLookedUpAt":1200},
+                {"word":"stale","writerOrigin":"Phone","count":1,"lastLookedUpAt":0}
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, counters.size)
+        assertEquals("ember", counters.single().word)
+        assertEquals("Phone", counters.single().writerOrigin)
+        assertEquals(2, counters.single().count)
+        assertEquals(1200, counters.single().lastLookedUpAt)
+    }
+
+    @Test
     fun serializesReadingPositionConflictAlternatives() {
         val snapshot = PortableSnapshot(
             formatVersion = 1,

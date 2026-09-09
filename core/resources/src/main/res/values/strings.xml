@@ -7,7 +7,7 @@
     <string name="nav_notes">Notes</string>
     <string name="nav_statistics">Statistics</string>
 
-    <string name="library_title">Library</string>
+    <string name="library_title">vayana</string>
     <string name="input_clear_content_description">Clear text</string>
     <string name="library_search_content_description">Search books and notes</string>
     <string name="library_search_placeholder">Search title, author, description</string>
@@ -317,6 +317,19 @@
     <string name="statistics_pace_body">At this pace, you\'ll finish \"%1$s\" in about %2$d days</string>
     <string name="statistics_vocabulary_title">Words you looked up</string>
     <string name="statistics_vocabulary_word_count">%1$s · %2$d</string>
+    <string name="statistics_vocabulary_see_all">See all</string>
+    <string name="learn_words_title">Learn</string>
+    <string name="learn_words_subtitle">Words you looked up</string>
+    <string name="learn_words_sync_support">Aggregated across synced devices</string>
+    <string name="learn_words_empty_title">No words yet</string>
+    <string name="learn_words_empty_body">Look up words in the reader and sync to build your learning picture.</string>
+    <string name="learn_words_unique_title">Unique words</string>
+    <string name="learn_words_unique_value">%1$d</string>
+    <string name="learn_words_total_title">Total lookups</string>
+    <string name="learn_words_total_value">%1$d</string>
+    <string name="learn_words_last_seen">Last looked up %1$s</string>
+    <string name="learn_words_count">%1$d</string>
+
     <string name="statistics_sessions_title">Reading sessions</string>
     <string name="statistics_sessions_value">%1$d</string>
     <string name="statistics_sessions_support">Longest: %1$s</string>
@@ -431,6 +444,8 @@
     <string name="settings_github_connection_test_ready_initial">GitHub connection works. No sync snapshot exists yet, so initial sync can create one.</string>
     <string name="settings_github_connection_test_missing_config">Enter GitHub owner, repository, branch, and token first.</string>
     <string name="settings_github_connection_test_failed">GitHub connection failed: %1$s</string>
+    <string name="settings_sync_warning_title">Sync needs attention</string>
+    <string name="settings_sync_warning_dismiss">Got it</string>
     <string name="settings_github_transfer_title">GitHub sync settings transfer</string>
     <string name="settings_github_transfer_subtitle">Export or import this device\'s GitHub sync setup encrypted with the sync passphrase.</string>
     <string name="settings_github_transfer_export">Export</string>

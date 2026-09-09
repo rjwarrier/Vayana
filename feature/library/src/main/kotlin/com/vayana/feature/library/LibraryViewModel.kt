@@ -10,14 +10,18 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.backup.PortableCloudBook
 import com.vayana.core.backup.PortableAsset
 import com.vayana.core.backup.PortableReadingProgressPatch
+import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.PortableReadingPositionAlternative
 import com.vayana.core.backup.PortableSyncConflict
+import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.SnapshotExporter
 import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.backup.PortableAnnotation
 import com.vayana.core.backup.parsePortableAnnotations
 import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingProgressSnapshot
+import com.vayana.core.backup.parsePortableReadingSessions
+import com.vayana.core.backup.parsePortableWordLookupCounters
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
@@ -28,6 +32,7 @@ import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.model.Shelf
 import com.vayana.core.database.repository.AnnotationMergeResult
 import com.vayana.core.database.repository.AnnotationRecord
@@ -35,9 +40,15 @@ import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.CloudBookMergeResult
 import com.vayana.core.database.repository.CloudBookRecord
+import com.vayana.core.database.repository.CloudReadingSessionRecord
+import com.vayana.core.database.repository.CloudWordLookupCounter
 import com.vayana.core.database.repository.ReadingProgressMergeResult
 import com.vayana.core.database.repository.ReadingProgressVersion
+import com.vayana.core.database.repository.ReadingSessionMergeResult
+import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.ShelfRepository
+import com.vayana.core.database.repository.WordLookupCounterMergeResult
+import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.diagnostics.DiagnosticCategory
@@ -215,6 +226,20 @@ private data class CloudLibraryMergeSummary(
     val failureMessage: String? = null,
 )
 
+private data class ReadingSessionMergeSummary(
+    val created: Int = 0,
+    val skipped: Int = 0,
+    val failed: Boolean = false,
+    val failureMessage: String? = null,
+)
+
+private data class WordLookupCounterMergeSummary(
+    val merged: Int = 0,
+    val skipped: Int = 0,
+    val failed: Boolean = false,
+    val failureMessage: String? = null,
+)
+
 private data class AnnotationMergeSummary(
     val created: Int = 0,
     val updated: Int = 0,
@@ -265,6 +290,8 @@ data class LibraryUiState(
 class LibraryViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val annotationRepository: AnnotationRepository,
+    private val readingSessionRepository: ReadingSessionRepository,
+    private val wordLookupStatRepository: WordLookupStatRepository,
     private val bookFileImporter: BookFileImporter,
     private val shelfRepository: ShelfRepository,
     private val settingsRepository: SettingsRepository,
@@ -763,8 +790,18 @@ class LibraryViewModel @Inject constructor(
         } else {
             mergeCloudLibrary(progressMerge.remoteSnapshotJson.orEmpty(), store)
         }
-        // Must run after cloudLibraryMerge: an annotation whose book was just created above can
-        // only resolve its bookSyncId to a local row once that book actually exists.
+        // Must run after cloudLibraryMerge: records whose book was just created above can
+        // only resolve their bookSyncId to a local row once that book actually exists.
+        val readingSessionMerge = if (progressMerge.missingRemoteSnapshot) {
+            ReadingSessionMergeSummary()
+        } else {
+            mergeCloudReadingSessions(progressMerge.remoteSnapshotJson.orEmpty())
+        }
+        val wordLookupCounterMerge = if (progressMerge.missingRemoteSnapshot) {
+            WordLookupCounterMergeSummary()
+        } else {
+            mergeCloudWordLookupCounters(progressMerge.remoteSnapshotJson.orEmpty())
+        }
         val annotationMerge = if (progressMerge.missingRemoteSnapshot) {
             AnnotationMergeSummary()
         } else {
@@ -880,7 +917,7 @@ class LibraryViewModel @Inject constructor(
             }
         }
         finishSyncProgress(
-            step = if (metadataError == null && failed == 0 && !cloudLibraryMerge.failed) {
+            step = if (metadataError == null && failed == 0 && !cloudLibraryMerge.failed && !readingSessionMerge.failed && !wordLookupCounterMerge.failed) {
                 GitHubSyncProgressStep.COMPLETE
             } else {
                 GitHubSyncProgressStep.FAILED
@@ -901,10 +938,10 @@ class LibraryViewModel @Inject constructor(
             cloudBooksCreated = cloudLibraryMerge.created,
             cloudBooksUpdated = cloudLibraryMerge.updated,
             conflicts = progressMerge.conflictCount,
-            skipped = progressMerge.skipped + cloudLibraryMerge.skipped + annotationMerge.skipped,
-            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || annotationMerge.failed) && !allowInitialSync,
+            skipped = progressMerge.skipped + cloudLibraryMerge.skipped + readingSessionMerge.skipped + wordLookupCounterMerge.skipped + annotationMerge.skipped,
+            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || readingSessionMerge.failed || wordLookupCounterMerge.failed || annotationMerge.failed) && !allowInitialSync,
             metadataSynced = metadataError == null,
-            failureMessage = metadataError?.syncFailureMessage() ?: cloudLibraryMerge.failureMessage ?: annotationMerge.failureMessage,
+            failureMessage = metadataError?.syncFailureMessage() ?: cloudLibraryMerge.failureMessage ?: readingSessionMerge.failureMessage ?: wordLookupCounterMerge.failureMessage ?: annotationMerge.failureMessage,
         )
     }
 
@@ -999,6 +1036,37 @@ class LibraryViewModel @Inject constructor(
         }.sumOf { it.await() }
     }
 
+
+    private suspend fun mergeCloudReadingSessions(snapshotJson: String): ReadingSessionMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var skipped = 0
+            for (remote in parsePortableReadingSessions(snapshotJson)) {
+                when (readingSessionRepository.mergeCloudSession(remote.toRecord())) {
+                    ReadingSessionMergeResult.CREATED -> created += 1
+                    ReadingSessionMergeResult.SKIPPED -> skipped += 1
+                }
+            }
+            ReadingSessionMergeSummary(created = created, skipped = skipped)
+        }.getOrElse { throwable ->
+            ReadingSessionMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun mergeCloudWordLookupCounters(snapshotJson: String): WordLookupCounterMergeSummary =
+        runCatchingCancellable {
+            var merged = 0
+            var skipped = 0
+            for (remote in parsePortableWordLookupCounters(snapshotJson)) {
+                when (wordLookupStatRepository.mergeCloudCounter(remote.toRecord())) {
+                    WordLookupCounterMergeResult.MERGED -> merged += 1
+                    WordLookupCounterMergeResult.SKIPPED -> skipped += 1
+                }
+            }
+            WordLookupCounterMergeSummary(merged = merged, skipped = skipped)
+        }.getOrElse { throwable ->
+            WordLookupCounterMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
     private suspend fun mergeCloudAnnotations(snapshotJson: String): AnnotationMergeSummary =
         runCatchingCancellable {
             var created = 0
@@ -1033,9 +1101,11 @@ class LibraryViewModel @Inject constructor(
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlyPushAttempts) { attemptIndex ->
             val attempt = runCatchingCancellable {
+                val localBooks = bookRepository.observeAll().first()
+                val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
                 val result = patchPortableReadingProgressOnly(
                     jsonText = jsonText,
-                    patches = bookRepository.observeAll().first().map { book ->
+                    patches = localBooks.map { book ->
                         PortableReadingProgressPatch(
                             fileHash = book.fileHash,
                             lastLocator = book.lastLocator,
@@ -1047,8 +1117,11 @@ class LibraryViewModel @Inject constructor(
                         )
                     },
                     exportedAt = System.currentTimeMillis(),
+                    readingSessions = readingSessionRepository.observeAll().first()
+                        .mapNotNull { it.toPortable(bookSyncIdsByLocalId) },
+                    wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() },
                 )
-                if (result.patched > 0) {
+                if (result.patched > 0 || result.sessionsAdded > 0 || result.wordLookupCountersMerged > 0) {
                     val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
                     store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, sha)
                 }
@@ -1610,6 +1683,42 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         readNextAddedAt = readNextAddedAt,
     )
 }
+
+
+
+private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableReadingSession? {
+    val bookSyncId = bookSyncIdsByLocalId[bookId] ?: return null
+    return PortableReadingSession(
+        syncId = syncId,
+        bookSyncId = bookSyncId,
+        startedAt = startedAt,
+        endedAt = endedAt,
+        durationSeconds = durationSeconds,
+    )
+}
+
+private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord =
+    CloudReadingSessionRecord(
+        syncId = syncId,
+        bookSyncId = bookSyncId,
+        startedAt = startedAt,
+        endedAt = endedAt,
+        durationSeconds = durationSeconds,
+    )
+
+private fun PortableWordLookupCounter.toRecord(): CloudWordLookupCounter = CloudWordLookupCounter(
+    word = word,
+    writerOrigin = writerOrigin,
+    count = count,
+    lastLookedUpAt = lastLookedUpAt,
+)
+
+private fun CloudWordLookupCounter.toPortable(): PortableWordLookupCounter = PortableWordLookupCounter(
+    word = word,
+    writerOrigin = writerOrigin,
+    count = count,
+    lastLookedUpAt = lastLookedUpAt,
+)
 
 private fun PortableAnnotation.toRecord(): AnnotationRecord? {
     val type = runCatchingCancellable { AnnotationType.valueOf(type.uppercase()) }.getOrNull() ?: return null

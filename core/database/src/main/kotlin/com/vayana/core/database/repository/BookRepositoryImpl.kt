@@ -381,6 +381,7 @@ private fun BookEntity.readingProgressVersion(): ReadingProgressVersion =
 
 internal fun BookEntity.toDomain(): Book = Book(
     id = id,
+    syncId = syncId,
     title = title,
     author = author,
     series = series,

@@ -20,6 +20,7 @@ import com.vayana.feature.help.HelpRoute as HelpScreenRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.settings.DiagnosticsRoute as DiagnosticsScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
+import com.vayana.feature.statistics.LearnWordsRoute as LearnWordsScreenRoute
 import com.vayana.feature.statistics.StatisticsRoute
 import com.vayana.feature.statistics.VocabularyReviewRoute as VocabularyReviewScreenRoute
 
@@ -57,10 +58,16 @@ fun VayanaNavHost(
             )
         }
         composable<TopLevelRoute.Statistics> {
-            StatisticsRoute(onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) })
+            StatisticsRoute(
+                onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) },
+                onOpenLearnWords = { navController.navigate(LearnWordsRoute) },
+            )
         }
         composable<VocabularyReviewRoute> {
             VocabularyReviewScreenRoute(onBack = { navController.popBackStack() })
+        }
+        composable<LearnWordsRoute> {
+            LearnWordsScreenRoute(onBack = { navController.popBackStack() })
         }
         composable<SettingsRoute> {
             SettingsScreenRoute(

@@ -1,5 +1,6 @@
 package com.vayana.core.backup
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class PortableReadingProgress(
@@ -63,6 +64,8 @@ data class PortableReadingProgressPatch(
 data class PortableReadingProgressPatchResult(
     val jsonText: String,
     val patched: Int,
+    val sessionsAdded: Int = 0,
+    val wordLookupCountersMerged: Int = 0,
 )
 
 fun parsePortableReadingProgresses(jsonText: String): List<PortableReadingProgress> =
@@ -72,9 +75,13 @@ fun patchPortableReadingProgressOnly(
     jsonText: String,
     patches: List<PortableReadingProgressPatch>,
     exportedAt: Long,
+    readingSessions: List<PortableReadingSession> = emptyList(),
+    wordLookupCounters: List<PortableWordLookupCounter> = emptyList(),
 ): PortableReadingProgressPatchResult {
     require(jsonText.length <= MaxPortableProgressJsonChars) { "Portable snapshot is too large" }
     require(patches.size <= MaxPortableProgressBooks) { "Portable progress patch has too many books" }
+    require(readingSessions.size <= MaxPortableProgressReadingSessions) { "Portable progress patch has too many reading sessions" }
+    require(wordLookupCounters.size <= MaxPortableProgressWordLookupCounters) { "Portable progress patch has too many word lookup counters" }
     require(exportedAt > 0L) { "Portable progress patch export time is invalid" }
     val root = JSONObject(jsonText)
     val books = root.optJSONArray("books") ?: return PortableReadingProgressPatchResult(jsonText, patched = 0)
@@ -115,13 +122,103 @@ fun patchPortableReadingProgressOnly(
         patched += 1
     }
 
-    if (patched > 0) {
+    val sessionsAdded = root.appendMissingReadingSessions(readingSessions, books)
+    val wordLookupCountersMerged = root.mergeWordLookupCounters(wordLookupCounters)
+    val changed = patched > 0 || sessionsAdded > 0 || wordLookupCountersMerged > 0
+
+    if (changed) {
         root.put("exportedAt", exportedAt)
     }
     return PortableReadingProgressPatchResult(
-        jsonText = if (patched > 0) root.toString(2) else jsonText,
+        jsonText = if (changed) root.toString(2) else jsonText,
         patched = patched,
+        sessionsAdded = sessionsAdded,
+        wordLookupCountersMerged = wordLookupCountersMerged,
     )
+}
+
+private fun JSONObject.mergeWordLookupCounters(wordLookupCounters: List<PortableWordLookupCounter>): Int {
+    if (wordLookupCounters.isEmpty()) return 0
+    val counters = optJSONArray("wordLookupCounters") ?: JSONArray().also { put("wordLookupCounters", it) }
+    require(counters.length() <= MaxPortableProgressWordLookupCounters) { "Portable snapshot has too many word lookup counters" }
+    val existingByKey = mutableMapOf<String, JSONObject>()
+    for (index in 0 until counters.length()) {
+        val counter = counters.optJSONObject(index) ?: continue
+        val word = counter.optBoundedString("word", MaxWordChars)?.lowercase() ?: continue
+        val writerOrigin = counter.optBoundedString("writerOrigin", MaxWriterOriginChars) ?: continue
+        existingByKey[wordLookupCounterKey(word, writerOrigin)] = counter
+    }
+    var merged = 0
+    wordLookupCounters.forEach { counter ->
+        val word = counter.word.trim().lowercase().takeIf { it.isNotEmpty() && it.length <= MaxWordChars } ?: return@forEach
+        val writerOrigin = counter.writerOrigin.trim().takeIf { it.isNotEmpty() && it.length <= MaxWriterOriginChars } ?: return@forEach
+        if (counter.count <= 0 || counter.lastLookedUpAt <= 0L) return@forEach
+        val key = wordLookupCounterKey(word, writerOrigin)
+        val existing = existingByKey[key]
+        if (existing == null) {
+            if (counters.length() >= MaxPortableProgressWordLookupCounters) return@forEach
+            val added = JSONObject()
+                .put("word", word)
+                .put("writerOrigin", writerOrigin)
+                .put("count", counter.count)
+                .put("lastLookedUpAt", counter.lastLookedUpAt)
+            counters.put(added)
+            existingByKey[key] = added
+            merged += 1
+        } else {
+            val nextCount = maxOf(existing.optInt("count", 0), counter.count)
+            val nextLastLookedUpAt = maxOf(existing.optLong("lastLookedUpAt", 0L), counter.lastLookedUpAt)
+            if (nextCount != existing.optInt("count", 0) || nextLastLookedUpAt != existing.optLong("lastLookedUpAt", 0L)) {
+                existing.put("count", nextCount)
+                existing.put("lastLookedUpAt", nextLastLookedUpAt)
+                merged += 1
+            }
+        }
+    }
+    return merged
+}
+
+private fun wordLookupCounterKey(word: String, writerOrigin: String): String = "$word\u0000$writerOrigin"
+
+private fun JSONObject.appendMissingReadingSessions(
+    readingSessions: List<PortableReadingSession>,
+    books: JSONArray,
+): Int {
+    if (readingSessions.isEmpty()) return 0
+    val knownBookSyncIds = buildSet {
+        for (index in 0 until books.length()) {
+            val bookSyncId = books.optJSONObject(index)?.optBoundedString("syncId", MaxSyncIdChars) ?: continue
+            add(bookSyncId)
+        }
+    }
+    val sessions = optJSONArray("readingSessions") ?: JSONArray().also { put("readingSessions", it) }
+    require(sessions.length() <= MaxPortableProgressReadingSessions) { "Portable snapshot has too many reading sessions" }
+    val existingSessionSyncIds = buildSet {
+        for (index in 0 until sessions.length()) {
+            val sessionSyncId = sessions.optJSONObject(index)?.optBoundedString("syncId", MaxSyncIdChars) ?: continue
+            add(sessionSyncId)
+        }
+    }.toMutableSet()
+    var added = 0
+    readingSessions.forEach { session ->
+        if (sessions.length() >= MaxPortableProgressReadingSessions) return@forEach
+        if (session.syncId.isBlank() || session.syncId.length > MaxSyncIdChars) return@forEach
+        if (session.bookSyncId.isBlank() || session.bookSyncId.length > MaxSyncIdChars) return@forEach
+        if (session.bookSyncId !in knownBookSyncIds) return@forEach
+        if (session.syncId in existingSessionSyncIds) return@forEach
+        if (session.startedAt <= 0L || session.endedAt < session.startedAt || session.durationSeconds <= 0L) return@forEach
+        sessions.put(
+            JSONObject()
+                .put("syncId", session.syncId)
+                .put("bookSyncId", session.bookSyncId)
+                .put("startedAt", session.startedAt)
+                .put("endedAt", session.endedAt)
+                .put("durationSeconds", session.durationSeconds),
+        )
+        existingSessionSyncIds += session.syncId
+        added += 1
+    }
+    return added
 }
 
 fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
@@ -248,11 +345,15 @@ private fun JSONObject.toPortableAssetOrNull(): PortableAsset? {
 
 private const val MaxPortableProgressJsonChars = 8 * 1024 * 1024
 private const val MaxPortableProgressBooks = 20_000
+private const val MaxPortableProgressReadingSessions = 200_000
+private const val MaxPortableProgressWordLookupCounters = 100_000
 private const val MaxSyncIdChars = 120
 private const val MaxFileHashChars = 160
 private const val MaxLocatorChars = 16_384
 private const val MaxDeviceLabelChars = 120
 private const val MaxTitleChars = 512
+private const val MaxWordChars = 120
+private const val MaxWriterOriginChars = 120
 private const val MaxDescriptionChars = 16_384
 private const val MaxTagsCsvChars = 2_048
 private const val MaxFormatChars = 32

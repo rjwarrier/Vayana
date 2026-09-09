@@ -12,6 +12,9 @@ interface ReadingSessionDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(session: ReadingSessionEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(session: ReadingSessionEntity): Long
+
     @Query("SELECT * FROM reading_sessions ORDER BY startedAt DESC")
     fun observeAll(): Flow<List<ReadingSessionEntity>>
 

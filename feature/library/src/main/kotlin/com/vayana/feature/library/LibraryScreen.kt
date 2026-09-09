@@ -328,6 +328,7 @@ private fun LibraryScreen(
     }
     var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
     var syncRunning by remember { mutableStateOf(false) }
+    var syncBadge by remember { mutableStateOf<LibrarySyncBadge?>(null) }
     var initialSyncConfirmationMessage by remember { mutableStateOf<String?>(null) }
     val cloudDownloadStartedMessage = stringResource(R.string.library_book_cloud_download_started)
     val cloudDownloadCompleteMessage = stringResource(R.string.library_book_cloud_download_complete)
@@ -380,11 +381,17 @@ private fun LibraryScreen(
 
     suspend fun runSyncNow(allowInitialSync: Boolean, mode: GitHubSyncMode) {
         snackbarHostState.currentSnackbarData?.dismiss()
+        syncBadge = null
         val startedSnackbar = coroutineScope.launch {
             snackbarHostState.showSnackbar(syncStartedMessage)
         }
         when (val result = onSyncNow(allowInitialSync, mode)) {
             is GitHubSyncNowResult.Complete -> {
+                syncBadge = if (result.pullFailed || !result.metadataSynced || result.failed > 0) {
+                    LibrarySyncBadge.FAILED
+                } else {
+                    LibrarySyncBadge.SUCCESS
+                }
                 startedSnackbar.cancel()
                 snackbarHostState.currentSnackbarData?.dismiss()
                 val message = if (mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
@@ -419,16 +426,19 @@ private fun LibraryScreen(
                 snackbarHostState.showSnackbar(message)
             }
             is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
+                syncBadge = LibrarySyncBadge.FAILED
                 startedSnackbar.cancel()
                 snackbarHostState.currentSnackbarData?.dismiss()
                 initialSyncConfirmationMessage = result.message
             }
             GitHubSyncNowResult.SyncDisabled -> {
+                syncBadge = LibrarySyncBadge.FAILED
                 startedSnackbar.cancel()
                 snackbarHostState.currentSnackbarData?.dismiss()
                 snackbarHostState.showSnackbar(syncDisabledMessage)
             }
             GitHubSyncNowResult.ConfigIncomplete -> {
+                syncBadge = LibrarySyncBadge.FAILED
                 startedSnackbar.cancel()
                 snackbarHostState.currentSnackbarData?.dismiss()
                 snackbarHostState.showSnackbar(syncConfigMissingMessage)
@@ -461,6 +471,7 @@ private fun LibraryScreen(
                 controls = uiState.controls,
                 showSyncNow = uiState.githubSyncReady,
                 syncRunning = syncRunning,
+                syncBadge = syncBadge,
                 onSyncNow = { mode -> handleSyncNow(mode = mode) },
                 onSettingsClick = onSettingsClick,
                 onRecentlyDeletedClick = onRecentlyDeletedClick,
@@ -854,11 +865,17 @@ private fun CloudBookDownloadProgressSheet(
     }
 }
 
+private enum class LibrarySyncBadge {
+    SUCCESS,
+    FAILED,
+}
+
 @Composable
 private fun LibraryTopBar(
     controls: LibraryControls,
     showSyncNow: Boolean,
     syncRunning: Boolean,
+    syncBadge: LibrarySyncBadge?,
     onSyncNow: (GitHubSyncMode) -> Unit,
     onSettingsClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
@@ -883,12 +900,17 @@ private fun LibraryTopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = stringResource(R.string.library_title), style = MaterialTheme.typography.headlineMedium)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
                 if (showSyncNow) {
                     Box {
-                        IconButton(
+                        LibrarySyncTopBarIconButton(
                             onClick = { syncExpanded = true },
                             enabled = !syncRunning,
+                            badge = syncBadge.takeUnless { syncRunning },
                         ) {
                             if (syncRunning) {
                                 VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
@@ -921,10 +943,7 @@ private fun LibraryTopBar(
                         }
                     }
                 }
-                Text(text = stringResource(R.string.library_title), style = MaterialTheme.typography.headlineMedium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { filterExpanded = true }) {
+                LibraryTopBarIconButton(onClick = { filterExpanded = true }) {
                     Icon(
                         imageVector = Icons.Outlined.FilterList,
                         contentDescription = stringResource(R.string.library_filter_content_description),
@@ -942,7 +961,7 @@ private fun LibraryTopBar(
                         )
                     }
                 }
-                IconButton(onClick = { groupExpanded = true }) {
+                LibraryTopBarIconButton(onClick = { groupExpanded = true }) {
                     Icon(
                         imageVector = Icons.Outlined.Category,
                         contentDescription = stringResource(R.string.library_group_content_description),
@@ -960,21 +979,21 @@ private fun LibraryTopBar(
                         )
                     }
                 }
-                IconButton(onClick = onShelvesClick) {
+                LibraryTopBarIconButton(onClick = onShelvesClick) {
                     Icon(
                         imageVector = Icons.Outlined.CollectionsBookmark,
                         contentDescription = stringResource(R.string.library_shelves_content_description),
                         modifier = Modifier.size(Sizes.icon),
                     )
                 }
-                IconButton(onClick = onRecentlyDeletedClick) {
+                LibraryTopBarIconButton(onClick = onRecentlyDeletedClick) {
                     Icon(
                         imageVector = Icons.Outlined.RestoreFromTrash,
                         contentDescription = stringResource(R.string.library_recently_deleted_content_description),
                         modifier = Modifier.size(Sizes.icon),
                     )
                 }
-                IconButton(onClick = onSettingsClick) {
+                LibraryTopBarIconButton(onClick = onSettingsClick) {
                     Icon(
                         imageVector = Icons.Outlined.Settings,
                         contentDescription = stringResource(R.string.library_settings_content_description),
@@ -983,6 +1002,7 @@ private fun LibraryTopBar(
                 }
             }
         }
+
         val focusManager = LocalFocusManager.current
         OutlinedTextField(
             value = controls.query,
@@ -1029,6 +1049,95 @@ private fun LibraryTopBar(
                     label = { Text(filter.label()) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LibraryTopBarIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier.size(Sizes.touchTarget),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (enabled) 0.68f else 0.34f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.42f),
+        tonalElevation = Elevations.none,
+    ) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun LibrarySyncTopBarIconButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    badge: LibrarySyncBadge?,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Box(modifier = modifier.size(Sizes.touchTarget)) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 0.72f else 0.42f),
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (enabled) 1f else 0.42f),
+            tonalElevation = Elevations.level1,
+        ) {
+            IconButton(
+                onClick = onClick,
+                enabled = enabled,
+            ) {
+                content()
+            }
+        }
+        if (badge != null) {
+            LibrarySyncStatusBadge(
+                badge = badge,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LibrarySyncStatusBadge(
+    badge: LibrarySyncBadge,
+    modifier: Modifier = Modifier,
+) {
+    val containerColor = when (badge) {
+        LibrarySyncBadge.SUCCESS -> MaterialTheme.colorScheme.primary
+        LibrarySyncBadge.FAILED -> MaterialTheme.colorScheme.error
+    }
+    val contentColor = when (badge) {
+        LibrarySyncBadge.SUCCESS -> MaterialTheme.colorScheme.onPrimary
+        LibrarySyncBadge.FAILED -> MaterialTheme.colorScheme.onError
+    }
+    val icon = when (badge) {
+        LibrarySyncBadge.SUCCESS -> Icons.Outlined.Check
+        LibrarySyncBadge.FAILED -> Icons.Outlined.Close
+    }
+    Surface(
+        modifier = modifier.size(Sizes.iconSmall),
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = Elevations.level1,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(Sizes.swatchSmall),
+            )
         }
     }
 }

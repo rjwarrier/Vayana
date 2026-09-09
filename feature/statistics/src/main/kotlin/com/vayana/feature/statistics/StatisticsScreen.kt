@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material3.Icon
@@ -68,7 +69,11 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-fun StatisticsRoute(onReviewVocabulary: () -> Unit, modifier: Modifier = Modifier) {
+fun StatisticsRoute(
+    onReviewVocabulary: () -> Unit,
+    onOpenLearnWords: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: StatisticsViewModel = hiltViewModel()
     val summary by viewModel.summary.collectAsState()
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsState()
@@ -78,6 +83,7 @@ fun StatisticsRoute(onReviewVocabulary: () -> Unit, modifier: Modifier = Modifie
         summary = summary,
         vocabularyCardCount = vocabularyCardCount,
         onReviewVocabulary = onReviewVocabulary,
+        onOpenLearnWords = onOpenLearnWords,
     )
 }
 
@@ -87,6 +93,7 @@ private fun StatisticsScreen(
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
     onReviewVocabulary: () -> Unit,
+    onOpenLearnWords: () -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
@@ -106,6 +113,7 @@ private fun StatisticsScreen(
                 summary = summary,
                 vocabularyCardCount = vocabularyCardCount,
                 onReviewVocabulary = onReviewVocabulary,
+                onOpenLearnWords = onOpenLearnWords,
             )
         }
     }
@@ -117,6 +125,7 @@ private fun StatisticsDashboard(
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
     onReviewVocabulary: () -> Unit,
+    onOpenLearnWords: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -207,7 +216,7 @@ private fun StatisticsDashboard(
         }
         if (summary.topLookedUpWords.isNotEmpty()) {
             item {
-                TopWordsCard(words = summary.topLookedUpWords)
+                TopWordsCard(words = summary.topLookedUpWords, onOpenLearnWords = onOpenLearnWords)
             }
         }
         summary.vocabularyGrowth?.let { growth ->
@@ -578,16 +587,38 @@ private fun VocabularyGrowthCard(growth: VocabularyGrowth) {
 }
 
 @Composable
-private fun TopWordsCard(words: List<WordLookupStat>) {
+private fun TopWordsCard(words: List<WordLookupStat>, onOpenLearnWords: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radii.medium))
+            .clickable(onClick = onOpenLearnWords),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(modifier = Modifier.padding(Paddings.card)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
                 Icon(imageVector = Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null, modifier = Modifier.size(Sizes.icon))
-                Text(text = stringResource(R.string.statistics_vocabulary_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = stringResource(R.string.statistics_vocabulary_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = stringResource(R.string.statistics_vocabulary_see_all),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                )
             }
             FlowRow(
                 modifier = Modifier.padding(top = Spacing.md),

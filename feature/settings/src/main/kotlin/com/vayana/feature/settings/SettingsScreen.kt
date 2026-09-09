@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -772,14 +774,12 @@ private fun GitHubConnectionTestCard(
                     isError = false,
                     onDismiss = onDismiss,
                 )
-                GitHubConnectionTestState.MissingConfig -> BackupStatusRow(
+                GitHubConnectionTestState.MissingConfig -> SyncWarningCallout(
                     message = stringResource(R.string.settings_github_connection_test_missing_config),
-                    isError = true,
                     onDismiss = onDismiss,
                 )
-                is GitHubConnectionTestState.Failed -> BackupStatusRow(
+                is GitHubConnectionTestState.Failed -> SyncWarningCallout(
                     message = stringResource(R.string.settings_github_connection_test_failed, state.message),
-                    isError = true,
                     onDismiss = onDismiss,
                 )
                 GitHubConnectionTestState.Idle -> Unit
@@ -976,14 +976,12 @@ private fun GitHubSyncSettingsTransferCard(
                     isError = false,
                     onDismiss = onDismiss,
                 )
-                GitHubSyncSettingsTransferState.MissingPassphrase -> BackupStatusRow(
+                GitHubSyncSettingsTransferState.MissingPassphrase -> SyncWarningCallout(
                     message = stringResource(R.string.settings_github_transfer_missing_passphrase),
-                    isError = true,
                     onDismiss = onDismiss,
                 )
-                is GitHubSyncSettingsTransferState.Failed -> BackupStatusRow(
+                is GitHubSyncSettingsTransferState.Failed -> SyncWarningCallout(
                     message = stringResource(R.string.settings_github_transfer_failed, state.message),
-                    isError = true,
                     onDismiss = onDismiss,
                 )
                 GitHubSyncSettingsTransferState.Idle -> Unit
@@ -1168,6 +1166,64 @@ private fun BackupRestoreCard(
                     onDismiss = onDismissBackupState,
                 )
                 BackupUiState.Idle -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncWarningCallout(message: String, onDismiss: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.extraLarge),
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.72f),
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.34f)),
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Row(
+            modifier = Modifier.padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Surface(
+                modifier = Modifier.size(SettingsCategoryBadgeSize),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+                tonalElevation = Elevations.shadowSmall,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Outlined.WarningAmber,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconSmall),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_sync_warning_title),
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                )
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.86f),
+                )
+            }
+            FilledTonalButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(Radii.full),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
+                Text(stringResource(R.string.settings_sync_warning_dismiss))
             }
         }
     }

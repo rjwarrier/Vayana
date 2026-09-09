@@ -38,6 +38,17 @@ interface WordLookupStatDao {
     )
     suspend fun recordLookup(word: String, lookedUpAt: Long, writerOrigin: String = "legacy-local")
 
+    @Query(
+        """
+        INSERT INTO word_lookup_stats (word, writerOrigin, count, lastLookedUpAt)
+        VALUES (:word, :writerOrigin, :count, :lastLookedUpAt)
+        ON CONFLICT(word, writerOrigin) DO UPDATE SET
+            count = CASE WHEN excluded.count > count THEN excluded.count ELSE count END,
+            lastLookedUpAt = CASE WHEN excluded.lastLookedUpAt > lastLookedUpAt THEN excluded.lastLookedUpAt ELSE lastLookedUpAt END
+        """,
+    )
+    suspend fun mergeCounter(word: String, writerOrigin: String, count: Int, lastLookedUpAt: Long)
+
     @Query("SELECT * FROM word_lookup_stats ORDER BY word COLLATE NOCASE ASC, writerOrigin ASC")
     suspend fun getAllForSync(): List<WordLookupStatEntity>
 }
