@@ -57,12 +57,9 @@
     <string name="library_sync_metadata_failed">Book upload pass finished, but metadata sync failed. Uploaded %1$d books; %2$d failed. %3$s</string>
     <string name="library_sync_disabled">Turn on GitHub sync in Settings first.</string>
     <string name="library_sync_config_missing">Finish GitHub sync settings before syncing.</string>
-    <string name="reader_sync_progress_pushed">Reading progress synced to GitHub.</string>
-    <string name="reader_sync_progress_pulled">Reading progress updated from another device.</string>
-    <string name="reader_sync_progress_synced">Reading progress synced both ways.</string>
-    <string name="reader_sync_progress_config_missing">Finish GitHub sync settings to sync reading progress.</string>
-    <string name="reader_sync_progress_cloud_missing">No cloud backup found yet for reading progress.</string>
-    <string name="reader_sync_progress_failed">Reading progress sync failed. %1$s</string>
+    <string name="reader_sync_dot_syncing">Syncing reading progress</string>
+    <string name="reader_sync_dot_synced">Reading progress synced</string>
+    <string name="reader_sync_dot_failed">Reading progress sync needs attention</string>
     <string name="diagnostics_title">Diagnostics</string>
     <string name="diagnostics_share_content_description">Share log</string>
     <string name="diagnostics_clear_content_description">Clear log</string>

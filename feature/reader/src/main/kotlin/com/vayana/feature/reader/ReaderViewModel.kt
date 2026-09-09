@@ -46,7 +46,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -59,20 +58,25 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** One-shot snackbar-worthy outcomes from background reading-progress sync. */
-sealed interface ReaderSyncMessage {
-    data class Pushed(val count: Int) : ReaderSyncMessage
-    data class Pulled(val count: Int) : ReaderSyncMessage
-    data class Synced(val pulled: Int, val pushed: Int) : ReaderSyncMessage
-    data object ConfigIncomplete : ReaderSyncMessage
-    data object CloudMissing : ReaderSyncMessage
-    data class Failed(val reason: String?) : ReaderSyncMessage
+/**
+ * Standing state of background reading-progress sync, rendered as a dot beside the reader clock.
+ *
+ * A state, not a one-shot event: routine auto-sync fires every few page turns, and a transient snackbar for
+ * each one interrupts reading (and on E-Ink costs a full-screen refresh). [reason] carries the failure detail
+ * that the old snackbar text used to show; the dot itself only signals that something needs attention, and the
+ * specifics stay in the diagnostics log.
+ */
+sealed interface ReaderSyncStatus {
+    /** Sync is off, or nothing has run yet this session - draw no dot at all. */
+    data object Idle : ReaderSyncStatus
+    data object Syncing : ReaderSyncStatus
+    data object Synced : ReaderSyncStatus
+    data class Failed(val reason: String?) : ReaderSyncStatus
 }
 
 sealed interface ReaderUiState {
@@ -169,9 +173,8 @@ class ReaderViewModel @Inject constructor(
     private val pageTurnAutoSyncGate = PageTurnAutoSyncGate(AutoSyncEveryPages)
     private var autoProgressSyncJob: Job? = null
     private var autoProgressSyncRequested = false
-    private val _syncMessages = Channel<ReaderSyncMessage>(Channel.BUFFERED)
-    val syncMessages: Flow<ReaderSyncMessage> = _syncMessages.receiveAsFlow()
-    private var lastSyncIssueSignature: String? = null
+    private val _syncStatus = MutableStateFlow<ReaderSyncStatus>(ReaderSyncStatus.Idle)
+    val syncStatus: StateFlow<ReaderSyncStatus> = _syncStatus
     private var lastReaderWrittenLocator: String? = null
     private var locatorPersistJob: Job? = null
 
@@ -802,43 +805,42 @@ class ReaderViewModel @Inject constructor(
         autoProgressSyncJob = viewModelScope.launch {
             do {
                 autoProgressSyncRequested = false
+                _syncStatus.value = ReaderSyncStatus.Syncing
                 val result = readingProgressOnlySyncer.syncReadingProgress()
                 // Throttled means we didn't actually check anything; looping immediately would
                 // just spin until the window clears. A later page turn will trigger a fresh call.
-                if (result.status == ReadingProgressSyncStatus.THROTTLED) break
-                emitSyncMessage(result)
+                if (result.status == ReadingProgressSyncStatus.THROTTLED) {
+                    // Nothing ran, so the dot must not keep claiming a sync is in flight. Fall back to
+                    // whatever the last real attempt concluded rather than inventing a fresh verdict.
+                    _syncStatus.value = lastSettledSyncStatus
+                    break
+                }
+                updateSyncStatus(result)
             } while (autoProgressSyncRequested)
         }
     }
 
-    private fun emitSyncMessage(result: ReadingProgressSyncResult) {
-        val message: ReaderSyncMessage = when (result.status) {
-            ReadingProgressSyncStatus.PUSHED -> ReaderSyncMessage.Pushed(result.pushed)
-            ReadingProgressSyncStatus.PULLED -> ReaderSyncMessage.Pulled(result.pulled)
-            ReadingProgressSyncStatus.SYNCED -> ReaderSyncMessage.Synced(pulled = result.pulled, pushed = result.pushed)
-            ReadingProgressSyncStatus.CONFIG_INCOMPLETE -> ReaderSyncMessage.ConfigIncomplete
-            ReadingProgressSyncStatus.CLOUD_MISSING -> ReaderSyncMessage.CloudMissing
-            ReadingProgressSyncStatus.FAILED -> ReaderSyncMessage.Failed(result.failureMessage)
+    /** The last non-transient verdict, so a throttled or skipped run can restore it instead of showing Syncing forever. */
+    private var lastSettledSyncStatus: ReaderSyncStatus = ReaderSyncStatus.Idle
+
+    private fun updateSyncStatus(result: ReadingProgressSyncResult) {
+        val status: ReaderSyncStatus = when (result.status) {
+            ReadingProgressSyncStatus.PUSHED,
+            ReadingProgressSyncStatus.PULLED,
+            ReadingProgressSyncStatus.SYNCED,
             ReadingProgressSyncStatus.NO_CHANGES,
-            ReadingProgressSyncStatus.THROTTLED,
-            ReadingProgressSyncStatus.SYNC_DISABLED,
-            -> return
+            -> ReaderSyncStatus.Synced
+            // Config gaps and a missing cloud snapshot are things the user has to go fix, same as a hard
+            // failure; the dot makes no distinction between them beyond the reason it carries.
+            ReadingProgressSyncStatus.CONFIG_INCOMPLETE -> ReaderSyncStatus.Failed("Sync is not fully configured")
+            ReadingProgressSyncStatus.CLOUD_MISSING -> ReaderSyncStatus.Failed("No snapshot in the cloud yet")
+            ReadingProgressSyncStatus.FAILED -> ReaderSyncStatus.Failed(result.failureMessage)
+            // Sync is switched off entirely - show no dot rather than a stale verdict from a previous session.
+            ReadingProgressSyncStatus.SYNC_DISABLED -> ReaderSyncStatus.Idle
+            ReadingProgressSyncStatus.THROTTLED -> return
         }
-        // Issues repeat identically every auto-sync trigger while the underlying cause persists
-        // (e.g. offline). Only surface a given issue once until either it changes or a sync succeeds.
-        val issueSignature = when (message) {
-            is ReaderSyncMessage.ConfigIncomplete -> "config"
-            is ReaderSyncMessage.CloudMissing -> "cloud_missing"
-            is ReaderSyncMessage.Failed -> "failed:${message.reason}"
-            else -> null
-        }
-        if (issueSignature != null) {
-            if (issueSignature == lastSyncIssueSignature) return
-            lastSyncIssueSignature = issueSignature
-        } else {
-            lastSyncIssueSignature = null
-        }
-        _syncMessages.trySend(message)
+        lastSettledSyncStatus = status
+        _syncStatus.value = status
     }
 
     private fun startReadingTimeTicker() {

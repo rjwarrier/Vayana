@@ -131,4 +131,14 @@ object Palette {
     val EinkContainerHighest = Color(0xFFE0E0E0)
     val EinkOutline = Color(0x99000000)
     val EinkOutlineVariant = Color(0x4D000000)
+
+    /**
+     * Reader sync-status dot. Mid-tone and saturated so a single value reads on every reader surface,
+     * from Cream/Sepia through Dark and OLED, without a per-theme variant. The E-Ink profile never uses
+     * these - it has no hue to spend, so it separates the same three states by fill instead
+     * (see ReaderSyncStatusDot).
+     */
+    val SyncActive = Color(0xFFC0392B)
+    val SyncSettled = Color(0xFF3D8B4A)
+    val SyncWarning = Color(0xFFD4A017)
 }

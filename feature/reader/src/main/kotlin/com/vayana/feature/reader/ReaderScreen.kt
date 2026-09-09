@@ -18,22 +18,24 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,15 +46,13 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
@@ -72,15 +72,13 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -94,9 +92,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,6 +104,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -118,17 +117,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.vayana.core.common.QuoteCitation
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.datastore.settings.FloatSetting
@@ -139,8 +142,8 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
-import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.ThemeMode
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.theme.vayanaFadeIn
 import com.vayana.core.designsystem.theme.vayanaFadeOut
@@ -155,7 +158,6 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
-import com.vayana.core.common.QuoteCitation
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.PartOfSpeech
 import com.vayana.reader.api.BookEngine
@@ -194,26 +196,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
         configuration.screenWidthDp >= TabletLandscapeMinWidthDp
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val syncPushedMessage = stringResource(R.string.reader_sync_progress_pushed)
-    val syncPulledMessage = stringResource(R.string.reader_sync_progress_pulled)
-    val syncSyncedMessage = stringResource(R.string.reader_sync_progress_synced)
-    val syncConfigIncompleteMessage = stringResource(R.string.reader_sync_progress_config_missing)
-    val syncCloudMissingMessage = stringResource(R.string.reader_sync_progress_cloud_missing)
-    val syncFailedMessage = stringResource(R.string.reader_sync_progress_failed)
-    LaunchedEffect(Unit) {
-        viewModel.syncMessages.collect { message ->
-            val text = when (message) {
-                is ReaderSyncMessage.Pushed -> syncPushedMessage
-                is ReaderSyncMessage.Pulled -> syncPulledMessage
-                is ReaderSyncMessage.Synced -> syncSyncedMessage.format(message.pulled, message.pushed)
-                ReaderSyncMessage.ConfigIncomplete -> syncConfigIncompleteMessage
-                ReaderSyncMessage.CloudMissing -> syncCloudMissingMessage
-                is ReaderSyncMessage.Failed -> syncFailedMessage.format(message.reason.orEmpty())
-            }
-            snackbarHostState.showSnackbar(text)
-        }
-    }
+    // Routine auto-sync fires every few page turns; a snackbar per run interrupts reading (and on E-Ink
+    // costs a full-screen refresh), so the outcome shows as a standing dot beside the clock instead.
+    val syncStatus by viewModel.syncStatus.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
     if (showNotesSidePanel) {
@@ -224,6 +209,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(if (notesSidePanelVisible) ReaderPaneWeight else 1f).fillMaxHeight(),
                 uiState = uiState,
                 settings = settings,
+                syncStatus = syncStatus,
                 usingCustomStyle = usingCustomStyle,
                 onUseCustomStyleChange = viewModel::setUseCustomStyle,
                 dictionaryLookup = dictionaryLookup,
@@ -309,6 +295,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         modifier = Modifier.fillMaxSize(),
         uiState = uiState,
         settings = settings,
+        syncStatus = syncStatus,
         usingCustomStyle = usingCustomStyle,
         onUseCustomStyleChange = viewModel::setUseCustomStyle,
         dictionaryLookup = dictionaryLookup,
@@ -363,10 +350,6 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onBack = onBack,
     )
     }
-    SnackbarHost(
-        hostState = snackbarHostState,
-        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
-    )
     }
 }
 
@@ -384,6 +367,7 @@ private fun ReaderScreen(
     modifier: Modifier = Modifier,
     uiState: ReaderUiState,
     settings: SettingsSnapshot,
+    syncStatus: ReaderSyncStatus,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
     dictionaryLookup: DictionaryLookupState,
@@ -666,6 +650,7 @@ private fun ReaderScreen(
             ReaderClockHeader(
                 modifier = Modifier.align(Alignment.TopCenter),
                 nowMillis = nowMillis,
+                syncStatus = syncStatus,
                 headerGap = settings.readerHeaderGapDp.dp,
             )
             ReaderSessionHeader(
@@ -844,7 +829,12 @@ private fun ReaderScreen(
 }
 
 @Composable
-private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long, headerGap: Dp = readerHeaderTopPadding) {
+private fun ReaderClockHeader(
+    modifier: Modifier = Modifier,
+    nowMillis: Long,
+    syncStatus: ReaderSyncStatus,
+    headerGap: Dp = readerHeaderTopPadding,
+) {
     val clockText = remember(nowMillis) { DateFormat.format("hh:mm a", nowMillis).toString() }
     Surface(
         modifier = modifier
@@ -854,11 +844,62 @@ private fun ReaderClockHeader(modifier: Modifier = Modifier, nowMillis: Long, he
         shape = MaterialTheme.shapes.extraLarge,
         tonalElevation = readerHudElevation(),
     ) {
-        Text(
-            text = clockText,
-            style = MaterialTheme.typography.labelMedium,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-        )
+        ) {
+            ReaderSyncStatusDot(syncStatus = syncStatus)
+            Text(text = clockText, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+/**
+ * The reader's whole sync UI: one dot beside the clock.
+ *
+ * On a colour display the three states are hues - syncing red, settled green, needs-attention amber. The E-Ink
+ * profile has no hue to spend and renders greys too close together to tell apart at this size, so it separates
+ * the same three states by *fill* against the single ink colour: an empty ring while a sync is in flight, a
+ * solid dot once it lands, and a ring around a centre dot when it needs attention. [ReaderSyncStatus.Idle]
+ * draws nothing at all, keeping the header clean when sync is switched off.
+ */
+@Composable
+private fun ReaderSyncStatusDot(syncStatus: ReaderSyncStatus, modifier: Modifier = Modifier) {
+    if (syncStatus is ReaderSyncStatus.Idle) return
+    val isEink = LocalDisplayProfile.current == DisplayProfile.E_INK
+    val description = stringResource(
+        when (syncStatus) {
+            ReaderSyncStatus.Syncing -> R.string.reader_sync_dot_syncing
+            ReaderSyncStatus.Synced -> R.string.reader_sync_dot_synced
+            else -> R.string.reader_sync_dot_failed
+        },
+    )
+    val ink = MaterialTheme.colorScheme.onSurface
+    val color = when {
+        isEink -> ink
+        syncStatus is ReaderSyncStatus.Syncing -> Palette.SyncActive
+        syncStatus is ReaderSyncStatus.Synced -> Palette.SyncSettled
+        else -> Palette.SyncWarning
+    }
+    Canvas(
+        modifier = modifier
+            .size(if (isEink) ReaderSyncDotEinkSize else ReaderSyncDotSize)
+            .semantics { contentDescription = description },
+    ) {
+        val radius = size.minDimension / 2f
+        val stroke = size.minDimension * ReaderSyncDotStrokeFraction
+        when {
+            // Colour displays carry the state in the hue, so every state is the same solid dot.
+            !isEink -> drawCircle(color = color, radius = radius)
+            syncStatus is ReaderSyncStatus.Syncing ->
+                drawCircle(color = color, radius = radius - stroke / 2f, style = Stroke(width = stroke))
+            syncStatus is ReaderSyncStatus.Synced -> drawCircle(color = color, radius = radius)
+            else -> {
+                drawCircle(color = color, radius = radius - stroke / 2f, style = Stroke(width = stroke))
+                drawCircle(color = color, radius = radius * ReaderSyncDotCoreFraction)
+            }
+        }
     }
 }
 
@@ -2220,6 +2261,13 @@ private const val MaxDisplayedDictionarySenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
 private const val VolumeKeyLongPressMillis = 500L
+private val ReaderSyncDotSize = 8.dp
+
+/** Larger on E-Ink: the ring and centre dot that carry the state there need the extra pixels to read apart. */
+private val ReaderSyncDotEinkSize = 11.dp
+private const val ReaderSyncDotStrokeFraction = 0.22f
+private const val ReaderSyncDotCoreFraction = 0.34f
+
 private const val EinkFullRefreshEveryPages = 6
 private const val EinkFlashDurationMillis = 120L
 private val readerHeaderTopPadding = Spacing.xxxl + Spacing.md
