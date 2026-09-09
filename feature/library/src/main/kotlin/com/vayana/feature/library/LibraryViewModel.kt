@@ -1125,7 +1125,7 @@ class LibraryViewModel @Inject constructor(
                     val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
                     store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, sha)
                 }
-                ReadingProgressOnlyPushSummary(pushed = result.patched)
+                ReadingProgressOnlyPushSummary(pushed = result.patched + result.sessionsAdded + result.wordLookupCountersMerged)
             }
             attempt.onSuccess { result -> return result }
             val throwable = attempt.exceptionOrNull()

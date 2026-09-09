@@ -2,11 +2,22 @@ package com.vayana.core.sync.progress
 
 import com.vayana.core.backup.PortableReadingProgress
 import com.vayana.core.backup.PortableReadingProgressPatch
+import com.vayana.core.backup.parsePortableWordLookupCounters
+import com.vayana.core.backup.parsePortableReadingSessions
+import com.vayana.core.backup.PortableWordLookupCounter
+import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.parsePortableReadingProgresses
 import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.runCatchingCancellable
+import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.WordLookupStatRepository
+import com.vayana.core.database.repository.WordLookupCounterMergeResult
+import com.vayana.core.database.repository.ReadingSessionRepository
+import com.vayana.core.database.repository.ReadingSessionMergeResult
+import com.vayana.core.database.repository.CloudWordLookupCounter
+import com.vayana.core.database.repository.CloudReadingSessionRecord
 import com.vayana.core.database.repository.ReadingProgressMergeResult
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.diagnostics.DiagnosticCategory
@@ -56,6 +67,8 @@ data class ReadingProgressSyncResult(
 class ReadingProgressOnlySyncer @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val bookRepository: BookRepository,
+    private val readingSessionRepository: ReadingSessionRepository,
+    private val wordLookupStatRepository: WordLookupStatRepository,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
 ) {
@@ -93,7 +106,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     failureMessage = throwable.message,
                 )
             }
-        val patches = bookRepository.observeAll().first().map { book ->
+        val localBooks = bookRepository.observeAll().first()
+        val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
+        val patches = localBooks.map { book ->
             PortableReadingProgressPatch(
                 fileHash = book.fileHash,
                 lastLocator = book.lastLocator,
@@ -104,6 +119,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 totalReadingSeconds = book.totalReadingSeconds,
             )
         }
+        val readingSessions = readingSessionRepository.observeAll().first()
+            .mapNotNull { it.toPortable(bookSyncIdsByLocalId) }
+        val wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() }
 
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlySyncAttempts) {
@@ -136,6 +154,8 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     )
                 }
                 pulled = pullRemoteProgress(parseAttempt.getOrDefault(emptyList()))
+                pulled += pullRemoteReadingSessions(jsonText)
+                pulled += pullRemoteWordLookupCounters(jsonText)
             }
 
             val attempt = runCatchingCancellable {
@@ -143,8 +163,11 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     jsonText = jsonText,
                     patches = patches,
                     exportedAt = System.currentTimeMillis(),
+                    readingSessions = readingSessions,
+                    wordLookupCounters = wordLookupCounters,
                 )
-                if (patchResult.patched > 0) {
+                val pushed = patchResult.patched + patchResult.sessionsAdded + patchResult.wordLookupCountersMerged
+                if (pushed > 0) {
                     store.putSyncDocumentIfUnchanged(
                         path = SnapshotLatestPath,
                         bytes = patchResult.jsonText.toByteArray(Charsets.UTF_8),
@@ -155,7 +178,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     lastAppliedRemoteSha.set(null)
                     ReadingProgressSyncResult(
                         status = if (pulled > 0) ReadingProgressSyncStatus.SYNCED else ReadingProgressSyncStatus.PUSHED,
-                        pushed = patchResult.patched,
+                        pushed = pushed,
                         pulled = pulled,
                     )
                 } else {
@@ -211,7 +234,90 @@ class ReadingProgressOnlySyncer @Inject constructor(
         }
         return applied
     }
+
+    private suspend fun pullRemoteReadingSessions(jsonText: String): Int {
+        var merged = 0
+        val sessions = runCatchingCancellable { parsePortableReadingSessions(jsonText) }
+            .getOrElse { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteReadingSessions",
+                    message = "Failed to parse remote reading sessions: ${throwable.message}",
+                )
+                return 0
+            }
+        for (session in sessions) {
+            val attempt = runCatchingCancellable { readingSessionRepository.mergeCloudSession(session.toRecord()) }
+            attempt.onSuccess { result -> if (result == ReadingSessionMergeResult.CREATED) merged += 1 }
+            attempt.onFailure { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteReadingSessions",
+                    message = "Failed to apply remote reading session: ${throwable.message}",
+                )
+            }
+        }
+        return merged
+    }
+
+    private suspend fun pullRemoteWordLookupCounters(jsonText: String): Int {
+        var merged = 0
+        val counters = runCatchingCancellable { parsePortableWordLookupCounters(jsonText) }
+            .getOrElse { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteWordLookupCounters",
+                    message = "Failed to parse remote word lookup counters: ${throwable.message}",
+                )
+                return 0
+            }
+        for (counter in counters) {
+            val attempt = runCatchingCancellable { wordLookupStatRepository.mergeCloudCounter(counter.toRecord()) }
+            attempt.onSuccess { result -> if (result == WordLookupCounterMergeResult.MERGED) merged += 1 }
+            attempt.onFailure { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteWordLookupCounters",
+                    message = "Failed to apply remote word lookup counter: ${throwable.message}",
+                )
+            }
+        }
+        return merged
+    }
 }
+
+private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableReadingSession? {
+    val bookSyncId = bookSyncIdsByLocalId[bookId] ?: return null
+    return PortableReadingSession(
+        syncId = syncId,
+        bookSyncId = bookSyncId,
+        startedAt = startedAt,
+        endedAt = endedAt,
+        durationSeconds = durationSeconds,
+    )
+}
+
+private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord = CloudReadingSessionRecord(
+    syncId = syncId,
+    bookSyncId = bookSyncId,
+    startedAt = startedAt,
+    endedAt = endedAt,
+    durationSeconds = durationSeconds,
+)
+
+private fun PortableWordLookupCounter.toRecord(): CloudWordLookupCounter = CloudWordLookupCounter(
+    word = word,
+    writerOrigin = writerOrigin,
+    count = count,
+    lastLookedUpAt = lastLookedUpAt,
+)
+
+private fun CloudWordLookupCounter.toPortable(): PortableWordLookupCounter = PortableWordLookupCounter(
+    word = word,
+    writerOrigin = writerOrigin,
+    count = count,
+    lastLookedUpAt = lastLookedUpAt,
+)
 
 private val ReadingProgressSyncStatus.isIssue: Boolean
     get() = this == ReadingProgressSyncStatus.FAILED ||
