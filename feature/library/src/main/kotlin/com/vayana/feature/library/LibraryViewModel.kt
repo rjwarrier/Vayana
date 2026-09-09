@@ -255,6 +255,11 @@ private data class ReadingProgressOnlyPushSummary(
     val failureMessage: String? = null,
 )
 
+private data class SnapshotMetadataSaveResult(
+    val synced: Boolean,
+    val failureMessage: String? = null,
+)
+
 data class BookProgressChange(
     val bookId: Long,
     val previousLocator: String?,
@@ -898,31 +903,19 @@ class LibraryViewModel @Inject constructor(
             cloudBooksUpdated = cloudLibraryMerge.updated,
             downloadedCovers = cloudLibraryMerge.coversDownloaded,
         )
-        val metadataError = runCatchingCancellable {
-            val snapshot = snapshotExporter.export()
-            val snapshotBytes = snapshot
-                .copy(syncConflicts = progressMerge.conflicts)
-                .toJsonString()
-                .toByteArray(Charsets.UTF_8)
-            store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
-            store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, progressMerge.remoteSnapshotSha)
-        }.exceptionOrNull()?.let { throwable ->
-            // Uploads above already happened and aren't lost - a conflict here just means another
-            // device saved a snapshot while this sync was uploading. Say so explicitly rather than
-            // reporting a generic failure, since a retry will be fast (already-uploaded books skip).
-            if (throwable.isGitHubConflict()) {
-                GitHubConcurrentSyncException(throwable)
-            } else {
-                throwable
-            }
-        }
+        val metadataSave = saveMetadataSnapshotWithRebase(
+            store = store,
+            syncConfig = syncConfig,
+            expectedSha = progressMerge.remoteSnapshotSha,
+            conflicts = progressMerge.conflicts,
+        )
         finishSyncProgress(
-            step = if (metadataError == null && failed == 0 && !cloudLibraryMerge.failed && !readingSessionMerge.failed && !wordLookupCounterMerge.failed) {
+            step = if (metadataSave.synced && failed == 0 && !cloudLibraryMerge.failed && !readingSessionMerge.failed && !wordLookupCounterMerge.failed && !annotationMerge.failed) {
                 GitHubSyncProgressStep.COMPLETE
             } else {
                 GitHubSyncProgressStep.FAILED
             },
-            detail = if (metadataError == null) "Sync finished" else "Snapshot save failed",
+            detail = if (metadataSave.synced) "Sync finished" else "Snapshot save failed",
             uploadedBooks = uploaded,
             failedBooks = failed,
             uploadedCovers = uploadedCovers,
@@ -940,8 +933,8 @@ class LibraryViewModel @Inject constructor(
             conflicts = progressMerge.conflictCount,
             skipped = progressMerge.skipped + cloudLibraryMerge.skipped + readingSessionMerge.skipped + wordLookupCounterMerge.skipped + annotationMerge.skipped,
             pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || readingSessionMerge.failed || wordLookupCounterMerge.failed || annotationMerge.failed) && !allowInitialSync,
-            metadataSynced = metadataError == null,
-            failureMessage = metadataError?.syncFailureMessage() ?: cloudLibraryMerge.failureMessage ?: readingSessionMerge.failureMessage ?: wordLookupCounterMerge.failureMessage ?: annotationMerge.failureMessage,
+            metadataSynced = metadataSave.synced,
+            failureMessage = metadataSave.failureMessage ?: cloudLibraryMerge.failureMessage ?: readingSessionMerge.failureMessage ?: wordLookupCounterMerge.failureMessage ?: annotationMerge.failureMessage,
         )
     }
 
@@ -949,39 +942,10 @@ class LibraryViewModel @Inject constructor(
         runCatchingCancellable {
             val remoteDocument = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
             val snapshotJson = remoteDocument.bytes.toString(Charsets.UTF_8)
-            val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
-            val localDeviceLabel = settingsRepository.snapshot.first().deviceLabelForSync()
-            remoteSnapshot.progresses.fold(
-                ReadingProgressMergeSummary(
-                    remoteSnapshotJson = snapshotJson,
-                    remoteSnapshotSha = remoteDocument.sha,
-                ),
-            ) { summary, progress ->
-                val mergeResult = bookRepository.applySyncedReadingProgress(
-                    syncId = progress.syncId,
-                    fileHash = progress.fileHash,
-                    locator = progress.lastLocator,
-                    readingPercent = progress.readingPercent,
-                    lastReadAt = progress.lastReadAt,
-                    remoteUpdatedAt = progress.updatedAt,
-                    startedReadingAt = progress.startedReadingAt,
-                    finishedReadingAt = progress.finishedReadingAt,
-                    totalReadingSeconds = progress.totalReadingSeconds,
-                )
-                when (mergeResult) {
-                    ReadingProgressMergeResult.AppliedRemote -> summary.copy(applied = summary.applied + 1)
-                    is ReadingProgressMergeResult.ConflictLocalKept -> summary.copy(
-                        conflicts = summary.conflicts + mergeResult.toPortableConflict(
-                            localDeviceLabel = localDeviceLabel,
-                            remoteDeviceLabel = remoteSnapshot.deviceLabel,
-                        ),
-                    )
-                    ReadingProgressMergeResult.LocalNewer,
-                    ReadingProgressMergeResult.NoLocalMatch,
-                    ReadingProgressMergeResult.InvalidRemote,
-                    -> summary.copy(skipped = summary.skipped + 1)
-                }
-            }
+            mergeReadingProgressSnapshot(snapshotJson).copy(
+                remoteSnapshotJson = snapshotJson,
+                remoteSnapshotSha = remoteDocument.sha,
+            )
         }.getOrElse { throwable ->
             if (throwable.isMissingRemoteSnapshot()) {
                 ReadingProgressMergeSummary(
@@ -992,6 +956,37 @@ class LibraryViewModel @Inject constructor(
                 ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
             }
         }
+
+    private suspend fun mergeReadingProgressSnapshot(snapshotJson: String): ReadingProgressMergeSummary {
+        val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
+        val localDeviceLabel = settingsRepository.snapshot.first().deviceLabelForSync()
+        return remoteSnapshot.progresses.fold(ReadingProgressMergeSummary()) { summary, progress ->
+            val mergeResult = bookRepository.applySyncedReadingProgress(
+                syncId = progress.syncId,
+                fileHash = progress.fileHash,
+                locator = progress.lastLocator,
+                readingPercent = progress.readingPercent,
+                lastReadAt = progress.lastReadAt,
+                remoteUpdatedAt = progress.updatedAt,
+                startedReadingAt = progress.startedReadingAt,
+                finishedReadingAt = progress.finishedReadingAt,
+                totalReadingSeconds = progress.totalReadingSeconds,
+            )
+            when (mergeResult) {
+                ReadingProgressMergeResult.AppliedRemote -> summary.copy(applied = summary.applied + 1)
+                is ReadingProgressMergeResult.ConflictLocalKept -> summary.copy(
+                    conflicts = summary.conflicts + mergeResult.toPortableConflict(
+                        localDeviceLabel = localDeviceLabel,
+                        remoteDeviceLabel = remoteSnapshot.deviceLabel,
+                    ),
+                )
+                ReadingProgressMergeResult.LocalNewer,
+                ReadingProgressMergeResult.NoLocalMatch,
+                ReadingProgressMergeResult.InvalidRemote,
+                -> summary.copy(skipped = summary.skipped + 1)
+            }
+        }
+    }
 
     private suspend fun mergeCloudLibrary(snapshotJson: String, store: GitHubContentsAssetStore): CloudLibraryMergeSummary =
         runCatchingCancellable {
@@ -1090,6 +1085,80 @@ class LibraryViewModel @Inject constructor(
         }.getOrElse { throwable ->
             AnnotationMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
+
+    private suspend fun saveMetadataSnapshotWithRebase(
+        store: GitHubContentsAssetStore,
+        syncConfig: GitHubSyncConfig,
+        expectedSha: String?,
+        conflicts: List<PortableSyncConflict>,
+    ): SnapshotMetadataSaveResult {
+        var latestExpectedSha = expectedSha
+        var latestConflicts = conflicts
+        repeat(MaxSnapshotMetadataSaveAttempts) { attemptIndex ->
+            val saveAttempt = runCatchingCancellable {
+                val snapshotBytes = snapshotExporter.export()
+                    .copy(syncConflicts = latestConflicts)
+                    .toJsonString()
+                    .toByteArray(Charsets.UTF_8)
+                store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
+                store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, latestExpectedSha)
+            }
+            saveAttempt.onSuccess { return SnapshotMetadataSaveResult(synced = true) }
+            val throwable = saveAttempt.exceptionOrNull()
+            if (throwable?.isGitHubConflict() != true || attemptIndex == MaxSnapshotMetadataSaveAttempts - 1) {
+                return SnapshotMetadataSaveResult(
+                    synced = false,
+                    failureMessage = throwable?.syncFailureMessage() ?: "Snapshot save failed",
+                )
+            }
+
+            val currentDocument = runCatchingCancellable { store.getSyncDocumentWithSha("vayana/snapshot-latest.json") }
+                .getOrElse { refetchFailure ->
+                    return SnapshotMetadataSaveResult(
+                        synced = false,
+                        failureMessage = refetchFailure.syncFailureMessage(),
+                    )
+                }
+            val currentJson = currentDocument.bytes.toString(Charsets.UTF_8)
+            val rebase = mergeRemoteSnapshotForMetadataRebase(currentJson, store)
+            if (rebase.failed) {
+                return SnapshotMetadataSaveResult(synced = false, failureMessage = rebase.failureMessage)
+            }
+            latestExpectedSha = currentDocument.sha
+            latestConflicts = latestConflicts + rebase.conflicts
+        }
+        return SnapshotMetadataSaveResult(synced = false, failureMessage = "Snapshot save failed")
+    }
+
+    private suspend fun mergeRemoteSnapshotForMetadataRebase(
+        snapshotJson: String,
+        store: GitHubContentsAssetStore,
+    ): ReadingProgressMergeSummary = runCatchingCancellable {
+        val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
+        val cloudLibraryMerge = mergeCloudLibrary(snapshotJson, store)
+        val readingSessionMerge = mergeCloudReadingSessions(snapshotJson)
+        val wordLookupCounterMerge = mergeCloudWordLookupCounters(snapshotJson)
+        val annotationMerge = mergeCloudAnnotations(snapshotJson)
+        val failureMessage = cloudLibraryMerge.failureMessage
+            ?: readingSessionMerge.failureMessage
+            ?: wordLookupCounterMerge.failureMessage
+            ?: annotationMerge.failureMessage
+        progressMerge.copy(
+            failed = progressMerge.failed ||
+                cloudLibraryMerge.failed ||
+                readingSessionMerge.failed ||
+                wordLookupCounterMerge.failed ||
+                annotationMerge.failed,
+            failureMessage = progressMerge.failureMessage ?: failureMessage,
+            skipped = progressMerge.skipped +
+                cloudLibraryMerge.skipped +
+                readingSessionMerge.skipped +
+                wordLookupCounterMerge.skipped +
+                annotationMerge.skipped,
+        )
+    }.getOrElse { throwable ->
+        ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+    }
 
     private suspend fun pushReadingProgressOnly(
         remoteSnapshotJson: String,
@@ -1819,13 +1888,8 @@ private fun GitHubSyncConfig.canBuildRepository(): Boolean =
         )
     }.isSuccess
 
-/** Wraps a 409 on the final snapshot save so the message can explain the uploads weren't lost. */
-private class GitHubConcurrentSyncException(cause: Throwable) : Exception(cause)
-
 private fun Throwable.syncFailureMessage(): String =
     when (this) {
-        is GitHubConcurrentSyncException ->
-            "Another device saved changes while this sync was uploading. Your uploads are safe - sync again to finish."
         is GitHubAssetStoreException -> buildString {
             append(message ?: "GitHub request failed")
             responseBody.takeIf { it.isNotBlank() }?.let { body ->
@@ -1909,6 +1973,7 @@ private const val FinishedThreshold = 0.98f
 private const val MaxSyncFailureBodyChars = 400
 private const val MaxSyncFailureMessageChars = 600
 private const val MaxProgressOnlyPushAttempts = 2
+private const val MaxSnapshotMetadataSaveAttempts = 2
 private const val MaxConcurrentCoverDownloads = 4
 private const val GitHubSyncProgressTotalSteps = 5
 private const val CloudBookDownloadProgressTotalSteps = 5
