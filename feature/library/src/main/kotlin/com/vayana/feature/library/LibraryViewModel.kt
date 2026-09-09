@@ -17,16 +17,34 @@ import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.SnapshotExporter
 import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.backup.PortableAnnotation
+import com.vayana.core.backup.PortableBookAlias
+import com.vayana.core.backup.PortableShelf
+import com.vayana.core.backup.PortableShelfMembership
+import com.vayana.core.backup.PortableTombstone
+import com.vayana.core.backup.PortableVocabularyCard
 import com.vayana.core.backup.parsePortableAnnotations
+import com.vayana.core.backup.parsePortableBookAliases
 import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.backup.parsePortableReadingSessions
+import com.vayana.core.backup.parsePortableShelfMemberships
+import com.vayana.core.backup.parsePortableShelves
+import com.vayana.core.backup.parsePortableTombstones
+import com.vayana.core.backup.parsePortableVocabularyCards
 import com.vayana.core.backup.parsePortableWordLookupCounters
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.runCatchingCancellable
+import com.vayana.core.database.dao.AnnotationDao
+import com.vayana.core.database.dao.BookAliasDao
+import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.ShelfDao
+import com.vayana.core.database.dao.TombstoneDao
+import com.vayana.core.database.dao.VocabularyCardDao
+import com.vayana.core.database.entity.BookAliasEntity
+import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
@@ -41,12 +59,20 @@ import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.CloudBookMergeResult
 import com.vayana.core.database.repository.CloudBookRecord
 import com.vayana.core.database.repository.CloudReadingSessionRecord
+import com.vayana.core.database.repository.CloudShelfMembershipRecord
+import com.vayana.core.database.repository.CloudShelfRecord
+import com.vayana.core.database.repository.CloudVocabularyCardRecord
 import com.vayana.core.database.repository.CloudWordLookupCounter
 import com.vayana.core.database.repository.ReadingProgressMergeResult
 import com.vayana.core.database.repository.ReadingProgressVersion
 import com.vayana.core.database.repository.ReadingSessionMergeResult
 import com.vayana.core.database.repository.ReadingSessionRepository
+import com.vayana.core.database.repository.ShelfMembershipMergeResult
+import com.vayana.core.database.repository.ShelfMergeResult
 import com.vayana.core.database.repository.ShelfRepository
+import com.vayana.core.database.repository.TombstoneEntityType
+import com.vayana.core.database.repository.VocabularyCardMergeResult
+import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupCounterMergeResult
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.SettingsRepository
@@ -249,6 +275,15 @@ private data class AnnotationMergeSummary(
     val failureMessage: String? = null,
 )
 
+private data class GenericSyncMergeSummary(
+    val created: Int = 0,
+    val updated: Int = 0,
+    val skipped: Int = 0,
+    val appliedDeletes: Int = 0,
+    val failed: Boolean = false,
+    val failureMessage: String? = null,
+)
+
 private data class ReadingProgressOnlyPushSummary(
     val pushed: Int = 0,
     val failed: Boolean = false,
@@ -299,12 +334,19 @@ class LibraryViewModel @Inject constructor(
     private val wordLookupStatRepository: WordLookupStatRepository,
     private val bookFileImporter: BookFileImporter,
     private val shelfRepository: ShelfRepository,
+    private val vocabularyCardRepository: VocabularyCardRepository,
     private val settingsRepository: SettingsRepository,
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
+    private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
+    private val bookDao: BookDao,
+    private val shelfDao: ShelfDao,
+    private val vocabularyCardDao: VocabularyCardDao,
+    private val annotationDao: AnnotationDao,
     @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -790,13 +832,38 @@ class LibraryViewModel @Inject constructor(
             completedSteps = 2,
             progressUpdated = progressMerge.applied,
         )
+        val tombstoneMerge = if (progressMerge.missingRemoteSnapshot) {
+            GenericSyncMergeSummary()
+        } else {
+            mergeCloudTombstones(progressMerge.remoteSnapshotJson.orEmpty())
+        }
         val cloudLibraryMerge = if (progressMerge.missingRemoteSnapshot) {
             CloudLibraryMergeSummary()
         } else {
             mergeCloudLibrary(progressMerge.remoteSnapshotJson.orEmpty(), store)
         }
-        // Must run after cloudLibraryMerge: records whose book was just created above can
-        // only resolve their bookSyncId to a local row once that book actually exists.
+        val bookAliasMerge = if (progressMerge.missingRemoteSnapshot) {
+            GenericSyncMergeSummary()
+        } else {
+            mergeCloudBookAliases(progressMerge.remoteSnapshotJson.orEmpty())
+        }
+        val shelfMerge = if (progressMerge.missingRemoteSnapshot) {
+            GenericSyncMergeSummary()
+        } else {
+            mergeCloudShelves(progressMerge.remoteSnapshotJson.orEmpty())
+        }
+        // Must run after cloudLibraryMerge/shelfMerge: records whose book or shelf was just
+        // created above can only resolve sync ids to local rows once those rows exist.
+        val shelfMembershipMerge = if (progressMerge.missingRemoteSnapshot) {
+            GenericSyncMergeSummary()
+        } else {
+            mergeCloudShelfMemberships(progressMerge.remoteSnapshotJson.orEmpty())
+        }
+        val vocabularyCardMerge = if (progressMerge.missingRemoteSnapshot) {
+            GenericSyncMergeSummary()
+        } else {
+            mergeCloudVocabularyCards(progressMerge.remoteSnapshotJson.orEmpty())
+        }
         val readingSessionMerge = if (progressMerge.missingRemoteSnapshot) {
             ReadingSessionMergeSummary()
         } else {
@@ -910,7 +977,7 @@ class LibraryViewModel @Inject constructor(
             conflicts = progressMerge.conflicts,
         )
         finishSyncProgress(
-            step = if (metadataSave.synced && failed == 0 && !cloudLibraryMerge.failed && !readingSessionMerge.failed && !wordLookupCounterMerge.failed && !annotationMerge.failed) {
+            step = if (metadataSave.synced && failed == 0 && !cloudLibraryMerge.failed && !tombstoneMerge.failed && !bookAliasMerge.failed && !shelfMerge.failed && !shelfMembershipMerge.failed && !vocabularyCardMerge.failed && !readingSessionMerge.failed && !wordLookupCounterMerge.failed && !annotationMerge.failed) {
                 GitHubSyncProgressStep.COMPLETE
             } else {
                 GitHubSyncProgressStep.FAILED
@@ -931,10 +998,10 @@ class LibraryViewModel @Inject constructor(
             cloudBooksCreated = cloudLibraryMerge.created,
             cloudBooksUpdated = cloudLibraryMerge.updated,
             conflicts = progressMerge.conflictCount,
-            skipped = progressMerge.skipped + cloudLibraryMerge.skipped + readingSessionMerge.skipped + wordLookupCounterMerge.skipped + annotationMerge.skipped,
-            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || readingSessionMerge.failed || wordLookupCounterMerge.failed || annotationMerge.failed) && !allowInitialSync,
+            skipped = progressMerge.skipped + cloudLibraryMerge.skipped + tombstoneMerge.skipped + bookAliasMerge.skipped + shelfMerge.skipped + shelfMembershipMerge.skipped + vocabularyCardMerge.skipped + readingSessionMerge.skipped + wordLookupCounterMerge.skipped + annotationMerge.skipped,
+            pullFailed = (progressMerge.failed || cloudLibraryMerge.failed || tombstoneMerge.failed || bookAliasMerge.failed || shelfMerge.failed || shelfMembershipMerge.failed || vocabularyCardMerge.failed || readingSessionMerge.failed || wordLookupCounterMerge.failed || annotationMerge.failed) && !allowInitialSync,
             metadataSynced = metadataSave.synced,
-            failureMessage = metadataSave.failureMessage ?: cloudLibraryMerge.failureMessage ?: readingSessionMerge.failureMessage ?: wordLookupCounterMerge.failureMessage ?: annotationMerge.failureMessage,
+            failureMessage = metadataSave.failureMessage ?: cloudLibraryMerge.failureMessage ?: tombstoneMerge.failureMessage ?: bookAliasMerge.failureMessage ?: shelfMerge.failureMessage ?: shelfMembershipMerge.failureMessage ?: vocabularyCardMerge.failureMessage ?: readingSessionMerge.failureMessage ?: wordLookupCounterMerge.failureMessage ?: annotationMerge.failureMessage,
         )
     }
 
@@ -1031,6 +1098,108 @@ class LibraryViewModel @Inject constructor(
         }.sumOf { it.await() }
     }
 
+
+    private suspend fun mergeCloudShelves(snapshotJson: String): GenericSyncMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var updated = 0
+            var skipped = 0
+            for (remote in parsePortableShelves(snapshotJson)) {
+                when (shelfRepository.mergeCloudShelf(remote.toRecord())) {
+                    ShelfMergeResult.CREATED -> created += 1
+                    ShelfMergeResult.UPDATED -> updated += 1
+                    ShelfMergeResult.SKIPPED -> skipped += 1
+                }
+            }
+            GenericSyncMergeSummary(created = created, updated = updated, skipped = skipped)
+        }.getOrElse { throwable ->
+            GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun mergeCloudShelfMemberships(snapshotJson: String): GenericSyncMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var skipped = 0
+            for (remote in parsePortableShelfMemberships(snapshotJson)) {
+                when (shelfRepository.mergeCloudMembership(remote.toRecord())) {
+                    ShelfMembershipMergeResult.CREATED -> created += 1
+                    ShelfMembershipMergeResult.SKIPPED -> skipped += 1
+                }
+            }
+            GenericSyncMergeSummary(created = created, skipped = skipped)
+        }.getOrElse { throwable ->
+            GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun mergeCloudVocabularyCards(snapshotJson: String): GenericSyncMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var updated = 0
+            var skipped = 0
+            for (remote in parsePortableVocabularyCards(snapshotJson)) {
+                when (vocabularyCardRepository.mergeCloudCard(remote.toRecord())) {
+                    VocabularyCardMergeResult.CREATED -> created += 1
+                    VocabularyCardMergeResult.UPDATED -> updated += 1
+                    VocabularyCardMergeResult.SKIPPED -> skipped += 1
+                }
+            }
+            GenericSyncMergeSummary(created = created, updated = updated, skipped = skipped)
+        }.getOrElse { throwable ->
+            GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun mergeCloudBookAliases(snapshotJson: String): GenericSyncMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var skipped = 0
+            for (remote in parsePortableBookAliases(snapshotJson)) {
+                if (tombstoneDao.findBySyncId(remote.syncId) != null || remote.syncId.isBlank() || remote.fileHash.isBlank()) {
+                    skipped += 1
+                } else {
+                    bookAliasDao.upsert(BookAliasEntity(syncId = remote.syncId, fileHash = remote.fileHash, createdAt = remote.createdAt))
+                    created += 1
+                }
+            }
+            GenericSyncMergeSummary(created = created, skipped = skipped)
+        }.getOrElse { throwable ->
+            GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun mergeCloudTombstones(snapshotJson: String): GenericSyncMergeSummary =
+        runCatchingCancellable {
+            var created = 0
+            var appliedDeletes = 0
+            var skipped = 0
+            for (remote in parsePortableTombstones(snapshotJson)) {
+                if (remote.syncId.isBlank() || remote.entityType.isBlank() || remote.deletedAt <= 0L) {
+                    skipped += 1
+                    continue
+                }
+                tombstoneDao.upsert(TombstoneEntity(syncId = remote.syncId, entityType = remote.entityType, deletedAt = remote.deletedAt))
+                created += 1
+                appliedDeletes += applyCloudTombstone(remote)
+            }
+            GenericSyncMergeSummary(created = created, skipped = skipped, appliedDeletes = appliedDeletes)
+        }.getOrElse { throwable ->
+            GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
+        }
+
+    private suspend fun applyCloudTombstone(tombstone: PortableTombstone): Int = when (tombstone.entityType) {
+        TombstoneEntityType.BOOK -> bookDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+        TombstoneEntityType.ANNOTATION -> annotationDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
+        TombstoneEntityType.SHELF -> {
+            val shelf = shelfDao.findBySyncId(tombstone.syncId) ?: return 0
+            if (shelf.updatedAt > tombstone.deletedAt) return 0
+            shelfDao.deleteBySyncId(tombstone.syncId)
+        }
+        TombstoneEntityType.VOCABULARY_CARD -> {
+            val card = vocabularyCardDao.findBySyncId(tombstone.syncId) ?: return 0
+            val cardVersion = card.lastReviewedAt ?: card.createdAt
+            if (cardVersion > tombstone.deletedAt) return 0
+            vocabularyCardDao.deleteBySyncId(tombstone.syncId)
+        }
+        else -> 0
+    }
 
     private suspend fun mergeCloudReadingSessions(snapshotJson: String): ReadingSessionMergeSummary =
         runCatchingCancellable {
@@ -1135,23 +1304,43 @@ class LibraryViewModel @Inject constructor(
         store: GitHubContentsAssetStore,
     ): ReadingProgressMergeSummary = runCatchingCancellable {
         val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
+        val tombstoneMerge = mergeCloudTombstones(snapshotJson)
         val cloudLibraryMerge = mergeCloudLibrary(snapshotJson, store)
+        val bookAliasMerge = mergeCloudBookAliases(snapshotJson)
+        val shelfMerge = mergeCloudShelves(snapshotJson)
+        val shelfMembershipMerge = mergeCloudShelfMemberships(snapshotJson)
+        val vocabularyCardMerge = mergeCloudVocabularyCards(snapshotJson)
         val readingSessionMerge = mergeCloudReadingSessions(snapshotJson)
         val wordLookupCounterMerge = mergeCloudWordLookupCounters(snapshotJson)
         val annotationMerge = mergeCloudAnnotations(snapshotJson)
         val failureMessage = cloudLibraryMerge.failureMessage
+            ?: tombstoneMerge.failureMessage
+            ?: bookAliasMerge.failureMessage
+            ?: shelfMerge.failureMessage
+            ?: shelfMembershipMerge.failureMessage
+            ?: vocabularyCardMerge.failureMessage
             ?: readingSessionMerge.failureMessage
             ?: wordLookupCounterMerge.failureMessage
             ?: annotationMerge.failureMessage
         progressMerge.copy(
             failed = progressMerge.failed ||
                 cloudLibraryMerge.failed ||
+                tombstoneMerge.failed ||
+                bookAliasMerge.failed ||
+                shelfMerge.failed ||
+                shelfMembershipMerge.failed ||
+                vocabularyCardMerge.failed ||
                 readingSessionMerge.failed ||
                 wordLookupCounterMerge.failed ||
                 annotationMerge.failed,
             failureMessage = progressMerge.failureMessage ?: failureMessage,
             skipped = progressMerge.skipped +
                 cloudLibraryMerge.skipped +
+                tombstoneMerge.skipped +
+                bookAliasMerge.skipped +
+                shelfMerge.skipped +
+                shelfMembershipMerge.skipped +
+                vocabularyCardMerge.skipped +
                 readingSessionMerge.skipped +
                 wordLookupCounterMerge.skipped +
                 annotationMerge.skipped,
@@ -1806,6 +1995,32 @@ private fun PortableAnnotation.toRecord(): AnnotationRecord? {
         isDeleted = isDeleted,
     )
 }
+
+
+private fun PortableShelf.toRecord(): CloudShelfRecord = CloudShelfRecord(
+    syncId = syncId,
+    name = name,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+private fun PortableShelfMembership.toRecord(): CloudShelfMembershipRecord = CloudShelfMembershipRecord(
+    bookSyncId = bookSyncId,
+    shelfSyncId = shelfSyncId,
+    createdAt = createdAt,
+)
+
+private fun PortableVocabularyCard.toRecord(): CloudVocabularyCardRecord = CloudVocabularyCardRecord(
+    syncId = syncId,
+    word = word,
+    definition = definition,
+    sentence = sentence,
+    bookSyncId = bookSyncId,
+    bookTitle = bookTitle,
+    createdAt = createdAt,
+    lastReviewedAt = lastReviewedAt,
+    known = known,
+)
 
 private data class GitHubSyncConfig(
     val owner: String,

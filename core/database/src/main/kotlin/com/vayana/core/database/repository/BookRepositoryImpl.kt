@@ -2,8 +2,12 @@ package com.vayana.core.database.repository
 
 import androidx.room.withTransaction
 import com.vayana.core.database.VayanaDatabase
+import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.TombstoneDao
+import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.BookEntity
+import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
@@ -16,6 +20,8 @@ import kotlinx.coroutines.flow.map
 class BookRepositoryImpl @Inject constructor(
     private val database: VayanaDatabase,
     private val bookDao: BookDao,
+    private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
 ) : BookRepository {
     private val _remoteReadingProgressApplied = MutableSharedFlow<RemoteReadingProgressApplied>(
         extraBufferCapacity = RemoteProgressEventBufferCapacity,
@@ -206,15 +212,30 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun softDelete(id: Long) {
-        bookDao.softDelete(id, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            bookDao.getById(id)?.let { book ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK, deletedAt = now))
+            }
+            bookDao.softDelete(id, now)
+        }
     }
 
     override suspend fun restore(id: Long) {
-        bookDao.restore(id, System.currentTimeMillis())
+        database.withTransaction {
+            bookDao.getById(id)?.let { book -> tombstoneDao.deleteBySyncId(book.syncId) }
+            bookDao.restore(id, System.currentTimeMillis())
+        }
     }
 
     override suspend fun purge(id: Long) {
-        bookDao.purge(id)
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            bookDao.getById(id)?.let { book ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK, deletedAt = now))
+            }
+            bookDao.purge(id)
+        }
     }
 
     override suspend fun markFinished(id: Long) {
@@ -321,8 +342,15 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
+        val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
+        if (tombstone != null && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
+            return CloudBookMergeResult.SKIPPED
+        }
         if (existing != null) {
+            if (existing.syncId != record.syncId) {
+                bookAliasDao.upsert(BookAliasEntity(syncId = record.syncId, fileHash = record.fileHash, createdAt = minOf(existing.createdAt, record.createdAt)))
+            }
             val hasSameAsset = existing.fileAssetId == record.assetId &&
                 existing.fileAssetSha256 == record.assetSha256 &&
                 existing.fileAssetSizeBytes == record.assetSizeBytes &&

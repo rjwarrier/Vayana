@@ -5,9 +5,11 @@ import androidx.room.Room
 import com.vayana.core.database.ALL_MIGRATIONS
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.AnnotationDao
+import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.ShelfDao
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.dao.VocabularyCardDao
 import com.vayana.core.database.dao.WordLookupStatDao
 import dagger.Module
@@ -45,4 +47,10 @@ object DatabaseModule {
 
     @Provides
     fun provideVocabularyCardDao(database: VayanaDatabase): VocabularyCardDao = database.vocabularyCardDao()
+
+    @Provides
+    fun provideBookAliasDao(database: VayanaDatabase): BookAliasDao = database.bookAliasDao()
+
+    @Provides
+    fun provideTombstoneDao(database: VayanaDatabase): TombstoneDao = database.tombstoneDao()
 }

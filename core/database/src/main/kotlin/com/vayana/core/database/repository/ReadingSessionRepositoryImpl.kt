@@ -2,6 +2,7 @@ package com.vayana.core.database.repository
 
 import androidx.room.withTransaction
 import com.vayana.core.database.VayanaDatabase
+import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.entity.ReadingSessionEntity
@@ -14,6 +15,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     private val database: VayanaDatabase,
     private val readingSessionDao: ReadingSessionDao,
     private val bookDao: BookDao,
+    private val bookAliasDao: BookAliasDao,
 ) : ReadingSessionRepository {
 
     override fun observeAll(): Flow<List<ReadingSession>> =
@@ -41,7 +43,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             return ReadingSessionMergeResult.SKIPPED
         }
         return database.withTransaction {
-            val book = bookDao.findBySyncId(record.bookSyncId) ?: return@withTransaction ReadingSessionMergeResult.SKIPPED
+            val book = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao) ?: return@withTransaction ReadingSessionMergeResult.SKIPPED
             val insertedId = readingSessionDao.insertIgnore(
                 ReadingSessionEntity(
                     syncId = record.syncId,

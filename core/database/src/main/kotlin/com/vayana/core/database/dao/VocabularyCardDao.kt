@@ -3,6 +3,7 @@ package com.vayana.core.database.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.vayana.core.database.entity.VocabularyCardEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -13,6 +14,15 @@ interface VocabularyCardDao {
 
     @Insert
     suspend fun insert(card: VocabularyCardEntity): Long
+
+    @Update
+    suspend fun update(card: VocabularyCardEntity)
+
+    @Query("SELECT * FROM vocabulary_cards WHERE id = :id")
+    suspend fun getById(id: Long): VocabularyCardEntity?
+
+    @Query("SELECT * FROM vocabulary_cards WHERE syncId = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): VocabularyCardEntity?
 
     /** Never-reviewed cards first, then the least-recently reviewed - "review five words" pulls from the front. */
     @Query(
@@ -26,6 +36,9 @@ interface VocabularyCardDao {
 
     @Query("DELETE FROM vocabulary_cards WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("DELETE FROM vocabulary_cards WHERE syncId = :syncId")
+    suspend fun deleteBySyncId(syncId: String): Int
 
     @Query("SELECT * FROM vocabulary_cards ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<VocabularyCardEntity>

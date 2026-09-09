@@ -3,8 +3,11 @@ package com.vayana.core.database.repository
 import androidx.room.withTransaction
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.AnnotationDao
+import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.AnnotationEntity
+import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import javax.inject.Inject
@@ -15,6 +18,8 @@ class AnnotationRepositoryImpl @Inject constructor(
     private val database: VayanaDatabase,
     private val annotationDao: AnnotationDao,
     private val bookDao: BookDao,
+    private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
 ) : AnnotationRepository {
 
     override fun observeAll(): Flow<List<Annotation>> =
@@ -70,22 +75,38 @@ class AnnotationRepositoryImpl @Inject constructor(
     }
 
     override suspend fun softDelete(id: Long) {
-        annotationDao.softDelete(id, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            annotationDao.getById(id)?.let { annotation ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION, deletedAt = now))
+            }
+            annotationDao.softDelete(id, now)
+        }
     }
 
     override suspend fun restore(id: Long) {
-        annotationDao.restore(id, System.currentTimeMillis())
+        database.withTransaction {
+            annotationDao.getById(id)?.let { annotation -> tombstoneDao.deleteBySyncId(annotation.syncId) }
+            annotationDao.restore(id, System.currentTimeMillis())
+        }
     }
 
     override suspend fun purge(id: Long) {
-        annotationDao.purge(id)
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            annotationDao.getById(id)?.let { annotation ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION, deletedAt = now))
+            }
+            annotationDao.purge(id)
+        }
     }
 
     override suspend fun mergeCloudAnnotation(record: AnnotationRecord): AnnotationMergeResult = database.withTransaction {
+        if (tombstoneDao.findBySyncId(record.syncId) != null && !record.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE
         val existing = annotationDao.findBySyncId(record.syncId)
         if (existing == null) {
             if (record.isDeleted) return@withTransaction AnnotationMergeResult.NO_CHANGE
-            val bookId = bookDao.findBySyncId(record.bookSyncId)?.id
+            val bookId = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao)?.id
                 ?: return@withTransaction AnnotationMergeResult.NO_LOCAL_BOOK
             annotationDao.insert(
                 AnnotationEntity(

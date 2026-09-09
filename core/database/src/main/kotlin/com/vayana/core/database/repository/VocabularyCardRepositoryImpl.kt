@@ -1,6 +1,12 @@
 package com.vayana.core.database.repository
 
+import androidx.room.withTransaction
+import com.vayana.core.database.VayanaDatabase
+import com.vayana.core.database.dao.BookAliasDao
+import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.dao.VocabularyCardDao
+import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.entity.VocabularyCardEntity
 import com.vayana.core.database.model.VocabularyCard
 import javax.inject.Inject
@@ -8,7 +14,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class VocabularyCardRepositoryImpl @Inject constructor(
+    private val database: VayanaDatabase,
     private val vocabularyCardDao: VocabularyCardDao,
+    private val bookDao: BookDao,
+    private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
 ) : VocabularyCardRepository {
 
     override fun observeAll(): Flow<List<VocabularyCard>> =
@@ -37,7 +47,55 @@ class VocabularyCardRepositoryImpl @Inject constructor(
     }
 
     override suspend fun delete(id: Long) {
-        vocabularyCardDao.delete(id)
+        database.withTransaction {
+            vocabularyCardDao.getById(id)?.let { card ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = card.syncId, entityType = TombstoneEntityType.VOCABULARY_CARD, deletedAt = System.currentTimeMillis()))
+            }
+            vocabularyCardDao.delete(id)
+        }
+    }
+
+    override suspend fun mergeCloudCard(record: CloudVocabularyCardRecord): VocabularyCardMergeResult = database.withTransaction {
+        if (record.syncId.isBlank() || record.word.isBlank() || record.definition.isBlank() || record.createdAt <= 0L) {
+            return@withTransaction VocabularyCardMergeResult.SKIPPED
+        }
+        val existing = vocabularyCardDao.findBySyncId(record.syncId)
+        val tombstone = tombstoneDao.findBySyncId(record.syncId)
+        val remoteVersion = record.lastReviewedAt ?: record.createdAt
+        if (tombstone != null && (existing == null || remoteVersion <= tombstone.deletedAt)) {
+            return@withTransaction VocabularyCardMergeResult.SKIPPED
+        }
+        val localBookId = record.bookSyncId?.let { bookDao.findActiveBySyncIdOrAlias(it, bookAliasDao)?.id }
+        if (existing == null) {
+            vocabularyCardDao.insert(
+                VocabularyCardEntity(
+                    syncId = record.syncId,
+                    word = record.word,
+                    definition = record.definition,
+                    sentence = record.sentence,
+                    bookId = localBookId,
+                    bookTitle = record.bookTitle,
+                    createdAt = record.createdAt,
+                    lastReviewedAt = record.lastReviewedAt,
+                    known = record.known,
+                ),
+            )
+            return@withTransaction VocabularyCardMergeResult.CREATED
+        }
+        val localVersion = existing.lastReviewedAt ?: existing.createdAt
+        if (remoteVersion <= localVersion) return@withTransaction VocabularyCardMergeResult.SKIPPED
+        vocabularyCardDao.update(
+            existing.copy(
+                word = record.word,
+                definition = record.definition,
+                sentence = record.sentence,
+                bookId = localBookId ?: existing.bookId,
+                bookTitle = record.bookTitle ?: existing.bookTitle,
+                lastReviewedAt = record.lastReviewedAt,
+                known = record.known,
+            ),
+        )
+        VocabularyCardMergeResult.UPDATED
     }
 }
 

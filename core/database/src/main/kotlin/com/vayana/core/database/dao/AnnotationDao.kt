@@ -36,6 +36,9 @@ interface AnnotationDao {
     @Query("UPDATE annotations SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long)
 
+    @Query("UPDATE annotations SET isDeleted = 1, updatedAt = :updatedAt WHERE syncId = :syncId AND isDeleted = 0 AND updatedAt <= :updatedAt")
+    suspend fun softDeleteBySyncId(syncId: String, updatedAt: Long): Int
+
     @Query("UPDATE annotations SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
     suspend fun restore(id: Long, updatedAt: Long)
 

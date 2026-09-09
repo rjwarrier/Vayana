@@ -11,6 +11,8 @@ data class PortableSnapshot(
     val readingSessions: List<PortableReadingSession>,
     val vocabularyCards: List<PortableVocabularyCard>,
     val wordLookupCounters: List<PortableWordLookupCounter>,
+    val bookAliases: List<PortableBookAlias> = emptyList(),
+    val tombstones: List<PortableTombstone> = emptyList(),
     val settings: Map<String, String>,
     val syncConflicts: List<PortableSyncConflict> = emptyList(),
 )
@@ -110,6 +112,18 @@ data class PortableWordLookupCounter(
     val writerOrigin: String,
     val count: Int,
     val lastLookedUpAt: Long,
+)
+
+data class PortableBookAlias(
+    val syncId: String,
+    val fileHash: String,
+    val createdAt: Long,
+)
+
+data class PortableTombstone(
+    val syncId: String,
+    val entityType: String,
+    val deletedAt: Long,
 )
 
 data class PortableSyncConflict(

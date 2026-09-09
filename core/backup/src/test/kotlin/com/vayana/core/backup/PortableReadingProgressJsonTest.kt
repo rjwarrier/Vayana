@@ -574,6 +574,42 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
+    fun parsesAdditionalSyncSlicesFromSnapshot() {
+        val json = """
+            {
+              "shelves": [
+                {"syncId":"shelf-a","name":"Favorites","createdAt":1000,"updatedAt":1100}
+              ],
+              "shelfMemberships": [
+                {"bookSyncId":"book-a","shelfSyncId":"shelf-a","createdAt":1200}
+              ],
+              "vocabularyCards": [
+                {"syncId":"vocab-a","word":"luminous","definition":"full of light","sentence":"A luminous sky","bookSyncId":"book-a","bookTitle":"Night","createdAt":1300,"lastReviewedAt":1400,"known":true}
+              ],
+              "bookAliases": [
+                {"syncId":"book-remote","fileHash":"sha-a","createdAt":900}
+              ],
+              "tombstones": [
+                {"syncId":"shelf-deleted","entityType":"shelf","deletedAt":1500}
+              ]
+            }
+        """.trimIndent()
+
+        val shelves = parsePortableShelves(json)
+        val memberships = parsePortableShelfMemberships(json)
+        val cards = parsePortableVocabularyCards(json)
+        val aliases = parsePortableBookAliases(json)
+        val tombstones = parsePortableTombstones(json)
+
+        assertEquals("Favorites", shelves.single().name)
+        assertEquals("book-a", memberships.single().bookSyncId)
+        assertEquals("luminous", cards.single().word)
+        assertEquals(true, cards.single().known)
+        assertEquals("book-remote", aliases.single().syncId)
+        assertEquals("shelf", tombstones.single().entityType)
+    }
+
+    @Test
     fun serializesReadingPositionConflictAlternatives() {
         val snapshot = PortableSnapshot(
             formatVersion = 1,

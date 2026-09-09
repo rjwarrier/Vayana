@@ -2,16 +2,20 @@ package com.vayana.core.backup
 
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.dao.AnnotationDao
+import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.ShelfDao
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.dao.VocabularyCardDao
 import com.vayana.core.database.dao.WordLookupStatDao
 import com.vayana.core.database.entity.AnnotationEntity
+import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.entity.BookShelfCrossRefEntity
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.entity.ShelfEntity
+import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.entity.VocabularyCardEntity
 import com.vayana.core.database.entity.WordLookupStatEntity
 import com.vayana.core.database.model.BookFileAvailability
@@ -29,6 +33,8 @@ class SnapshotExporter @Inject constructor(
     private val annotationDao: AnnotationDao,
     private val shelfDao: ShelfDao,
     private val readingSessionDao: ReadingSessionDao,
+    private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
     private val vocabularyCardDao: VocabularyCardDao,
     private val wordLookupStatDao: WordLookupStatDao,
     private val settingsRepository: SettingsRepository,
@@ -66,6 +72,12 @@ class SnapshotExporter @Inject constructor(
             wordLookupCounters = wordLookupStatDao.getAllForSync()
                 .map { it.toPortable() }
                 .sortedWith(compareBy({ it.word.lowercase() }, { it.writerOrigin })),
+            bookAliases = bookAliasDao.getAll()
+                .map { it.toPortable() }
+                .sortedWith(compareBy({ it.fileHash }, { it.syncId })),
+            tombstones = tombstoneDao.getAll()
+                .map { it.toPortable() }
+                .sortedWith(compareBy({ it.entityType }, { it.deletedAt }, { it.syncId })),
             settings = settings,
         )
     }
@@ -171,6 +183,18 @@ class SnapshotExporter @Inject constructor(
         writerOrigin = writerOrigin,
         count = count,
         lastLookedUpAt = lastLookedUpAt,
+    )
+
+    private fun BookAliasEntity.toPortable(): PortableBookAlias = PortableBookAlias(
+        syncId = syncId,
+        fileHash = fileHash,
+        createdAt = createdAt,
+    )
+
+    private fun TombstoneEntity.toPortable(): PortableTombstone = PortableTombstone(
+        syncId = syncId,
+        entityType = entityType,
+        deletedAt = deletedAt,
     )
 
     private fun String?.toPortableAsset(sha256: String?, sizeBytes: Long?, uploadedAt: Long?): PortableAsset? {

@@ -14,6 +14,12 @@ interface TombstoneDao {
     @Query("SELECT * FROM tombstones WHERE entityType = :entityType")
     suspend fun getByType(entityType: String): List<TombstoneEntity>
 
+    @Query("SELECT * FROM tombstones WHERE syncId = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): TombstoneEntity?
+
     @Query("SELECT * FROM tombstones")
     suspend fun getAll(): List<TombstoneEntity>
+
+    @Query("DELETE FROM tombstones WHERE syncId = :syncId")
+    suspend fun deleteBySyncId(syncId: String)
 }

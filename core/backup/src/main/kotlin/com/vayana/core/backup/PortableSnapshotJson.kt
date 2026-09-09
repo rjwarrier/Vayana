@@ -94,6 +94,101 @@ fun parsePortableWordLookupCounters(jsonText: String): List<PortableWordLookupCo
     }
 }
 
+
+fun parsePortableShelves(jsonText: String): List<PortableShelf> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("shelves") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotShelves) { "Portable snapshot has too many shelves" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val syncId = obj.optSnapshotBoundedString("syncId", MaxSnapshotSyncIdChars) ?: continue
+            val name = obj.optSnapshotBoundedString("name", MaxSnapshotTitleChars) ?: continue
+            val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L } ?: continue
+            val updatedAt = obj.optLong("updatedAt", 0L).takeIf { it > 0L } ?: continue
+            add(PortableShelf(syncId = syncId, name = name, createdAt = createdAt, updatedAt = updatedAt))
+        }
+    }
+}
+
+fun parsePortableShelfMemberships(jsonText: String): List<PortableShelfMembership> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("shelfMemberships") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotShelfMemberships) { "Portable snapshot has too many shelf memberships" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val bookSyncId = obj.optSnapshotBoundedString("bookSyncId", MaxSnapshotSyncIdChars) ?: continue
+            val shelfSyncId = obj.optSnapshotBoundedString("shelfSyncId", MaxSnapshotSyncIdChars) ?: continue
+            val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L } ?: continue
+            add(PortableShelfMembership(bookSyncId = bookSyncId, shelfSyncId = shelfSyncId, createdAt = createdAt))
+        }
+    }
+}
+
+fun parsePortableVocabularyCards(jsonText: String): List<PortableVocabularyCard> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("vocabularyCards") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotVocabularyCards) { "Portable snapshot has too many vocabulary cards" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val syncId = obj.optSnapshotBoundedString("syncId", MaxSnapshotSyncIdChars) ?: continue
+            val word = obj.optSnapshotBoundedString("word", MaxSnapshotWordChars) ?: continue
+            val definition = obj.optSnapshotBoundedString("definition", MaxSnapshotTextChars) ?: continue
+            val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L } ?: continue
+            add(
+                PortableVocabularyCard(
+                    syncId = syncId,
+                    word = word,
+                    definition = definition,
+                    sentence = obj.optSnapshotBoundedString("sentence", MaxSnapshotTextChars),
+                    bookSyncId = obj.optSnapshotBoundedString("bookSyncId", MaxSnapshotSyncIdChars),
+                    bookTitle = obj.optSnapshotBoundedString("bookTitle", MaxSnapshotTitleChars),
+                    createdAt = createdAt,
+                    lastReviewedAt = obj.optLong("lastReviewedAt", 0L).takeIf { it > 0L },
+                    known = obj.optBoolean("known", false),
+                ),
+            )
+        }
+    }
+}
+
+fun parsePortableBookAliases(jsonText: String): List<PortableBookAlias> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("bookAliases") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotBookAliases) { "Portable snapshot has too many book aliases" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val syncId = obj.optSnapshotBoundedString("syncId", MaxSnapshotSyncIdChars) ?: continue
+            val fileHash = obj.optSnapshotBoundedString("fileHash", MaxSnapshotFileHashChars) ?: continue
+            val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L } ?: continue
+            add(PortableBookAlias(syncId = syncId, fileHash = fileHash, createdAt = createdAt))
+        }
+    }
+}
+
+fun parsePortableTombstones(jsonText: String): List<PortableTombstone> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val array = root.optJSONArray("tombstones") ?: return emptyList()
+    require(array.length() <= MaxPortableSnapshotTombstones) { "Portable snapshot has too many tombstones" }
+    return buildList {
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val syncId = obj.optSnapshotBoundedString("syncId", MaxSnapshotSyncIdChars) ?: continue
+            val entityType = obj.optSnapshotBoundedString("entityType", MaxSnapshotEnumChars) ?: continue
+            val deletedAt = obj.optLong("deletedAt", 0L).takeIf { it > 0L } ?: continue
+            add(PortableTombstone(syncId = syncId, entityType = entityType, deletedAt = deletedAt))
+        }
+    }
+}
+
 private fun JSONObject.optSnapshotBoundedString(name: String, maxChars: Int): String? =
     optString(name).trim().takeIf { it.isNotEmpty() && it.length <= maxChars }
 
@@ -101,6 +196,11 @@ private const val MaxPortableSnapshotJsonChars = 16 * 1024 * 1024
 private const val MaxPortableSnapshotAnnotations = 100_000
 private const val MaxPortableSnapshotReadingSessions = 200_000
 private const val MaxPortableSnapshotWordLookupCounters = 100_000
+private const val MaxPortableSnapshotShelves = 20_000
+private const val MaxPortableSnapshotShelfMemberships = 100_000
+private const val MaxPortableSnapshotVocabularyCards = 100_000
+private const val MaxPortableSnapshotBookAliases = 20_000
+private const val MaxPortableSnapshotTombstones = 100_000
 private const val MaxSnapshotSyncIdChars = 120
 private const val MaxSnapshotEnumChars = 40
 private const val MaxSnapshotLocatorChars = 16_384
@@ -108,6 +208,7 @@ private const val MaxSnapshotTitleChars = 512
 private const val MaxSnapshotTextChars = 16_384
 private const val MaxSnapshotWordChars = 120
 private const val MaxSnapshotWriterOriginChars = 120
+private const val MaxSnapshotFileHashChars = 256
 
 fun PortableSnapshot.toJsonString(): String =
     JSONObject()
@@ -121,6 +222,8 @@ fun PortableSnapshot.toJsonString(): String =
         .put("readingSessions", readingSessions.toJsonArray { it.toJson() })
         .put("vocabularyCards", vocabularyCards.toJsonArray { it.toJson() })
         .put("wordLookupCounters", wordLookupCounters.toJsonArray { it.toJson() })
+        .put("bookAliases", bookAliases.toJsonArray { it.toJson() })
+        .put("tombstones", tombstones.toJsonArray { it.toJson() })
         .put("settings", JSONObject(settings))
         .put("syncConflicts", syncConflicts.toJsonArray { it.toJson() })
         .toString(2)
@@ -221,6 +324,18 @@ private fun PortableWordLookupCounter.toJson(): JSONObject =
         .put("writerOrigin", writerOrigin)
         .put("count", count)
         .put("lastLookedUpAt", lastLookedUpAt)
+
+private fun PortableBookAlias.toJson(): JSONObject =
+    JSONObject()
+        .put("syncId", syncId)
+        .put("fileHash", fileHash)
+        .put("createdAt", createdAt)
+
+private fun PortableTombstone.toJson(): JSONObject =
+    JSONObject()
+        .put("syncId", syncId)
+        .put("entityType", entityType)
+        .put("deletedAt", deletedAt)
 
 private fun PortableSyncConflict.toJson(): JSONObject =
     JSONObject()

@@ -1,8 +1,14 @@
 package com.vayana.core.database.repository
 
+import androidx.room.withTransaction
+import com.vayana.core.database.VayanaDatabase
+import com.vayana.core.database.dao.BookAliasDao
+import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ShelfDao
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.BookShelfCrossRefEntity
 import com.vayana.core.database.entity.ShelfEntity
+import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.Shelf
 import javax.inject.Inject
@@ -10,7 +16,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class ShelfRepositoryImpl @Inject constructor(
+    private val database: VayanaDatabase,
     private val shelfDao: ShelfDao,
+    private val bookDao: BookDao,
+    private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
 ) : ShelfRepository {
 
     override fun observeAll(): Flow<List<Shelf>> =
@@ -28,7 +38,12 @@ class ShelfRepositoryImpl @Inject constructor(
     }
 
     override suspend fun delete(id: Long) {
-        shelfDao.delete(id)
+        database.withTransaction {
+            shelfDao.getById(id)?.let { shelf ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = shelf.syncId, entityType = TombstoneEntityType.SHELF, deletedAt = System.currentTimeMillis()))
+            }
+            shelfDao.delete(id)
+        }
     }
 
     override fun observeBooksForShelf(shelfId: Long): Flow<List<Book>> =
@@ -45,6 +60,36 @@ class ShelfRepositoryImpl @Inject constructor(
 
     override suspend fun removeBookFromShelf(bookId: Long, shelfId: Long) {
         shelfDao.removeBookFromShelf(bookId, shelfId)
+    }
+
+    override suspend fun mergeCloudShelf(record: CloudShelfRecord): ShelfMergeResult = database.withTransaction {
+        if (record.syncId.isBlank() || record.name.isBlank() || record.createdAt <= 0L || record.updatedAt <= 0L) {
+            return@withTransaction ShelfMergeResult.SKIPPED
+        }
+        val tombstone = tombstoneDao.findBySyncId(record.syncId)
+        val existing = shelfDao.findBySyncId(record.syncId)
+        if (tombstone != null && (existing == null || existing.updatedAt <= tombstone.deletedAt)) {
+            return@withTransaction ShelfMergeResult.SKIPPED
+        }
+        if (existing == null) {
+            shelfDao.insert(ShelfEntity(syncId = record.syncId, name = record.name, createdAt = record.createdAt, updatedAt = record.updatedAt))
+            return@withTransaction ShelfMergeResult.CREATED
+        }
+        if (record.updatedAt <= existing.updatedAt) return@withTransaction ShelfMergeResult.SKIPPED
+        shelfDao.update(existing.copy(name = record.name, updatedAt = record.updatedAt))
+        ShelfMergeResult.UPDATED
+    }
+
+    override suspend fun mergeCloudMembership(record: CloudShelfMembershipRecord): ShelfMembershipMergeResult = database.withTransaction {
+        val book = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao) ?: return@withTransaction ShelfMembershipMergeResult.SKIPPED
+        val shelf = shelfDao.findBySyncId(record.shelfSyncId) ?: return@withTransaction ShelfMembershipMergeResult.SKIPPED
+        if (tombstoneDao.findBySyncId(record.bookSyncId) != null || tombstoneDao.findBySyncId(record.shelfSyncId) != null) {
+            return@withTransaction ShelfMembershipMergeResult.SKIPPED
+        }
+        val inserted = shelfDao.addBookToShelfIfAbsent(
+            BookShelfCrossRefEntity(bookId = book.id, shelfId = shelf.id, createdAt = record.createdAt),
+        )
+        if (inserted >= 0L) ShelfMembershipMergeResult.CREATED else ShelfMembershipMergeResult.SKIPPED
     }
 }
 

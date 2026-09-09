@@ -25,6 +25,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE syncId = :syncId AND isDeleted = 0 LIMIT 1")
     suspend fun findBySyncId(syncId: String): BookEntity?
 
+    @Query("SELECT * FROM books WHERE syncId = :syncId LIMIT 1")
+    suspend fun findAnyBySyncId(syncId: String): BookEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(book: BookEntity): Long
 
@@ -33,6 +36,9 @@ interface BookDao {
 
     @Query("UPDATE books SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long)
+
+    @Query("UPDATE books SET isDeleted = 1, updatedAt = :updatedAt WHERE syncId = :syncId AND isDeleted = 0 AND updatedAt <= :updatedAt")
+    suspend fun softDeleteBySyncId(syncId: String, updatedAt: Long): Int
 
     @Query("UPDATE books SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
     suspend fun restore(id: Long, updatedAt: Long)

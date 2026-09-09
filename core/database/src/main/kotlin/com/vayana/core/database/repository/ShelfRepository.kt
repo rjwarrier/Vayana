@@ -4,6 +4,23 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.Shelf
 import kotlinx.coroutines.flow.Flow
 
+data class CloudShelfRecord(
+    val syncId: String,
+    val name: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+data class CloudShelfMembershipRecord(
+    val bookSyncId: String,
+    val shelfSyncId: String,
+    val createdAt: Long,
+)
+
+enum class ShelfMergeResult { CREATED, UPDATED, SKIPPED }
+
+enum class ShelfMembershipMergeResult { CREATED, SKIPPED }
+
 interface ShelfRepository {
     fun observeAll(): Flow<List<Shelf>>
 
@@ -22,4 +39,8 @@ interface ShelfRepository {
     suspend fun addBookToShelf(bookId: Long, shelfId: Long)
 
     suspend fun removeBookFromShelf(bookId: Long, shelfId: Long)
+
+    suspend fun mergeCloudShelf(record: CloudShelfRecord): ShelfMergeResult
+
+    suspend fun mergeCloudMembership(record: CloudShelfMembershipRecord): ShelfMembershipMergeResult
 }

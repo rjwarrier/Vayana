@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.entity.BookShelfCrossRefEntity
 import com.vayana.core.database.entity.ShelfEntity
@@ -17,8 +18,14 @@ interface ShelfDao {
     @Query("SELECT * FROM shelves WHERE id = :id")
     suspend fun getById(id: Long): ShelfEntity?
 
+    @Query("SELECT * FROM shelves WHERE syncId = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): ShelfEntity?
+
     @Insert
     suspend fun insert(shelf: ShelfEntity): Long
+
+    @Update
+    suspend fun update(shelf: ShelfEntity)
 
     @Query("UPDATE shelves SET name = :name, updatedAt = :updatedAt WHERE id = :id")
     suspend fun rename(id: Long, name: String, updatedAt: Long)
@@ -26,8 +33,14 @@ interface ShelfDao {
     @Query("DELETE FROM shelves WHERE id = :id")
     suspend fun delete(id: Long)
 
+    @Query("DELETE FROM shelves WHERE syncId = :syncId")
+    suspend fun deleteBySyncId(syncId: String): Int
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addBookToShelf(crossRef: BookShelfCrossRefEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addBookToShelfIfAbsent(crossRef: BookShelfCrossRefEntity): Long
 
     @Query("DELETE FROM book_shelf_cross_ref WHERE bookId = :bookId AND shelfId = :shelfId")
     suspend fun removeBookFromShelf(bookId: Long, shelfId: Long)

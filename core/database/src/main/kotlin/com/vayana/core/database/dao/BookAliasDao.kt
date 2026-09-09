@@ -14,6 +14,9 @@ interface BookAliasDao {
     @Query("SELECT * FROM book_aliases WHERE fileHash = :fileHash LIMIT 1")
     suspend fun findByFileHash(fileHash: String): BookAliasEntity?
 
+    @Query("SELECT * FROM book_aliases WHERE syncId = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): BookAliasEntity?
+
     @Query("SELECT * FROM book_aliases")
     suspend fun getAll(): List<BookAliasEntity>
 }
