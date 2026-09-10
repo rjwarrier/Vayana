@@ -378,13 +378,14 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             "relocate" -> {
                 val locator = Locator(
                     cfi = payload.optStringOrNull("cfi"),
-                    href = null,
+                    href = payload.optStringOrNull("tocHref"),
                     progression = payload.optDouble("fraction", 0.0).toFloat(),
                     chapterTitle = payload.optStringOrNull("tocLabel"),
                     currentPage = payload.optIntOrNull("currentPage"),
                     totalPages = payload.optIntOrNull("totalPages"),
                     chapterMinutesLeft = payload.optMinutesOrNull("chapterMinutesLeft"),
                     bookMinutesLeft = payload.optMinutesOrNull("bookMinutesLeft"),
+                    tocPages = payload.optJSONObject("tocPages")?.toIntMap() ?: emptyMap(),
                 )
                 _location.value = locator
                 _events.tryEmit(EngineEvent.Relocated(locator))
@@ -441,6 +442,10 @@ private fun JSONObject.optStringOrNull(name: String): String? =
 
 private fun JSONObject.optIntOrNull(name: String): Int? =
     if (has(name) && !isNull(name)) getInt(name) else null
+
+private fun JSONObject.toIntMap(): Map<String, Int> = buildMap {
+    for (key in keys()) optIntOrNull(key)?.let { put(key, it) }
+}
 
 private fun JSONObject.optMinutesOrNull(name: String): Int? =
     if (has(name) && !isNull(name)) ceil(getDouble(name)).toInt().coerceAtLeast(0) else null

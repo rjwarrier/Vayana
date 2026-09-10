@@ -2,13 +2,18 @@ package com.vayana.core.designsystem.sharecard
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,7 +22,10 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ShortText
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -41,7 +50,11 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
+import com.vayana.core.common.ShareImageFormat
 import com.vayana.core.common.shareBitmap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.unit.IntSize
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
@@ -52,7 +65,12 @@ import kotlinx.coroutines.launch
 
 /**
  * Renders [card] into a preview dialog with "share as text" and "share as image" actions.
- * [card] should size itself to [Sizes.shareCardWidth] and stay opaque so the capture looks right.
+ * [card] should size itself to [Sizes.shareCardWidth] and stay opaque and unclipped so the capture looks
+ * right: only the preview is rounded, so the exported image is a full-bleed square with no transparent
+ * corners (which most share targets flatten to black).
+ *
+ * [options], when given, sits between the preview and the actions and scrolls on its own, so the preview
+ * stays in view and redraws live as the viewer changes what the card shows.
  */
 @Composable
 fun ShareCardDialog(
@@ -63,29 +81,31 @@ fun ShareCardDialog(
     shareImageLabel: String,
     modifier: Modifier = Modifier,
     shareImageFileName: String? = null,
-    shareImageOptionsDialog: (@Composable (
-        onDismiss: () -> Unit,
-        onShareImage: () -> Unit,
-        isCapturing: Boolean,
-    ) -> Unit)? = null,
+    title: String? = null,
+    options: (@Composable () -> Unit)? = null,
     card: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val graphicsLayer = rememberGraphicsLayer()
+    val exportLayer = rememberGraphicsLayer()
     var isCapturing by remember { mutableStateOf(false) }
-    var showImageOptions by remember { mutableStateOf(false) }
 
     fun shareImage() {
         isCapturing = true
         scope.launch {
-            val captured = graphicsLayer.toImageBitmap().asAndroidBitmap()
-            val exportSize = Sizes.shareCardExportPx
-            val squared = Bitmap.createScaledBitmap(captured, exportSize, exportSize, true)
-            context.shareBitmap(squared, chooserTitle, shareImageFileName)
-            isCapturing = false
-            showImageOptions = false
-            onDismiss()
+            try {
+                val captured = exportLayer.toImageBitmap().asAndroidBitmap()
+                // Hardware bitmaps can't be read back for encoding; take a plain copy first.
+                val bitmap = if (captured.config == Bitmap.Config.HARDWARE) {
+                    captured.copy(Bitmap.Config.ARGB_8888, false)
+                } else {
+                    captured
+                }
+                context.shareBitmap(bitmap, chooserTitle, shareImageFileName, ShareImageFormat.JPEG)
+                onDismiss()
+            } finally {
+                isCapturing = false
+            }
         }
     }
 
@@ -101,15 +121,44 @@ fun ShareCardDialog(
                     .wrapContentWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                title?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = Spacing.md),
+                    )
+                }
                 Box(
                     modifier = Modifier
-                        .clip(Radii.appIconShape)
+                        .clip(RoundedCornerShape(Radii.large))
                         .drawWithContent {
-                            graphicsLayer.record { this@drawWithContent.drawContent() }
-                            drawLayer(graphicsLayer)
+                            // Recorded straight at the export size instead of captured from the screen and
+                            // upscaled, so text and shapes stay sharp in the saved image.
+                            val exportSize = Sizes.shareCardExportPx
+                            val exportScale = exportSize / size.width
+                            exportLayer.record(size = IntSize(exportSize, exportSize)) {
+                                scale(exportScale, pivot = Offset.Zero) {
+                                    this@drawWithContent.drawContent()
+                                }
+                            }
+                            drawContent()
                         },
                 ) {
                     card()
+                }
+                if (options != null) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        options()
+                    }
                 }
                 Spacer(modifier = Modifier.height(Spacing.lg))
                 Row(
@@ -120,16 +169,17 @@ fun ShareCardDialog(
                         onClick = onShareText,
                         modifier = Modifier.weight(1f),
                     ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ShortText,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                         Text(text = shareTextLabel)
                     }
                     Button(
-                        onClick = {
-                            if (shareImageOptionsDialog == null) {
-                                shareImage()
-                            } else {
-                                showImageOptions = true
-                            }
-                        },
+                        onClick = ::shareImage,
+                        enabled = !isCapturing,
                         modifier = Modifier.weight(1f),
                     ) {
                         if (isCapturing) {
@@ -138,6 +188,12 @@ fun ShareCardDialog(
                                 color = MaterialTheme.colorScheme.onPrimary,
                             )
                         } else {
+                            Icon(
+                                imageVector = Icons.Outlined.Image,
+                                contentDescription = null,
+                                modifier = Modifier.size(ButtonDefaults.IconSize),
+                            )
+                            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                             Text(text = shareImageLabel)
                         }
                     }
@@ -145,27 +201,21 @@ fun ShareCardDialog(
             }
         }
     }
-
-    if (showImageOptions && shareImageOptionsDialog != null) {
-        shareImageOptionsDialog(
-            { showImageOptions = false },
-            ::shareImage,
-            isCapturing,
-        )
-    }
 }
 
-/** Small brand lockup ("vayana" + a book glyph) printed on every share card, fixed brand colors. */
+/** Small brand lockup ("vayana", optionally led by a book glyph) printed on every share card, fixed brand colors. */
 @Composable
-private fun ShareCardWordmark(tint: Color, wordmark: String) {
+private fun ShareCardWordmark(tint: Color, wordmark: String, showGlyph: Boolean = true) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = Icons.Outlined.AutoStories,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(Sizes.icon),
-        )
-        Spacer(modifier = Modifier.width(Spacing.xs))
+        if (showGlyph) {
+            Icon(
+                imageVector = Icons.Outlined.AutoStories,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(Sizes.icon),
+            )
+            Spacer(modifier = Modifier.width(Spacing.xs))
+        }
         Text(text = wordmark, style = ShareCardTypography.wordmark, color = tint)
     }
 }
@@ -191,7 +241,6 @@ fun QuoteShareCard(
         modifier = modifier
             .width(Sizes.shareCardWidth)
             .aspectRatio(1f)
-            .clip(Radii.appIconShape)
             .background(Palette.Navy900)
             .padding(Spacing.xl),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -274,117 +323,77 @@ fun BookShareCard(
     showTags: Boolean = true,
     showImportedDate: Boolean = true,
     showTagline: Boolean = true,
+    layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
+    /** Reading progress 0..1, drawn as a bar by [BookShareCardLayout.MINIMAL]. */
+    progressFraction: Float? = null,
     cover: @Composable () -> Unit,
 ) {
     val colors = theme.bookColors()
-    val visibleTags = if (showTags) {
-        tags.map { it.sanitizedShareTag() }
-            .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
-            .take(MaxBookShareTags)
-    } else {
-        emptyList()
-    }
-    Column(
+    val content = BookShareContent(
+        title = title,
+        author = author?.takeIf { showAuthor && it.isNotBlank() },
+        status = statusLabel.takeIf { showStatus },
+        tags = if (showTags) {
+            tags.map { it.sanitizedShareTag() }
+                .filter { it.isNotBlank() }
+                .distinctBy { it.lowercase() }
+                .take(MaxBookShareTags)
+        } else {
+            emptyList()
+        },
+        stats = buildList {
+            if (showProgress) add(BookShareStat(stat1Value, stat1Label))
+            if (showReadTime) add(BookShareStat(stat2Value, stat2Label))
+            if (showRating && !ratingValue.isNullOrBlank()) add(BookShareStat(ratingValue, ratingLabel))
+        },
+        progressFraction = progressFraction?.takeIf { showProgress }?.coerceIn(0f, 1f),
+    )
+    Box(
         modifier = modifier
             .width(Sizes.shareCardWidth)
             .aspectRatio(1f)
-            .clip(Radii.appIconShape)
-            .background(colors.background)
-            .padding(Spacing.xl),
-        verticalArrangement = Arrangement.SpaceBetween,
+            .background(colors.background),
     ) {
-        ShareCardWordmark(tint = colors.accent, wordmark = watermark)
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (showCover) {
-                Box(
-                    modifier = Modifier
-                        .width(Sizes.shareCardCoverWidth)
-                        .height(Sizes.shareCardCoverWidth / Sizes.coverAspectRatio)
-                        .clip(RoundedCornerShape(Radii.small)),
-                ) {
-                    cover()
-                }
-                Spacer(modifier = Modifier.width(Spacing.lg))
+        if (layout == BookShareCardLayout.BACKDROP && showCover) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .alpha(BackdropCoverAlpha),
+            ) {
+                cover()
             }
-            Column(modifier = Modifier.weight(1f)) {
-                if (showStatus) {
-                    ShareCardCaption(text = statusLabel, color = colors.accent)
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                }
-                Text(
-                    text = title,
-                    style = ShareCardTypography.bookTitle,
-                    color = colors.primaryText,
-                    maxLines = if (showCover) 3 else 5,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                author?.takeIf { showAuthor && it.isNotBlank() }?.let {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Text(text = it, style = ShareCardTypography.bookAuthor, color = colors.mutedText)
-                }
-                if (visibleTags.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    Text(
-                        text = visibleTags.joinToString(", "),
-                        style = ShareCardTypography.cardSubtitleMono,
-                        color = colors.accent,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (showProgress || showReadTime || (showRating && !ratingValue.isNullOrBlank())) {
+        }
+        Column(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(Spacing.xl),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            ShareCardWordmark(tint = colors.accent, wordmark = watermark, showGlyph = false)
+            val bodyModifier = Modifier.weight(1f)
+            when (layout) {
+                BookShareCardLayout.CLASSIC -> ClassicBookShareBody(content, colors, showCover, cover, bodyModifier)
+                BookShareCardLayout.SPOTLIGHT -> SpotlightBookShareBody(content, colors, showCover, cover, bodyModifier)
+                BookShareCardLayout.MINIMAL,
+                BookShareCardLayout.BACKDROP,
+                -> MinimalBookShareBody(content, colors, bodyModifier)
+            }
+            if (showImportedDate || showTagline) {
+                Column {
+                    HorizontalDivider(color = colors.divider)
                     Spacer(modifier = Modifier.height(Spacing.md))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        if (showProgress) {
-                            ShareStat(
-                                value = stat1Value,
-                                label = stat1Label,
-                                colors = colors,
-                                modifier = Modifier.weight(1f),
-                            )
+                        if (showImportedDate) {
+                            ShareCardCaption(text = footerLeft, color = colors.mutedText)
+                        } else {
+                            Spacer(modifier = Modifier)
                         }
-                        if (showReadTime) {
-                            ShareStat(
-                                value = stat2Value,
-                                label = stat2Label,
-                                colors = colors,
-                                modifier = Modifier.weight(1f),
-                            )
+                        if (showTagline) {
+                            ShareCardCaption(text = footerRight, color = colors.mutedText)
                         }
-                        if (showRating && !ratingValue.isNullOrBlank()) {
-                            ShareStat(
-                                value = ratingValue,
-                                label = ratingLabel,
-                                colors = colors,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        if (showImportedDate || showTagline) {
-            Column {
-                HorizontalDivider(color = colors.divider)
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    if (showImportedDate) {
-                        ShareCardCaption(text = footerLeft, color = colors.mutedText)
-                    } else {
-                        Spacer(modifier = Modifier)
-                    }
-                    if (showTagline) {
-                        ShareCardCaption(text = footerRight, color = colors.mutedText)
                     }
                 }
             }
@@ -411,6 +420,237 @@ private fun ShareStat(value: String, label: String, colors: BookShareCardColors,
         )
     }
 }
+
+/**
+ * Cover left with details beside it, stats in a full-width row underneath - beside the cover they were
+ * squeezed into a third of the card, truncating their labels and leaving the card half empty.
+ */
+@Composable
+private fun ClassicBookShareBody(
+    content: BookShareContent,
+    colors: BookShareCardColors,
+    showCover: Boolean,
+    cover: @Composable () -> Unit,
+    modifier: Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (showCover) {
+                Box(
+                    modifier = Modifier
+                        .width(Sizes.shareCardCoverWidth)
+                        .height(Sizes.shareCardCoverWidth / Sizes.coverAspectRatio)
+                        .clip(RoundedCornerShape(Radii.small)),
+                ) {
+                    cover()
+                }
+                Spacer(modifier = Modifier.width(Spacing.lg))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                content.status?.let {
+                    ShareCardCaption(text = it, color = colors.accent)
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                }
+                Text(
+                    text = content.title,
+                    style = ShareCardTypography.bookTitle,
+                    color = colors.primaryText,
+                    maxLines = if (showCover) 3 else 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                content.author?.let {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(text = it, style = ShareCardTypography.bookAuthor, color = colors.mutedText)
+                }
+                if (content.tags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    ShareTagsText(tags = content.tags, colors = colors, maxLines = 2)
+                }
+            }
+        }
+        if (content.stats.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            ShareStatsRow(stats = content.stats, colors = colors, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/** Small centred cover over a centred title, with stats and tags each folded into one line. */
+@Composable
+private fun SpotlightBookShareBody(
+    content: BookShareContent,
+    colors: BookShareCardColors,
+    showCover: Boolean,
+    cover: @Composable () -> Unit,
+    modifier: Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (showCover) {
+            Box(
+                modifier = Modifier
+                    .width(Sizes.shareCardSpotlightCoverWidth)
+                    .aspectRatio(Sizes.coverAspectRatio)
+                    .clip(RoundedCornerShape(Radii.small)),
+            ) {
+                cover()
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        } else {
+            // The status caption only has room once the cover is out of the way.
+            content.status?.let {
+                ShareCardCaption(text = it, color = colors.accent)
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
+        }
+        Text(
+            text = content.title,
+            style = ShareCardTypography.bookTitle,
+            color = colors.primaryText,
+            textAlign = TextAlign.Center,
+            maxLines = if (showCover) 2 else 4,
+            overflow = TextOverflow.Ellipsis,
+        )
+        content.author?.let {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = it,
+                style = ShareCardTypography.bookAuthor,
+                color = colors.mutedText,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (content.stats.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = content.stats.joinToString("  ·  ") { it.value },
+                style = ShareCardTypography.cardSubtitleMono,
+                color = colors.accent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (content.tags.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = content.tags.joinToString(", "),
+                style = ShareCardTypography.cardSubtitleMono,
+                color = colors.mutedText,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Type-only: a large title and a progress bar, no cover. */
+@Composable
+private fun MinimalBookShareBody(
+    content: BookShareContent,
+    colors: BookShareCardColors,
+    modifier: Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.Center) {
+        content.status?.let {
+            ShareCardCaption(text = it, color = colors.accent)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        }
+        Text(
+            text = content.title,
+            style = ShareCardTypography.bookTitleLarge,
+            color = colors.primaryText,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        content.author?.let {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = it,
+                style = ShareCardTypography.bookAuthor,
+                color = colors.mutedText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        content.progressFraction?.let { fraction ->
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(Sizes.shareCardProgressBarHeight)
+                    .clip(CircleShape)
+                    .background(colors.divider),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(colors.accent),
+                )
+            }
+        }
+        if (content.stats.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            ShareStatsRow(stats = content.stats, colors = colors, modifier = Modifier.fillMaxWidth())
+        }
+        if (content.tags.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            ShareTagsText(tags = content.tags, colors = colors, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun ShareStatsRow(stats: List<BookShareStat>, colors: BookShareCardColors, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        stats.forEach { stat ->
+            ShareStat(value = stat.value, label = stat.label, colors = colors, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun ShareTagsText(tags: List<String>, colors: BookShareCardColors, maxLines: Int) {
+    Text(
+        text = tags.joinToString(", "),
+        style = ShareCardTypography.cardSubtitleMono,
+        color = colors.accent,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** Arrangement of the book share card's body; the wordmark and footer are shared by all of them. */
+enum class BookShareCardLayout {
+    CLASSIC,
+    SPOTLIGHT,
+    MINIMAL,
+
+    /** [MINIMAL]'s type over the cover stretched across the whole card, faded to [BackdropCoverAlpha]. */
+    BACKDROP,
+}
+
+/** Keeps a full-bleed cover quiet enough for the card's text to stay readable on top of it. */
+private const val BackdropCoverAlpha = 0.3f
+
+private data class BookShareStat(val value: String, val label: String)
+
+/** The card's text with every show-flag already applied, so each layout only decides placement. */
+private data class BookShareContent(
+    val title: String,
+    val author: String?,
+    val status: String?,
+    val tags: List<String>,
+    val stats: List<BookShareStat>,
+    val progressFraction: Float?,
+)
 
 enum class ShareCardTheme {
     LIGHT,

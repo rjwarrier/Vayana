@@ -23,4 +23,16 @@ interface ReadingSessionDao {
 
     @Query("SELECT * FROM reading_sessions ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<ReadingSessionEntity>
+
+    @Query("SELECT syncId FROM reading_sessions WHERE bookId = :bookId")
+    suspend fun syncIdsForBook(bookId: Long): List<String>
+
+    @Query("DELETE FROM reading_sessions WHERE bookId = :bookId")
+    suspend fun deleteForBook(bookId: Long)
+
+    @Query("DELETE FROM reading_sessions WHERE syncId = :syncId")
+    suspend fun deleteBySyncId(syncId: String): Int
+
+    @Query("DELETE FROM reading_sessions WHERE bookId = :bookId AND startedAt <= :before")
+    suspend fun deleteForBookStartedBefore(bookId: Long, before: Long): Int
 }

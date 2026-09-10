@@ -28,6 +28,9 @@ object Sizes {
     val coverWidthMin = 72.dp
     val coverWidthMax = 160.dp
 
+    /** Cover beside the title block at the top of book details - leaves the text column room to breathe. */
+    val coverWidthDetail = 120.dp
+
     val chartHeight = 112.dp
     val chartBarMaxHeight = 72.dp
     val chartBarMinWidth = 28.dp
@@ -35,6 +38,8 @@ object Sizes {
 
     val shareCardWidth = 320.dp
     val shareCardCoverWidth = 96.dp
+    val shareCardSpotlightCoverWidth = 60.dp
+    val shareCardProgressBarHeight = 6.dp
     val shareCardQuoteMarkHeight = 40.dp
     val shareCardAccentBarWidth = 2.dp
 

@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.BookEntity
@@ -22,6 +23,7 @@ class BookRepositoryImpl @Inject constructor(
     private val bookDao: BookDao,
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
+    private val readingSessionDao: ReadingSessionDao,
 ) : BookRepository {
     private val _remoteReadingProgressApplied = MutableSharedFlow<RemoteReadingProgressApplied>(
         extraBufferCapacity = RemoteProgressEventBufferCapacity,
@@ -80,7 +82,10 @@ class BookRepositoryImpl @Inject constructor(
                     reason = ReadingProgressConflictReason.INCOMPATIBLE_FILE_REVISION,
                 ) to null
             }
-            val localVersion = book.lastReadAt ?: 0L
+            // A reading-stats reset counts as local progress at the moment it happened, so older remote
+            // progress (from before the reset, on this or another device) can't bring the old stats back.
+            val resetAt = tombstoneDao.findBySyncId(readingProgressResetTombstoneId(book.syncId))?.deletedAt ?: 0L
+            val localVersion = maxOf(book.lastReadAt ?: 0L, resetAt)
             val remoteVersion = lastReadAt ?: remoteUpdatedAt
             if (localVersion > remoteVersion) {
                 return@withTransaction ReadingProgressMergeResult.LocalNewer to null
@@ -135,6 +140,20 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun updateCover(id: Long, coverPath: String?) {
         bookDao.updateCover(id, coverPath, System.currentTimeMillis())
+    }
+
+    override suspend fun updateGoodreadsInfo(
+        id: Long,
+        goodreadsUrl: String?,
+        rating: Float?,
+        ratingsCount: Int?,
+        originalPublicationYear: Int?,
+    ) {
+        bookDao.updateGoodreadsInfo(id, goodreadsUrl, rating, ratingsCount, originalPublicationYear)
+    }
+
+    override suspend fun updateCoverAlternates(id: Long, customCoverPath: String?, goodreadsCoverPath: String?) {
+        bookDao.updateCoverAlternates(id, customCoverPath, goodreadsCoverPath)
     }
 
     override suspend fun insertIfNew(
@@ -240,6 +259,38 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun markFinished(id: Long) {
         bookDao.markFinished(id, System.currentTimeMillis())
+    }
+
+    override suspend fun resetReadingStats(id: Long) {
+        database.withTransaction {
+            val book = bookDao.getById(id) ?: return@withTransaction
+            val now = System.currentTimeMillis()
+            readingSessionDao.syncIdsForBook(id).forEach { sessionSyncId ->
+                tombstoneDao.upsert(TombstoneEntity(syncId = sessionSyncId, entityType = TombstoneEntityType.READING_SESSION.value, deletedAt = now))
+            }
+            readingSessionDao.deleteForBook(id)
+            tombstoneDao.upsert(
+                TombstoneEntity(
+                    syncId = readingProgressResetTombstoneId(book.syncId),
+                    entityType = TombstoneEntityType.READING_PROGRESS_RESET.value,
+                    deletedAt = now,
+                ),
+            )
+            bookDao.resetReadingStats(id, now)
+        }
+    }
+
+    override suspend fun applyReadingStatsReset(bookSyncId: String, resetAt: Long): Int = database.withTransaction {
+        val book = bookDao.findAnyBySyncId(bookSyncId) ?: return@withTransaction 0
+        // Reading done on this device after the reset is newer than it, so it stays.
+        if ((book.lastReadAt ?: 0L) > resetAt) return@withTransaction 0
+        val removedSessions = readingSessionDao.deleteForBookStartedBefore(book.id, resetAt)
+        val hasStats = book.lastLocator != null || book.readingPercent > 0f || book.startedReadingAt != null ||
+            book.finishedReadingAt != null || book.totalReadingSeconds > 0L || book.lastReadAt != null
+        // Already clear (e.g. this device made the reset): don't touch updatedAt again on every sync.
+        if (!hasStats) return@withTransaction if (removedSessions > 0) 1 else 0
+        bookDao.resetReadingStats(book.id, maxOf(book.updatedAt, resetAt))
+        1
     }
 
     override suspend fun updateReaderPrefs(id: Long, fontSizePercent: Int?, lineHeight: Float?, fontFamily: String?, sideMarginPercent: Int?) {
@@ -388,7 +439,12 @@ class BookRepositoryImpl @Inject constructor(
                 return CloudBookMergeResult.SKIPPED
             }
 
-            bookDao.update(record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath))
+            val progressResetAt = tombstoneDao.findBySyncId(readingProgressResetTombstoneId(existing.syncId))?.deletedAt
+            bookDao.update(
+                record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath)
+                    .withLocalOnlyFieldsFrom(existing)
+                    .keepingResetProgress(existing, progressResetAt),
+            )
             return CloudBookMergeResult.UPDATED
         }
 
@@ -443,7 +499,36 @@ internal fun BookEntity.toDomain(): Book = Book(
     customFontFamily = customFontFamily,
     customSideMarginPercent = customSideMarginPercent,
     readNextAddedAt = readNextAddedAt,
+    goodreadsUrl = goodreadsUrl,
+    goodreadsRating = goodreadsRating,
+    goodreadsRatingsCount = goodreadsRatingsCount,
+    originalPublicationYear = originalPublicationYear,
+    customCoverPath = customCoverPath,
+    goodreadsCoverPath = goodreadsCoverPath,
 )
+
+/** Goodreads extras and the alternate covers never travel through sync, so a cloud rewrite must carry them over. */
+private fun BookEntity.withLocalOnlyFieldsFrom(existing: BookEntity): BookEntity = copy(
+    goodreadsUrl = existing.goodreadsUrl,
+    goodreadsRating = existing.goodreadsRating,
+    goodreadsRatingsCount = existing.goodreadsRatingsCount,
+    originalPublicationYear = existing.originalPublicationYear,
+    customCoverPath = existing.customCoverPath,
+    goodreadsCoverPath = existing.goodreadsCoverPath,
+)
+
+/** Cloud progress recorded before a local reading-stats reset ([resetAt]) mustn't bring the old stats back. */
+private fun BookEntity.keepingResetProgress(existing: BookEntity, resetAt: Long?): BookEntity {
+    if (resetAt == null || (lastReadAt ?: updatedAt) > resetAt) return this
+    return copy(
+        lastLocator = existing.lastLocator,
+        readingPercent = existing.readingPercent,
+        startedReadingAt = existing.startedReadingAt,
+        finishedReadingAt = existing.finishedReadingAt,
+        totalReadingSeconds = existing.totalReadingSeconds,
+        lastReadAt = existing.lastReadAt,
+    )
+}
 
 private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): BookEntity =
     BookEntity(

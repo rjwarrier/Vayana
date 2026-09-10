@@ -68,6 +68,15 @@ interface BookDao {
     suspend fun updateCover(id: Long, coverPath: String?, updatedAt: Long)
 
     @Query(
+        "UPDATE books SET goodreadsUrl = :goodreadsUrl, goodreadsRating = :rating, goodreadsRatingsCount = :ratingsCount, " +
+            "originalPublicationYear = :originalPublicationYear WHERE id = :id",
+    )
+    suspend fun updateGoodreadsInfo(id: Long, goodreadsUrl: String?, rating: Float?, ratingsCount: Int?, originalPublicationYear: Int?)
+
+    @Query("UPDATE books SET customCoverPath = :customCoverPath, goodreadsCoverPath = :goodreadsCoverPath WHERE id = :id")
+    suspend fun updateCoverAlternates(id: Long, customCoverPath: String?, goodreadsCoverPath: String?)
+
+    @Query(
         "UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, " +
             "coverPath = :coverPath, filePath = :filePath, fileAvailability = 'LOCAL', format = :format, fileHash = :fileHash, " +
             "fileAssetId = NULL, fileAssetSha256 = NULL, fileAssetSizeBytes = NULL, fileAssetUploadedAt = NULL, " +
@@ -147,6 +156,12 @@ interface BookDao {
             "updatedAt = :timestamp WHERE id = :id",
     )
     suspend fun markFinished(id: Long, timestamp: Long)
+
+    @Query(
+        "UPDATE books SET lastLocator = NULL, readingPercent = 0, startedReadingAt = NULL, finishedReadingAt = NULL, " +
+            "totalReadingSeconds = 0, lastReadAt = NULL, updatedAt = :timestamp WHERE id = :id",
+    )
+    suspend fun resetReadingStats(id: Long, timestamp: Long)
 
     @Query(
         "UPDATE books SET customFontSizePercent = :fontSizePercent, customLineHeight = :lineHeight, " +

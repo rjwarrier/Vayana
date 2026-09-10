@@ -24,4 +24,7 @@ interface ReadingSessionRepository {
     suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long? = null)
 
     suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult
+
+    /** Removes one session, for a synced reading-stats reset. Returns how many rows went (0 or 1). */
+    suspend fun deleteBySyncId(syncId: String): Int
 }

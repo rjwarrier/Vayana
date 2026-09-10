@@ -2,6 +2,18 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 15
+Adds Goodreads import extras and switchable covers to `books` (all nullable, existing rows migrate as null):
+
+- `goodreadsUrl`, `goodreadsRating`, `goodreadsRatingsCount`, `originalPublicationYear` — filled by
+  "Import from Goodreads". **Local to the device**: not part of the cloud book record, and the cloud-only
+  rewrite in `BookRepositoryImpl.mergeCloudBookLocked` carries them over (`withLocalOnlyFieldsFrom`).
+- `customCoverPath`, `goodreadsCoverPath` — root-relative paths of the two covers a book can switch
+  between. `coverPath` remains the cover in use and may equal either. Also local-only.
+
+No schema change for "Reset reading stats" (same release): it uses the existing `tombstones` table with two
+new `entityType` values, `reading_session` and `reading_progress_reset` (syncId `reset:<bookSyncId>`).
+
 ## Version 14
 Adds a non-unique index on `books.fileHash`. `findByHash`/`findActiveBySyncIdOrHash` run on every
 import dedupe check and every GitHub sync merge; without an index those were full table scans.

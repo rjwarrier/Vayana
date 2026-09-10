@@ -46,8 +46,12 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -118,7 +122,9 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -646,17 +652,23 @@ private fun ReaderScreen(
             },
         )
 
+        // The header gap is tuned to clear a portrait top cutout; landscape has none there, so cap it
+        // to keep the chips in the page's top margin instead of pushing them down over the text.
+        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val headerGap = settings.readerHeaderGapDp.dp.let { gap ->
+            if (isLandscape) gap.coerceAtMost(readerLandscapeHeaderMaxGap) else gap
+        }
         if (settings.readerShowHeaders) {
             ReaderClockHeader(
                 modifier = Modifier.align(Alignment.TopCenter),
                 nowMillis = nowMillis,
                 syncStatus = syncStatus,
-                headerGap = settings.readerHeaderGapDp.dp,
+                headerGap = headerGap,
             )
             ReaderSessionHeader(
                 modifier = Modifier.align(Alignment.TopStart),
                 activeReadingSessionSeconds = activeReadingSessionSeconds,
-                headerGap = settings.readerHeaderGapDp.dp,
+                headerGap = headerGap,
             )
         }
 
@@ -666,7 +678,7 @@ private fun ReaderScreen(
                 locator = uiState.currentLocator,
                 showBookTime = footerShowsBookTime,
                 onToggle = { footerShowsBookTime = !footerShowsBookTime },
-                headerGap = settings.readerHeaderGapDp.dp,
+                headerGap = headerGap,
             )
         }
 
@@ -839,6 +851,7 @@ private fun ReaderClockHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
+            .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(top = headerGap),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -913,6 +926,7 @@ private fun ReaderSessionHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
+            .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(start = readerHeaderHorizontalPadding, top = headerGap),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -940,6 +954,7 @@ private fun ReaderTimeLeftHeader(
     Surface(
         modifier = modifier
             .statusBarsPadding()
+            .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(end = readerHeaderHorizontalPadding, top = headerGap)
             .clickable(onClick = onToggle),
         color = readerHudSurfaceColor(),
@@ -966,6 +981,7 @@ private fun ReaderPageNumberFooter(
     Surface(
         modifier = modifier
             .navigationBarsPadding()
+            .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(start = Spacing.md, bottom = footerGap),
         color = readerHudSurfaceColor(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -991,6 +1007,7 @@ private fun ReaderBookProgressFooter(
     Surface(
         modifier = modifier
             .navigationBarsPadding()
+            .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(end = Spacing.md, bottom = footerGap)
             .combinedClickable(onClick = {}, onLongClick = onLongPress),
         color = readerHudSurfaceColor(),
@@ -1641,16 +1658,68 @@ private fun ReaderPanelButton(icon: ImageVector, labelRes: Int, selected: Boolea
 
 @Composable
 private fun ContentsPanel(uiState: ReaderUiState, onOpenTocEntry: (String) -> Unit) {
-    val toc = (uiState as? ReaderUiState.Loaded)?.toc.orEmpty()
+    val loaded = uiState as? ReaderUiState.Loaded
+    val toc = loaded?.toc.orEmpty()
     val entries = remember(toc) { toc.flattenToc() }
-    LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
-        items(entries, key = { "${it.depth}:${it.entry.href}:${it.entry.title}" }) { item ->
-            TextButton(onClick = { onOpenTocEntry(item.entry.href) }) {
-                Text(
-                    text = "${"  ".repeat(item.depth)}${item.entry.title}",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+    val locator = loaded?.currentLocator
+    val currentIndex = entries.indexOfFirst { it.entry.href == locator?.href }
+    // Page numbers only once the engine has measured a layout, same as the page-number footer.
+    val tocPages = if (locator?.totalPages != null) locator.tocPages else emptyMap()
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (currentIndex - ContentsScrollContextRows).coerceAtLeast(0),
+    )
+    LazyColumn(state = listState, modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
+        itemsIndexed(entries, key = { _, item -> "${item.depth}:${item.entry.href}:${item.entry.title}" }) { index, item ->
+            ContentsEntryRow(
+                item = item,
+                isCurrent = index == currentIndex,
+                pageNumber = tocPages[item.entry.href],
+                onClick = { onOpenTocEntry(item.entry.href) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContentsEntryRow(item: TocDisplayItem, isCurrent: Boolean, pageNumber: Int?, onClick: () -> Unit) {
+    val isEink = LocalDisplayProfile.current == DisplayProfile.E_INK
+    val containerColor = when {
+        !isCurrent -> Color.Transparent
+        isEink -> MaterialTheme.colorScheme.inverseSurface
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+    val contentColor = when {
+        !isCurrent -> MaterialTheme.colorScheme.onSurface
+        isEink -> MaterialTheme.colorScheme.inverseOnSurface
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = Sizes.touchTarget)
+            .clip(MaterialTheme.shapes.medium)
+            .background(containerColor)
+            .clickable(onClick = onClick)
+            .semantics { selected = isCurrent }
+            .padding(start = Spacing.md + Spacing.md * item.depth, end = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = item.entry.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+            color = contentColor,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = Spacing.sm),
+        )
+        pageNumber?.let { page ->
+            Text(
+                text = page.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isCurrent) contentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -2270,8 +2339,16 @@ private const val ReaderSyncDotCoreFraction = 0.34f
 
 private const val EinkFullRefreshEveryPages = 6
 private const val EinkFlashDurationMillis = 120L
+
+/** Entries kept above the current chapter when the contents list opens scrolled to it. */
+private const val ContentsScrollContextRows = 2
 private val readerHeaderTopPadding = Spacing.xxxl + Spacing.md
 private val readerHeaderHorizontalPadding = Spacing.xl
+private val readerLandscapeHeaderMaxGap = Spacing.sm
+
+/** Side insets (landscape cutout / nav bar) the page itself is padded by, so HUD chips line up with the text. */
+private val readerHudHorizontalInsets: WindowInsets
+    @Composable get() = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
 
 /** Below this width, landscape stays a single reader pane - matches Library's tablet-landscape breakpoint. */
 private const val TabletLandscapeMinWidthDp = 600

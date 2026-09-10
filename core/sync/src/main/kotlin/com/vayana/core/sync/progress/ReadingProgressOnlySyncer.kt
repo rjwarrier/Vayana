@@ -2,16 +2,20 @@ package com.vayana.core.sync.progress
 
 import com.vayana.core.backup.PortableReadingProgress
 import com.vayana.core.backup.PortableReadingProgressPatch
+import com.vayana.core.backup.PortableTombstone
 import com.vayana.core.backup.parsePortableWordLookupCounters
 import com.vayana.core.backup.parsePortableReadingSessions
+import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.parsePortableReadingProgresses
 import com.vayana.core.backup.patchPortableReadingProgressOnly
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.TombstoneEntityType
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.database.repository.WordLookupCounterMergeResult
 import com.vayana.core.database.repository.ReadingSessionRepository
@@ -19,6 +23,7 @@ import com.vayana.core.database.repository.ReadingSessionMergeResult
 import com.vayana.core.database.repository.CloudWordLookupCounter
 import com.vayana.core.database.repository.CloudReadingSessionRecord
 import com.vayana.core.database.repository.ReadingProgressMergeResult
+import com.vayana.core.database.repository.bookSyncIdOfReadingProgressReset
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
@@ -69,6 +74,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
     private val bookRepository: BookRepository,
     private val readingSessionRepository: ReadingSessionRepository,
     private val wordLookupStatRepository: WordLookupStatRepository,
+    private val tombstoneDao: TombstoneDao,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
 ) {
@@ -122,6 +128,12 @@ class ReadingProgressOnlySyncer @Inject constructor(
         val readingSessions = readingSessionRepository.observeAll().first()
             .mapNotNull { it.toPortable(bookSyncIdsByLocalId) }
         val wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() }
+        val tombstones = tombstoneDao.getAll()
+            .filter { tombstone ->
+                tombstone.entityType == TombstoneEntityType.READING_SESSION.value ||
+                    tombstone.entityType == TombstoneEntityType.READING_PROGRESS_RESET.value
+            }
+            .map { it.toPortable() }
 
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlySyncAttempts) {
@@ -153,7 +165,8 @@ class ReadingProgressOnlySyncer @Inject constructor(
                         failureMessage = throwable.message,
                     )
                 }
-                pulled = pullRemoteProgress(parseAttempt.getOrDefault(emptyList()))
+                pulled = pullRemoteTombstones(jsonText)
+                pulled += pullRemoteProgress(parseAttempt.getOrDefault(emptyList()))
                 pulled += pullRemoteReadingSessions(jsonText)
                 pulled += pullRemoteWordLookupCounters(jsonText)
             }
@@ -165,8 +178,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     exportedAt = System.currentTimeMillis(),
                     readingSessions = readingSessions,
                     wordLookupCounters = wordLookupCounters,
+                    tombstones = tombstones,
                 )
-                val pushed = patchResult.patched + patchResult.sessionsAdded + patchResult.wordLookupCountersMerged
+                val pushed = patchResult.patched + patchResult.sessionsAdded + patchResult.wordLookupCountersMerged + patchResult.tombstonesMerged
                 if (pushed > 0) {
                     store.putSyncDocumentIfUnchanged(
                         path = SnapshotLatestPath,
@@ -260,6 +274,52 @@ class ReadingProgressOnlySyncer @Inject constructor(
         return merged
     }
 
+    private suspend fun pullRemoteTombstones(jsonText: String): Int {
+        var applied = 0
+        val tombstones = runCatchingCancellable { parsePortableTombstones(jsonText) }
+            .getOrElse { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteTombstones",
+                    message = "Failed to parse remote tombstones: ${throwable.message}",
+                )
+                return 0
+            }
+        for (tombstone in tombstones) {
+            val attempt = runCatchingCancellable {
+                if (!upsertRemoteTombstoneIfNewer(tombstone)) return@runCatchingCancellable 0
+                when (tombstone.entityType) {
+                    TombstoneEntityType.READING_SESSION.value -> {
+                        readingSessionRepository.deleteBySyncId(tombstone.syncId)
+                    }
+                    TombstoneEntityType.READING_PROGRESS_RESET.value -> {
+                        val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return@runCatchingCancellable 0
+                        bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
+                    }
+                    else -> 0
+                }
+            }
+            attempt.onSuccess { count -> if (count > 0) applied += count }
+            attempt.onFailure { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteTombstones",
+                    message = "Failed to apply remote tombstone: ${throwable.message}",
+                )
+            }
+        }
+        return applied
+    }
+
+    private suspend fun upsertRemoteTombstoneIfNewer(tombstone: PortableTombstone): Boolean {
+        val existing = tombstoneDao.findBySyncId(tombstone.syncId)
+        if (existing != null && existing.deletedAt > tombstone.deletedAt) return false
+        if (existing == null || existing.deletedAt < tombstone.deletedAt || existing.entityType != tombstone.entityType) {
+            tombstoneDao.upsert(tombstone.toEntity())
+        }
+        return true
+    }
+
     private suspend fun pullRemoteWordLookupCounters(jsonText: String): Int {
         var merged = 0
         val counters = runCatchingCancellable { parsePortableWordLookupCounters(jsonText) }
@@ -318,6 +378,19 @@ private fun CloudWordLookupCounter.toPortable(): PortableWordLookupCounter = Por
     count = count,
     lastLookedUpAt = lastLookedUpAt,
 )
+
+private fun com.vayana.core.database.entity.TombstoneEntity.toPortable(): PortableTombstone = PortableTombstone(
+    syncId = syncId,
+    entityType = entityType,
+    deletedAt = deletedAt,
+)
+
+private fun PortableTombstone.toEntity(): com.vayana.core.database.entity.TombstoneEntity =
+    com.vayana.core.database.entity.TombstoneEntity(
+        syncId = syncId,
+        entityType = entityType,
+        deletedAt = deletedAt,
+    )
 
 private val ReadingProgressSyncStatus.isIssue: Boolean
     get() = this == ReadingProgressSyncStatus.FAILED ||

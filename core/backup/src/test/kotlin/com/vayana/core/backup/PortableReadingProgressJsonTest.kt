@@ -560,6 +560,46 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
+    fun progressOnlyPatchMergesResetTombstones() {
+        val result = patchPortableReadingProgressOnly(
+            jsonText = """
+            {
+              "exportedAt": 1000,
+              "books": [],
+              "tombstones": [
+                {"syncId":"session-existing","entityType":"reading_session","deletedAt":1200}
+              ]
+            }
+            """.trimIndent(),
+            patches = emptyList(),
+            exportedAt = 2000,
+            tombstones = listOf(
+                PortableTombstone(
+                    syncId = "session-existing",
+                    entityType = "reading_session",
+                    deletedAt = 1100,
+                ),
+                PortableTombstone(
+                    syncId = "reset:book-a",
+                    entityType = "reading_progress_reset",
+                    deletedAt = 1600,
+                ),
+            ),
+        )
+
+        val root = JSONObject(result.jsonText)
+        val tombstones = root.getJSONArray("tombstones")
+
+        assertEquals(1, result.tombstonesMerged)
+        assertEquals(2000, root.getLong("exportedAt"))
+        assertEquals(2, tombstones.length())
+        assertEquals("session-existing", tombstones.getJSONObject(0).getString("syncId"))
+        assertEquals(1200, tombstones.getJSONObject(0).getLong("deletedAt"))
+        assertEquals("reset:book-a", tombstones.getJSONObject(1).getString("syncId"))
+        assertEquals("reading_progress_reset", tombstones.getJSONObject(1).getString("entityType"))
+    }
+
+    @Test
     fun parsesPortableWordLookupCountersFromSnapshot() {
         val counters = parsePortableWordLookupCounters(
             """

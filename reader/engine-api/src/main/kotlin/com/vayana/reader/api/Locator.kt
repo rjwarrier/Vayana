@@ -6,7 +6,9 @@ package com.vayana.reader.api
  * height, and margins — they shift whenever those settings change and are null until the engine
  * has measured at least one chapter under the active layout. [chapterMinutesLeft] and
  * [bookMinutesLeft] use a fixed reading-speed assumption over remaining text, so — unlike page
- * count — they don't depend on font size or margins.
+ * count — they don't depend on font size or margins. [href] is the href of the TOC entry the
+ * position falls under, and [tocPages] maps each TOC entry's href to the estimated page its
+ * section starts on, numbered the same way as [currentPage].
  */
 data class Locator(
     val cfi: String?,
@@ -17,6 +19,7 @@ data class Locator(
     val totalPages: Int? = null,
     val chapterMinutesLeft: Int? = null,
     val bookMinutesLeft: Int? = null,
+    val tocPages: Map<String, Int> = emptyMap(),
 )
 
 data class TocEntry(

@@ -81,6 +81,7 @@ object ShareCardTypography {
     val cardSubtitleMono = TextStyle(fontFamily = FontFamilies.Mono, fontSize = 12.sp)
     val caption = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 1.5.sp)
     val bookTitle = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 26.sp)
+    val bookTitleLarge = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 30.sp, lineHeight = 34.sp)
     val bookAuthor = TextStyle(fontFamily = FontFamilies.Display, fontSize = 14.sp)
     val statValue = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 }

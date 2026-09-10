@@ -3,7 +3,9 @@ package com.vayana.feature.library
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -11,7 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,6 +61,8 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.RestoreFromTrash
@@ -65,7 +71,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TaskAlt
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +80,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -85,6 +95,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.core.text.HtmlCompat
@@ -108,6 +120,7 @@ import androidx.compose.runtime.setValue
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.designsystem.sharecard.BookShareCard
+import com.vayana.core.designsystem.sharecard.BookShareCardLayout
 import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import com.vayana.core.designsystem.sharecard.ShareCardTheme
 import androidx.compose.ui.Alignment
@@ -122,11 +135,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.FileProvider
@@ -144,9 +160,11 @@ import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.common.ParsedQuote
 import com.vayana.core.resources.R
 import java.io.File
 import java.text.DateFormat
+import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -183,6 +201,7 @@ fun LibraryRoute(
         onImportFolder = viewModel::importFolder,
         onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
         onBookClick = onBookClick,
+        onMarkFinished = { bookId -> viewModel.markFinished(bookId, announce = false) },
         onDownloadCloudBook = viewModel::downloadCloudBook,
         onSyncNow = viewModel::syncNow,
         onSettingsClick = onSettingsClick,
@@ -211,6 +230,7 @@ fun BookDetailRoute(
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
     val allShelves by viewModel.shelves.collectAsState()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
+    val goodreadsImport by viewModel.goodreadsImport.collectAsState()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
     var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
 
@@ -274,6 +294,12 @@ fun BookDetailRoute(
         onMarkFinished = {
             viewModel.markFinished(bookId)
         },
+        goodreadsImport = goodreadsImport,
+        onImportGoodreads = { link -> viewModel.importFromGoodreads(bookId, link) },
+        onImportGoodreadsCapture = { metadata, quotes -> viewModel.importFromGoodreadsCapture(bookId, metadata, quotes) },
+        onResetReadingStats = { viewModel.resetReadingStats(bookId) },
+        onDismissGoodreads = viewModel::dismissGoodreadsImport,
+        onUseCover = { source -> viewModel.useCover(bookId, source) },
         onDeleteBook = {
             viewModel.deleteBook(bookId)
             onBack()
@@ -297,6 +323,7 @@ private fun LibraryScreen(
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
+    onMarkFinished: (Long) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
     onSyncNow: suspend (Boolean, GitHubSyncMode) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
@@ -327,6 +354,8 @@ private fun LibraryScreen(
         if (uri != null) onImportFolder(context.contentResolver, uri)
     }
     var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
+    var pendingFinishBook by remember { mutableStateOf<Book?>(null) }
+    val markedFinishedMessage = stringResource(R.string.library_marked_finished)
     var syncRunning by remember { mutableStateOf(false) }
     var syncBadge by remember { mutableStateOf<LibrarySyncBadge?>(null) }
     var initialSyncConfirmationMessage by remember { mutableStateOf<String?>(null) }
@@ -501,8 +530,25 @@ private fun LibraryScreen(
                 downloadingBookId = activeDownloadBookId,
                 downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
                 onBookClick = ::handleBookClick,
+                onMarkFinished = { book -> pendingFinishBook = book },
             )
         }
+    }
+
+    pendingFinishBook?.let { book ->
+        ConfirmActionDialog(
+            onDismissRequest = { pendingFinishBook = null },
+            icon = Icons.Outlined.TaskAlt,
+            title = stringResource(R.string.library_mark_finished_confirm_title),
+            body = stringResource(R.string.library_mark_finished_confirm_body, book.title),
+            confirmLabel = stringResource(R.string.library_mark_finished),
+            dismissLabel = stringResource(R.string.library_edit_metadata_cancel),
+            onConfirm = {
+                pendingFinishBook = null
+                onMarkFinished(book.id)
+                coroutineScope.launch { snackbarHostState.showSnackbar(markedFinishedMessage) }
+            },
+        )
     }
 
     if (importProgress != null) {
@@ -537,39 +583,51 @@ private fun LibraryScreen(
     }
 
     initialSyncConfirmationMessage?.let { message ->
-        AlertDialog(
-            onDismissRequest = { initialSyncConfirmationMessage = null },
-            title = { Text(initialSyncConfirmationTitle) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text(initialSyncConfirmationBody)
-                    if (message.isNotBlank()) {
-                        Text(
-                            text = initialSyncConfirmationDetail.format(message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+        ExpressiveDialogSurface(onDismissRequest = { initialSyncConfirmationMessage = null }) {
+            ExpressiveDialogHeader(
+                icon = Icons.Outlined.Sync,
+                title = initialSyncConfirmationTitle,
+                supportingText = initialSyncConfirmationBody,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            if (message.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radii.medium),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                ) {
+                    Text(
+                        text = initialSyncConfirmationDetail.format(message),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(Spacing.md),
+                    )
                 }
-            },
-            confirmButton = {
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilledTonalButton(
+                    onClick = { initialSyncConfirmationMessage = null },
+                    shape = Radii.buttonShape,
+                ) {
+                    Text(initialSyncCancel)
+                }
                 Button(
                     onClick = {
                         initialSyncConfirmationMessage = null
                         handleSyncNow(allowInitialSync = true)
                     },
+                    shape = Radii.buttonShape,
                 ) {
                     Text(initialSyncConfirm)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { initialSyncConfirmationMessage = null }) {
-                    Text(initialSyncCancel)
-                }
-            },
-            shape = RoundedCornerShape(Radii.extraLargeIncreased),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        )
+            }
+        }
     }
 }
 
@@ -578,52 +636,179 @@ private fun AddPhysicalBookDialog(onDismiss: () -> Unit, onConfirm: (String, Str
     var title by remember { mutableStateOf("") }
     var author by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.library_add_physical_book_title)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Text(
-                    text = stringResource(R.string.library_add_physical_book_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.library_add_physical_book_book_title)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = author,
-                    onValueChange = { author = it },
-                    label = { Text(stringResource(R.string.library_add_physical_book_author)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+    ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.AutoStories,
+            title = stringResource(R.string.library_add_physical_book_title),
+            supportingText = stringResource(R.string.library_add_physical_book_hint),
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        OutlinedTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = { Text(stringResource(R.string.library_add_physical_book_book_title)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.medium),
+            colors = expressiveTextFieldColors(),
+        )
+        OutlinedTextField(
+            value = author,
+            onValueChange = { author = it },
+            label = { Text(stringResource(R.string.library_add_physical_book_author)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.medium),
+            colors = expressiveTextFieldColors(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(onClick = onDismiss, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
             }
-        },
-        confirmButton = {
             Button(
                 onClick = { onConfirm(title.trim(), author.trim().takeIf { it.isNotBlank() }) },
                 enabled = title.isNotBlank(),
+                shape = Radii.buttonShape,
             ) {
                 Text(stringResource(R.string.library_add_physical_book_confirm))
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_reset_all_cancel))
-            }
-        },
-        shape = RoundedCornerShape(Radii.extraLargeIncreased),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    )
+        }
+    }
 }
+
+@Composable
+private fun ConfirmActionDialog(
+    onDismissRequest: () -> Unit,
+    icon: ImageVector,
+    title: String,
+    body: String,
+    confirmLabel: String,
+    dismissLabel: String,
+    onConfirm: () -> Unit,
+    destructive: Boolean = false,
+) {
+    ExpressiveDialogSurface(onDismissRequest = onDismissRequest) {
+        ExpressiveDialogHeader(
+            icon = icon,
+            title = title,
+            supportingText = body,
+            containerColor = if (destructive) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+            contentColor = if (destructive) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(
+                onClick = onDismissRequest,
+                shape = Radii.buttonShape,
+            ) {
+                Text(dismissLabel)
+            }
+            Button(
+                onClick = onConfirm,
+                shape = Radii.buttonShape,
+                colors = if (destructive) {
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    )
+                } else {
+                    ButtonDefaults.buttonColors()
+                },
+            ) {
+                Text(confirmLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpressiveDialogSurface(
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    scrollable: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(onDismissRequest = onDismissRequest) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .widthIn(max = Sizes.contentMaxWidth),
+            shape = RoundedCornerShape(Radii.extraLargeIncreased),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowLarge,
+        ) {
+            val columnModifier = Modifier
+                .padding(Spacing.lg)
+                .vayanaAnimateContentSize()
+                .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+            Column(
+                modifier = columnModifier,
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpressiveDialogHeader(
+    icon: ImageVector,
+    title: String,
+    modifier: Modifier = Modifier,
+    supportingText: String? = null,
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onPrimaryContainer,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = containerColor,
+            contentColor = contentColor,
+            tonalElevation = Elevations.level1,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.padding(Spacing.sm),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            supportingText?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun expressiveTextFieldColors(): androidx.compose.material3.TextFieldColors =
+    OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    )
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -724,57 +909,100 @@ private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismiss
     ModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = { if (!progress.isRunning) onDismissRequest() },
+        shape = Radii.sheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = Paddings.screenHorizontal)
                 .padding(bottom = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(text = stringResource(R.string.library_sync_progress_title), style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = progress.detail,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-            LinearProgressIndicator(
-                progress = { progress.fraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.md),
-                strokeCap = StrokeCap.Round,
-            )
-            Text(
-                text = stringResource(
-                    R.string.library_sync_progress_summary,
-                    progress.cloudBooksCreated,
-                    progress.cloudBooksUpdated,
-                    progress.uploadedBooks,
-                    progress.failedBooks,
-                    progress.progressUpdated,
-                    progress.uploadedCovers,
-                    progress.downloadedCovers,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.sm),
-            )
-            LazyColumn(modifier = Modifier.padding(top = Spacing.md)) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radii.extraLarge),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = Elevations.level1,
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Sync,
+                                contentDescription = null,
+                                modifier = Modifier.padding(Spacing.sm),
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.library_sync_progress_title),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                            Text(
+                                text = progress.detail,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+                            )
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = { progress.fraction },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f),
+                        strokeCap = StrokeCap.Round,
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radii.large),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.library_sync_progress_summary,
+                        progress.cloudBooksCreated,
+                        progress.cloudBooksUpdated,
+                        progress.uploadedBooks,
+                        progress.failedBooks,
+                        progress.progressUpdated,
+                        progress.uploadedCovers,
+                        progress.downloadedCovers,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(Spacing.md),
+                )
+            }
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
                 items(rows, key = { it.name }) { step ->
                     GitHubSyncProgressRow(
                         label = step.label(),
                         status = progress.statusFor(step),
                     )
-                    HorizontalDivider()
                 }
             }
             if (!progress.isRunning) {
                 Button(
                     onClick = onDismissRequest,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.md),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = Radii.buttonShape,
                 ) {
                     Text(stringResource(R.string.library_import_done))
                 }
@@ -785,20 +1013,42 @@ private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismiss
 
 @Composable
 private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus) {
-    ListItem(
-        headlineContent = { Text(label) },
-        supportingContent = { Text(status.label()) },
-        leadingContent = { GitHubSyncStepIcon(status) },
-    )
+    val colors = status.containerAndContentColor()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = colors.first,
+        contentColor = colors.second,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            GitHubSyncStepIcon(status = status, modifier = Modifier.size(Sizes.icon))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.second,
+                )
+                Text(
+                    text = status.label(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.second.copy(alpha = 0.74f),
+                )
+            }
+        }
+    }
 }
 
 @Composable
-private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus) {
+private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus, modifier: Modifier = Modifier) {
     when (status) {
-        GitHubSyncStepStatus.RUNNING -> VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
-        GitHubSyncStepStatus.DONE -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(Sizes.icon))
-        GitHubSyncStepStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(Sizes.icon))
-        GitHubSyncStepStatus.WAITING -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = Modifier.size(Sizes.icon))
+        GitHubSyncStepStatus.RUNNING -> VayanaCircularProgressIndicator(modifier = modifier)
+        GitHubSyncStepStatus.DONE -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = modifier)
+        GitHubSyncStepStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = modifier)
+        GitHubSyncStepStatus.WAITING -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = modifier)
     }
 }
 
@@ -1233,6 +1483,7 @@ private fun LibraryGrid(
     downloadingBookId: Long?,
     downloadProgress: Float?,
     onBookClick: (Book) -> Unit,
+    onMarkFinished: (Book) -> Unit,
 ) {
     val lastOpenedBook = remember(books) {
         books.filter { (it.lastReadAt ?: 0L) > 0L }
@@ -1259,6 +1510,7 @@ private fun LibraryGrid(
                     isDownloading = lastOpenedBook.id == downloadingBookId,
                     downloadProgress = if (lastOpenedBook.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(lastOpenedBook) },
+                    onMarkFinished = { onMarkFinished(lastOpenedBook) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -1271,6 +1523,7 @@ private fun LibraryGrid(
                     book = book,
                     isDownloading = book.id == downloadingBookId,
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                    onMarkFinished = { onMarkFinished(book) },
                     modifier = Modifier.animateItem(),
                     onClick = { onBookClick(book) },
                 )
@@ -1293,6 +1546,7 @@ private fun LibraryGrid(
                             book = book,
                             isDownloading = book.id == downloadingBookId,
                             downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                            onMarkFinished = { onMarkFinished(book) },
                             modifier = Modifier.animateItem(),
                             onClick = { onBookClick(book) },
                         )
@@ -1309,6 +1563,7 @@ private fun LibraryHeroCard(
     isDownloading: Boolean,
     downloadProgress: Float?,
     onClick: () -> Unit,
+    onMarkFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -1324,12 +1579,19 @@ private fun LibraryHeroCard(
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BookCover(
-                book = book,
-                modifier = Modifier
-                    .width(Sizes.coverWidthMin)
-                    .clip(RoundedCornerShape(Radii.small)),
-            )
+            Box {
+                BookCover(
+                    book = book,
+                    modifier = Modifier
+                        .width(Sizes.coverWidthMin)
+                        .clip(RoundedCornerShape(Radii.small)),
+                )
+                BookFinishedTick(
+                    book = book,
+                    onMarkFinished = onMarkFinished,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -1466,11 +1728,19 @@ private fun BookCoverCell(
     book: Book,
     isDownloading: Boolean,
     downloadProgress: Float?,
+    onMarkFinished: () -> Unit,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Column(modifier = modifier.clickable(enabled = !isDownloading, onClick = onClick)) {
-        BookCover(book = book, modifier = Modifier.fillMaxWidth())
+        Box {
+            BookCover(book = book, modifier = Modifier.fillMaxWidth())
+            BookFinishedTick(
+                book = book,
+                onMarkFinished = onMarkFinished,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
         Text(
             text = book.title,
             style = MaterialTheme.typography.labelLarge,
@@ -1531,7 +1801,42 @@ private fun BookCoverCell(
     }
 }
 
+/**
+ * Tick over a cover's corner: a tappable outline that marks the book finished, or a filled badge once it is.
+ * Uses the same "finished" test as the detail screen's menu so the two never disagree.
+ */
+@Composable
+private fun BookFinishedTick(book: Book, onMarkFinished: () -> Unit, modifier: Modifier = Modifier) {
+    val isFinished = book.finishedReadingAt != null || book.readingPercent >= 1f
+    val badge = @Composable { description: String ->
+        Surface(
+            shape = CircleShape,
+            color = if (isFinished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            tonalElevation = Elevations.shadowSmall,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = description,
+                modifier = Modifier
+                    .padding(Spacing.xs)
+                    .size(Sizes.iconSmall),
+            )
+        }
+    }
+    if (isFinished) {
+        Box(modifier = modifier.size(Sizes.touchTarget), contentAlignment = Alignment.Center) {
+            badge(stringResource(R.string.library_book_finished))
+        }
+    } else {
+        IconButton(onClick = onMarkFinished, modifier = modifier.size(Sizes.touchTarget)) {
+            badge(stringResource(R.string.library_mark_finished))
+        }
+    }
+}
+
 private data class BookShareImageOptions(
+    val layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
     val theme: ShareCardTheme = ShareCardTheme.LIGHT,
     val showCover: Boolean = true,
     val showAuthor: Boolean = true,
@@ -1540,7 +1845,8 @@ private data class BookShareImageOptions(
     val showReadTime: Boolean = true,
     val showRating: Boolean = true,
     val showTags: Boolean = true,
-    val showImportedDate: Boolean = true,
+    /** Mutually exclusive with [showTags]; the options panel keeps at most one of them on. */
+    val showImportedDate: Boolean = false,
     val showTagline: Boolean = true,
 )
 
@@ -1575,6 +1881,12 @@ private fun BookDetailScreen(
     onDetailMessageShown: () -> Unit,
     onMarkFinished: () -> Unit,
     onDeleteBook: () -> Unit,
+    goodreadsImport: GoodreadsImportState,
+    onImportGoodreads: (String) -> Unit,
+    onImportGoodreadsCapture: (GoodreadsBookMetadata, List<ParsedQuote>?) -> Unit,
+    onResetReadingStats: () -> Unit,
+    onDismissGoodreads: () -> Unit,
+    onUseCover: (CoverSource) -> Unit,
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -1584,6 +1896,10 @@ private fun BookDetailScreen(
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var showCoverPreview by remember { mutableStateOf(false) }
     var showImportQuotesDialog by remember { mutableStateOf(false) }
+    var showGoodreadsDialog by remember { mutableStateOf(false) }
+    var goodreadsBrowserUrl by remember { mutableStateOf<String?>(null) }
+    var showResetStatsDialog by remember { mutableStateOf(false) }
+    var showEditCoverDialog by remember { mutableStateOf(false) }
     var showShareBookDialog by remember { mutableStateOf(false) }
     var showRemoveFromDeviceDialog by remember { mutableStateOf(false) }
     var actionsExpanded by remember { mutableStateOf(false) }
@@ -1592,7 +1908,7 @@ private fun BookDetailScreen(
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
     }
-    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) onReplaceCover(context.contentResolver, uri)
     }
     val shareBookTitle = stringResource(R.string.library_share_book)
@@ -1643,6 +1959,15 @@ private fun BookDetailScreen(
                             onDismissRequest = { actionsExpanded = false },
                         ) {
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_goodreads_import)) },
+                                leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+                                onClick = {
+                                    actionsExpanded = false
+                                    onDismissGoodreads()
+                                    showGoodreadsDialog = true
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.library_import_quotes)) },
                                 leadingIcon = { Icon(Icons.Outlined.EditNote, contentDescription = null) },
                                 onClick = {
@@ -1677,6 +2002,16 @@ private fun BookDetailScreen(
                                     onClick = {
                                         actionsExpanded = false
                                         sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*"))
+                                    },
+                                )
+                            }
+                            if (book.hasReadingStats()) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_reset_reading_stats)) },
+                                    leadingIcon = { Icon(Icons.Outlined.RestartAlt, contentDescription = null) },
+                                    onClick = {
+                                        actionsExpanded = false
+                                        showResetStatsDialog = true
                                     },
                                 )
                             }
@@ -1774,47 +2109,62 @@ private fun BookDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Column(
-                            modifier = Modifier.align(Alignment.CenterHorizontally),
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        // Cover on the left, identity (title, author, series, Goodreads) beside it; cover editing
+                        // lives in its own dialog so the top of the screen stays compact.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
                         ) {
-                            BookCover(
-                                book = book,
-                                modifier = Modifier
-                                    .size(width = Sizes.coverWidthMax, height = Sizes.coverWidthMax / Sizes.coverAspectRatio)
-                                    .clickable { showCoverPreview = true },
-                            )
-                            CoverActionButtons(
-                                hasCover = book.coverPath != null,
-                                onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
-                                onRemoveCover = onRemoveCover,
-                                modifier = Modifier
-                                    .width(Sizes.coverWidthMax)
-                                    .padding(top = Spacing.sm),
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                BookCover(
+                                    book = book,
+                                    modifier = Modifier
+                                        .size(width = Sizes.coverWidthDetail, height = Sizes.coverWidthDetail / Sizes.coverAspectRatio)
+                                        .clickable { showCoverPreview = true },
+                                )
+                                TextButton(
+                                    onClick = { showEditCoverDialog = true },
+                                    contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(Sizes.iconSmall),
+                                    )
+                                    Spacer(modifier = Modifier.width(Spacing.xs))
+                                    Text(stringResource(R.string.library_edit_cover), style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = book.title,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                book.author?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = Spacing.xs),
+                                    )
+                                }
+                                if (!book.series.isNullOrBlank() || !book.seriesNumber.isNullOrBlank()) {
+                                    Text(
+                                        text = stringResource(R.string.library_series_value, book.seriesDisplay()),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = Spacing.xs),
+                                    )
+                                }
+                                GoodreadsInfoLine(book = book, modifier = Modifier.padding(top = Spacing.sm))
+                            }
                         }
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(book.title, style = MaterialTheme.typography.headlineSmall)
-                            book.author?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = Spacing.xs),
-                                )
-                            }
-                            if (!book.series.isNullOrBlank() || !book.seriesNumber.isNullOrBlank()) {
-                                Text(
-                                    text = stringResource(R.string.library_series_value, book.seriesDisplay()),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = Spacing.xs),
-                                )
-                            }
                             BookRatingRow(
                                 rating = book.rating,
                                 onRatingChange = onUpdateRating,
-                                modifier = Modifier.padding(top = Spacing.sm),
                             )
                             BookTagsRow(
                                 tags = book.tags(),
@@ -2018,75 +2368,52 @@ private fun BookDetailScreen(
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
+        ConfirmActionDialog(
             onDismissRequest = { showDeleteDialog = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        onDeleteBook()
-                    },
-                ) { Text(stringResource(R.string.library_delete_confirm)) }
+            icon = Icons.Outlined.Delete,
+            title = stringResource(R.string.library_delete_title),
+            body = stringResource(R.string.library_delete_body),
+            confirmLabel = stringResource(R.string.library_delete_confirm),
+            dismissLabel = stringResource(R.string.settings_reset_all_cancel),
+            destructive = true,
+            onConfirm = {
+                showDeleteDialog = false
+                onDeleteBook()
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.settings_reset_all_cancel))
-                }
-            },
-            title = { Text(stringResource(R.string.library_delete_title)) },
-            text = { Text(stringResource(R.string.library_delete_body)) },
         )
     }
 
     if (showRemoveFromDeviceDialog) {
-        AlertDialog(
+        ConfirmActionDialog(
             onDismissRequest = { showRemoveFromDeviceDialog = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showRemoveFromDeviceDialog = false
-                        onRemoveFromDevice()
-                    },
-                ) { Text(stringResource(R.string.library_remove_from_device_confirm)) }
+            icon = Icons.Outlined.CloudDownload,
+            title = stringResource(R.string.library_remove_from_device_title),
+            body = stringResource(R.string.library_remove_from_device_body),
+            confirmLabel = stringResource(R.string.library_remove_from_device_confirm),
+            dismissLabel = stringResource(R.string.settings_reset_all_cancel),
+            onConfirm = {
+                showRemoveFromDeviceDialog = false
+                onRemoveFromDevice()
             },
-            dismissButton = {
-                TextButton(onClick = { showRemoveFromDeviceDialog = false }) {
-                    Text(stringResource(R.string.settings_reset_all_cancel))
-                }
-            },
-            title = { Text(stringResource(R.string.library_remove_from_device_title)) },
-            text = { Text(stringResource(R.string.library_remove_from_device_body)) },
         )
     }
 
     progressChangePrompt?.let { prompt ->
-        AlertDialog(
+        ConfirmActionDialog(
             onDismissRequest = { onRevertSyncedProgress(prompt) },
-            confirmButton = {
-                TextButton(onClick = onKeepSyncedProgress) {
-                    Text(stringResource(R.string.library_book_progress_sync_prompt_keep))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { onRevertSyncedProgress(prompt) }) {
-                    Text(
-                        stringResource(
-                            R.string.library_book_progress_sync_prompt_revert,
-                            (prompt.previousPercent * 100).roundToInt(),
-                        ),
-                    )
-                }
-            },
-            title = { Text(stringResource(R.string.library_book_progress_sync_prompt_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.library_book_progress_sync_prompt_body,
-                        (prompt.previousPercent * 100).roundToInt(),
-                        (prompt.newPercent * 100).roundToInt(),
-                    ),
-                )
-            },
+            icon = Icons.Outlined.Sync,
+            title = stringResource(R.string.library_book_progress_sync_prompt_title),
+            body = stringResource(
+                R.string.library_book_progress_sync_prompt_body,
+                (prompt.previousPercent * 100).roundToInt(),
+                (prompt.newPercent * 100).roundToInt(),
+            ),
+            confirmLabel = stringResource(R.string.library_book_progress_sync_prompt_keep),
+            dismissLabel = stringResource(
+                R.string.library_book_progress_sync_prompt_revert,
+                (prompt.previousPercent * 100).roundToInt(),
+            ),
+            onConfirm = onKeepSyncedProgress,
         )
     }
 
@@ -2110,6 +2437,69 @@ private fun BookDetailScreen(
                 showEditDescriptionDialog = false
                 onUpdateMetadata(book.title, book.author.orEmpty(), book.series.orEmpty(), book.seriesNumber.orEmpty(), description, book.tagsCsv.orEmpty())
             },
+        )
+    }
+
+    if (showGoodreadsDialog && book != null) {
+        LaunchedEffect(goodreadsImport) {
+            if (goodreadsImport is GoodreadsImportState.Done) {
+                showGoodreadsDialog = false
+                onDismissGoodreads()
+            }
+        }
+        GoodreadsImportDialog(
+            state = goodreadsImport,
+            initialLink = book.goodreadsUrl.orEmpty(),
+            browseFallbackQuery = listOfNotNull(book.title, book.author).joinToString(" "),
+            onImport = onImportGoodreads,
+            onBrowse = { url ->
+                showGoodreadsDialog = false
+                onDismissGoodreads()
+                goodreadsBrowserUrl = url
+            },
+            onDismiss = {
+                showGoodreadsDialog = false
+                onDismissGoodreads()
+            },
+        )
+    }
+
+    if (showResetStatsDialog && book != null) {
+        ConfirmActionDialog(
+            onDismissRequest = { showResetStatsDialog = false },
+            icon = Icons.Outlined.RestartAlt,
+            title = stringResource(R.string.library_reset_reading_stats_title),
+            body = stringResource(R.string.library_reset_reading_stats_body, book.title),
+            confirmLabel = stringResource(R.string.library_reset_reading_stats_confirm),
+            dismissLabel = stringResource(R.string.library_edit_metadata_cancel),
+            destructive = true,
+            onConfirm = {
+                showResetStatsDialog = false
+                onResetReadingStats()
+            },
+        )
+    }
+
+    goodreadsBrowserUrl?.let { url ->
+        GoodreadsBrowserDialog(
+            startUrl = url,
+            onCaptured = { capture ->
+                goodreadsBrowserUrl = null
+                // Reopen the import dialog so the cover download shows progress, then closes itself when done.
+                showGoodreadsDialog = true
+                onImportGoodreadsCapture(capture.metadata, capture.quotes)
+            },
+            onDismiss = { goodreadsBrowserUrl = null },
+        )
+    }
+
+    if (showEditCoverDialog && book != null) {
+        EditCoverDialog(
+            book = book,
+            onChangeCover = { coverPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onRemoveCover = onRemoveCover,
+            onUseCover = onUseCover,
+            onDismiss = { showEditCoverDialog = false },
         )
     }
 
@@ -2147,14 +2537,14 @@ private fun BookDetailScreen(
             chooserTitle = stringResource(R.string.share_card_image_chooser_title),
             shareTextLabel = stringResource(R.string.share_card_share_text),
             shareImageLabel = stringResource(R.string.share_card_share_image),
-            shareImageFileName = "${book.shareFileBaseName()}.png",
-            shareImageOptionsDialog = { onDismiss, onShareImage, isCapturing ->
-                BookShareImageOptionsDialog(
+            shareImageFileName = book.shareFileBaseName(),
+            title = shareBookTitle,
+            options = {
+                BookShareImageOptionsPanel(
                     options = shareImageOptions,
+                    hasRating = book.rating > 0f,
+                    hasTags = book.tags().isNotEmpty(),
                     onOptionsChange = { shareImageOptions = it },
-                    onDismiss = onDismiss,
-                    onShareImage = onShareImage,
-                    isCapturing = isCapturing,
                 )
             },
         ) {
@@ -2187,132 +2577,163 @@ private fun BookDetailScreen(
                 showTags = shareImageOptions.showTags,
                 showImportedDate = shareImageOptions.showImportedDate,
                 showTagline = shareImageOptions.showTagline,
+                layout = shareImageOptions.layout,
+                progressFraction = book.readingPercent,
             ) {
-                BookCover(book = book)
+                // Fill whatever box the layout gives the cover, including Backdrop's full square.
+                BookCover(book = book, modifier = Modifier.fillMaxSize())
             }
         }
     }
 }
 
+/** Inline controls under the share-card preview; each change redraws the card above immediately. */
 @Composable
-private fun BookShareImageOptionsDialog(
+private fun BookShareImageOptionsPanel(
     options: BookShareImageOptions,
+    hasRating: Boolean,
+    hasTags: Boolean,
     onOptionsChange: (BookShareImageOptions) -> Unit,
-    onDismiss: () -> Unit,
-    onShareImage: () -> Unit,
-    isCapturing: Boolean,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.share_card_image_options_title)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Text(
-                    text = stringResource(R.string.share_card_image_options_theme),
-                    style = MaterialTheme.typography.titleSmall,
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        ShareImageOptionsLabel(stringResource(R.string.share_card_image_options_layout))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            BookShareCardLayout.entries.forEachIndexed { index, layout ->
+                SegmentedButton(
+                    selected = options.layout == layout,
+                    onClick = { onOptionsChange(options.copy(layout = layout)) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = BookShareCardLayout.entries.size),
+                    label = {
+                        Text(
+                            stringResource(
+                                when (layout) {
+                                    BookShareCardLayout.CLASSIC -> R.string.share_card_image_options_layout_classic
+                                    BookShareCardLayout.SPOTLIGHT -> R.string.share_card_image_options_layout_spotlight
+                                    BookShareCardLayout.MINIMAL -> R.string.share_card_image_options_layout_minimal
+                                    BookShareCardLayout.BACKDROP -> R.string.share_card_image_options_layout_backdrop
+                                },
+                            ),
+                            maxLines = 1,
+                        )
+                    },
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    FilterChip(
-                        selected = options.theme == ShareCardTheme.LIGHT,
-                        onClick = { onOptionsChange(options.copy(theme = ShareCardTheme.LIGHT)) },
-                        label = { Text(stringResource(R.string.share_card_image_options_light)) },
-                    )
-                    FilterChip(
-                        selected = options.theme == ShareCardTheme.DARK,
-                        onClick = { onOptionsChange(options.copy(theme = ShareCardTheme.DARK)) },
-                        label = { Text(stringResource(R.string.share_card_image_options_dark)) },
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.share_card_image_options_include),
-                    style = MaterialTheme.typography.titleSmall,
+            }
+        }
+        ShareImageOptionsLabel(stringResource(R.string.share_card_image_options_theme))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ShareCardTheme.entries.forEachIndexed { index, theme ->
+                SegmentedButton(
+                    selected = options.theme == theme,
+                    onClick = { onOptionsChange(options.copy(theme = theme)) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = ShareCardTheme.entries.size),
+                    label = {
+                        Text(
+                            stringResource(
+                                when (theme) {
+                                    ShareCardTheme.LIGHT -> R.string.share_card_image_options_light
+                                    ShareCardTheme.DARK -> R.string.share_card_image_options_dark
+                                },
+                            ),
+                        )
+                    },
                 )
-                ShareImageOptionRow(
-                    checked = options.showCover,
+            }
+        }
+        ShareImageOptionsLabel(stringResource(R.string.share_card_image_options_include))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            // Chips a layout never draws are hidden rather than left as toggles that change nothing.
+            if (options.layout != BookShareCardLayout.MINIMAL) {
+                ShareImageOptionChip(
+                    selected = options.showCover,
                     label = stringResource(R.string.share_card_image_options_cover),
-                    onCheckedChange = { onOptionsChange(options.copy(showCover = it)) },
+                    onClick = { onOptionsChange(options.copy(showCover = !options.showCover)) },
                 )
-                ShareImageOptionRow(
-                    checked = options.showAuthor,
-                    label = stringResource(R.string.share_card_image_options_author),
-                    onCheckedChange = { onOptionsChange(options.copy(showAuthor = it)) },
-                )
-                ShareImageOptionRow(
-                    checked = options.showStatus,
-                    label = stringResource(R.string.share_card_image_options_status),
-                    onCheckedChange = { onOptionsChange(options.copy(showStatus = it)) },
-                )
-                ShareImageOptionRow(
-                    checked = options.showProgress,
-                    label = stringResource(R.string.share_card_image_options_progress),
-                    onCheckedChange = { onOptionsChange(options.copy(showProgress = it)) },
-                )
-                ShareImageOptionRow(
-                    checked = options.showReadTime,
-                    label = stringResource(R.string.share_card_image_options_read_time),
-                    onCheckedChange = { onOptionsChange(options.copy(showReadTime = it)) },
-                )
-                ShareImageOptionRow(
-                    checked = options.showRating,
+            }
+            ShareImageOptionChip(
+                selected = options.showAuthor,
+                label = stringResource(R.string.share_card_image_options_author),
+                onClick = { onOptionsChange(options.copy(showAuthor = !options.showAuthor)) },
+            )
+            ShareImageOptionChip(
+                selected = options.showStatus,
+                label = stringResource(R.string.share_card_image_options_status),
+                onClick = { onOptionsChange(options.copy(showStatus = !options.showStatus)) },
+            )
+            ShareImageOptionChip(
+                selected = options.showProgress,
+                label = stringResource(R.string.share_card_image_options_progress),
+                onClick = { onOptionsChange(options.copy(showProgress = !options.showProgress)) },
+            )
+            ShareImageOptionChip(
+                selected = options.showReadTime,
+                label = stringResource(R.string.share_card_image_options_read_time),
+                onClick = { onOptionsChange(options.copy(showReadTime = !options.showReadTime)) },
+            )
+            // An unrated book has nothing to show here, so the toggle would change nothing in the preview.
+            if (hasRating) {
+                ShareImageOptionChip(
+                    selected = options.showRating,
                     label = stringResource(R.string.share_card_image_options_rating),
-                    onCheckedChange = { onOptionsChange(options.copy(showRating = it)) },
+                    onClick = { onOptionsChange(options.copy(showRating = !options.showRating)) },
                 )
-                ShareImageOptionRow(
-                    checked = options.showTags,
+            }
+            // Same as rating: a book without tags would get a toggle that changes nothing.
+            if (hasTags) {
+                ShareImageOptionChip(
+                    selected = options.showTags,
                     label = stringResource(R.string.share_card_image_options_tags),
-                    onCheckedChange = { onOptionsChange(options.copy(showTags = it)) },
-                )
-                ShareImageOptionRow(
-                    checked = options.showImportedDate,
-                    label = stringResource(R.string.share_card_image_options_imported_date),
-                    onCheckedChange = { onOptionsChange(options.copy(showImportedDate = it)) },
-                )
-                ShareImageOptionRow(
-                    checked = options.showTagline,
-                    label = stringResource(R.string.share_card_image_options_tagline),
-                    onCheckedChange = { onOptionsChange(options.copy(showTagline = it)) },
+                    // Tags and the imported date compete for the same space, so showing one hides the other.
+                    onClick = {
+                        val showTags = !options.showTags
+                        onOptionsChange(options.copy(showTags = showTags, showImportedDate = options.showImportedDate && !showTags))
+                    },
                 )
             }
-        },
-        confirmButton = {
-            Button(onClick = onShareImage, enabled = !isCapturing) {
-                if (isCapturing) {
-                    VayanaCircularProgressIndicator(
-                        modifier = Modifier.size(Sizes.iconSmall),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text(stringResource(R.string.share_card_share_image))
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_reset_all_cancel))
-            }
-        },
+            ShareImageOptionChip(
+                selected = options.showImportedDate,
+                label = stringResource(R.string.share_card_image_options_imported_date),
+                onClick = {
+                    val showImportedDate = !options.showImportedDate
+                    onOptionsChange(options.copy(showImportedDate = showImportedDate, showTags = options.showTags && !showImportedDate))
+                },
+            )
+            ShareImageOptionChip(
+                selected = options.showTagline,
+                label = stringResource(R.string.share_card_image_options_tagline),
+                onClick = { onOptionsChange(options.copy(showTagline = !options.showTagline)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShareImageOptionsLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = Spacing.xs),
     )
 }
 
 @Composable
-private fun ShareImageOptionRow(
-    checked: Boolean,
-    label: String,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
-    }
+private fun ShareImageOptionChip(selected: Boolean, label: String, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            }
+        } else {
+            null
+        },
+    )
 }
 
 @Composable
@@ -2483,50 +2904,67 @@ private fun BookShelvesSection(
     if (showAddDialog) {
         var newShelfName by remember { mutableStateOf("") }
         val memberIds = remember(shelvesForBook) { shelvesForBook.map { it.id }.toSet() }
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text(stringResource(R.string.library_shelves_add_to_shelf)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    allShelves.forEach { shelf ->
-                        val onShelf = shelf.id in memberIds
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (onShelf) onRemoveFromShelf(shelf.id) else onAddToShelf(shelf.id)
-                                },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        ) {
-                            Checkbox(checked = onShelf, onCheckedChange = { checked -> if (checked) onAddToShelf(shelf.id) else onRemoveFromShelf(shelf.id) })
-                            Text(shelf.name)
-                        }
+        ExpressiveDialogSurface(onDismissRequest = { showAddDialog = false }, scrollable = true) {
+            ExpressiveDialogHeader(
+                icon = Icons.Outlined.CollectionsBookmark,
+                title = stringResource(R.string.library_shelves_add_to_shelf),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            allShelves.forEach { shelf ->
+                val onShelf = shelf.id in memberIds
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (onShelf) onRemoveFromShelf(shelf.id) else onAddToShelf(shelf.id)
+                        },
+                    shape = RoundedCornerShape(Radii.medium),
+                    color = if (onShelf) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = if (onShelf) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Checkbox(checked = onShelf, onCheckedChange = { checked -> if (checked) onAddToShelf(shelf.id) else onRemoveFromShelf(shelf.id) })
+                        Text(
+                            text = shelf.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.xs))
-                    OutlinedTextField(
-                        value = newShelfName,
-                        onValueChange = { newShelfName = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.library_shelves_name_label)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
-            },
-            confirmButton = {
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            OutlinedTextField(
+                value = newShelfName,
+                onValueChange = { newShelfName = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.library_shelves_name_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radii.medium),
+                colors = expressiveTextFieldColors(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilledTonalButton(onClick = { showAddDialog = false }, shape = Radii.buttonShape) {
+                    Text(stringResource(R.string.settings_reset_all_cancel))
+                }
                 Button(
                     onClick = {
                         if (newShelfName.isNotBlank()) onCreateShelf(newShelfName)
                         showAddDialog = false
                     },
+                    shape = Radii.buttonShape,
                 ) { Text(if (newShelfName.isNotBlank()) stringResource(R.string.library_shelves_create) else stringResource(R.string.notes_edit_save)) }
-            },
-            dismissButton = {
-                FilledTonalButton(onClick = { showAddDialog = false }) {
-                    Text(stringResource(R.string.settings_reset_all_cancel))
-                }
-            },
-        )
+            }
+        }
     }
 }
 
@@ -3023,41 +3461,75 @@ private fun BookCover(book: Book, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Everything cover-related in one place: a live preview, the Your cover / Goodreads switch (when both exist),
+ * and change/remove. Changes apply straight away, so the preview always shows what the library will.
+ */
 @Composable
-private fun CoverActionButtons(
-    hasCover: Boolean,
+private fun EditCoverDialog(
+    book: Book,
     onChangeCover: () -> Unit,
     onRemoveCover: () -> Unit,
-    modifier: Modifier = Modifier,
+    onUseCover: (CoverSource) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        ElevatedButton(
-            onClick = onChangeCover,
-            modifier = Modifier
-                .height(Sizes.touchTarget)
-                .weight(1f),
-            shape = RoundedCornerShape(percent = 50),
+    ExpressiveDialogSurface(onDismissRequest = onDismiss) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.Image,
+            title = stringResource(R.string.library_edit_cover),
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        Surface(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            shape = RoundedCornerShape(Radii.large),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Image,
-                contentDescription = stringResource(R.string.library_change_cover),
+            BookCover(
+                book = book,
+                modifier = Modifier
+                    .padding(Spacing.md)
+                    .size(width = Sizes.coverWidthMax, height = Sizes.coverWidthMax / Sizes.coverAspectRatio),
             )
         }
-        ElevatedButton(
-            onClick = onRemoveCover,
-            enabled = hasCover,
-            modifier = Modifier
-                .height(Sizes.touchTarget)
-                .weight(1f),
-            shape = RoundedCornerShape(percent = 50),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Delete,
-                contentDescription = stringResource(R.string.library_remove_cover),
+        if (book.customCoverPath != null && book.goodreadsCoverPath != null) {
+            CoverSourceSwitch(
+                selected = if (book.coverPath == book.goodreadsCoverPath) CoverSource.GOODREADS else CoverSource.CUSTOM,
+                onSelect = onUseCover,
+                modifier = Modifier.fillMaxWidth(),
             )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            OutlinedButton(
+                onClick = onRemoveCover,
+                enabled = book.coverPath != null,
+                modifier = Modifier.weight(1f),
+                shape = Radii.buttonShape,
+            ) {
+                Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(stringResource(R.string.library_remove_cover), maxLines = 1)
+            }
+            Button(
+                onClick = onChangeCover,
+                modifier = Modifier.weight(1f),
+                shape = Radii.buttonShape,
+            ) {
+                Icon(Icons.Outlined.Image, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(stringResource(R.string.library_change_cover), maxLines = 1)
+            }
+        }
+        Button(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth(),
+            shape = Radii.buttonShape,
+        ) {
+            Text(stringResource(R.string.library_edit_cover_done))
         }
     }
 }
@@ -3192,6 +3664,14 @@ private fun GitHubSyncStepStatus.label(): String = when (this) {
     GitHubSyncStepStatus.FAILED -> stringResource(R.string.library_sync_progress_failed)
 }
 
+@Composable
+private fun GitHubSyncStepStatus.containerAndContentColor() = when (this) {
+    GitHubSyncStepStatus.RUNNING -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+    GitHubSyncStepStatus.DONE -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    GitHubSyncStepStatus.FAILED -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    GitHubSyncStepStatus.WAITING -> MaterialTheme.colorScheme.surfaceContainerLow to MaterialTheme.colorScheme.onSurfaceVariant
+}
+
 private fun GitHubSyncProgressState.statusFor(step: GitHubSyncProgressStep): GitHubSyncStepStatus {
     if (this.step == GitHubSyncProgressStep.FAILED && step.ordinal == completedSteps.coerceAtMost(GitHubSyncProgressStep.SAVING_SNAPSHOT.ordinal)) {
         return GitHubSyncStepStatus.FAILED
@@ -3220,6 +3700,191 @@ private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.LOCAL_FILE_REMOVE_FAILED -> stringResource(R.string.library_remove_from_device_failed)
     is BookDetailMessage.QUOTES_IMPORTED -> stringResource(R.string.library_quotes_imported_message, count)
     BookDetailMessage.MARKED_FINISHED -> stringResource(R.string.library_marked_finished)
+    BookDetailMessage.GOODREADS_APPLIED -> stringResource(R.string.library_goodreads_applied)
+    is BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES -> stringResource(R.string.library_goodreads_applied_quotes, quotesAdded)
+    BookDetailMessage.GOODREADS_COVER_FAILED -> stringResource(R.string.library_goodreads_cover_failed)
+    BookDetailMessage.GOODREADS_QUOTES_FAILED -> stringResource(R.string.library_goodreads_quotes_failed)
+    BookDetailMessage.READING_STATS_RESET -> stringResource(R.string.library_reading_stats_reset)
+    BookDetailMessage.READING_STATS_RESET_FAILED -> stringResource(R.string.library_reading_stats_reset_failed)
+    BookDetailMessage.GOODREADS_FAILED -> stringResource(R.string.library_goodreads_apply_failed)
+}
+
+/** Whether there's anything for "Reset reading stats" to clear. */
+private fun Book.hasReadingStats(): Boolean =
+    readingPercent > 0f || startedReadingAt != null || finishedReadingAt != null || totalReadingSeconds > 0L || lastReadAt != null
+
+/** Goodreads rating and original year under the series line; tapping it opens the book on Goodreads. */
+@Composable
+private fun GoodreadsInfoLine(book: Book, modifier: Modifier = Modifier) {
+    val rating = book.goodreadsRating?.let { value ->
+        val count = book.goodreadsRatingsCount
+        if (count != null) {
+            stringResource(R.string.library_goodreads_rating_with_count, value, NumberFormat.getIntegerInstance().format(count))
+        } else {
+            stringResource(R.string.library_goodreads_rating, value)
+        }
+    }
+    val year = book.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) }
+    val text = listOfNotNull(rating, year).joinToString("  ·  ")
+    if (text.isEmpty()) return
+    val uriHandler = LocalUriHandler.current
+    val url = book.goodreadsUrl
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.then(if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier),
+    )
+}
+
+@Composable
+private fun CoverSourceSwitch(selected: CoverSource, onSelect: (CoverSource) -> Unit, modifier: Modifier = Modifier) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+        CoverSource.entries.forEachIndexed { index, source ->
+            SegmentedButton(
+                selected = selected == source,
+                onClick = { if (selected != source) onSelect(source) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = CoverSource.entries.size),
+                label = {
+                    Text(
+                        text = stringResource(
+                            when (source) {
+                                CoverSource.CUSTOM -> R.string.library_cover_source_custom
+                                CoverSource.GOODREADS -> R.string.library_cover_source_goodreads
+                            },
+                        ),
+                        maxLines = 1,
+                    )
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Paste a Goodreads link and import - no review step: everything the page has is applied (series, genres as tags,
+ * description, cover with the current one kept switchable, original year, rating) and its popular quotes become
+ * highlights in the book. The dialog closes itself once the import lands; the result shows as a snackbar.
+ */
+@Composable
+private fun GoodreadsImportDialog(
+    state: GoodreadsImportState,
+    initialLink: String,
+    browseFallbackQuery: String,
+    onImport: (String) -> Unit,
+    onBrowse: (url: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var link by rememberSaveable { mutableStateOf(initialLink) }
+    // The pasted book's page if there is one, otherwise a Goodreads search for this book.
+    val browseUrl = goodreadsBookIdOf(link)?.let(::goodreadsBookUrl) ?: goodreadsSearchUrl(browseFallbackQuery)
+    val working = state as? GoodreadsImportState.Working
+    val canImport = link.isNotBlank() && working == null
+    ExpressiveDialogSurface(
+        // An import in flight can't be abandoned halfway; the dialog only closes once it's done or failed.
+        onDismissRequest = { if (working == null) onDismiss() },
+    ) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.Link,
+            title = stringResource(R.string.library_goodreads_import),
+            supportingText = stringResource(R.string.library_goodreads_import_detail),
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        OutlinedTextField(
+            value = link,
+            onValueChange = { link = it },
+            label = { Text(stringResource(R.string.library_goodreads_link_label)) },
+            placeholder = { Text(stringResource(R.string.library_goodreads_link_hint)) },
+            singleLine = true,
+            enabled = working == null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+            keyboardActions = KeyboardActions(onGo = { if (canImport) onImport(link) }),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.medium),
+            colors = expressiveTextFieldColors(),
+        )
+        OutlinedButton(
+            onClick = { onBrowse(browseUrl) },
+            enabled = working == null,
+            modifier = Modifier.fillMaxWidth(),
+            shape = Radii.buttonShape,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Link,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize),
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(stringResource(R.string.library_goodreads_browse))
+        }
+        if (working != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radii.large),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Row(
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    Text(
+                        text = stringResource(
+                            when (working.step) {
+                                GoodreadsImportStep.FETCHING_BOOK -> R.string.library_goodreads_step_book
+                                GoodreadsImportStep.FETCHING_COVER_AND_QUOTES -> R.string.library_goodreads_step_extras
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+        (state as? GoodreadsImportState.Failed)?.let { failed ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radii.medium),
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            ) {
+                Text(
+                    text = stringResource(
+                        when (failed.error) {
+                            GoodreadsFetchError.INVALID_LINK -> R.string.library_goodreads_invalid_link
+                            GoodreadsFetchError.NOT_FOUND -> R.string.library_goodreads_not_found
+                            GoodreadsFetchError.BLOCKED -> R.string.library_goodreads_blocked
+                            GoodreadsFetchError.FAILED -> R.string.library_goodreads_failed
+                        },
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(Spacing.md),
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(
+                onClick = onDismiss,
+                enabled = working == null,
+                shape = Radii.buttonShape,
+            ) {
+                Text(stringResource(R.string.library_edit_metadata_cancel))
+            }
+            Button(
+                onClick = { onImport(link) },
+                enabled = canImport,
+                shape = Radii.buttonShape,
+            ) {
+                Text(stringResource(R.string.library_goodreads_import_action))
+            }
+        }
+    }
 }
 
 private fun android.content.Context.shareBookFile(book: Book) {
@@ -3400,86 +4065,92 @@ private fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.medium),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(Radii.extraLarge),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         tonalElevation = Elevations.level1,
     ) {
         Column(
-            modifier = Modifier.padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(
-                text = stringResource(R.string.library_reading_stats_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Text(
-                    text = stringResource(R.string.library_stat_started),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = startedAt.formatDate(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-
-            if (isFinished) {
-                val finishedAt = book.finishedReadingAt ?: book.updatedAt
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
                 ) {
-                    Text(
-                        text = stringResource(R.string.library_stat_finished),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = finishedAt.formatDate(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                    Icon(
+                        imageVector = Icons.Outlined.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.padding(Spacing.sm),
                     )
                 }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
                 Text(
-                    text = stringResource(R.string.library_stat_time_taken),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = timeTakenText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = stringResource(R.string.library_reading_stats_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
                 )
             }
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Text(
-                    text = stringResource(R.string.library_stat_days_taken),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ReadingStatPill(
+                    label = stringResource(R.string.library_stat_started),
+                    value = startedAt.formatDate(),
                 )
-                Text(
-                    text = daysTakenText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                if (isFinished) {
+                    ReadingStatPill(
+                        label = stringResource(R.string.library_stat_finished),
+                        value = (book.finishedReadingAt ?: book.updatedAt).formatDate(),
+                    )
+                }
+                ReadingStatPill(
+                    label = stringResource(R.string.library_stat_time_taken),
+                    value = timeTakenText,
+                )
+                ReadingStatPill(
+                    label = stringResource(R.string.library_stat_days_taken),
+                    value = daysTakenText,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ReadingStatPill(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.widthIn(min = 132.dp),
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.72f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -3562,142 +4233,135 @@ private fun ImportQuotesDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.library_import_quotes_dialog_title),
-                style = MaterialTheme.typography.titleLarge,
+    ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.EditNote,
+            title = stringResource(R.string.library_import_quotes_dialog_title),
+            supportingText = stringResource(R.string.library_import_quotes_subtitle),
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            FilterChip(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                label = { Text(stringResource(R.string.library_import_quotes_tab_paste)) },
+                shape = Radii.chipShape,
             )
-        },
-        text = {
-            Column(
+            FilterChip(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                label = { Text(stringResource(R.string.library_import_quotes_tab_file)) },
+                shape = Radii.chipShape,
+            )
+        }
+
+        if (selectedTab == 0) {
+            OutlinedTextField(
+                value = rawText,
+                onValueChange = { rawText = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Text(
-                    text = stringResource(R.string.library_import_quotes_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    .heightIn(min = Sizes.coverWidthMin, max = Sizes.coverWidthMax),
+                placeholder = {
+                    Text(
+                        text = stringResource(R.string.library_import_quotes_placeholder),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                textStyle = MaterialTheme.typography.bodySmall,
+                shape = RoundedCornerShape(Radii.medium),
+                colors = expressiveTextFieldColors(),
+            )
 
-                Row(
+            if (parsedQuotes.isNotEmpty()) {
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    shape = RoundedCornerShape(Radii.large),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ) {
-                    FilterChip(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        label = { Text(stringResource(R.string.library_import_quotes_tab_paste)) },
-                    )
-                    FilterChip(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        label = { Text(stringResource(R.string.library_import_quotes_tab_file)) },
-                    )
-                }
-
-                if (selectedTab == 0) {
-                    OutlinedTextField(
-                        value = rawText,
-                        onValueChange = { rawText = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = Sizes.coverWidthMin, max = Sizes.coverWidthMax),
-                        placeholder = {
-                            Text(
-                                text = stringResource(R.string.library_import_quotes_placeholder),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        },
-                        textStyle = MaterialTheme.typography.bodySmall,
-                    )
-
-                    if (parsedQuotes.isNotEmpty()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(Radii.medium),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ) {
-                            Column(modifier = Modifier.padding(Spacing.md)) {
+                    Column(modifier = Modifier.padding(Spacing.md)) {
+                        Text(
+                            text = stringResource(R.string.library_import_quotes_detected, parsedQuotes.size),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        parsedQuotes.take(3).forEach { quote ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = Spacing.xs),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    text = stringResource(R.string.library_import_quotes_detected, parsedQuotes.size),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    text = "\"${quote.quoteText.take(45)}...\"",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
-                                Spacer(modifier = Modifier.height(Spacing.xs))
-                                parsedQuotes.take(3).forEach { quote ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = Spacing.xs),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            text = "“${quote.quoteText.take(45)}…”",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.weight(1f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Surface(
-                                            shape = RoundedCornerShape(Radii.small),
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        ) {
-                                            Text(
-                                                text = "${quote.highlightsCount}★",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xs),
-                                            )
-                                        }
-                                    }
-                                }
-                                if (parsedQuotes.size > 3) {
+                                Surface(
+                                    shape = RoundedCornerShape(Radii.small),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                ) {
                                     Text(
-                                        text = "+ ${parsedQuotes.size - 3} more",
+                                        text = "${quote.highlightsCount}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = Spacing.xs),
+                                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                                     )
                                 }
                             }
                         }
-                    }
-                } else {
-                    ElevatedButton(
-                        onClick = { filePicker.launch(arrayOf("text/plain", "*/*")) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.Outlined.Image, contentDescription = null)
-                        Text(
-                            text = stringResource(R.string.library_import_quotes_file_button),
-                            modifier = Modifier.padding(start = Spacing.sm),
-                        )
+                        if (parsedQuotes.size > 3) {
+                            Text(
+                                text = "+ ${parsedQuotes.size - 3} more",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+                                modifier = Modifier.padding(top = Spacing.xs),
+                            )
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {
+        } else {
+            ElevatedButton(
+                onClick = { filePicker.launch(arrayOf("text/plain", "*/*")) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = Radii.buttonShape,
+            ) {
+                Icon(Icons.Outlined.EditNote, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.library_import_quotes_file_button),
+                    modifier = Modifier.padding(start = Spacing.sm),
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(onClick = onDismiss, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.settings_reset_all_cancel))
+            }
             if (selectedTab == 0) {
                 Button(
-                    onClick = {
-                        onImportText(rawText)
-                    },
+                    onClick = { onImportText(rawText) },
                     enabled = parsedQuotes.isNotEmpty(),
+                    shape = Radii.buttonShape,
                 ) {
                     Text(stringResource(R.string.library_import_quotes_confirm, parsedQuotes.size))
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_reset_all_cancel))
-            }
-        },
-    )
+        }
+    }
 }

@@ -35,6 +35,7 @@ import com.vayana.core.backup.parsePortableWordLookupCounters
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
+import com.vayana.core.common.ParsedQuote
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.dao.AnnotationDao
@@ -56,6 +57,7 @@ import com.vayana.core.database.repository.AnnotationMergeResult
 import com.vayana.core.database.repository.AnnotationRecord
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.bookSyncIdOfReadingProgressReset
 import com.vayana.core.database.repository.CloudBookMergeResult
 import com.vayana.core.database.repository.CloudBookRecord
 import com.vayana.core.database.repository.CloudReadingSessionRecord
@@ -133,6 +135,13 @@ sealed interface BookDetailMessage {
     data object LOCAL_FILE_REMOVE_FAILED : BookDetailMessage
     data class QUOTES_IMPORTED(val count: Int) : BookDetailMessage
     data object MARKED_FINISHED : BookDetailMessage
+    data object GOODREADS_APPLIED : BookDetailMessage
+    data class GOODREADS_APPLIED_WITH_QUOTES(val quotesAdded: Int) : BookDetailMessage
+    data object GOODREADS_COVER_FAILED : BookDetailMessage
+    data object GOODREADS_QUOTES_FAILED : BookDetailMessage
+    data object GOODREADS_FAILED : BookDetailMessage
+    data object READING_STATS_RESET : BookDetailMessage
+    data object READING_STATS_RESET_FAILED : BookDetailMessage
 }
 
 enum class CloudBookDownloadResult {
@@ -366,6 +375,7 @@ class LibraryViewModel @Inject constructor(
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
+    private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
     private val bookAliasDao: BookAliasDao,
@@ -529,10 +539,62 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    fun markFinished(bookId: Long) {
+    private val _goodreadsImport = MutableStateFlow<GoodreadsImportState>(GoodreadsImportState.Idle)
+    val goodreadsImport: StateFlow<GoodreadsImportState> = _goodreadsImport
+
+    /** Fetches [link] and applies everything it yields - details, cover and quotes - with no review step. */
+    fun importFromGoodreads(bookId: Long, link: String) {
+        if (_goodreadsImport.value is GoodreadsImportState.Working) return
+        viewModelScope.launch {
+            _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_BOOK)
+            when (val result = goodreadsMetadataFetcher.fetch(link)) {
+                is GoodreadsFetchResult.Failure -> _goodreadsImport.value = GoodreadsImportState.Failed(result.error)
+                is GoodreadsFetchResult.Success -> {
+                    _bookDetailMessage.value = withContext(dispatchers.io) {
+                        applyGoodreadsInLibrary(bookId, result.metadata, goodreadsMetadataFetcher::fetchQuotes)
+                    }
+                    _goodreadsImport.value = GoodreadsImportState.Done
+                }
+            }
+        }
+    }
+
+    /** What the in-app Goodreads browser captured: applied like a direct import, with the quotes it already read. */
+    fun importFromGoodreadsCapture(bookId: Long, metadata: GoodreadsBookMetadata, quotes: List<ParsedQuote>?) {
+        if (_goodreadsImport.value is GoodreadsImportState.Working) return
+        _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { applyGoodreadsInLibrary(bookId, metadata) { quotes } }
+            _goodreadsImport.value = GoodreadsImportState.Done
+        }
+    }
+
+    fun dismissGoodreadsImport() {
+        _goodreadsImport.value = GoodreadsImportState.Idle
+    }
+
+    fun useCover(bookId: Long, source: CoverSource) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { useCoverInLibrary(bookId, source) }
+        }
+    }
+
+    fun resetReadingStats(bookId: Long) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) {
+                runCatchingCancellable {
+                    bookRepository.resetReadingStats(bookId)
+                    BookDetailMessage.READING_STATS_RESET
+                }.getOrElse { BookDetailMessage.READING_STATS_RESET_FAILED }
+            }
+        }
+    }
+
+    /** [announce] posts the detail-screen snackbar; the library grid shows its own instead. */
+    fun markFinished(bookId: Long, announce: Boolean = true) {
         viewModelScope.launch {
             bookRepository.markFinished(bookId)
-            _bookDetailMessage.value = BookDetailMessage.MARKED_FINISHED
+            if (announce) _bookDetailMessage.value = BookDetailMessage.MARKED_FINISHED
         }
     }
 
@@ -568,27 +630,28 @@ class LibraryViewModel @Inject constructor(
             if (quotes.isEmpty()) return@launch
 
             val now = System.currentTimeMillis()
-            val annotations = quotes.mapIndexed { index, quote ->
-                Annotation(
-                    id = 0,
-                    bookId = bookId,
-                    type = AnnotationType.UNDERLINE,
-                    colorKey = "popular",
-                    locator = "quote:$index:${UUID.randomUUID()}",
-                    chapterTitle = quote.sourceTitle ?: quote.author,
-                    chapterHref = null,
-                    selectedText = quote.quoteText,
-                    readerNote = "${quote.highlightsCount} highlights",
-                    createdAt = now,
-                    updatedAt = now,
-                )
-            }
+            val annotations = quotes.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now) }
             withContext(dispatchers.io) {
                 annotationRepository.createAll(annotations)
             }
             _bookDetailMessage.value = BookDetailMessage.QUOTES_IMPORTED(quotes.size)
         }
     }
+
+    /** A quote as a "popular" underline: the reader finds [ParsedQuote.quoteText] in the book and draws it there. */
+    private fun ParsedQuote.toPopularHighlight(bookId: Long, index: Int, now: Long): Annotation = Annotation(
+        id = 0,
+        bookId = bookId,
+        type = AnnotationType.UNDERLINE,
+        colorKey = "popular",
+        locator = "quote:$index:${UUID.randomUUID()}",
+        chapterTitle = sourceTitle ?: author,
+        chapterHref = null,
+        selectedText = quoteText,
+        readerNote = "$highlightsCount highlights",
+        createdAt = now,
+        updatedAt = now,
+    )
 
     fun importQuotesFromFile(bookId: Long, contentResolver: ContentResolver, uri: Uri) {
         viewModelScope.launch {
@@ -1046,7 +1109,19 @@ class LibraryViewModel @Inject constructor(
         runCatchingCancellable {
             val remoteDocument = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
             val snapshotJson = remoteDocument.bytes.toString(Charsets.UTF_8)
-            mergeReadingProgressSnapshot(snapshotJson).copy(
+            val tombstoneMerge = mergeCloudTombstones(snapshotJson)
+            if (tombstoneMerge.failed) {
+                return@runCatchingCancellable ReadingProgressMergeSummary(
+                    failed = true,
+                    skipped = tombstoneMerge.skipped,
+                    failureMessage = tombstoneMerge.failureMessage,
+                    remoteSnapshotJson = snapshotJson,
+                    remoteSnapshotSha = remoteDocument.sha,
+                )
+            }
+            val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
+            progressMerge.copy(
+                skipped = progressMerge.skipped + tombstoneMerge.skipped,
                 remoteSnapshotJson = snapshotJson,
                 remoteSnapshotSha = remoteDocument.sha,
             )
@@ -1212,8 +1287,15 @@ class LibraryViewModel @Inject constructor(
                     skipped += 1
                     continue
                 }
-                tombstoneDao.upsert(TombstoneEntity(syncId = remote.syncId, entityType = remote.entityType, deletedAt = remote.deletedAt))
-                created += 1
+                val existing = tombstoneDao.findBySyncId(remote.syncId)
+                if (existing != null && existing.deletedAt > remote.deletedAt) {
+                    skipped += 1
+                    continue
+                }
+                if (existing == null || existing.deletedAt < remote.deletedAt || existing.entityType != remote.entityType) {
+                    tombstoneDao.upsert(TombstoneEntity(syncId = remote.syncId, entityType = remote.entityType, deletedAt = remote.deletedAt))
+                    created += 1
+                }
                 appliedDeletes += applyCloudTombstone(remote)
             }
             GenericSyncMergeSummary(created = created, skipped = skipped, appliedDeletes = appliedDeletes)
@@ -1260,6 +1342,11 @@ class LibraryViewModel @Inject constructor(
                 val parts = tombstone.syncId.removePrefix("shelf_membership:").split(":", limit = 2)
                 if (parts.size != 2) return 0
                 shelfRepository.applyMembershipTombstone(bookSyncId = parts[0], shelfSyncId = parts[1], deletedAt = tombstone.deletedAt)
+            }
+            TombstoneEntityType.READING_SESSION -> readingSessionRepository.deleteBySyncId(tombstone.syncId)
+            TombstoneEntityType.READING_PROGRESS_RESET -> {
+                val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return 0
+                bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
             }
         }
     }
@@ -1389,8 +1476,8 @@ class LibraryViewModel @Inject constructor(
         snapshotJson: String,
         store: GitHubContentsAssetStore,
     ): SnapshotRebaseMerge = runCatchingCancellable {
-        val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
         val tombstoneMerge = mergeCloudTombstones(snapshotJson)
+        val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
         val cloudLibraryMerge = mergeCloudLibrary(snapshotJson, store)
         val bookAliasMerge = mergeCloudBookAliases(snapshotJson)
         val shelfMerge = mergeCloudShelves(snapshotJson)
@@ -1425,6 +1512,9 @@ class LibraryViewModel @Inject constructor(
             val attempt = runCatchingCancellable {
                 val localBooks = bookRepository.observeAll().first()
                 val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
+                val progressTombstones = tombstoneDao.getAll()
+                    .filter { it.isReadingProgressOnlyTombstone() }
+                    .map { it.toPortable() }
                 val result = patchPortableReadingProgressOnly(
                     jsonText = jsonText,
                     patches = localBooks.map { book ->
@@ -1442,12 +1532,14 @@ class LibraryViewModel @Inject constructor(
                     readingSessions = readingSessionRepository.observeAll().first()
                         .mapNotNull { it.toPortable(bookSyncIdsByLocalId) },
                     wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() },
+                    tombstones = progressTombstones,
                 )
-                if (result.patched > 0 || result.sessionsAdded > 0 || result.wordLookupCountersMerged > 0) {
+                val pushed = result.patched + result.sessionsAdded + result.wordLookupCountersMerged + result.tombstonesMerged
+                if (pushed > 0) {
                     val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
                     store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, sha)
                 }
-                ReadingProgressOnlyPushSummary(pushed = result.patched + result.sessionsAdded + result.wordLookupCountersMerged)
+                ReadingProgressOnlyPushSummary(pushed = pushed)
             }
             attempt.onSuccess { result -> return result }
             val throwable = attempt.exceptionOrNull()
@@ -1788,13 +1880,20 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun replaceCoverInLibrary(bookId: Long, contentResolver: ContentResolver, uri: Uri): BookDetailMessage {
-        val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.COVER_FAILED
+        // Root-relative paths throughout: they're compared against the stored alternates, not just deleted.
+        val existingBook = bookRepository.getById(bookId) ?: return BookDetailMessage.COVER_FAILED
         var coverFile: File? = null
         return runCatchingCancellable {
             val pickedCover = savePickedCover(contentResolver, uri)
             coverFile = pickedCover
-            bookRepository.updateCover(bookId, storageRoots.relativize(pickedCover))
-            existingBook.coverPath?.let { File(it).delete() }
+            val pickedPath = storageRoots.relativize(pickedCover)
+            bookRepository.updateCover(bookId, pickedPath)
+            // The picked image becomes "your cover"; a Goodreads cover, if any, stays available to switch back to.
+            bookRepository.updateCoverAlternates(bookId, customCoverPath = pickedPath, goodreadsCoverPath = existingBook.goodreadsCoverPath)
+            listOfNotNull(existingBook.coverPath, existingBook.customCoverPath)
+                .distinct()
+                .filter { it != existingBook.goodreadsCoverPath }
+                .forEach { storageRoots.resolve(it).delete() }
             coverFile = null
             BookDetailMessage.COVER_UPDATED
         }.getOrElse { BookDetailMessage.COVER_FAILED }
@@ -1806,13 +1905,122 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun removeCoverFromLibrary(bookId: Long): BookDetailMessage {
-        val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.COVER_FAILED
+        val existingBook = bookRepository.getById(bookId) ?: return BookDetailMessage.COVER_FAILED
         return runCatchingCancellable {
-            bookRepository.updateCover(bookId, null)
-            existingBook.coverPath?.let { File(it).delete() }
+            val current = existingBook.coverPath
+            val custom = existingBook.customCoverPath?.takeIf { it != current }
+            val goodreads = existingBook.goodreadsCoverPath?.takeIf { it != current }
+            // Fall back to the other stored cover, if there is one, rather than leaving the book bare.
+            bookRepository.updateCover(bookId, custom ?: goodreads)
+            bookRepository.updateCoverAlternates(bookId, customCoverPath = custom, goodreadsCoverPath = goodreads)
+            current?.let { storageRoots.resolve(it).delete() }
             BookDetailMessage.COVER_REMOVED
         }.getOrElse { BookDetailMessage.COVER_FAILED }
     }
+
+    private suspend fun useCoverInLibrary(bookId: Long, source: CoverSource): BookDetailMessage {
+        val book = bookRepository.getById(bookId) ?: return BookDetailMessage.COVER_FAILED
+        val target = when (source) {
+            CoverSource.CUSTOM -> book.customCoverPath
+            CoverSource.GOODREADS -> book.goodreadsCoverPath
+        }
+        if (target == null || !storageRoots.resolve(target).isFile) return BookDetailMessage.COVER_FAILED
+        if (target != book.coverPath) bookRepository.updateCover(bookId, target)
+        return BookDetailMessage.COVER_UPDATED
+    }
+
+    /**
+     * Series, genres and description go through [BookRepository.updateMetadata] like a manual edit, so they sync;
+     * the Goodreads rating, year and link stay local to this device. Fields the page didn't have leave the book's
+     * own values alone. Quotes are added last, as popular highlights, skipping any the book already has.
+     */
+    private suspend fun applyGoodreadsInLibrary(
+        bookId: Long,
+        metadata: GoodreadsBookMetadata,
+        loadQuotes: suspend (workId: String) -> List<ParsedQuote>?,
+    ): BookDetailMessage {
+        val book = bookRepository.getById(bookId) ?: return BookDetailMessage.GOODREADS_FAILED
+        return runCatchingCancellable {
+            val applySeries = metadata.series != null
+            val applyDescription = !metadata.description.isNullOrBlank()
+            val applyGenres = metadata.genres.isNotEmpty()
+            if (applySeries || applyDescription || applyGenres) {
+                bookRepository.updateMetadata(
+                    id = bookId,
+                    title = book.title,
+                    author = book.author,
+                    series = if (applySeries) metadata.series else book.series,
+                    seriesNumber = if (applySeries) metadata.seriesNumber else book.seriesNumber,
+                    description = if (applyDescription) metadata.description else book.description,
+                    tagsCsv = if (applyGenres) book.tagsCsv.withGoodreadsGenres(metadata.genres) else book.tagsCsv,
+                )
+            }
+            bookRepository.updateGoodreadsInfo(
+                id = bookId,
+                goodreadsUrl = metadata.canonicalUrl,
+                rating = metadata.averageRating ?: book.goodreadsRating,
+                ratingsCount = metadata.ratingsCount ?: book.goodreadsRatingsCount,
+                originalPublicationYear = metadata.originalPublicationYear ?: book.originalPublicationYear,
+            )
+            // Cover and quotes only need the metadata already in hand, so both downloads run at once.
+            val coverUrl = metadata.coverUrl
+            val workId = metadata.workId
+            _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
+            val (coverBytes, quotes) = coroutineScope {
+                val cover = async { coverUrl?.let { goodreadsMetadataFetcher.downloadCover(it) } }
+                val fetchedQuotes = async { workId?.let { loadQuotes(it) } }
+                cover.await() to fetchedQuotes.await()
+            }
+            val coverApplied = coverUrl == null || coverBytes?.let { applyGoodreadsCover(book, it) } != null
+            // Null means the quotes page couldn't be read at all, as opposed to it simply having none new.
+            val quotesAdded: Int? = when {
+                workId == null -> 0
+                quotes == null -> null
+                else -> addGoodreadsQuotes(bookId, quotes)
+            }
+            when {
+                !coverApplied -> BookDetailMessage.GOODREADS_COVER_FAILED
+                quotesAdded == null -> BookDetailMessage.GOODREADS_QUOTES_FAILED
+                quotesAdded > 0 -> BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES(quotesAdded)
+                else -> BookDetailMessage.GOODREADS_APPLIED
+            }
+        }.getOrElse { BookDetailMessage.GOODREADS_FAILED }
+    }
+
+    /**
+     * Adds [quotes] exactly as a pasted-quotes import does ([importQuotes]) - popular-highlight underlines the reader
+     * places in the text - minus any whose text the book already has, so importing the same link again is harmless.
+     */
+    private suspend fun addGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): Int {
+        // Compared on letters and digits only, so curly-vs-straight quotes or spacing can't sneak a duplicate in.
+        val known = annotationRepository.observeForBook(bookId).first()
+            .mapTo(HashSet()) { quoteMatchKey(it.selectedText.orEmpty()) }
+        val fresh = quotes.filter { quote ->
+            val key = quoteMatchKey(quote.quoteText)
+            key.isNotEmpty() && known.add(key)
+        }
+        if (fresh.isEmpty()) return 0
+        val now = System.currentTimeMillis()
+        annotationRepository.createAll(fresh.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now) })
+        return fresh.size
+    }
+
+    /** [book] must carry root-relative paths; [bytes] is an already-validated image from Goodreads. */
+    private suspend fun applyGoodreadsCover(book: Book, bytes: ByteArray) {
+        val goodreadsPath = storageRoots.relativize(saveCover(bytes))
+        val previousGoodreads = book.goodreadsCoverPath
+        // Whatever was showing before stays switchable as "your cover", unless it was itself a Goodreads one.
+        val custom = book.customCoverPath ?: book.coverPath?.takeIf { it != previousGoodreads }
+        bookRepository.updateCoverAlternates(book.id, customCoverPath = custom, goodreadsCoverPath = goodreadsPath)
+        bookRepository.updateCover(book.id, goodreadsPath)
+        previousGoodreads?.takeIf { it != custom }?.let { storageRoots.resolve(it).delete() }
+    }
+
+    private fun String?.withGoodreadsGenres(genres: List<String>): String =
+        (orEmpty().split(",").map { it.trim() } + genres.take(GoodreadsMaxGenreTags))
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .joinToString(",")
 
     private suspend fun removeLocalFileFromLibrary(bookId: Long): BookDetailMessage {
         val book = bookRepository.getById(bookId) ?: return BookDetailMessage.LOCAL_FILE_REMOVE_FAILED
@@ -1866,6 +2074,10 @@ class LibraryViewModel @Inject constructor(
     private fun Book.withAbsolutePaths(): Book = copy(
         coverPath = coverPath?.let { storageRoots.resolve(it).absolutePath },
         filePath = filePath.takeIf { it.isNotBlank() }?.let { storageRoots.resolve(it).absolutePath }.orEmpty(),
+        // An alternate whose file has gone (e.g. replaced along with the source file) drops out, so the UI
+        // never offers a cover it can't show.
+        customCoverPath = customCoverPath?.let { storageRoots.resolve(it) }?.takeIf { it.isFile }?.absolutePath,
+        goodreadsCoverPath = goodreadsCoverPath?.let { storageRoots.resolve(it) }?.takeIf { it.isFile }?.absolutePath,
     )
 
     private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> =
@@ -2072,6 +2284,16 @@ private fun PortableShelfMembership.toRecord(): CloudShelfMembershipRecord = Clo
     bookSyncId = bookSyncId,
     shelfSyncId = shelfSyncId,
     createdAt = createdAt,
+)
+
+private fun TombstoneEntity.isReadingProgressOnlyTombstone(): Boolean =
+    entityType == TombstoneEntityType.READING_SESSION.value ||
+        entityType == TombstoneEntityType.READING_PROGRESS_RESET.value
+
+private fun TombstoneEntity.toPortable(): PortableTombstone = PortableTombstone(
+    syncId = syncId,
+    entityType = entityType,
+    deletedAt = deletedAt,
 )
 
 private fun PortableVocabularyCard.toRecord(): CloudVocabularyCardRecord = CloudVocabularyCardRecord(

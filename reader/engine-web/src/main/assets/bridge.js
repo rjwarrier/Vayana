@@ -66,10 +66,47 @@ function bookPageStats(sectionIndex) {
 
     const pagesBefore = Math.round(estimatePages(0, sectionIndex))
     const pagesAfter = Math.round(estimatePages(sectionIndex + 1, sectionByteSizes.length))
+
+    // Start page of every TOC entry, numbered the same way as currentPage. Entries that share a
+    // section (anchors within one file) share its start page - placing them finer needs layout.
+    const sectionStartPages = []
+    let runningPages = 0
+    for (let i = 0; i < sectionByteSizes.length; i++) {
+        sectionStartPages.push(Math.round(runningPages) + 1)
+        runningPages += estimatePages(i, i + 1)
+    }
+    const tocPages = {}
+    for (const [href, index] of tocSectionIndexes()) {
+        if (index < sectionStartPages.length) tocPages[href] = sectionStartPages[index]
+    }
+
     return {
         currentPage: pagesBefore + pageInSection,
         totalPages: pagesBefore + pagesInSection + pagesAfter,
+        tocPages,
     }
+}
+
+// TOC href -> section index, resolved once per book for the contents panel's page numbers.
+let tocSectionIndexCache = null
+
+function tocSectionIndexes() {
+    if (tocSectionIndexCache) return tocSectionIndexCache
+    const indexes = new Map()
+    const walk = items => {
+        for (const item of items ?? []) {
+            if (item.href && !indexes.has(item.href)) {
+                try {
+                    const index = view.book.resolveHref(item.href)?.index
+                    if (Number.isInteger(index) && index >= 0) indexes.set(item.href, index)
+                } catch (_) {}
+            }
+            walk(item.subitems)
+        }
+    }
+    walk(view.book.toc)
+    tocSectionIndexCache = indexes
+    return indexes
 }
 
 function post(type, payload) {
@@ -150,6 +187,7 @@ async function open(bookUrl, lastLocatorCfi) {
             firstRenderResolve = null
         }
         sectionByteSizes = null
+        tocSectionIndexCache = null
         resetPageEstimate()
         view.addEventListener('relocate', e => {
             const { cfi, fraction, tocItem, section, time } = e.detail
@@ -158,8 +196,10 @@ async function open(bookUrl, lastLocatorCfi) {
                 cfi,
                 fraction,
                 tocLabel: tocItem?.label?.trim?.() ?? null,
+                tocHref: tocItem?.href ?? null,
                 currentPage: pageStats?.currentPage ?? null,
                 totalPages: pageStats?.totalPages ?? null,
+                tocPages: pageStats?.tocPages ?? null,
                 // Minutes remaining at foliate's fixed reading-speed assumption (chars/min) —
                 // text remaining to read, so unlike page count this is independent of font size.
                 chapterMinutesLeft: Number.isFinite(time?.section) ? time.section : null,

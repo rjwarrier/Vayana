@@ -1,5 +1,9 @@
 # Handoff
 
+> **Latest session: see [`SESSION_HANDOFF_2026-09-10.md`](SESSION_HANDOFF_2026-09-10.md)** for the most recent
+> (uncommitted) work. The status snapshot below is old — it predates annotations, statistics, GitHub sync and
+> the book detail screen — and should be rewritten rather than trusted.
+
 Status snapshot for picking this project up in a new session. Read in this order:
 
 1. **`PROMPT2appbuild.md`** (repo root) — the full spec and engineering rules (§0). Still the source of truth for everything not yet built.

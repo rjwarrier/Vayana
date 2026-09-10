@@ -115,6 +115,21 @@ interface BookRepository {
 
     suspend fun updateCover(id: Long, coverPath: String?)
 
+    /**
+     * Goodreads import extras. Local to this device and deliberately leaves `updatedAt` alone, so saving them
+     * doesn't make the book look edited to sync.
+     */
+    suspend fun updateGoodreadsInfo(
+        id: Long,
+        goodreadsUrl: String?,
+        rating: Float?,
+        ratingsCount: Int?,
+        originalPublicationYear: Int?,
+    )
+
+    /** Records the two covers a book can switch between; [updateCover] still sets the one in use. */
+    suspend fun updateCoverAlternates(id: Long, customCoverPath: String?, goodreadsCoverPath: String?)
+
     /** Returns null if a book with the same [fileHash] already exists (import-time dedupe, PROMPT2appbuild.md §4.1). */
     suspend fun insertIfNew(
         title: String,
@@ -151,6 +166,19 @@ interface BookRepository {
     suspend fun purge(id: Long)
 
     suspend fun markFinished(id: Long)
+
+    /**
+     * Puts the book back to unread: progress, reading position, started/finished dates, reading time, last-read time
+     * and its reading sessions all go. Highlights, notes, rating and metadata stay. Tombstones keep sync from
+     * restoring what was cleared - the sessions, and any progress recorded before the reset.
+     */
+    suspend fun resetReadingStats(id: Long)
+
+    /**
+     * Applies a reading-stats reset made on another device at [resetAt]: clears the book's stats and its sessions from
+     * before that moment, unless this device has read the book since. Returns 1 if anything was reset, else 0.
+     */
+    suspend fun applyReadingStatsReset(bookSyncId: String, resetAt: Long): Int
 
     /** Null clears that field back to the global reader setting; non-null overrides it for this book only. */
     suspend fun updateReaderPrefs(id: Long, fontSizePercent: Int?, lineHeight: Float?, fontFamily: String?, sideMarginPercent: Int?)

@@ -5,6 +5,7 @@ import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ReadingSessionDao
+import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.model.ReadingSession
 import javax.inject.Inject
@@ -16,6 +17,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     private val readingSessionDao: ReadingSessionDao,
     private val bookDao: BookDao,
     private val bookAliasDao: BookAliasDao,
+    private val tombstoneDao: TombstoneDao,
 ) : ReadingSessionRepository {
 
     override fun observeAll(): Flow<List<ReadingSession>> =
@@ -37,12 +39,16 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun deleteBySyncId(syncId: String): Int = readingSessionDao.deleteBySyncId(syncId)
+
     override suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult {
         if (record.syncId.isBlank() || record.bookSyncId.isBlank()) return ReadingSessionMergeResult.SKIPPED
         if (record.startedAt <= 0L || record.endedAt < record.startedAt || record.durationSeconds <= 0L) {
             return ReadingSessionMergeResult.SKIPPED
         }
         return database.withTransaction {
+            // Cleared by a reading-stats reset: the cloud copy mustn't bring it back.
+            if (tombstoneDao.findBySyncId(record.syncId) != null) return@withTransaction ReadingSessionMergeResult.SKIPPED
             val book = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao) ?: return@withTransaction ReadingSessionMergeResult.SKIPPED
             val insertedId = readingSessionDao.insertIgnore(
                 ReadingSessionEntity(

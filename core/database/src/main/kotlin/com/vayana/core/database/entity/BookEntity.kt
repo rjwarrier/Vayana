@@ -56,4 +56,18 @@ data class BookEntity(
     val customSideMarginPercent: Int? = null,
     /** Non-null while queued in "Read next", ordered ascending (earliest add = next up). */
     val readNextAddedAt: Long? = null,
+    /**
+     * Goodreads import extras. Local to this device - cloud sync neither sends nor overwrites them (see
+     * `BookRepositoryImpl.withLocalOnlyFieldsFrom`).
+     */
+    val goodreadsUrl: String? = null,
+    val goodreadsRating: Float? = null,
+    val goodreadsRatingsCount: Int? = null,
+    val originalPublicationYear: Int? = null,
+    /**
+     * The two covers a book can switch between once Goodreads has supplied one (root-relative, like
+     * [coverPath]). [coverPath] is always the one in use and may equal either.
+     */
+    val customCoverPath: String? = null,
+    val goodreadsCoverPath: String? = null,
 )

@@ -56,4 +56,11 @@ data class Book(
     val customFontFamily: String? = null,
     val customSideMarginPercent: Int? = null,
     val readNextAddedAt: Long? = null,
+    val goodreadsUrl: String? = null,
+    val goodreadsRating: Float? = null,
+    val goodreadsRatingsCount: Int? = null,
+    val originalPublicationYear: Int? = null,
+    /** Switchable covers; [coverPath] is the one in use and may equal either. */
+    val customCoverPath: String? = null,
+    val goodreadsCoverPath: String? = null,
 )

@@ -66,6 +66,7 @@ data class PortableReadingProgressPatchResult(
     val patched: Int,
     val sessionsAdded: Int = 0,
     val wordLookupCountersMerged: Int = 0,
+    val tombstonesMerged: Int = 0,
 )
 
 fun parsePortableReadingProgresses(jsonText: String): List<PortableReadingProgress> =
@@ -77,11 +78,13 @@ fun patchPortableReadingProgressOnly(
     exportedAt: Long,
     readingSessions: List<PortableReadingSession> = emptyList(),
     wordLookupCounters: List<PortableWordLookupCounter> = emptyList(),
+    tombstones: List<PortableTombstone> = emptyList(),
 ): PortableReadingProgressPatchResult {
     require(jsonText.length <= MaxPortableProgressJsonChars) { "Portable snapshot is too large" }
     require(patches.size <= MaxPortableProgressBooks) { "Portable progress patch has too many books" }
     require(readingSessions.size <= MaxPortableProgressReadingSessions) { "Portable progress patch has too many reading sessions" }
     require(wordLookupCounters.size <= MaxPortableProgressWordLookupCounters) { "Portable progress patch has too many word lookup counters" }
+    require(tombstones.size <= MaxPortableProgressTombstones) { "Portable progress patch has too many tombstones" }
     require(exportedAt > 0L) { "Portable progress patch export time is invalid" }
     val root = JSONObject(jsonText)
     val books = root.optJSONArray("books") ?: return PortableReadingProgressPatchResult(jsonText, patched = 0)
@@ -124,7 +127,8 @@ fun patchPortableReadingProgressOnly(
 
     val sessionsAdded = root.appendMissingReadingSessions(readingSessions)
     val wordLookupCountersMerged = root.mergeWordLookupCounters(wordLookupCounters)
-    val changed = patched > 0 || sessionsAdded > 0 || wordLookupCountersMerged > 0
+    val tombstonesMerged = root.mergeTombstones(tombstones)
+    val changed = patched > 0 || sessionsAdded > 0 || wordLookupCountersMerged > 0 || tombstonesMerged > 0
 
     if (changed) {
         root.put("exportedAt", exportedAt)
@@ -134,7 +138,42 @@ fun patchPortableReadingProgressOnly(
         patched = patched,
         sessionsAdded = sessionsAdded,
         wordLookupCountersMerged = wordLookupCountersMerged,
+        tombstonesMerged = tombstonesMerged,
     )
+}
+
+private fun JSONObject.mergeTombstones(tombstones: List<PortableTombstone>): Int {
+    if (tombstones.isEmpty()) return 0
+    val array = optJSONArray("tombstones") ?: JSONArray().also { put("tombstones", it) }
+    require(array.length() <= MaxPortableProgressTombstones) { "Portable snapshot has too many tombstones" }
+    val existingBySyncId = mutableMapOf<String, JSONObject>()
+    for (index in 0 until array.length()) {
+        val tombstone = array.optJSONObject(index) ?: continue
+        val syncId = tombstone.optBoundedString("syncId", MaxSyncIdChars) ?: continue
+        existingBySyncId[syncId] = tombstone
+    }
+    var merged = 0
+    tombstones.forEach { tombstone ->
+        val syncId = tombstone.syncId.trim().takeIf { it.isNotEmpty() && it.length <= MaxSyncIdChars } ?: return@forEach
+        val entityType = tombstone.entityType.trim().takeIf { it.isNotEmpty() && it.length <= MaxEntityTypeChars } ?: return@forEach
+        if (tombstone.deletedAt <= 0L) return@forEach
+        val existing = existingBySyncId[syncId]
+        if (existing == null) {
+            if (array.length() >= MaxPortableProgressTombstones) return@forEach
+            val added = JSONObject()
+                .put("syncId", syncId)
+                .put("entityType", entityType)
+                .put("deletedAt", tombstone.deletedAt)
+            array.put(added)
+            existingBySyncId[syncId] = added
+            merged += 1
+        } else if (tombstone.deletedAt > existing.optLong("deletedAt", 0L)) {
+            existing.put("entityType", entityType)
+            existing.put("deletedAt", tombstone.deletedAt)
+            merged += 1
+        }
+    }
+    return merged
 }
 
 private fun JSONObject.mergeWordLookupCounters(wordLookupCounters: List<PortableWordLookupCounter>): Int {
@@ -342,6 +381,7 @@ private const val MaxPortableProgressJsonChars = 8 * 1024 * 1024
 private const val MaxPortableProgressBooks = 20_000
 private const val MaxPortableProgressReadingSessions = 200_000
 private const val MaxPortableProgressWordLookupCounters = 100_000
+private const val MaxPortableProgressTombstones = 100_000
 private const val MaxSyncIdChars = 120
 private const val MaxFileHashChars = 160
 private const val MaxLocatorChars = 16_384
@@ -352,5 +392,6 @@ private const val MaxWriterOriginChars = 120
 private const val MaxDescriptionChars = 16_384
 private const val MaxTagsCsvChars = 2_048
 private const val MaxFormatChars = 32
+private const val MaxEntityTypeChars = 64
 private const val MaxAssetIdChars = 128
 private const val MaxSha256Chars = 128
