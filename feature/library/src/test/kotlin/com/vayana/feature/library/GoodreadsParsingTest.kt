@@ -23,14 +23,44 @@ class GoodreadsParsingTest {
         assertNull(goodreadsBookIdOf("https://www.goodreads.com.evil.example/book/show/1"))
         assertNull(goodreadsBookIdOf("https://evil.example/goodreads.com/book/show/1"))
         assertNull(goodreadsBookIdOf("https://evil.example/?next=https://www.goodreads.com/book/show/1"))
+        assertNull(goodreadsBookIdOf("https://evil.example/@www.goodreads.com/book/show/1"))
+        assertNull(goodreadsBookIdOf("mailto:user@www.goodreads.com/book/show/1"))
+        assertNull(goodreadsBookIdOf("https://www.goodreads.com@evil.example/book/show/1"))
+        assertNull(goodreadsBookIdOf("https://www.goodreads.com/%62ook/show/16046748"))
         assertNull(goodreadsBookIdOf("https://www.goodreads.com/author/show/735413.Ben_H_Winters"))
         assertNull(goodreadsBookIdOf("1234567890123"))
         assertNull(goodreadsBookIdOf(""))
     }
 
     @Test
+    fun nextDataFixtureYieldsMetadataFields() {
+        val metadata = parseBookPage(
+            html = fixture("goodreads/book_next_data.html"),
+            bookId = "16046748",
+            canonicalUrl = goodreadsBookUrl("16046748"),
+        )
+
+        requireNotNull(metadata)
+        assertEquals("https://www.goodreads.com/book/show/16046748", metadata.canonicalUrl)
+        assertEquals("The Last Policeman", metadata.series)
+        assertEquals("2", metadata.seriesNumber)
+        assertEquals(listOf("Science Fiction", "Mystery"), metadata.genres)
+        assertEquals("A detective story & an asteroid countdown.\nSecond line.", metadata.description)
+        assertEquals("https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/fixture.jpg", metadata.coverUrl)
+        assertEquals(2012, metadata.originalPublicationYear)
+        assertEquals(4.05f, metadata.averageRating)
+        assertEquals(12345, metadata.ratingsCount)
+        assertEquals("53271919", metadata.workId)
+    }
+
+    @Test
+    fun nextDataFixtureForWrongBookIdIsRejected() {
+        assertNull(parseBookPage(fixture("goodreads/book_next_data.html"), bookId = "1", canonicalUrl = goodreadsBookUrl("1")))
+    }
+
+    @Test
     fun quotesPageYieldsTextAuthorBookTagsAndLikes() {
-        val quotes = parseQuotesPage(QuotesPageHtml)
+        val quotes = parseQuotesPage(fixture("goodreads/quotes_page.html"))
 
         assertEquals(1, quotes.size, "the one-word fragment is dropped")
         val (id, quote) = quotes.single()
@@ -47,12 +77,14 @@ class GoodreadsParsingTest {
     fun browserSerializedMarkupWithDoubleQuotesParsesTheSame() {
         // A WebView's outerHTML rewrites class='x' as class="x"; the in-app browser path hands us that.
         val serialized = QuotesPageHtml.replace("class='", "class=\"").replace(Regex("""class="([a-zA-Z]+)'"""), "class=\"$1\"")
-        assertEquals(parseQuotesPage(QuotesPageHtml), parseQuotesPage(serialized))
+        assertEquals(parseQuotesPage(fixture("goodreads/quotes_page.html")), parseQuotesPage(serialized))
     }
 
     @Test
     fun challengePageIsRecognised() {
         assertTrue("<script>window.awsWafCookieDomainList = []; window.gokuProps = {}</script>".looksLikeGoodreadsChallenge())
+        assertTrue(fixture("goodreads/challenge_page.html").looksLikeGoodreadsChallenge())
+        assertTrue(fixture("goodreads/challenge_page_mixed_case.html").looksLikeGoodreadsChallenge())
     }
 
     @Test
@@ -73,6 +105,10 @@ class GoodreadsParsingTest {
     }
 
     private companion object {
+        fun fixture(path: String): String =
+            requireNotNull(GoodreadsParsingTest::class.java.classLoader?.getResource(path)) { "Missing fixture: $path" }
+                .readText()
+
         val QuotesPageHtml = """
             <div class='quotesList'>
             <article>

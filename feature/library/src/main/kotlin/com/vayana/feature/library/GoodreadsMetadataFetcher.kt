@@ -214,7 +214,7 @@ internal fun goodreadsSearchUrl(query: String): String =
 
 /** Goodreads' AWS WAF bot check: a tiny page that runs JavaScript and then reloads into the real one. */
 internal fun String.looksLikeGoodreadsChallenge(): Boolean =
-    contains("awsWafCookieDomainList") || contains("gokuProps")
+    contains("awsWafCookieDomainList", ignoreCase = true) || contains("gokuProps", ignoreCase = true)
 
 /**
  * Walks a work's quote pages through [loadPage] (the HTML of page N, or null if it couldn't be read) until one
@@ -369,7 +369,7 @@ private fun JSONObject.optDoubleOrNull(name: String): Double? =
     if (has(name) && !isNull(name)) optDouble(name).takeIf { it.isFinite() } else null
 
 private val BookLinkRegex = Regex(
-    """(?:^|[\s@"'(<])(?:https?://)?(?:www\.)?goodreads\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?book/show/(\d{1,$MaxBookIdDigits})(?=$|[^\d])""",
+    """(?:^|[\s"'(<])(?:https?://)?(?:www\.)?goodreads\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?book/show/(\d{1,$MaxBookIdDigits})(?=$|[^\d])""",
     RegexOption.IGNORE_CASE,
 )
 private val NextDataRegex = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)

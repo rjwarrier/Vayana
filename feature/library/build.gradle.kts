@@ -20,4 +20,5 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.core)
     testImplementation(kotlin("test"))
+    testImplementation(libs.org.json)
 }
