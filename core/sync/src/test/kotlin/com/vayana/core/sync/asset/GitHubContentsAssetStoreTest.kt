@@ -1,5 +1,6 @@
 package com.vayana.core.sync.asset
 
+import com.vayana.core.sync.snapshot.pruneOlderPortableSnapshotSlices
 import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -338,6 +339,42 @@ class GitHubContentsAssetStoreTest {
         val body = client.requests[1].bodyText()
         assertTrue(body.contains(""""sha":"$ExistingSha""""))
         assertTrue(body.contains(""""branch":"main""""))
+    }
+
+    @Test
+    fun staleSnapshotSlicePruneDeletesOnlyKnownSliceFiles() = runBlocking {
+        val sliceRootListing = """
+            [
+              {"name":"4000","path":"vayana/snapshot-slices/4000","type":"dir","sha":"$ExistingSha"},
+              {"name":"3000","path":"vayana/snapshot-slices/3000","type":"dir","sha":"$ExistingSha"},
+              {"name":"2000","path":"vayana/snapshot-slices/2000","type":"dir","sha":"$ExistingSha"},
+              {"name":"1000","path":"vayana/snapshot-slices/1000","type":"dir","sha":"$ExistingSha"}
+            ]
+        """.trimIndent().toByteArray()
+        val staleDirectoryListing = """
+            [
+              {"name":"annotations.json","path":"vayana/snapshot-slices/1000/annotations.json","type":"file","sha":"$ExistingSha"},
+              {"name":"rogue.json","path":"vayana/snapshot-slices/1000/rogue.json","type":"file","sha":"$ExistingSha"}
+            ]
+        """.trimIndent().toByteArray()
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, sliceRootListing),
+            GitHubHttpResponse(200, sliceRootListing),
+            GitHubHttpResponse(200, staleDirectoryListing),
+            GitHubHttpResponse(200, """{"sha":"$ExistingSha"}""".toByteArray()),
+            GitHubHttpResponse(200, """{"commit":{"sha":"deleted-sha"}}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        store.pruneOlderPortableSnapshotSlices(currentExportedAt = 4000)
+
+        val deleteRequests = client.requests.filter { it.method == "DELETE" }
+        assertEquals(1, deleteRequests.size)
+        assertEquals(
+            "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices/1000/annotations.json",
+            deleteRequests.single().url,
+        )
+        assertTrue(client.requests.none { it.method == "DELETE" && it.url.contains("rogue.json") })
     }
 
     @Test

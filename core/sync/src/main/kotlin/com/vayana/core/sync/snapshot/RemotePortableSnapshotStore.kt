@@ -57,7 +57,7 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     }
 }
 
-private suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(currentExportedAt: Long) {
+internal suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(currentExportedAt: Long) {
     val retainedExportTimes = listSyncDocumentDirectory(SnapshotSlicesRoot)
         .asSequence()
         .filter { it.type == "dir" }
@@ -75,14 +75,25 @@ private suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(cu
         .filterNot { it in retainedExportTimes }
         .toList()
     staleDirectories.forEach { exportedAt ->
+        val allowedPaths = SnapshotSliceFileNames.mapTo(mutableSetOf()) { fileName -> "$SnapshotSlicesRoot/$exportedAt/$fileName" }
         listSyncDocumentDirectory("$SnapshotSlicesRoot/$exportedAt")
             .asSequence()
             .filter { it.type == "file" }
             .map { it.path }
-            .filter { it.startsWith("$SnapshotSlicesRoot/$exportedAt/") && it.endsWith(".json") }
+            .filter { path -> path in allowedPaths }
             .forEach { path -> deleteSyncDocumentIfExists(path) }
     }
 }
 
 private const val SnapshotSlicesRoot = "vayana/snapshot-slices"
 private const val RetainedSnapshotSliceSets = 3
+private val SnapshotSliceFileNames = setOf(
+    "annotations.json",
+    "shelves.json",
+    "shelf-memberships.json",
+    "reading-sessions.json",
+    "vocabulary-cards.json",
+    "word-lookup-counters.json",
+    "book-aliases.json",
+    "tombstones.json",
+)
