@@ -8,9 +8,7 @@ import com.vayana.core.backup.parsePortableReadingSessions
 import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.PortableReadingSession
-import com.vayana.core.backup.PortableSnapshotLatestPath
 import com.vayana.core.backup.parsePortableReadingProgresses
-import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.runCatchingCancellable
@@ -33,6 +31,7 @@ import com.vayana.core.sync.github.assetStore
 import com.vayana.core.sync.github.gitHubSyncConfig
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
+import com.vayana.core.sync.snapshot.pushPortableReadingProgress
 import java.net.HttpURLConnection
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -174,30 +173,16 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 pulled += pullRemoteWordLookupCounters(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
             }
 
-            if (remoteSnapshot.sliced) {
-                lastAppliedRemoteSha.set(remoteSnapshot.sha)
-                return@withContext ReadingProgressSyncResult(
-                    status = if (pulled > 0) ReadingProgressSyncStatus.PULLED else ReadingProgressSyncStatus.NO_CHANGES,
-                    pulled = pulled,
-                )
-            }
-
             val attempt = runCatchingCancellable {
-                val patchResult = patchPortableReadingProgressOnly(
-                    jsonText = booksJson,
+                val pushed = store.pushPortableReadingProgress(
+                    remote = remoteSnapshot,
                     patches = patches,
                     exportedAt = System.currentTimeMillis(),
                     readingSessions = readingSessions,
                     wordLookupCounters = wordLookupCounters,
                     tombstones = tombstones,
-                )
-                val pushed = patchResult.patched + patchResult.sessionsAdded + patchResult.wordLookupCountersMerged + patchResult.tombstonesMerged
+                ).pushed
                 if (pushed > 0) {
-                    store.putSyncDocumentIfUnchanged(
-                        path = PortableSnapshotLatestPath,
-                        bytes = patchResult.jsonText.toByteArray(Charsets.UTF_8),
-                        expectedSha = remoteSnapshot.sha,
-                    )
                     // The push changed the remote object, so our cached SHA is stale; force the
                     // next call to re-fetch and re-compare rather than assuming it's unchanged.
                     lastAppliedRemoteSha.set(null)

@@ -32,7 +32,6 @@ internal class RemoteReadingProgressMerger(
                 failureMessage = tombstoneMerge.failureMessage,
                 remoteSnapshot = document,
                 remoteSnapshotSha = document.sha,
-                remoteSnapshotSliced = document.sliced,
             )
         }
         val progressMerge = mergeProgress(document.jsonFor(RemotePortableSnapshotSlice.Books))
@@ -40,7 +39,6 @@ internal class RemoteReadingProgressMerger(
             skipped = progressMerge.skipped + tombstoneMerge.skipped,
             remoteSnapshot = document,
             remoteSnapshotSha = document.sha,
-            remoteSnapshotSliced = document.sliced,
         )
     }
 
@@ -60,7 +58,10 @@ internal class RemoteReadingProgressMerger(
                 totalReadingSeconds = progress.totalReadingSeconds,
             )
             when (mergeResult) {
-                ReadingProgressMergeResult.AppliedRemote -> summary.copy(applied = summary.applied + 1)
+                ReadingProgressMergeResult.AppliedRemote -> summary.copy(
+                    applied = summary.applied + 1,
+                    appliedSyncIds = summary.appliedSyncIds + progress.syncId,
+                )
                 is ReadingProgressMergeResult.ConflictLocalKept -> summary.copy(
                     conflicts = summary.conflicts + mergeResult.toPortableConflict(
                         localDeviceLabel = localDeviceLabel,

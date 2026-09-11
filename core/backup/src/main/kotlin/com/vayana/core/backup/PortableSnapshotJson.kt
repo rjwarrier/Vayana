@@ -286,6 +286,78 @@ fun mergePortableSnapshotSlices(baseJson: String, sliceJsonByKey: Map<String, St
 
 fun portableSnapshotHasSlices(jsonText: String): Boolean = portableSnapshotSlicePaths(jsonText).isNotEmpty()
 
+data class SlicedPortableReadingProgressPatchResult(
+    val manifestJson: String,
+    /** New slice documents to write before the manifest, keyed by repository path. */
+    val sliceWrites: Map<String, String>,
+    val patched: Int,
+    val sessionsAdded: Int,
+    val wordLookupCountersMerged: Int,
+    val tombstonesMerged: Int,
+) {
+    val changed: Int
+        get() = patched + sessionsAdded + wordLookupCountersMerged + tombstonesMerged
+}
+
+/**
+ * Progress-only push for a sliced snapshot: reading positions are patched in the manifest's "books", while
+ * sessions, word-lookup counters and tombstones are patched in their own slices. A changed slice is written
+ * to a fresh `snapshot-slices/<exportedAt>/` path (slice paths are never rewritten in place, so a reader
+ * holding the previous manifest keeps a consistent view) and the manifest is repointed at it. Unchanged
+ * slices keep their existing paths.
+ */
+fun patchSlicedPortableReadingProgress(
+    manifestJson: String,
+    sliceJsonByKey: Map<String, String>,
+    patches: List<PortableReadingProgressPatch>,
+    exportedAt: Long,
+    readingSessions: List<PortableReadingSession> = emptyList(),
+    wordLookupCounters: List<PortableWordLookupCounter> = emptyList(),
+    tombstones: List<PortableTombstone> = emptyList(),
+): SlicedPortableReadingProgressPatchResult {
+    val bookPatch = patchPortableReadingProgressOnly(jsonText = manifestJson, patches = patches, exportedAt = exportedAt)
+    val sliceWrites = linkedMapOf<String, String>()
+    fun patchSlice(slice: PortableSnapshotSlice, patch: (String) -> PortableReadingProgressPatchResult): PortableReadingProgressPatchResult {
+        val base = sliceJsonByKey[slice.key] ?: JSONObject().put(slice.jsonArrayName, JSONArray()).toString()
+        val result = patch(base)
+        if (result.sessionsAdded + result.wordLookupCountersMerged + result.tombstonesMerged > 0) {
+            sliceWrites[slice.path(exportedAt)] = result.jsonText
+        }
+        return result
+    }
+    val sessions = patchSlice(PortableSnapshotSlice.ReadingSessions) { json ->
+        patchPortableReadingProgressOnly(json, emptyList(), exportedAt, readingSessions = readingSessions)
+    }
+    val counters = patchSlice(PortableSnapshotSlice.WordLookupCounters) { json ->
+        patchPortableReadingProgressOnly(json, emptyList(), exportedAt, wordLookupCounters = wordLookupCounters)
+    }
+    val tombstonePatch = patchSlice(PortableSnapshotSlice.Tombstones) { json ->
+        patchPortableReadingProgressOnly(json, emptyList(), exportedAt, tombstones = tombstones)
+    }
+
+    val changed = bookPatch.patched > 0 || sliceWrites.isNotEmpty()
+    val manifest = if (!changed) {
+        manifestJson
+    } else {
+        val root = JSONObject(bookPatch.jsonText)
+        val slices = root.optJSONObject("slices") ?: JSONObject().also { root.put("slices", it) }
+        PortableSnapshotSlice.entries.forEach { slice ->
+            val path = slice.path(exportedAt)
+            if (path in sliceWrites) slices.put(slice.key, path)
+        }
+        root.put("exportedAt", exportedAt)
+        root.toString(2)
+    }
+    return SlicedPortableReadingProgressPatchResult(
+        manifestJson = manifest,
+        sliceWrites = sliceWrites,
+        patched = bookPatch.patched,
+        sessionsAdded = sessions.sessionsAdded,
+        wordLookupCountersMerged = counters.wordLookupCountersMerged,
+        tombstonesMerged = tombstonePatch.tombstonesMerged,
+    )
+}
+
 private fun PortableSnapshot.sliceJson(slice: PortableSnapshotSlice): JSONObject =
     JSONObject()
         .put("formatVersion", formatVersion)

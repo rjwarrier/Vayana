@@ -70,6 +70,7 @@ internal class LaunchReadingProgressPull(
         return complete(
             outcome = outcome,
             progressUpdated = merge.applied,
+            progressAppliedSyncIds = merge.appliedSyncIds,
             conflicts = merge.conflictCount,
             skipped = merge.skipped + if (merge.skippedAlreadyChecked) 1 else 0,
         )
@@ -78,6 +79,7 @@ internal class LaunchReadingProgressPull(
     private fun complete(
         outcome: LaunchProgressCheckOutcome,
         progressUpdated: Int = 0,
+        progressAppliedSyncIds: Set<String> = emptySet(),
         conflicts: Int = 0,
         skipped: Int = 0,
         pullFailed: Boolean = false,
@@ -95,6 +97,7 @@ internal class LaunchReadingProgressPull(
         metadataSynced = !pullFailed,
         failureMessage = failureMessage,
         launchProgressCheckOutcome = outcome,
+        progressAppliedSyncIds = progressAppliedSyncIds,
     )
 }
 

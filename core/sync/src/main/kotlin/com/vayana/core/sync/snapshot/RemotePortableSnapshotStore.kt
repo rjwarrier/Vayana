@@ -1,7 +1,13 @@
 package com.vayana.core.sync.snapshot
 
+import com.vayana.core.backup.PortableReadingProgressPatch
+import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.PortableSnapshot
 import com.vayana.core.backup.PortableSnapshotLatestPath
+import com.vayana.core.backup.PortableTombstone
+import com.vayana.core.backup.PortableWordLookupCounter
+import com.vayana.core.backup.patchPortableReadingProgressOnly
+import com.vayana.core.backup.patchSlicedPortableReadingProgress
 import com.vayana.core.backup.portableSnapshotSlicePaths
 import com.vayana.core.backup.toSlicedJsonDocuments
 import com.vayana.core.diagnostics.DiagnosticCategory
@@ -100,6 +106,71 @@ private suspend fun loadSnapshotSliceOrNull(path: String, loadSlice: suspend (St
         if (throwable.statusCode == 404) null else throw throwable
     }
 
+data class PortableReadingProgressPushResult(
+    val patched: Int = 0,
+    val sessionsAdded: Int = 0,
+    val wordLookupCountersMerged: Int = 0,
+    val tombstonesMerged: Int = 0,
+) {
+    val pushed: Int
+        get() = patched + sessionsAdded + wordLookupCountersMerged + tombstonesMerged
+}
+
+/**
+ * Pushes local reading positions, sessions, word-lookup counters and tombstones on top of [remote], for both
+ * single-document and sliced snapshots. The latest pointer is written with [RemotePortableSnapshotDocument.sha]
+ * as the expected SHA, so a concurrent writer surfaces as a 409 [GitHubAssetStoreException] for the caller to
+ * re-fetch and retry; slice files written before a lost race are harmless orphans that pruning removes.
+ */
+suspend fun GitHubContentsAssetStore.pushPortableReadingProgress(
+    remote: RemotePortableSnapshotDocument,
+    patches: List<PortableReadingProgressPatch>,
+    exportedAt: Long,
+    readingSessions: List<PortableReadingSession> = emptyList(),
+    wordLookupCounters: List<PortableWordLookupCounter> = emptyList(),
+    tombstones: List<PortableTombstone> = emptyList(),
+): PortableReadingProgressPushResult {
+    if (!remote.sliced) {
+        val result = patchPortableReadingProgressOnly(
+            jsonText = remote.jsonText,
+            patches = patches,
+            exportedAt = exportedAt,
+            readingSessions = readingSessions,
+            wordLookupCounters = wordLookupCounters,
+            tombstones = tombstones,
+        )
+        val pushResult = PortableReadingProgressPushResult(
+            patched = result.patched,
+            sessionsAdded = result.sessionsAdded,
+            wordLookupCountersMerged = result.wordLookupCountersMerged,
+            tombstonesMerged = result.tombstonesMerged,
+        )
+        if (pushResult.pushed > 0) {
+            putSyncDocumentIfUnchanged(PortableSnapshotLatestPath, result.jsonText.toByteArray(Charsets.UTF_8), remote.sha)
+        }
+        return pushResult
+    }
+    val result = patchSlicedPortableReadingProgress(
+        manifestJson = remote.jsonText,
+        sliceJsonByKey = remote.sliceJsonByKey,
+        patches = patches,
+        exportedAt = exportedAt,
+        readingSessions = readingSessions,
+        wordLookupCounters = wordLookupCounters,
+        tombstones = tombstones,
+    )
+    if (result.changed > 0) {
+        result.sliceWrites.forEach { (path, jsonText) -> putSyncDocument(path, jsonText.toByteArray(Charsets.UTF_8)) }
+        putSyncDocumentIfUnchanged(PortableSnapshotLatestPath, result.manifestJson.toByteArray(Charsets.UTF_8), remote.sha)
+    }
+    return PortableReadingProgressPushResult(
+        patched = result.patched,
+        sessionsAdded = result.sessionsAdded,
+        wordLookupCountersMerged = result.wordLookupCountersMerged,
+        tombstonesMerged = result.tombstonesMerged,
+    )
+}
+
 suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     snapshot: PortableSnapshot,
     deviceSnapshotPath: String,
@@ -172,6 +243,12 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
 }
 
 internal suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(currentExportedAt: Long): SnapshotSlicePruneSummary {
+    // Whatever the live latest pointer references must survive, whatever its timestamp: a device with a
+    // lagging clock (or a progress-only push reusing older slice files) can publish slice dirs that sort
+    // below other devices' dirs. Read the pointer after our own publish so a newer one from elsewhere wins.
+    val referencedExportTimes = portableSnapshotSlicePaths(getSyncDocument(PortableSnapshotLatestPath).toString(Charsets.UTF_8))
+        .values
+        .mapNotNullTo(mutableSetOf()) { path -> path.removePrefix("$SnapshotSlicesRoot/").substringBefore('/').toLongOrNull() }
     val sliceRootEntries = listSyncDocumentDirectory(SnapshotSlicesRoot)
     val retainedExportTimes = sliceRootEntries
         .asSequence()
@@ -182,7 +259,7 @@ internal suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(c
         .distinct()
         .sortedDescending()
         .take(RetainedSnapshotSliceSets)
-        .toSet()
+        .toSet() + currentExportedAt + referencedExportTimes
     val staleDirectories = sliceRootEntries
         .asSequence()
         .filter { it.type == "dir" }

@@ -1,6 +1,8 @@
 package com.vayana.core.sync.asset
 
+import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.sync.snapshot.pruneOlderPortableSnapshotSlices
+import com.vayana.core.sync.snapshot.pushPortableReadingProgress
 import com.vayana.core.sync.snapshot.remotePortableSnapshotDocumentFrom
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
@@ -112,9 +114,8 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
-    fun getSyncDocumentWithShaReadsContentsMetadataAndDecodesContent() = runBlocking {
+    fun getSyncDocumentWithShaReadsShaThenDownloadsThatExactBlob() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
             GitHubHttpResponse(
                 200,
                 """
@@ -125,6 +126,7 @@ class GitHubContentsAssetStoreTest {
                 }
                 """.trimIndent().toByteArray(),
             ),
+            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
         )
         val store = testStore(client)
 
@@ -132,14 +134,17 @@ class GitHubContentsAssetStoreTest {
 
         assertContentEquals("""{"books":[]}""".toByteArray(), document.bytes)
         assertEquals(ExistingSha, document.sha)
-        assertEquals(listOf("application/vnd.github.raw", "application/vnd.github.object+json"), client.requests.map { it.headers["Accept"] })
-        assertEquals(listOf(MaxSyncDocumentBytesForTest, MaxSyncDocumentJsonBytesForTest), client.requests.map { it.maxResponseBytes })
+        assertEquals(listOf("application/vnd.github.object+json", "application/vnd.github.raw+json"), client.requests.map { it.headers["Accept"] })
+        assertEquals(
+            "https://api.github.test/repos/owner/repo/git/blobs/$ExistingSha",
+            client.requests[1].url,
+        )
+        assertEquals(listOf(MaxSyncDocumentJsonBytesForTest, MaxSyncDocumentBytesForTest), client.requests.map { it.maxResponseBytes })
     }
 
     @Test
     fun getSyncDocumentWithShaReadsLargeContentsObjectWithoutEmbeddedContent() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(200, """{"books":[{"title":"Large"}]}""".toByteArray()),
             GitHubHttpResponse(
                 200,
                 """
@@ -150,6 +155,7 @@ class GitHubContentsAssetStoreTest {
                 }
                 """.trimIndent().toByteArray(),
             ),
+            GitHubHttpResponse(200, """{"books":[{"title":"Large"}]}""".toByteArray()),
         )
         val store = testStore(client)
 
@@ -157,7 +163,6 @@ class GitHubContentsAssetStoreTest {
 
         assertContentEquals("""{"books":[{"title":"Large"}]}""".toByteArray(), document.bytes)
         assertEquals(ExistingSha, document.sha)
-        assertEquals(listOf("application/vnd.github.raw", "application/vnd.github.object+json"), client.requests.map { it.headers["Accept"] })
     }
 
     @Test
@@ -359,8 +364,10 @@ class GitHubContentsAssetStoreTest {
                 200,
                 """
                 [
-                  {"name":"12345","path":"vayana/snapshot-slices/12345","type":"dir","sha":"$ExistingSha"},
-                  {"name":"notes.txt","path":"vayana/snapshot-slices/notes.txt","type":"file","sha":"$ExistingSha"}
+                  {"name":"12345","path":"vayana/snapshot-slices/12345","sha":"$ExistingSha","type":"dir",
+                   "_links":{"self":"https://api.github.test/x","git":"https://api.github.test/g","html":"https://github.test/h"}},
+                  {"name":"notes.txt","path":"vayana/snapshot-slices/notes.txt","sha":"$ExistingSha","type":"file",
+                   "_links":{"self":"https://api.github.test/y","git":"https://api.github.test/g2","html":"https://github.test/h2"}}
                 ]
                 """.trimIndent().toByteArray(),
             ),
@@ -372,6 +379,9 @@ class GitHubContentsAssetStoreTest {
         assertEquals(2, entries.size)
         assertEquals("12345", entries[0].name)
         assertEquals("dir", entries[0].type)
+        assertEquals(ExistingSha, entries[0].sha)
+        assertEquals("vayana/snapshot-slices/notes.txt", entries[1].path)
+        assertEquals("file", entries[1].type)
         assertEquals(
             "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices?ref=main",
             client.requests.single().url,
@@ -428,6 +438,7 @@ class GitHubContentsAssetStoreTest {
             ]
         """.trimIndent().toByteArray()
         val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, latestManifestReferencing(4000)),
             GitHubHttpResponse(200, sliceRootListing),
             GitHubHttpResponse(200, staleDirectoryListing),
             GitHubHttpResponse(200, """{"commit":{"sha":"deleted-sha"}}""".toByteArray()),
@@ -437,7 +448,7 @@ class GitHubContentsAssetStoreTest {
         val summary = store.pruneOlderPortableSnapshotSlices(currentExportedAt = 4000)
 
         val deleteRequests = client.requests.filter { it.method == "DELETE" }
-        assertEquals(listOf("GET", "GET", "DELETE"), client.requests.map { it.method })
+        assertEquals(listOf("GET", "GET", "GET", "DELETE"), client.requests.map { it.method })
         assertEquals(1, summary.directoriesPruned)
         assertEquals(1, summary.filesPruned)
         assertEquals(false, summary.failed)
@@ -447,6 +458,62 @@ class GitHubContentsAssetStoreTest {
             deleteRequests.single().url,
         )
         assertTrue(client.requests.none { it.method == "DELETE" && it.url.contains("rogue.json") })
+    }
+
+    @Test
+    fun pruneKeepsSliceSetsTheLatestPointerReferencesEvenWhenTheySortOld() = runBlocking {
+        // A lagging-clock device published exportedAt=500 after other devices wrote 4000/3000/2000.
+        val sliceRootListing = """
+            [
+              {"name":"4000","path":"vayana/snapshot-slices/4000","type":"dir","sha":"$ExistingSha"},
+              {"name":"3000","path":"vayana/snapshot-slices/3000","type":"dir","sha":"$ExistingSha"},
+              {"name":"2000","path":"vayana/snapshot-slices/2000","type":"dir","sha":"$ExistingSha"},
+              {"name":"1000","path":"vayana/snapshot-slices/1000","type":"dir","sha":"$ExistingSha"},
+              {"name":"500","path":"vayana/snapshot-slices/500","type":"dir","sha":"$ExistingSha"}
+            ]
+        """.trimIndent().toByteArray()
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, latestManifestReferencing(500)),
+            GitHubHttpResponse(200, sliceRootListing),
+            GitHubHttpResponse(200, "[]".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val summary = store.pruneOlderPortableSnapshotSlices(currentExportedAt = 500)
+
+        assertEquals(1, summary.directoriesPruned)
+        assertTrue(client.requests.any { it.url.contains("snapshot-slices/1000?") })
+        assertTrue(client.requests.none { it.url.contains("snapshot-slices/500?") })
+    }
+
+    @Test
+    fun slicedProgressPushWritesNewSliceBeforeGuardedManifest() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(404, """{"message":"Not Found"}""".toByteArray()),
+            GitHubHttpResponse(201, """{"content":{"sha":"slice-sha"}}""".toByteArray()),
+            GitHubHttpResponse(200, """{"content":{"sha":"manifest-sha"}}""".toByteArray()),
+        )
+        val store = testStore(client)
+        val remote = RemotePortableSnapshotDocument(
+            jsonText = latestManifestReferencing(1000).toString(Charsets.UTF_8),
+            sha = ExistingSha,
+            sliced = true,
+            sliceJsonByKey = mapOf("readingSessions" to """{"readingSessions":[]}"""),
+        )
+
+        val result = store.pushPortableReadingProgress(
+            remote = remote,
+            patches = emptyList(),
+            exportedAt = 3000,
+            readingSessions = listOf(PortableReadingSession("s-new", "book-a", 1500, 1600, 100)),
+        )
+
+        assertEquals(1, result.pushed)
+        val puts = client.requests.filter { it.method == "PUT" }
+        assertEquals(2, puts.size)
+        assertTrue(puts[0].url.endsWith("contents/vayana/snapshot-slices/3000/reading-sessions.json"))
+        assertTrue(puts[1].url.endsWith("contents/vayana/snapshot-latest.json"))
+        assertTrue(puts[1].bodyText().contains(""""sha":"$ExistingSha""""))
     }
 
     @Test
@@ -519,6 +586,18 @@ private class RecordingGitHubHttpClient(
             ?: error("No response queued for request ${request.method} ${request.url}")
     }
 }
+
+private fun latestManifestReferencing(exportedAt: Long): ByteArray =
+    """
+        {
+          "exportedAt": $exportedAt,
+          "books": [],
+          "slices": {
+            "annotations": "vayana/snapshot-slices/$exportedAt/annotations.json",
+            "tombstones": "vayana/snapshot-slices/$exportedAt/tombstones.json"
+          }
+        }
+    """.trimIndent().toByteArray()
 
 private fun GitHubHttpRequest.bodyText(): String {
     val bytes = assertNotNull(body)

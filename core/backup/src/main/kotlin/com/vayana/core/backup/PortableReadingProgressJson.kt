@@ -91,7 +91,9 @@ fun patchPortableReadingProgressOnly(
     require(tombstones.size <= MaxPortableProgressTombstones) { "Portable progress patch has too many tombstones" }
     require(exportedAt > 0L) { "Portable progress patch export time is invalid" }
     val root = JSONObject(jsonText)
-    val books = root.optJSONArray("books") ?: return PortableReadingProgressPatchResult(jsonText, patched = 0)
+    // Sliced snapshots keep sessions, counters and tombstones in separate documents with no "books" array;
+    // those still get patched, there are just no positions to update in them.
+    val books = root.optJSONArray("books") ?: JSONArray()
     require(books.length() <= MaxPortableProgressBooks) { "Portable snapshot has too many books" }
     val patchesByFileHash = patches
         .asSequence()

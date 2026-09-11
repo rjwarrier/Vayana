@@ -14,7 +14,6 @@ import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.PortableSyncConflict
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.SnapshotExporter
-import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.backup.PortableAnnotation
 import com.vayana.core.backup.PortableBookAlias
 import com.vayana.core.backup.PortableShelf
@@ -30,7 +29,6 @@ import com.vayana.core.backup.parsePortableShelves
 import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.parsePortableVocabularyCards
 import com.vayana.core.backup.parsePortableWordLookupCounters
-import com.vayana.core.backup.PortableSnapshotLatestPath
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
@@ -93,6 +91,7 @@ import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocumentUnlessSha
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
+import com.vayana.core.sync.snapshot.pushPortableReadingProgress
 import com.vayana.core.sync.snapshot.putPortableSnapshotDocuments
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.StorageRoots
@@ -211,6 +210,7 @@ sealed interface GitHubSyncNowResult {
         val metadataSynced: Boolean,
         val failureMessage: String? = null,
         val launchProgressCheckOutcome: LaunchProgressCheckOutcome = LaunchProgressCheckOutcome.NOT_APPLICABLE,
+        val progressAppliedSyncIds: Set<String> = emptySet(),
     ) : GitHubSyncNowResult
     data class InitialSyncConfirmationRequired(val message: String?) : GitHubSyncNowResult
     data object SyncDisabled : GitHubSyncNowResult
@@ -264,6 +264,8 @@ data class GitHubSyncProgressState(
 
 internal data class ReadingProgressMergeSummary(
     val applied: Int = 0,
+    /** Sync ids of the books whose position this merge actually replaced with the remote one. */
+    val appliedSyncIds: Set<String> = emptySet(),
     val conflicts: List<PortableSyncConflict> = emptyList(),
     val skipped: Int = 0,
     val failed: Boolean = false,
@@ -271,7 +273,6 @@ internal data class ReadingProgressMergeSummary(
     val failureMessage: String? = null,
     val remoteSnapshot: RemotePortableSnapshotDocument? = null,
     val remoteSnapshotSha: String? = null,
-    val remoteSnapshotSliced: Boolean = false,
     val skippedAlreadyChecked: Boolean = false,
 ) {
     val conflictCount: Int
@@ -922,7 +923,14 @@ class LibraryViewModel @Inject constructor(
         val after = bookRepository.getById(bookId)
         // Only offer to revert when there was a real prior position to protect - a book going
         // from "never opened" to some synced progress isn't a conflict, just filling in data.
-        val changed = if (before != null && after != null && before.hasMeaningfulSyncedProgressChange(after)) {
+        // The pull must also have applied remote progress to this very book: otherwise a before/after
+        // difference is local reading that happened while the sync ran, not a synced change.
+        val appliedSyncIds = (result as? GitHubSyncNowResult.Complete)?.progressAppliedSyncIds.orEmpty()
+        val changed = if (
+            before != null && after != null &&
+            before.syncId in appliedSyncIds &&
+            before.hasMeaningfulSyncedProgressChange(after)
+        ) {
             BookProgressChange(
                 bookId = bookId,
                 previousLocator = before.lastLocator,
@@ -1039,12 +1047,7 @@ class LibraryViewModel @Inject constructor(
                 completedSteps = 4,
                 progressUpdated = progressMerge.applied,
             )
-            val progressPush = pushReadingProgressOnly(
-                remoteSnapshotJson = progressMerge.remoteSnapshot?.jsonFor(RemotePortableSnapshotSlice.Books).orEmpty(),
-                remoteSnapshotSha = progressMerge.remoteSnapshotSha,
-                remoteSnapshotSliced = progressMerge.remoteSnapshotSliced,
-                store = store,
-            )
+            val progressPush = pushReadingProgressOnly(remoteSnapshot = progressMerge.remoteSnapshot, store = store)
             finishSyncProgress(
                 showProgress = showProgress,
                 step = if (progressPush.failed) GitHubSyncProgressStep.FAILED else GitHubSyncProgressStep.COMPLETE,
@@ -1063,6 +1066,7 @@ class LibraryViewModel @Inject constructor(
                 pullFailed = progressMerge.failed,
                 metadataSynced = !progressPush.failed,
                 failureMessage = progressPush.failureMessage,
+                progressAppliedSyncIds = progressMerge.appliedSyncIds,
             )
         }
         updateSyncProgress(
@@ -1638,14 +1642,10 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun pushReadingProgressOnly(
-        remoteSnapshotJson: String,
-        remoteSnapshotSha: String?,
-        remoteSnapshotSliced: Boolean,
+        remoteSnapshot: RemotePortableSnapshotDocument?,
         store: GitHubContentsAssetStore,
     ): ReadingProgressOnlyPushSummary {
-        if (remoteSnapshotSliced) return ReadingProgressOnlyPushSummary()
-        var jsonText = remoteSnapshotJson
-        var sha = remoteSnapshotSha
+        var remote = remoteSnapshot ?: return ReadingProgressOnlyPushSummary()
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlyPushAttempts) { attemptIndex ->
             val attempt = runCatchingCancellable {
@@ -1654,8 +1654,8 @@ class LibraryViewModel @Inject constructor(
                 val progressTombstones = tombstoneDao.getAll()
                     .filter { it.isReadingProgressOnlyTombstone() }
                     .map { it.toPortable() }
-                val result = patchPortableReadingProgressOnly(
-                    jsonText = jsonText,
+                val result = store.pushPortableReadingProgress(
+                    remote = remote,
                     patches = localBooks.map { book ->
                         PortableReadingProgressPatch(
                             fileHash = book.fileHash,
@@ -1673,12 +1673,7 @@ class LibraryViewModel @Inject constructor(
                     wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() },
                     tombstones = progressTombstones,
                 )
-                val pushed = result.patched + result.sessionsAdded + result.wordLookupCountersMerged + result.tombstonesMerged
-                if (pushed > 0) {
-                    val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
-                    store.putSyncDocumentIfUnchanged(PortableSnapshotLatestPath, snapshotBytes, sha)
-                }
-                ReadingProgressOnlyPushSummary(pushed = pushed)
+                ReadingProgressOnlyPushSummary(pushed = result.pushed)
             }
             attempt.onSuccess { result -> return result }
             val throwable = attempt.exceptionOrNull()
@@ -1688,12 +1683,10 @@ class LibraryViewModel @Inject constructor(
             if (throwable?.isGitHubConflict() != true || attemptIndex == MaxProgressOnlyPushAttempts - 1) {
                 return ReadingProgressOnlyPushSummary(failed = true, failureMessage = throwable?.syncFailureMessage())
             }
-            val refetch = runCatchingCancellable { store.getSyncDocumentWithSha(PortableSnapshotLatestPath) }
-            val document = refetch.getOrElse { refetchFailure ->
-                return ReadingProgressOnlyPushSummary(failed = true, failureMessage = refetchFailure.syncFailureMessage())
-            }
-            jsonText = document.bytes.toString(Charsets.UTF_8)
-            sha = document.sha
+            remote = runCatchingCancellable { store.getLatestPortableSnapshotDocument() }
+                .getOrElse { refetchFailure ->
+                    return ReadingProgressOnlyPushSummary(failed = true, failureMessage = refetchFailure.syncFailureMessage())
+                }
         }
         return ReadingProgressOnlyPushSummary(failed = true, failureMessage = lastFailure?.syncFailureMessage())
     }

@@ -74,23 +74,27 @@ class GitHubContentsAssetStore(
         response.body
     }
 
+    /**
+     * Reads the file's current blob SHA first, then downloads that exact blob, so the bytes always belong to
+     * the returned SHA. Fetching content and SHA as two independent path reads could pair one commit's bytes
+     * with the next commit's SHA, letting a later `putSyncDocumentIfUnchanged` overwrite that newer commit.
+     */
     suspend fun getSyncDocumentWithSha(path: String): GitHubSyncDocument = withContext(dispatcher) {
         validateSyncDocumentPath(path)
-        val contentResponse = client.execute(
+        val sha = getSyncDocumentSha(path)
+        val blobResponse = client.execute(
             GitHubHttpRequest(
                 method = "GET",
-                url = contentsUrl(path, includeRef = true),
-                headers = rawHeaders(),
+                url = blobUrl(sha),
+                headers = rawBlobHeaders(),
                 maxResponseBytes = MaxSyncDocumentBytes,
             ),
         )
-        if (contentResponse.statusCode != HttpURLConnection.HTTP_OK) {
-            throw GitHubAssetStoreException("GitHub metadata download failed", contentResponse.statusCode, contentResponse.safeBodyText())
+        if (blobResponse.statusCode != HttpURLConnection.HTTP_OK) {
+            throw GitHubAssetStoreException("GitHub metadata download failed", blobResponse.statusCode, blobResponse.safeBodyText())
         }
-        require(contentResponse.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
-
-        val sha = getSyncDocumentSha(path)
-        GitHubSyncDocument(bytes = contentResponse.body, sha = sha)
+        require(blobResponse.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
+        GitHubSyncDocument(bytes = blobResponse.body, sha = sha)
     }
 
     suspend fun listSyncDocumentDirectory(path: String): List<GitHubContentEntry> = withContext(dispatcher) {
@@ -294,6 +298,15 @@ class GitHubContentsAssetStore(
         return "${repository.apiBaseUrl.trimEnd('/')}/repos/${repository.owner}/${repository.name}/contents/$encodedPath$ref"
     }
 
+    private fun blobUrl(sha: String): String {
+        require(sha.matches(GitHubObjectShaRegex)) { "Invalid GitHub object SHA" }
+        return "${repository.apiBaseUrl.trimEnd('/')}/repos/${repository.owner}/${repository.name}/git/blobs/$sha"
+    }
+
+    private fun rawBlobHeaders(): Map<String, String> = commonHeaders() + mapOf(
+        "Accept" to "application/vnd.github.raw+json",
+    )
+
     private fun jsonHeaders(): Map<String, String> = commonHeaders() + mapOf(
         "Accept" to "application/vnd.github+json",
         "Content-Type" to "application/json; charset=utf-8",
@@ -439,16 +452,52 @@ private fun validateSyncDocumentDirectoryPath(path: String) {
     require(".." !in path && "//" !in path) { "Invalid sync document directory path" }
 }
 
-private fun parseContentEntries(jsonText: String): List<GitHubContentEntry> {
-    return JsonObjectRegex.findAll(jsonText).map { match ->
-        val entry = match.value
+private fun parseContentEntries(jsonText: String): List<GitHubContentEntry> =
+    jsonText.topLevelJsonObjects().map { entry ->
         GitHubContentEntry(
             name = entry.extractJsonString("name").orEmpty(),
             path = entry.extractJsonString("path").orEmpty(),
             type = entry.extractJsonString("type").orEmpty(),
             sha = entry.extractJsonString("sha")?.takeIf { it.matches(GitHubObjectShaRegex) },
         )
-    }.toList()
+    }
+
+/**
+ * Splits a JSON array of objects into its top-level object texts. GitHub directory entries each carry a
+ * nested `"_links": {...}` object, so a brace-free regex would match only those inner objects.
+ */
+private fun String.topLevelJsonObjects(): List<String> {
+    val objects = mutableListOf<String>()
+    var depth = 0
+    var start = -1
+    var inString = false
+    var escaped = false
+    for (index in indices) {
+        val char = this[index]
+        if (inString) {
+            when {
+                escaped -> escaped = false
+                char == '\\' -> escaped = true
+                char == '"' -> inString = false
+            }
+            continue
+        }
+        when (char) {
+            '"' -> inString = true
+            '{' -> {
+                if (depth == 0) start = index
+                depth += 1
+            }
+            '}' -> {
+                depth -= 1
+                if (depth == 0 && start >= 0) {
+                    objects += substring(start, index + 1)
+                    start = -1
+                }
+            }
+        }
+    }
+    return objects
 }
 
 private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
@@ -529,7 +578,6 @@ private val GitHubObjectShaRegex = Regex("^[a-f0-9]{40,64}$")
 private val SyncDocumentPathRegex = Regex("^[A-Za-z0-9._/-]{1,240}$")
 private val SnapshotSliceDirectoryPathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*$")
 private val AuthorizationTokenRegex = Regex(""""token"\s*:\s*"[^"]+"""")
-private val JsonObjectRegex = Regex("""\{[^{}]*\}""")
 private const val NetworkTimeoutMillis = 30_000
 private const val MaxPutAttempts = 3
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024

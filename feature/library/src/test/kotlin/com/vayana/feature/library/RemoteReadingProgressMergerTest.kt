@@ -43,6 +43,7 @@ class RemoteReadingProgressMergerTest {
         assertTrue(repositoryCalls.all { it == "applySyncedReadingProgress" })
         assertEquals(listOf("fresh", "stale"), appliedSyncIds)
         assertEquals(1, summary.applied)
+        assertEquals(setOf("fresh"), summary.appliedSyncIds)
         assertEquals(1, summary.skipped)
         assertEquals("sha-1", summary.remoteSnapshotSha)
     }
