@@ -42,6 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoStories
@@ -55,6 +56,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -202,7 +204,6 @@ fun LibraryRoute(
         onCloudBookDownloadProgressDismissed = viewModel::onCloudBookDownloadProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
-        onAddPhysicalBook = { title, author -> viewModel.addPhysicalBook(title, author, onCreated = onBookClick) },
         onBookClick = onBookClick,
         onMarkFinished = { bookId -> viewModel.markFinished(bookId, announce = false) },
         onDownloadCloudBook = viewModel::downloadCloudBook,
@@ -214,6 +215,7 @@ fun LibraryRoute(
         onSortChange = viewModel::updateSort,
         onFilterChange = viewModel::updateFilter,
         onGroupByChange = viewModel::updateGroupBy,
+        onViewModeChange = viewModel::updateViewMode,
     )
 }
 
@@ -325,7 +327,6 @@ private fun LibraryScreen(
     onCloudBookDownloadProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
-    onAddPhysicalBook: (String, String?) -> Unit,
     onBookClick: (Long) -> Unit,
     onMarkFinished: (Long) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
@@ -337,6 +338,7 @@ private fun LibraryScreen(
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
     onGroupByChange: (LibraryGroupBy) -> Unit,
+    onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -357,7 +359,6 @@ private fun LibraryScreen(
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) onImportFolder(context.contentResolver, uri)
     }
-    var showAddPhysicalBookDialog by remember { mutableStateOf(false) }
     var pendingFinishBook by remember { mutableStateOf<Book?>(null) }
     val markedFinishedMessage = stringResource(R.string.library_marked_finished)
     var syncRunning by remember { mutableStateOf(false) }
@@ -513,6 +514,7 @@ private fun LibraryScreen(
                 onSortChange = onSortChange,
                 onFilterChange = onFilterChange,
                 onGroupByChange = onGroupByChange,
+                onViewModeChange = onViewModeChange,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -520,22 +522,32 @@ private fun LibraryScreen(
             LibraryAddFab(
                 onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                 onImportFolder = { folderPicker.launch(null) },
-                onAddPhysicalBook = { showAddPhysicalBookDialog = true },
             )
         },
     ) { innerPadding ->
         if (uiState.books.isEmpty()) {
             LibraryEmptyState(contentPadding = innerPadding, hasControls = uiState.controls != LibraryControls())
         } else {
-            LibraryGrid(
-                books = uiState.books,
-                groupBy = uiState.controls.groupBy,
-                contentPadding = innerPadding,
-                downloadingBookId = activeDownloadBookId,
-                downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
-                onBookClick = ::handleBookClick,
-                onMarkFinished = { book -> pendingFinishBook = book },
-            )
+            when (uiState.controls.viewMode) {
+                LibraryViewMode.THUMBNAILS -> LibraryGrid(
+                    books = uiState.books,
+                    groupBy = uiState.controls.groupBy,
+                    contentPadding = innerPadding,
+                    downloadingBookId = activeDownloadBookId,
+                    downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
+                    onBookClick = ::handleBookClick,
+                    onMarkFinished = { book -> pendingFinishBook = book },
+                )
+                LibraryViewMode.LIST -> LibraryList(
+                    books = uiState.books,
+                    groupBy = uiState.controls.groupBy,
+                    contentPadding = innerPadding,
+                    downloadingBookId = activeDownloadBookId,
+                    downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
+                    onBookClick = ::handleBookClick,
+                    onMarkFinished = { book -> pendingFinishBook = book },
+                )
+            }
         }
     }
 
@@ -573,16 +585,6 @@ private fun LibraryScreen(
         CloudBookDownloadProgressSheet(
             progress = cloudBookDownloadProgress,
             onDismissRequest = onCloudBookDownloadProgressDismissed,
-        )
-    }
-
-    if (showAddPhysicalBookDialog) {
-        AddPhysicalBookDialog(
-            onDismiss = { showAddPhysicalBookDialog = false },
-            onConfirm = { title, author ->
-                onAddPhysicalBook(title, author)
-                showAddPhysicalBookDialog = false
-            },
         )
     }
 
@@ -1022,6 +1024,7 @@ private fun LibraryTopBar(
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
     onGroupByChange: (LibraryGroupBy) -> Unit,
+    onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     var filterExpanded by remember { mutableStateOf(false) }
     var groupExpanded by remember { mutableStateOf(false) }
@@ -1116,6 +1119,31 @@ private fun LibraryTopBar(
                             },
                         )
                     }
+                }
+                LibraryTopBarIconButton(
+                    onClick = {
+                        onViewModeChange(
+                            if (controls.viewMode == LibraryViewMode.THUMBNAILS) {
+                                LibraryViewMode.LIST
+                            } else {
+                                LibraryViewMode.THUMBNAILS
+                            },
+                        )
+                    },
+                ) {
+                    Icon(
+                        imageVector = if (controls.viewMode == LibraryViewMode.THUMBNAILS) {
+                            Icons.AutoMirrored.Outlined.ViewList
+                        } else {
+                            Icons.Outlined.GridView
+                        },
+                        contentDescription = if (controls.viewMode == LibraryViewMode.THUMBNAILS) {
+                            stringResource(R.string.library_view_list_content_description)
+                        } else {
+                            stringResource(R.string.library_view_thumbnails_content_description)
+                        },
+                        modifier = Modifier.size(Sizes.icon),
+                    )
                 }
                 LibraryTopBarIconButton(onClick = onShelvesClick) {
                     Icon(
@@ -1281,7 +1309,7 @@ private fun LibrarySyncStatusBadge(
 }
 
 @Composable
-private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit, onAddPhysicalBook: () -> Unit) {
+private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit) {
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column {
@@ -1331,16 +1359,6 @@ private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit,
                 onClick = {
                     menuExpanded = false
                     onImportFolder()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.library_add_physical_book)) },
-                leadingIcon = { LibraryAddMenuIcon(Icons.AutoMirrored.Outlined.MenuBook) },
-                modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
-                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
-                onClick = {
-                    menuExpanded = false
-                    onAddPhysicalBook()
                 },
             )
         }
@@ -1440,6 +1458,197 @@ private fun LibraryGrid(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryList(
+    books: List<Book>,
+    groupBy: LibraryGroupBy,
+    contentPadding: PaddingValues,
+    downloadingBookId: Long?,
+    downloadProgress: Float?,
+    onBookClick: (Book) -> Unit,
+    onMarkFinished: (Book) -> Unit,
+) {
+    val sections = books.toGroupSections(groupBy)
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = Paddings.screenHorizontal,
+            end = Paddings.screenHorizontal,
+            top = contentPadding.calculateTopPadding() + Spacing.md,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.md,
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        if (sections == null) {
+            items(books, key = { it.id }) { book ->
+                LibraryListRow(
+                    book = book,
+                    isDownloading = book.id == downloadingBookId,
+                    downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                    onClick = { onBookClick(book) },
+                    onMarkFinished = { onMarkFinished(book) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        } else {
+            sections.forEach { section ->
+                item(key = "header:${section.label}") {
+                    Text(
+                        text = section.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier
+                            .padding(top = Spacing.sm, bottom = Spacing.xs)
+                            .animateItem(),
+                    )
+                }
+                items(section.books, key = { it.id }) { book ->
+                    LibraryListRow(
+                        book = book,
+                        isDownloading = book.id == downloadingBookId,
+                        downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                        onClick = { onBookClick(book) },
+                        onMarkFinished = { onMarkFinished(book) },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryListRow(
+    book: Book,
+    isDownloading: Boolean,
+    downloadProgress: Float?,
+    onClick: () -> Unit,
+    onMarkFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isDownloading, onClick = onClick),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.none,
+    ) {
+        Row(
+            modifier = Modifier.padding(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Box(modifier = Modifier.width(Sizes.coverWidthMin * 0.58f)) {
+                BookCover(book = book, modifier = Modifier.fillMaxWidth())
+                BookFinishedTick(
+                    book = book,
+                    onMarkFinished = onMarkFinished,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Text(
+                    text = book.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                book.author?.takeIf { it.isNotBlank() }?.let { author ->
+                    Text(
+                        text = author,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                book.series?.takeIf { it.isNotBlank() }?.let { series ->
+                    Text(
+                        text = book.seriesNumber?.takeIf { it.isNotBlank() }?.let { "$series · #$it" } ?: series,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                LibraryListRowStatus(
+                    book = book,
+                    isDownloading = isDownloading,
+                    downloadProgress = downloadProgress,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadProgress: Float?) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        when {
+            isDownloading -> {
+                CircularProgressIndicator(
+                    progress = { downloadProgress ?: 0f },
+                    modifier = Modifier.size(Sizes.iconSmall),
+                    strokeWidth = Spacing.xs,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.library_book_cloud_downloading),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            book.fileAvailability == BookFileAvailability.CLOUD_ONLY -> {
+                Icon(
+                    imageVector = Icons.Outlined.CloudDownload,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.library_cloud_book_badge),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            book.readingPercent > 0f -> {
+                LinearProgressIndicator(
+                    progress = { book.readingPercent.coerceIn(0f, 1f) },
+                    modifier = Modifier.weight(1f),
+                    strokeCap = StrokeCap.Round,
+                )
+                Text(
+                    text = stringResource(R.string.library_progress_value, (book.readingPercent * 100).toInt()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            else -> {
+                Text(
+                    text = stringResource(R.string.library_imported_on, book.createdAt.formatDate()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

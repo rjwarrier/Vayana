@@ -392,11 +392,14 @@ enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
 
 enum class LibraryGroupBy { NONE, AUTHOR, SERIES }
 
+enum class LibraryViewMode { THUMBNAILS, LIST }
+
 data class LibraryControls(
     val query: String = "",
     val sort: LibrarySort = LibrarySort.IMPORT_DATE,
     val filter: LibraryFilter = LibraryFilter.ALL,
     val groupBy: LibraryGroupBy = LibraryGroupBy.NONE,
+    val viewMode: LibraryViewMode = LibraryViewMode.THUMBNAILS,
 )
 
 data class LibraryUiState(
@@ -486,6 +489,10 @@ class LibraryViewModel @Inject constructor(
 
     fun updateGroupBy(groupBy: LibraryGroupBy) {
         controls.update { it.copy(groupBy = groupBy) }
+    }
+
+    fun updateViewMode(viewMode: LibraryViewMode) {
+        controls.update { it.copy(viewMode = viewMode) }
     }
 
     fun deleteBook(bookId: Long) {

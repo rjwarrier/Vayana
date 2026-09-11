@@ -12,6 +12,8 @@
     <string name="library_search_content_description">Search books and notes</string>
     <string name="library_search_placeholder">Search title, author, description</string>
     <string name="library_filter_content_description">Sort library</string>
+    <string name="library_view_list_content_description">Show list view</string>
+    <string name="library_view_thumbnails_content_description">Show thumbnail view</string>
     <string name="library_empty_title">Your library is empty</string>
     <string name="library_empty_body">Import a book to get started.</string>
     <string name="library_no_matches_title">No matching books</string>
