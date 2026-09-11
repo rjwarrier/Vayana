@@ -76,11 +76,29 @@ class GitHubContentsAssetStore(
 
     suspend fun getSyncDocumentWithSha(path: String): GitHubSyncDocument = withContext(dispatcher) {
         validateSyncDocumentPath(path)
+        val contentResponse = client.execute(
+            GitHubHttpRequest(
+                method = "GET",
+                url = contentsUrl(path, includeRef = true),
+                headers = rawHeaders(),
+                maxResponseBytes = MaxSyncDocumentBytes,
+            ),
+        )
+        if (contentResponse.statusCode != HttpURLConnection.HTTP_OK) {
+            throw GitHubAssetStoreException("GitHub metadata download failed", contentResponse.statusCode, contentResponse.safeBodyText())
+        }
+        require(contentResponse.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
+
+        val sha = getSyncDocumentSha(path)
+        GitHubSyncDocument(bytes = contentResponse.body, sha = sha)
+    }
+
+    private fun getSyncDocumentSha(path: String): String {
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
-                headers = jsonHeaders(),
+                headers = objectHeaders(),
                 maxResponseBytes = MaxSyncDocumentJsonBytes,
             ),
         )
@@ -95,17 +113,7 @@ class GitHubContentsAssetStore(
                 statusCode = response.statusCode,
                 responseBody = response.safeBodyText(),
             )
-        val encoding = bodyText.extractJsonString("encoding")
-        require(encoding == "base64") { "GitHub metadata response used an unsupported encoding" }
-        val content = bodyText.extractJsonString("content")
-            ?: throw GitHubAssetStoreException(
-                message = "GitHub metadata response was missing content",
-                statusCode = response.statusCode,
-                responseBody = response.safeBodyText(),
-            )
-        val bytes = Base64.getMimeDecoder().decode(content)
-        require(bytes.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
-        GitHubSyncDocument(bytes = bytes, sha = sha)
+        return sha
     }
 
     suspend fun testConnection(): GitHubConnectionTestResult = withContext(dispatcher) {
@@ -114,7 +122,7 @@ class GitHubContentsAssetStore(
                 method = "GET",
                 url = contentsUrl("vayana/snapshot-latest.json", includeRef = true),
                 headers = rawHeaders(),
-                maxResponseBytes = MaxGitHubMetadataBytes,
+                maxResponseBytes = MaxSyncDocumentBytes,
             ),
         )
         when (response.statusCode) {
@@ -194,15 +202,13 @@ class GitHubContentsAssetStore(
     }
 
     private fun findExistingSha(path: String): String? {
-        // GitHub's metadata response embeds the file's full base64 content (for files under ~1MB)
-        // even though only the "sha" field is needed here - the response can be nearly as large as
-        // the file itself, not a small fixed metadata payload, so this needs the same cap as a
-        // document read, not the small MaxGitHubMetadataBytes used for asset-path SHA lookups.
+        // Ask for object metadata so GitHub does not reject larger snapshot files that exceed the
+        // default Contents API JSON body's embedded-content behavior.
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
-                headers = jsonHeaders(),
+                headers = objectHeaders(),
                 maxResponseBytes = MaxSyncDocumentJsonBytes,
             ),
         )
@@ -251,6 +257,10 @@ class GitHubContentsAssetStore(
 
     private fun rawHeaders(): Map<String, String> = commonHeaders() + mapOf(
         "Accept" to "application/vnd.github.raw",
+    )
+
+    private fun objectHeaders(): Map<String, String> = commonHeaders() + mapOf(
+        "Accept" to "application/vnd.github.object+json",
     )
 
     private fun commonHeaders(): Map<String, String> = mapOf(
@@ -439,5 +449,4 @@ private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024
 private const val MaxSyncDocumentBytes = 8 * 1024 * 1024
 private const val MaxSyncDocumentJsonBytes = MaxSyncDocumentBytes * 2
 private const val MaxHttpResponseBytes = MaxEncryptedAssetBytes + 1024
-private const val MaxGitHubMetadataBytes = 256 * 1024
 private const val MaxErrorBodyChars = 4_096

@@ -43,6 +43,7 @@ class GitHubContentsAssetStoreTest {
 
         store.putSyncDocument("vayana/snapshot-latest.json", """{"books":[]}""".toByteArray())
 
+        assertEquals("application/vnd.github.object+json", client.requests.first().headers["Accept"])
         assertTrue(client.requests[1].bodyText().contains(""""sha":"$ExistingSha""""))
     }
 
@@ -109,6 +110,7 @@ class GitHubContentsAssetStoreTest {
     @Test
     fun getSyncDocumentWithShaReadsContentsMetadataAndDecodesContent() = runBlocking {
         val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
             GitHubHttpResponse(
                 200,
                 """
@@ -126,8 +128,32 @@ class GitHubContentsAssetStoreTest {
 
         assertContentEquals("""{"books":[]}""".toByteArray(), document.bytes)
         assertEquals(ExistingSha, document.sha)
-        assertEquals("application/vnd.github+json", client.requests.single().headers["Accept"])
-        assertEquals(16 * 1024 * 1024, client.requests.single().maxResponseBytes)
+        assertEquals(listOf("application/vnd.github.raw", "application/vnd.github.object+json"), client.requests.map { it.headers["Accept"] })
+        assertEquals(listOf(8 * 1024 * 1024, 16 * 1024 * 1024), client.requests.map { it.maxResponseBytes })
+    }
+
+    @Test
+    fun getSyncDocumentWithShaReadsLargeContentsObjectWithoutEmbeddedContent() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"books":[{"title":"Large"}]}""".toByteArray()),
+            GitHubHttpResponse(
+                200,
+                """
+                {
+                  "sha": "$ExistingSha",
+                  "encoding": "none",
+                  "content": ""
+                }
+                """.trimIndent().toByteArray(),
+            ),
+        )
+        val store = testStore(client)
+
+        val document = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
+
+        assertContentEquals("""{"books":[{"title":"Large"}]}""".toByteArray(), document.bytes)
+        assertEquals(ExistingSha, document.sha)
+        assertEquals(listOf("application/vnd.github.raw", "application/vnd.github.object+json"), client.requests.map { it.headers["Accept"] })
     }
 
     @Test
@@ -174,6 +200,7 @@ class GitHubContentsAssetStoreTest {
             client.requests.single().url,
         )
         assertEquals("application/vnd.github.raw", client.requests.single().headers["Accept"])
+        assertEquals(8 * 1024 * 1024, client.requests.single().maxResponseBytes)
     }
 
     @Test
