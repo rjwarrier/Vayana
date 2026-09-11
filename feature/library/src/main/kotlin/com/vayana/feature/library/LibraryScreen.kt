@@ -1473,6 +1473,10 @@ private fun LibraryList(
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
 ) {
+    val lastOpenedBook = remember(books) {
+        books.filter { (it.lastReadAt ?: 0L) > 0L }
+            .maxByOrNull { it.lastReadAt ?: 0L }
+    }
     val sections = books.toGroupSections(groupBy)
 
     LazyColumn(
@@ -1485,8 +1489,22 @@ private fun LibraryList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        if (lastOpenedBook != null) {
+            item(key = "hero:${lastOpenedBook.id}") {
+                LibraryHeroCard(
+                    book = lastOpenedBook,
+                    isDownloading = lastOpenedBook.id == downloadingBookId,
+                    downloadProgress = if (lastOpenedBook.id == downloadingBookId) downloadProgress else null,
+                    onClick = { onBookClick(lastOpenedBook) },
+                    onMarkFinished = { onMarkFinished(lastOpenedBook) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
+
         if (sections == null) {
-            items(books, key = { it.id }) { book ->
+            val listBooks = if (lastOpenedBook != null) books.filter { it.id != lastOpenedBook.id } else books
+            items(listBooks, key = { it.id }) { book ->
                 LibraryListRow(
                     book = book,
                     isDownloading = book.id == downloadingBookId,
@@ -1498,24 +1516,27 @@ private fun LibraryList(
             }
         } else {
             sections.forEach { section ->
-                item(key = "header:${section.label}") {
-                    Text(
-                        text = section.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .padding(top = Spacing.sm, bottom = Spacing.xs)
-                            .animateItem(),
-                    )
-                }
-                items(section.books, key = { it.id }) { book ->
-                    LibraryListRow(
-                        book = book,
-                        isDownloading = book.id == downloadingBookId,
-                        downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
-                        onClick = { onBookClick(book) },
-                        onMarkFinished = { onMarkFinished(book) },
-                        modifier = Modifier.animateItem(),
-                    )
+                val sectionBooks = if (lastOpenedBook != null) section.books.filter { it.id != lastOpenedBook.id } else section.books
+                if (sectionBooks.isNotEmpty()) {
+                    item(key = "header:${section.label}") {
+                        Text(
+                            text = section.label,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier
+                                .padding(top = Spacing.sm, bottom = Spacing.xs)
+                                .animateItem(),
+                        )
+                    }
+                    items(sectionBooks, key = { it.id }) { book ->
+                        LibraryListRow(
+                            book = book,
+                            isDownloading = book.id == downloadingBookId,
+                            downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                            onClick = { onBookClick(book) },
+                            onMarkFinished = { onMarkFinished(book) },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
                 }
             }
         }
