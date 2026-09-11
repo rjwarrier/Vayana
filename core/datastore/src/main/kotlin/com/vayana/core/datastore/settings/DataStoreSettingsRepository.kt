@@ -29,6 +29,7 @@ import org.json.JSONObject
 private val Context.vayanaSettingsDataStore by preferencesDataStore(name = "vayana_settings")
 private val ReaderImportedFontsKey = stringPreferencesKey("reader.imported_fonts")
 private val ReaderCustomFontIdKey = stringPreferencesKey("reader.custom_font_id")
+private val LaunchReadingProgressCheckMarkerKey = stringPreferencesKey("sync.launch_reading_progress_check_marker")
 
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
@@ -38,6 +39,9 @@ class DataStoreSettingsRepository @Inject constructor(
     private val dataStore = context.vayanaSettingsDataStore
 
     override val snapshot: Flow<SettingsSnapshot> = dataStore.data.map { preferences -> preferences.toSnapshot() }
+
+    override val launchReadingProgressCheckMarker: Flow<LaunchReadingProgressCheckMarker?> =
+        dataStore.data.map { preferences -> preferences.readLaunchReadingProgressCheckMarker() }
 
     override fun <T : Any> observe(setting: Setting<T>): Flow<T> =
         dataStore.data.map { preferences -> preferences.read(setting) }
@@ -63,6 +67,12 @@ class DataStoreSettingsRepository @Inject constructor(
             } else {
                 preferences[ReaderCustomFontIdKey] = fontId
             }
+        }
+    }
+
+    override suspend fun updateLaunchReadingProgressCheckMarker(marker: LaunchReadingProgressCheckMarker) {
+        dataStore.edit { preferences ->
+            preferences[LaunchReadingProgressCheckMarkerKey] = marker.serialize()
         }
     }
 
@@ -220,3 +230,29 @@ private fun List<ImportedFont>.serializeImportedFonts(): String {
     }
     return array.toString()
 }
+
+private fun Preferences.readLaunchReadingProgressCheckMarker(): LaunchReadingProgressCheckMarker? {
+    val encoded = this[LaunchReadingProgressCheckMarkerKey].orEmpty()
+    if (encoded.isBlank()) return null
+    return runCatching {
+        val json = JSONObject(encoded)
+        val bookId = json.optLong("bookId", 0L).takeIf { it > 0L } ?: return@runCatching null
+        val syncTarget = json.optString("syncTarget").takeIf { it.isNotBlank() } ?: return@runCatching null
+        val remoteSnapshotSha = json.optString("remoteSnapshotSha").takeIf { it.isNotBlank() } ?: return@runCatching null
+        val checkedAt = json.optLong("checkedAt", 0L).takeIf { it > 0L } ?: return@runCatching null
+        LaunchReadingProgressCheckMarker(
+            bookId = bookId,
+            syncTarget = syncTarget,
+            remoteSnapshotSha = remoteSnapshotSha,
+            checkedAt = checkedAt,
+        )
+    }.getOrNull()
+}
+
+private fun LaunchReadingProgressCheckMarker.serialize(): String =
+    JSONObject()
+        .put("bookId", bookId)
+        .put("syncTarget", syncTarget)
+        .put("remoteSnapshotSha", remoteSnapshotSha)
+        .put("checkedAt", checkedAt)
+        .toString()

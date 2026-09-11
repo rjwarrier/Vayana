@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.Flow
 interface SettingsRepository {
     val snapshot: Flow<SettingsSnapshot>
 
+    val launchReadingProgressCheckMarker: Flow<LaunchReadingProgressCheckMarker?>
+
     fun <T : Any> observe(setting: Setting<T>): Flow<T>
 
     suspend fun <T : Any> update(setting: Setting<T>, value: T)
@@ -12,6 +14,8 @@ interface SettingsRepository {
     suspend fun updateReaderImportedFonts(fonts: List<ImportedFont>)
 
     suspend fun updateReaderCustomFontId(fontId: String?)
+
+    suspend fun updateLaunchReadingProgressCheckMarker(marker: LaunchReadingProgressCheckMarker)
 
     suspend fun reset(setting: Setting<out Any>)
 
@@ -21,3 +25,10 @@ interface SettingsRepository {
 
     suspend fun importFromMap(values: Map<String, String>)
 }
+
+data class LaunchReadingProgressCheckMarker(
+    val bookId: Long,
+    val syncTarget: String,
+    val remoteSnapshotSha: String,
+    val checkedAt: Long,
+)

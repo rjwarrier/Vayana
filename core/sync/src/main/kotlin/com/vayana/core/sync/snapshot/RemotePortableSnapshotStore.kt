@@ -55,7 +55,14 @@ data class PortableSnapshotPublishProgress(
 }
 
 suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocument(): RemotePortableSnapshotDocument {
+    return getLatestPortableSnapshotDocumentUnlessSha(skipSha = null) ?: error("Latest snapshot unexpectedly skipped")
+}
+
+suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocumentUnlessSha(
+    skipSha: String?,
+): RemotePortableSnapshotDocument? {
     val latest = getSyncDocumentWithSha(PortableSnapshotLatestPath)
+    if (skipSha != null && latest.sha == skipSha) return null
     val latestJson = latest.bytes.toString(Charsets.UTF_8)
     return remotePortableSnapshotDocumentFrom(
         latestJson = latestJson,
