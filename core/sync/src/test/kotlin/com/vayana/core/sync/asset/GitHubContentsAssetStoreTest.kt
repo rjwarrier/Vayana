@@ -359,9 +359,7 @@ class GitHubContentsAssetStoreTest {
         """.trimIndent().toByteArray()
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(200, sliceRootListing),
-            GitHubHttpResponse(200, sliceRootListing),
             GitHubHttpResponse(200, staleDirectoryListing),
-            GitHubHttpResponse(200, """{"sha":"$ExistingSha"}""".toByteArray()),
             GitHubHttpResponse(200, """{"commit":{"sha":"deleted-sha"}}""".toByteArray()),
         )
         val store = testStore(client)
@@ -369,6 +367,7 @@ class GitHubContentsAssetStoreTest {
         store.pruneOlderPortableSnapshotSlices(currentExportedAt = 4000)
 
         val deleteRequests = client.requests.filter { it.method == "DELETE" }
+        assertEquals(listOf("GET", "GET", "DELETE"), client.requests.map { it.method })
         assertEquals(1, deleteRequests.size)
         assertEquals(
             "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices/1000/annotations.json",

@@ -58,7 +58,8 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
 }
 
 internal suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(currentExportedAt: Long) {
-    val retainedExportTimes = listSyncDocumentDirectory(SnapshotSlicesRoot)
+    val sliceRootEntries = listSyncDocumentDirectory(SnapshotSlicesRoot)
+    val retainedExportTimes = sliceRootEntries
         .asSequence()
         .filter { it.type == "dir" }
         .mapNotNull { it.name.toLongOrNull() }
@@ -68,7 +69,7 @@ internal suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(c
         .sortedDescending()
         .take(RetainedSnapshotSliceSets)
         .toSet()
-    val staleDirectories = listSyncDocumentDirectory(SnapshotSlicesRoot)
+    val staleDirectories = sliceRootEntries
         .asSequence()
         .filter { it.type == "dir" }
         .mapNotNull { entry -> entry.name.toLongOrNull()?.takeIf { it > 0L } }
@@ -77,11 +78,12 @@ internal suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(c
     staleDirectories.forEach { exportedAt ->
         val allowedPaths = SnapshotSliceFileNames.mapTo(mutableSetOf()) { fileName -> "$SnapshotSlicesRoot/$exportedAt/$fileName" }
         listSyncDocumentDirectory("$SnapshotSlicesRoot/$exportedAt")
-            .asSequence()
-            .filter { it.type == "file" }
-            .map { it.path }
-            .filter { path -> path in allowedPaths }
-            .forEach { path -> deleteSyncDocumentIfExists(path) }
+            .forEach { entry ->
+                val sha = entry.sha ?: return@forEach
+                if (entry.type == "file" && entry.path in allowedPaths) {
+                    deleteSyncDocument(entry.path, sha)
+                }
+            }
     }
 }
 

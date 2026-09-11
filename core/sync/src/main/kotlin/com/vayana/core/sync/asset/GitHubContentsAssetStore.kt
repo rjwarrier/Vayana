@@ -113,6 +113,16 @@ class GitHubContentsAssetStore(
     suspend fun deleteSyncDocumentIfExists(path: String): Unit = withContext(dispatcher) {
         validateSyncDocumentPath(path)
         val sha = findExistingSha(path) ?: return@withContext
+        deleteSyncDocumentWithKnownSha(path, sha)
+    }
+
+    suspend fun deleteSyncDocument(path: String, sha: String): Unit = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        require(sha.matches(GitHubObjectShaRegex)) { "Invalid GitHub object SHA" }
+        deleteSyncDocumentWithKnownSha(path, sha)
+    }
+
+    private fun deleteSyncDocumentWithKnownSha(path: String, sha: String) {
         val body = buildDeleteBody("Prune Vayana metadata $path", sha)
         val response = client.execute(
             GitHubHttpRequest(
