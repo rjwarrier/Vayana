@@ -14,7 +14,6 @@ class LaunchReadingProgressCoordinator @Inject constructor() {
 
     private val mutex = Mutex()
     private var checkedBookId: Long? = null
-    private var recentOutcome: RecentLaunchProgressOutcome? = null
 
     suspend fun checkOnce(
         bookId: Long,
@@ -25,11 +24,6 @@ class LaunchReadingProgressCoordinator @Inject constructor() {
             val outcome = sync()
             if (!outcome.result.launchCheckCompleted) return
             checkedBookId = bookId
-            recentOutcome = RecentLaunchProgressOutcome(
-                bookId = bookId,
-                outcome = outcome,
-                checkedAt = System.currentTimeMillis(),
-            )
             val change = outcome.progressChange
             if (change?.bookId == bookId) {
                 _pendingProgressChange.value = change
@@ -37,25 +31,12 @@ class LaunchReadingProgressCoordinator @Inject constructor() {
         }
     }
 
-    suspend fun recentOutcomeFor(bookId: Long): BookProgressSyncOutcome? =
-        mutex.withLock {
-            val outcome = recentOutcome ?: return@withLock null
-            if (outcome.bookId != bookId || !outcome.isFresh()) return@withLock null
-            outcome.outcome
-        }
-
     fun acknowledge(bookId: Long) {
         if (_pendingProgressChange.value?.bookId == bookId) {
             _pendingProgressChange.value = null
         }
     }
 }
-
-private data class RecentLaunchProgressOutcome(
-    val bookId: Long,
-    val outcome: BookProgressSyncOutcome,
-    val checkedAt: Long,
-)
 
 private val GitHubSyncNowResult.launchCheckCompleted: Boolean
     get() = when (this) {
@@ -65,8 +46,3 @@ private val GitHubSyncNowResult.launchCheckCompleted: Boolean
         is GitHubSyncNowResult.InitialSyncConfirmationRequired,
         -> false
     }
-
-private fun RecentLaunchProgressOutcome.isFresh(): Boolean =
-    System.currentTimeMillis() - checkedAt in 0..RecentLaunchProgressOutcomeTtlMs
-
-private const val RecentLaunchProgressOutcomeTtlMs = 5 * 60 * 1000L

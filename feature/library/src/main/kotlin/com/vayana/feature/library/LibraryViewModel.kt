@@ -171,11 +171,6 @@ enum class GitHubSyncMode {
     READING_PROGRESS_PULL_ONLY,
 }
 
-private val GitHubSyncMode.isReadingProgressScoped: Boolean
-    get() = this == GitHubSyncMode.READING_PROGRESS_ONLY || this == GitHubSyncMode.READING_PROGRESS_PULL_ONLY
-
-private const val LaunchReadingProgressFreshCheckTtlMs = 5 * 60 * 1000L
-
 enum class LaunchProgressCheckOutcome {
     CHECKED,
     SKIPPED_FRESH_MARKER,
@@ -271,7 +266,7 @@ data class GitHubSyncProgressState(
         ).coerceIn(0f, 1f)
 }
 
-private data class ReadingProgressMergeSummary(
+internal data class ReadingProgressMergeSummary(
     val applied: Int = 0,
     val conflicts: List<PortableSyncConflict> = emptyList(),
     val skipped: Int = 0,
@@ -498,6 +493,17 @@ class LibraryViewModel @Inject constructor(
 
     val pendingLaunchProgressChange: StateFlow<BookProgressChange?> =
         launchReadingProgressCoordinator.pendingProgressChange
+
+    private val launchReadingProgressPull = LaunchReadingProgressPull(
+        markers = object : LaunchProgressMarkerStore {
+            override suspend fun read() = settingsRepository.launchReadingProgressCheckMarker.first()
+            override suspend fun write(marker: LaunchReadingProgressCheckMarker) =
+                settingsRepository.updateLaunchReadingProgressCheckMarker(marker)
+        },
+        recordDiagnostic = { bookId, message, detail ->
+            diagnosticsLogStore.recordLaunchProgressCheck(bookId = bookId, message = message, detail = detail)
+        },
+    )
 
     init {
         viewModelScope.launch {
@@ -942,9 +948,6 @@ class LibraryViewModel @Inject constructor(
         launchReadingProgressCoordinator.acknowledge(bookId)
     }
 
-    suspend fun recentLaunchProgressOutcomeFor(bookId: Long): BookProgressSyncOutcome? =
-        launchReadingProgressCoordinator.recentOutcomeFor(bookId)
-
     /** Reverts to a specific book's pre-sync position - the "stay" side of the prompt above. */
     fun revertReadingProgress(bookId: Long, locator: String?, percent: Float) {
         val cfi = locator?.takeIf { it.isNotBlank() } ?: return
@@ -968,49 +971,25 @@ class LibraryViewModel @Inject constructor(
             finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub settings are incomplete")
             return@withContext GitHubSyncNowResult.ConfigIncomplete
         }
-        val syncTarget = syncConfig.launchReadingProgressSyncTarget()
-        val existingLaunchMarker = if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY && launchReadingProgressBookId != null) {
-            settingsRepository.launchReadingProgressCheckMarker.first()
-                ?.takeIf { it.bookId == launchReadingProgressBookId && it.syncTarget == syncTarget }
-        } else {
-            null
-        }
-        if (existingLaunchMarker?.isFreshLaunchReadingProgressCheck() == true) {
-            diagnosticsLogStore.recordLaunchProgressCheck(
-                bookId = launchReadingProgressBookId,
-                message = "Silent launch progress check skipped by fresh local marker",
-                detail = "syncTarget=$syncTarget, checkedAt=${existingLaunchMarker.checkedAt}, outcome=${existingLaunchMarker.outcome}",
-            )
-            return@withContext GitHubSyncNowResult.Complete(
-                uploaded = 0,
-                failed = 0,
-                progressUpdated = 0,
-                cloudBooksCreated = 0,
-                cloudBooksUpdated = 0,
-                progressUploaded = 0,
-                conflicts = 0,
-                skipped = 1,
-                pullFailed = false,
-                metadataSynced = true,
-                launchProgressCheckOutcome = LaunchProgressCheckOutcome.SKIPPED_FRESH_MARKER,
-            )
-        }
         val store = runCatchingCancellable { syncConfig.assetStore() }
             .getOrElse {
                 finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub settings are invalid")
                 return@withContext GitHubSyncNowResult.ConfigIncomplete
             }
         updateSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.READING_CLOUD, "Reading cloud library", completedSteps = 1)
-        val progressMerge = pullReadingProgress(store, skipRemoteSnapshotSha = existingLaunchMarker?.remoteSnapshotSha)
+        if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
+            val result = launchReadingProgressPull.run(
+                bookId = launchReadingProgressBookId,
+                syncTarget = syncConfig.launchReadingProgressSyncTarget(),
+            ) { skipRemoteSnapshotSha -> pullReadingProgress(store, skipRemoteSnapshotSha) }
+            if (result.pullFailed) {
+                finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
+            }
+            return@withContext result
+        }
+        val progressMerge = pullReadingProgress(store)
         if (progressMerge.failed) {
             finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
-            if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
-                diagnosticsLogStore.recordLaunchProgressCheck(
-                    bookId = launchReadingProgressBookId,
-                    message = "Silent launch progress check failed",
-                    detail = progressMerge.failureMessage,
-                )
-            }
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
                 failed = 0,
@@ -1022,22 +1001,10 @@ class LibraryViewModel @Inject constructor(
                 pullFailed = true,
                 metadataSynced = false,
                 failureMessage = progressMerge.failureMessage,
-                launchProgressCheckOutcome = if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
-                    LaunchProgressCheckOutcome.FAILED
-                } else {
-                    LaunchProgressCheckOutcome.NOT_APPLICABLE
-                },
             )
         }
-        if (progressMerge.missingRemoteSnapshot && mode.isReadingProgressScoped) {
+        if (progressMerge.missingRemoteSnapshot && mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
             finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be found")
-            if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
-                diagnosticsLogStore.recordLaunchProgressCheck(
-                    bookId = launchReadingProgressBookId,
-                    message = "Silent launch progress check found no cloud snapshot",
-                    detail = progressMerge.failureMessage,
-                )
-            }
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
                 failed = 0,
@@ -1050,52 +1017,6 @@ class LibraryViewModel @Inject constructor(
                 pullFailed = true,
                 metadataSynced = false,
                 failureMessage = progressMerge.failureMessage,
-                launchProgressCheckOutcome = if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
-                    LaunchProgressCheckOutcome.FAILED
-                } else {
-                    LaunchProgressCheckOutcome.NOT_APPLICABLE
-                },
-            )
-        }
-        if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
-            val launchOutcome = if (progressMerge.skippedAlreadyChecked) {
-                LaunchProgressCheckOutcome.SKIPPED_UNCHANGED_REMOTE
-            } else {
-                LaunchProgressCheckOutcome.CHECKED
-            }
-            if (progressMerge.skippedAlreadyChecked) {
-                diagnosticsLogStore.recordLaunchProgressCheck(
-                    bookId = launchReadingProgressBookId,
-                    message = "Silent launch progress check skipped by unchanged remote snapshot",
-                    detail = "syncTarget=$syncTarget, remoteSnapshotSha=${progressMerge.remoteSnapshotSha.orEmpty()}",
-                )
-            }
-            progressMerge.remoteSnapshotSha?.let { remoteSnapshotSha ->
-                val bookId = launchReadingProgressBookId
-                if (bookId != null) {
-                    settingsRepository.updateLaunchReadingProgressCheckMarker(
-                        LaunchReadingProgressCheckMarker(
-                            bookId = bookId,
-                            syncTarget = syncTarget,
-                            remoteSnapshotSha = remoteSnapshotSha,
-                            checkedAt = System.currentTimeMillis(),
-                            outcome = launchOutcome.name,
-                        ),
-                    )
-                }
-            }
-            return@withContext GitHubSyncNowResult.Complete(
-                uploaded = 0,
-                failed = 0,
-                progressUpdated = progressMerge.applied,
-                cloudBooksCreated = 0,
-                cloudBooksUpdated = 0,
-                progressUploaded = 0,
-                conflicts = progressMerge.conflictCount,
-                skipped = progressMerge.skipped + if (progressMerge.skippedAlreadyChecked) 1 else 0,
-                pullFailed = false,
-                metadataSynced = true,
-                launchProgressCheckOutcome = launchOutcome,
             )
         }
         if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
@@ -2665,8 +2586,6 @@ private fun GitHubSyncConfig.assetStore(): GitHubContentsAssetStore =
 private fun GitHubSyncConfig.launchReadingProgressSyncTarget(): String =
     listOf(owner, repository, branch, deviceSnapshotPath).joinToString("/")
 
-private fun LaunchReadingProgressCheckMarker.isFreshLaunchReadingProgressCheck(): Boolean =
-    System.currentTimeMillis() - checkedAt in 0..LaunchReadingProgressFreshCheckTtlMs
 
 private fun DiagnosticsLogStore.recordLaunchProgressCheck(
     bookId: Long?,

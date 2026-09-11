@@ -291,8 +291,7 @@ fun BookDetailRoute(
             if (syncReadingProgressRunning) return@sync GitHubSyncNowResult.SyncDisabled
             syncReadingProgressRunning = true
             try {
-                val outcome = viewModel.recentLaunchProgressOutcomeFor(bookId)
-                    ?: viewModel.syncReadingProgressForBook(bookId)
+                val outcome = viewModel.syncReadingProgressForBook(bookId)
                 outcome.progressChange?.let { progressChangePrompt = it }
                 outcome.result
             } finally {
