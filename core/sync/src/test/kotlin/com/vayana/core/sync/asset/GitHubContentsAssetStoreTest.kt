@@ -1,6 +1,7 @@
 package com.vayana.core.sync.asset
 
 import com.vayana.core.sync.snapshot.pruneOlderPortableSnapshotSlices
+import com.vayana.core.sync.snapshot.remotePortableSnapshotDocumentFrom
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import java.util.Base64
@@ -297,6 +298,44 @@ class GitHubContentsAssetStoreTest {
         assertEquals(true, document.sliced)
         assertEquals(manifest, document.jsonFor(RemotePortableSnapshotSlice.Books))
         assertEquals(annotations, document.jsonFor(RemotePortableSnapshotSlice.Annotations))
+        assertEquals(readingSessions, document.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
+    }
+
+    @Test
+    fun remotePortableSnapshotSkipsMissingSlices() = runBlocking {
+        val manifest = """
+            {
+              "books":[{"syncId":"book-a"}],
+              "slices":{
+                "annotations":"vayana/snapshot-slices/12345/annotations.json",
+                "readingSessions":"vayana/snapshot-slices/12345/reading-sessions.json"
+              }
+            }
+        """.trimIndent()
+        val readingSessions = """{"readingSessions":[{"syncId":"session-a"}]}"""
+        val document = remotePortableSnapshotDocumentFrom(
+            latestJson = manifest,
+            sha = ExistingSha,
+            slicePaths = mapOf(
+                RemotePortableSnapshotSlice.Annotations.key to "vayana/snapshot-slices/12345/annotations.json",
+                RemotePortableSnapshotSlice.ReadingSessions.key to "vayana/snapshot-slices/12345/reading-sessions.json",
+            ),
+            loadSlice = { path ->
+                when {
+                    path.endsWith("annotations.json") -> throw GitHubAssetStoreException(
+                        message = "GitHub metadata download failed",
+                        statusCode = 404,
+                        responseBody = """{"message":"Not Found"}""",
+                    )
+                    path.endsWith("reading-sessions.json") -> readingSessions
+                    else -> error("Unexpected slice path $path")
+                }
+            },
+        )
+
+        assertEquals(true, document.sliced)
+        assertEquals(manifest, document.jsonFor(RemotePortableSnapshotSlice.Books))
+        assertEquals(manifest, document.jsonFor(RemotePortableSnapshotSlice.Annotations))
         assertEquals(readingSessions, document.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
     }
 

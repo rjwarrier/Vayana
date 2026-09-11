@@ -502,7 +502,7 @@ private fun LibraryScreen(
         topBar = {
             LibraryTopBar(
                 controls = uiState.controls,
-                showSyncNow = uiState.githubSyncReady,
+                showSyncNow = true,
                 syncRunning = syncRunning,
                 syncBadge = syncBadge,
                 onSyncNow = { mode -> handleSyncNow(mode = mode) },

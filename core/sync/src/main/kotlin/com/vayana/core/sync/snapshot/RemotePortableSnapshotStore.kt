@@ -6,6 +6,7 @@ import com.vayana.core.backup.portableSnapshotSlicePaths
 import com.vayana.core.backup.toSlicedJsonDocuments
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
+import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import kotlinx.coroutines.CancellationException
 
@@ -34,20 +35,41 @@ enum class RemotePortableSnapshotSlice(val key: String) {
 suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocument(): RemotePortableSnapshotDocument {
     val latest = getSyncDocumentWithSha(PortableSnapshotLatestPath)
     val latestJson = latest.bytes.toString(Charsets.UTF_8)
-    val slicePaths = portableSnapshotSlicePaths(latestJson)
+    return remotePortableSnapshotDocumentFrom(
+        latestJson = latestJson,
+        sha = latest.sha,
+        slicePaths = portableSnapshotSlicePaths(latestJson),
+        loadSlice = { path -> getSyncDocument(path).toString(Charsets.UTF_8) },
+    )
+}
+
+internal suspend fun remotePortableSnapshotDocumentFrom(
+    latestJson: String,
+    sha: String,
+    slicePaths: Map<String, String>,
+    loadSlice: suspend (String) -> String,
+): RemotePortableSnapshotDocument {
     if (slicePaths.isEmpty()) {
-        return RemotePortableSnapshotDocument(jsonText = latestJson, sha = latest.sha, sliced = false)
+        return RemotePortableSnapshotDocument(jsonText = latestJson, sha = sha, sliced = false)
     }
-    val slices = slicePaths.mapValues { (_, path) ->
-        getSyncDocument(path).toString(Charsets.UTF_8)
-    }
+    val slices = slicePaths.mapNotNull { (key, path) ->
+        val jsonText = loadSnapshotSliceOrNull(path, loadSlice) ?: return@mapNotNull null
+        key to jsonText
+    }.toMap()
     return RemotePortableSnapshotDocument(
         jsonText = latestJson,
-        sha = latest.sha,
+        sha = sha,
         sliced = true,
         sliceJsonByKey = slices,
     )
 }
+
+private suspend fun loadSnapshotSliceOrNull(path: String, loadSlice: suspend (String) -> String): String? =
+    try {
+        loadSlice(path)
+    } catch (throwable: GitHubAssetStoreException) {
+        if (throwable.statusCode == 404) null else throw throwable
+    }
 
 suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     snapshot: PortableSnapshot,
