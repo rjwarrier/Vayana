@@ -937,7 +937,10 @@ class LibraryViewModel @Inject constructor(
         if ((result as? GitHubSyncNowResult.Complete)?.launchProgressCheckOutcome == LaunchProgressCheckOutcome.CHECKED) {
             diagnosticsLogStore.recordLaunchProgressCheck(
                 bookId = bookId,
-                message = if (changed == null) "Silent launch progress check completed without prompt" else "Silent launch progress check queued prompt",
+                message = buildString {
+                    append(if (changed == null) "Launch progress check found no newer progress" else "Launch progress check found newer progress")
+                    (after ?: before)?.title?.let { append(" for \"").append(it).append('"') }
+                },
                 detail = "progressUpdated=${result.progressUpdated}, conflicts=${result.conflicts}",
             )
         }
@@ -981,7 +984,10 @@ class LibraryViewModel @Inject constructor(
             val result = launchReadingProgressPull.run(
                 bookId = launchReadingProgressBookId,
                 syncTarget = syncConfig.launchReadingProgressSyncTarget(),
-            ) { skipRemoteSnapshotSha -> pullReadingProgress(store, skipRemoteSnapshotSha) }
+            ) { skipRemoteSnapshotSha ->
+                // Silent launch check only moves reading positions; deletions wait for a user-started sync.
+                pullReadingProgress(store, skipRemoteSnapshotSha, applyTombstones = false)
+            }
             if (result.pullFailed) {
                 finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
             }
@@ -1273,6 +1279,7 @@ class LibraryViewModel @Inject constructor(
     private suspend fun pullReadingProgress(
         store: GitHubContentsAssetStore,
         skipRemoteSnapshotSha: String? = null,
+        applyTombstones: Boolean = true,
     ): ReadingProgressMergeSummary =
         runCatchingCancellable {
             val remoteDocument = store.getLatestPortableSnapshotDocumentUnlessSha(skipSha = skipRemoteSnapshotSha)
@@ -1280,7 +1287,11 @@ class LibraryViewModel @Inject constructor(
                     remoteSnapshotSha = skipRemoteSnapshotSha,
                     skippedAlreadyChecked = true,
                 )
-            val tombstoneMerge = mergeCloudTombstones(remoteDocument.jsonFor(RemotePortableSnapshotSlice.Tombstones))
+            val tombstoneMerge = if (applyTombstones) {
+                mergeCloudTombstones(remoteDocument.jsonFor(RemotePortableSnapshotSlice.Tombstones))
+            } else {
+                GenericSyncMergeSummary()
+            }
             if (tombstoneMerge.failed) {
                 return@runCatchingCancellable ReadingProgressMergeSummary(
                     failed = true,
