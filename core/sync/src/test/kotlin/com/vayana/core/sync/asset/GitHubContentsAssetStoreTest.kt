@@ -1,12 +1,17 @@
 package com.vayana.core.sync.asset
 
 import com.vayana.core.backup.PortableReadingSession
+import com.vayana.core.backup.PortableSnapshot
+import com.vayana.core.sync.snapshot.SnapshotSliceCache
+import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
 import com.vayana.core.sync.snapshot.pruneOlderPortableSnapshotSlices
 import com.vayana.core.sync.snapshot.pushPortableReadingProgress
+import com.vayana.core.sync.snapshot.putPortableSnapshotDocuments
 import com.vayana.core.sync.snapshot.remotePortableSnapshotDocumentFrom
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import java.util.Base64
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -16,6 +21,13 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 
 class GitHubContentsAssetStoreTest {
+    @BeforeTest
+    fun clearProcessCaches() {
+        GitHubBlobCache.clear()
+        GitHubMetadataCache.clear()
+        SnapshotSliceCache.clear()
+    }
+
     @Test
     fun putCreatesNewAssetAtContentsPath() = runBlocking {
         val client = RecordingGitHubHttpClient(
@@ -114,19 +126,9 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
-    fun getSyncDocumentWithShaReadsShaThenDownloadsThatExactBlob() = runBlocking {
+    fun getSyncDocumentWithShaUsesContentEmbeddedInTheMetadataResponse() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(
-                200,
-                """
-                {
-                  "sha": "$ExistingSha",
-                  "encoding": "base64",
-                  "content": "${Base64.getMimeEncoder().encodeToString("""{"books":[]}""".toByteArray())}"
-                }
-                """.trimIndent().toByteArray(),
-            ),
-            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
+            GitHubHttpResponse(200, embeddedObjectResponse("""{"books":[]}""")),
         )
         val store = testStore(client)
 
@@ -134,16 +136,12 @@ class GitHubContentsAssetStoreTest {
 
         assertContentEquals("""{"books":[]}""".toByteArray(), document.bytes)
         assertEquals(ExistingSha, document.sha)
-        assertEquals(listOf("application/vnd.github.object+json", "application/vnd.github.raw+json"), client.requests.map { it.headers["Accept"] })
-        assertEquals(
-            "https://api.github.test/repos/owner/repo/git/blobs/$ExistingSha",
-            client.requests[1].url,
-        )
-        assertEquals(listOf(MaxSyncDocumentJsonBytesForTest, MaxSyncDocumentBytesForTest), client.requests.map { it.maxResponseBytes })
+        assertEquals(listOf("application/vnd.github.object+json"), client.requests.map { it.headers["Accept"] })
+        assertEquals(MaxSyncDocumentJsonBytesForTest, client.requests.single().maxResponseBytes)
     }
 
     @Test
-    fun getSyncDocumentWithShaReadsLargeContentsObjectWithoutEmbeddedContent() = runBlocking {
+    fun getSyncDocumentWithShaDownloadsTheExactBlobWhenContentIsNotEmbedded() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(
                 200,
@@ -163,6 +161,27 @@ class GitHubContentsAssetStoreTest {
 
         assertContentEquals("""{"books":[{"title":"Large"}]}""".toByteArray(), document.bytes)
         assertEquals(ExistingSha, document.sha)
+        assertEquals("https://api.github.test/repos/owner/repo/git/blobs/$ExistingSha", client.requests[1].url)
+        assertEquals("application/vnd.github.raw+json", client.requests[1].headers["Accept"])
+        assertEquals(MaxSyncDocumentBytesForTest, client.requests[1].maxResponseBytes)
+    }
+
+    @Test
+    fun unchangedSyncDocumentIsRevalidatedWithEtagAndServedFromCache() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, embeddedObjectResponse("""{"books":[]}"""), mapOf("etag" to "\"v1\"")),
+            GitHubHttpResponse(304, ByteArray(0)),
+        )
+        val store = testStore(client)
+
+        store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
+        val again = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
+
+        assertContentEquals("""{"books":[]}""".toByteArray(), again.bytes)
+        assertEquals(ExistingSha, again.sha)
+        assertEquals(2, client.requests.size)
+        assertEquals(null, client.requests[0].headers["If-None-Match"])
+        assertEquals("\"v1\"", client.requests[1].headers["If-None-Match"])
     }
 
     @Test
@@ -278,7 +297,7 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
-    fun remotePortableSnapshotDocumentKeepsSlicesSeparate() {
+    fun remotePortableSnapshotDocumentKeepsSlicesSeparate() = runBlocking {
         val manifest = """
             {
               "books":[{"syncId":"book-a"}],
@@ -489,7 +508,6 @@ class GitHubContentsAssetStoreTest {
     @Test
     fun slicedProgressPushWritesNewSliceBeforeGuardedManifest() = runBlocking {
         val client = RecordingGitHubHttpClient(
-            GitHubHttpResponse(404, """{"message":"Not Found"}""".toByteArray()),
             GitHubHttpResponse(201, """{"content":{"sha":"slice-sha"}}""".toByteArray()),
             GitHubHttpResponse(200, """{"content":{"sha":"manifest-sha"}}""".toByteArray()),
         )
@@ -509,11 +527,81 @@ class GitHubContentsAssetStoreTest {
         )
 
         assertEquals(1, result.pushed)
+        // New slice paths are create-only: no existing-SHA lookup before the write.
+        assertEquals(listOf("PUT", "PUT"), client.requests.map { it.method })
         val puts = client.requests.filter { it.method == "PUT" }
-        assertEquals(2, puts.size)
+        assertTrue(!puts[0].bodyText().contains(""""sha":"""))
         assertTrue(puts[0].url.endsWith("contents/vayana/snapshot-slices/3000/reading-sessions.json"))
         assertTrue(puts[1].url.endsWith("contents/vayana/snapshot-latest.json"))
         assertTrue(puts[1].bodyText().contains(""""sha":"$ExistingSha""""))
+    }
+
+    @Test
+    fun slicesLoadOnlyWhenAskedAndAreReusedAcrossReads() = runBlocking {
+        val manifest = latestManifestReferencing(1000).toString(Charsets.UTF_8)
+        val annotations = """{"annotations":[{"syncId":"note-a"}]}"""
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, embeddedObjectResponse(manifest)),
+            GitHubHttpResponse(200, annotations.toByteArray()),
+            GitHubHttpResponse(200, embeddedObjectResponse(manifest)),
+        )
+        val store = testStore(client)
+
+        val first = store.getLatestPortableSnapshotDocument()
+        assertEquals(1, client.requests.size) // manifest only; no slice downloaded yet
+        assertEquals(annotations, first.jsonFor(RemotePortableSnapshotSlice.Annotations))
+        assertEquals(annotations, first.jsonFor(RemotePortableSnapshotSlice.Annotations))
+        assertEquals(2, client.requests.size)
+
+        val second = store.getLatestPortableSnapshotDocument()
+        assertEquals(annotations, second.jsonFor(RemotePortableSnapshotSlice.Annotations))
+        assertEquals(3, client.requests.size) // slice came from the path cache
+    }
+
+    @Test
+    fun fullPublishReusesUnchangedSliceInsteadOfUploadingIt() = runBlocking {
+        val snapshot = PortableSnapshot(
+            formatVersion = 1,
+            exportedAt = 2000,
+            deviceLabel = "Phone",
+            books = emptyList(),
+            annotations = emptyList(),
+            shelves = emptyList(),
+            shelfMemberships = emptyList(),
+            readingSessions = emptyList(),
+            vocabularyCards = emptyList(),
+            wordLookupCounters = emptyList(),
+            settings = emptyMap(),
+        )
+        val previous = RemotePortableSnapshotDocument(
+            jsonText = latestManifestReferencing(1000).toString(Charsets.UTF_8),
+            sha = ExistingSha,
+            sliced = true,
+            sliceJsonByKey = mapOf("annotations" to """{"exportedAt":1000,"deviceLabel":"Tablet","annotations":[]}"""),
+            slicePaths = mapOf("annotations" to "vayana/snapshot-slices/1000/annotations.json"),
+        )
+        val created = GitHubHttpResponse(201, """{"content":{"sha":"x"}}""".toByteArray())
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(404, """{"message":"Not Found"}""".toByteArray()), // device snapshot SHA lookup
+            created, // device snapshot
+            *Array(7) { created }, // the seven slices that changed
+            GitHubHttpResponse(200, """{"content":{"sha":"x"}}""".toByteArray()), // latest pointer
+            GitHubHttpResponse(200, latestManifestReferencing(2000)), // prune: live pointer
+            GitHubHttpResponse(200, "[]".toByteArray()), // prune: slice root listing
+        )
+        val store = testStore(client)
+
+        store.putPortableSnapshotDocuments(snapshot, "vayana/snapshots/phone.json", ExistingSha, previous = previous)
+
+        val puts = client.requests.filter { it.method == "PUT" }
+        assertEquals(9, puts.size)
+        assertTrue(puts.none { it.url.contains("snapshot-slices/2000/annotations.json") })
+        assertTrue(puts.any { it.url.contains("snapshot-slices/2000/shelves.json") })
+        val manifestBody = puts.last().body!!.toString(Charsets.UTF_8)
+        val manifestJson = Regex(""""content":"([^"]+)"""").find(manifestBody)!!.groupValues[1]
+        val manifest = Base64.getDecoder().decode(manifestJson).toString(Charsets.UTF_8)
+        assertTrue(manifest.contains("vayana/snapshot-slices/1000/annotations.json"))
+        assertTrue(manifest.contains("vayana/snapshot-slices/2000/shelves.json"))
     }
 
     @Test
@@ -586,6 +674,15 @@ private class RecordingGitHubHttpClient(
             ?: error("No response queued for request ${request.method} ${request.url}")
     }
 }
+
+private fun embeddedObjectResponse(content: String): ByteArray =
+    """
+        {
+          "sha": "$ExistingSha",
+          "encoding": "base64",
+          "content": "${Base64.getMimeEncoder().encodeToString(content.toByteArray()).replace("\r\n", "\\n")}"
+        }
+    """.trimIndent().toByteArray()
 
 private fun latestManifestReferencing(exportedAt: Long): ByteArray =
     """

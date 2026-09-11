@@ -1077,6 +1077,8 @@ class LibraryViewModel @Inject constructor(
             progressUpdated = progressMerge.applied,
         )
         val remoteSnapshot = progressMerge.remoteSnapshot
+        // Every slice is merged below; download them together instead of one after another.
+        remoteSnapshot?.prefetch()
         val tombstoneMerge = if (remoteSnapshot == null) {
             GenericSyncMergeSummary()
         } else {
@@ -1239,6 +1241,7 @@ class LibraryViewModel @Inject constructor(
             store = store,
             syncConfig = syncConfig,
             expectedSha = progressMerge.remoteSnapshotSha,
+            previousSnapshot = progressMerge.remoteSnapshot,
             conflicts = progressMerge.conflicts,
             onSnapshotProgress = snapshotProgress,
         )
@@ -1547,10 +1550,12 @@ class LibraryViewModel @Inject constructor(
         store: GitHubContentsAssetStore,
         syncConfig: GitHubSyncConfig,
         expectedSha: String?,
+        previousSnapshot: RemotePortableSnapshotDocument?,
         conflicts: List<PortableSyncConflict>,
         onSnapshotProgress: (PortableSnapshotPublishProgress) -> Unit = {},
     ): SnapshotMetadataSaveResult {
         var latestExpectedSha = expectedSha
+        var latestPreviousSnapshot = previousSnapshot
         var latestConflicts = conflicts
         // Rebasing on a 409 pulls and merges real remote data (new books, shelves, etc.) into the local DB. These
         // accumulators keep that work visible in the result the caller reports, instead of the caller silently
@@ -1578,6 +1583,7 @@ class LibraryViewModel @Inject constructor(
                     expectedLatestSha = latestExpectedSha,
                     diagnosticsLogStore = diagnosticsLogStore,
                     onProgress = onSnapshotProgress,
+                    previous = latestPreviousSnapshot,
                 )
             }
             saveAttempt.onSuccess { return result(synced = true) }
@@ -1599,6 +1605,7 @@ class LibraryViewModel @Inject constructor(
                 .getOrElse { refetchFailure ->
                     return result(synced = false, failureMessage = refetchFailure.syncFailureMessage())
                 }
+            currentDocument.prefetch()
             val rebase = mergeRemoteSnapshotForMetadataRebase(currentDocument, store)
             rebaseBooksCreated += rebase.booksCreated
             rebaseBooksUpdated += rebase.booksUpdated
@@ -1608,6 +1615,7 @@ class LibraryViewModel @Inject constructor(
                 return result(synced = false, failureMessage = rebase.summary.failureMessage)
             }
             latestExpectedSha = currentDocument.sha
+            latestPreviousSnapshot = currentDocument
             latestConflicts = latestConflicts + rebase.summary.conflicts
         }
         return result(synced = false, failureMessage = "Snapshot save failed")

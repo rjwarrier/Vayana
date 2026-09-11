@@ -83,6 +83,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
     private val lastSyncedAtMillis = AtomicLong(0L)
     private val lastAppliedRemoteSha = AtomicReference<String?>(null)
 
+    /** Local state (positions, sessions, counters, tombstones) as of the last run that found nothing to push. */
+    private val lastSettledLocalFingerprint = AtomicReference<Int?>(null)
+
     suspend fun syncReadingProgress(): ReadingProgressSyncResult {
         val result = runSync()
         if (result.status.isIssue) {
@@ -136,6 +139,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     tombstone.entityType == TombstoneEntityType.READING_PROGRESS_RESET.value
             }
             .map { it.toPortable() }
+        val localFingerprint = listOf(patches, readingSessions, wordLookupCounters, tombstones).hashCode()
 
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlySyncAttempts) {
@@ -158,8 +162,20 @@ class ReadingProgressOnlySyncer @Inject constructor(
             // Remote content is unchanged since the last time we fully processed it: whatever we
             // would apply locally, we already applied. Skip parsing and merging every book again.
             val remoteAlreadyApplied = remoteSnapshot.sha == lastAppliedRemoteSha.get()
+            // Neither side moved since a run that had nothing to push: patching would only re-derive "no changes"
+            // (and download slices to do it), so stop here.
+            if (remoteAlreadyApplied && localFingerprint == lastSettledLocalFingerprint.get()) {
+                return@withContext ReadingProgressSyncResult(status = ReadingProgressSyncStatus.NO_CHANGES)
+            }
             var pulled = 0
             if (!remoteAlreadyApplied) {
+                remoteSnapshot.prefetch(
+                    listOf(
+                        RemotePortableSnapshotSlice.Tombstones,
+                        RemotePortableSnapshotSlice.ReadingSessions,
+                        RemotePortableSnapshotSlice.WordLookupCounters,
+                    ),
+                )
                 val parseAttempt = runCatchingCancellable { parsePortableReadingProgresses(booksJson) }
                 parseAttempt.onFailure { throwable ->
                     return@withContext ReadingProgressSyncResult(
@@ -193,6 +209,8 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     )
                 } else {
                     lastAppliedRemoteSha.set(remoteSnapshot.sha)
+                    // A pull may have just rewritten local rows, so only a pull-free run proves this state settled.
+                    lastSettledLocalFingerprint.set(localFingerprint.takeIf { pulled == 0 })
                     ReadingProgressSyncResult(
                         status = if (pulled > 0) ReadingProgressSyncStatus.PULLED else ReadingProgressSyncStatus.NO_CHANGES,
                         pulled = pulled,

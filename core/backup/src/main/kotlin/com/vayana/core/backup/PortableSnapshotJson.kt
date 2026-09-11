@@ -234,6 +234,8 @@ fun PortableSnapshot.toJsonString(): String =
 data class PortableSnapshotDocument(
     val path: String,
     val jsonText: String,
+    /** The slice this document holds, or null for the latest-pointer manifest. */
+    val sliceKey: String? = null,
 )
 
 fun PortableSnapshot.toSlicedJsonDocuments(): List<PortableSnapshotDocument> {
@@ -241,6 +243,7 @@ fun PortableSnapshot.toSlicedJsonDocuments(): List<PortableSnapshotDocument> {
         PortableSnapshotDocument(
             path = slice.path(exportedAt),
             jsonText = sliceJson(slice).toString(2),
+            sliceKey = slice.key,
         )
     }
     val manifest = JSONObject()
@@ -285,6 +288,33 @@ fun mergePortableSnapshotSlices(baseJson: String, sliceJsonByKey: Map<String, St
 }
 
 fun portableSnapshotHasSlices(jsonText: String): Boolean = portableSnapshotSlicePaths(jsonText).isNotEmpty()
+
+/**
+ * True when two documents of the slice [sliceKey] carry the same records, ignoring per-export envelope fields
+ * such as exportedAt and deviceLabel. Order-sensitive, so it can only err toward "different" (an extra upload).
+ */
+fun portableSnapshotSliceDataEquals(sliceKey: String, first: String, second: String): Boolean {
+    val slice = PortableSnapshotSlice.entries.firstOrNull { it.key == sliceKey } ?: return false
+    return runCatching {
+        val firstArray = JSONObject(first).optJSONArray(slice.jsonArrayName) ?: JSONArray()
+        val secondArray = JSONObject(second).optJSONArray(slice.jsonArrayName) ?: JSONArray()
+        // Both sides come from the same toJson() writers, so equal records serialize identically.
+        firstArray.toString() == secondArray.toString()
+    }.getOrDefault(false)
+}
+
+/** Points the manifest's slice entries in [pathsByKey] at other (already published) slice files. */
+fun repointPortableSnapshotSlices(manifestJson: String, pathsByKey: Map<String, String>): String {
+    if (pathsByKey.isEmpty()) return manifestJson
+    val root = JSONObject(manifestJson)
+    val slices = root.optJSONObject("slices") ?: JSONObject().also { root.put("slices", it) }
+    PortableSnapshotSlice.entries.forEach { slice ->
+        val path = pathsByKey[slice.key] ?: return@forEach
+        require(slice.isValidPath(path)) { "Invalid snapshot slice path" }
+        slices.put(slice.key, path)
+    }
+    return root.toString(2)
+}
 
 data class SlicedPortableReadingProgressPatchResult(
     val manifestJson: String,

@@ -46,9 +46,22 @@ class GitHubContentsAssetStore(
         putContents(path, bytes, "Sync Vayana asset $path", replaceExisting = false)
     }
 
+    /** Identifies this repository and branch for process-wide caches shared across store instances. */
+    val cacheScope: String = "${repository.apiBaseUrl.trimEnd('/')}|${repository.owner}/${repository.name}@${repository.branch}"
+
     suspend fun putSyncDocument(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
         validateSyncDocumentPath(path)
         putContents(path, bytes, "Sync Vayana metadata $path", replaceExisting = true)
+    }
+
+    /**
+     * Creates a sync document that must not exist yet (a freshly timestamped snapshot slice), skipping the
+     * existing-SHA lookup a replacing write needs. Fails rather than overwrite, which keeps slice paths
+     * immutable and so safe to cache by path.
+     */
+    suspend fun putNewSyncDocument(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        putContents(path, bytes, "Sync Vayana metadata $path", replaceExisting = false)
     }
 
     suspend fun putSyncDocumentIfUnchanged(path: String, bytes: ByteArray, expectedSha: String?): Unit = withContext(dispatcher) {
@@ -79,9 +92,17 @@ class GitHubContentsAssetStore(
      * the returned SHA. Fetching content and SHA as two independent path reads could pair one commit's bytes
      * with the next commit's SHA, letting a later `putSyncDocumentIfUnchanged` overwrite that newer commit.
      */
-    suspend fun getSyncDocumentWithSha(path: String): GitHubSyncDocument = withContext(dispatcher) {
+    suspend fun getSyncDocumentWithSha(path: String): GitHubSyncDocument =
+        checkNotNull(getSyncDocumentWithShaUnless(path, skipSha = null))
+
+    /** Like [getSyncDocumentWithSha], but returns null without downloading content when the SHA is [skipSha]. */
+    suspend fun getSyncDocumentWithShaUnless(path: String, skipSha: String?): GitHubSyncDocument? = withContext(dispatcher) {
         validateSyncDocumentPath(path)
         val sha = getSyncDocumentSha(path)
+        if (sha == skipSha) return@withContext null
+        // Blob content is addressed by its SHA, so a cached copy (from an earlier read, or the content GitHub
+        // embeds in the metadata response for smaller files) is exactly the bytes of this version.
+        GitHubBlobCache.get(sha)?.let { return@withContext GitHubSyncDocument(bytes = it, sha = sha) }
         val blobResponse = client.execute(
             GitHubHttpRequest(
                 method = "GET",
@@ -94,6 +115,7 @@ class GitHubContentsAssetStore(
             throw GitHubAssetStoreException("GitHub metadata download failed", blobResponse.statusCode, blobResponse.safeBodyText())
         }
         require(blobResponse.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
+        GitHubBlobCache.put(sha, blobResponse.body)
         GitHubSyncDocument(bytes = blobResponse.body, sha = sha)
     }
 
@@ -141,15 +163,25 @@ class GitHubContentsAssetStore(
         }
     }
 
+    /**
+     * The file's current blob SHA. Sent as a conditional request against the last ETag seen for this path, so
+     * an unchanged file answers 304 (no body, and not counted against GitHub's rate limit). For files small
+     * enough that GitHub embeds their content, that content is cached under the SHA to save the blob download.
+     */
     private fun getSyncDocumentSha(path: String): String {
+        val metadataKey = "$cacheScope|$path"
+        val cached = GitHubMetadataCache.get(metadataKey)
         val response = client.execute(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
-                headers = objectHeaders(),
+                headers = objectHeaders() + cached?.etag?.let { mapOf("If-None-Match" to it) }.orEmpty(),
                 maxResponseBytes = MaxSyncDocumentJsonBytes,
             ),
         )
+        if (response.statusCode == HttpURLConnection.HTTP_NOT_MODIFIED && cached != null) {
+            return cached.sha
+        }
         if (response.statusCode != HttpURLConnection.HTTP_OK) {
             throw GitHubAssetStoreException("GitHub metadata download failed", response.statusCode, response.safeBodyText())
         }
@@ -161,6 +193,8 @@ class GitHubContentsAssetStore(
                 statusCode = response.statusCode,
                 responseBody = response.safeBodyText(),
             )
+        bodyText.embeddedBase64ContentOrNull()?.let { bytes -> GitHubBlobCache.put(sha, bytes) }
+        response.header("ETag")?.let { etag -> GitHubMetadataCache.put(metadataKey, CachedSyncDocumentMetadata(etag, sha)) }
         return sha
     }
 
@@ -384,7 +418,11 @@ data class GitHubHttpRequest(
 data class GitHubHttpResponse(
     val statusCode: Int,
     val body: ByteArray,
+    /** Response headers keyed by lower-cased name. */
+    val headers: Map<String, String> = emptyMap(),
 ) {
+    fun header(name: String): String? = headers[name.lowercase()]
+
     fun bodyText(): String = body.toString(Charsets.UTF_8)
 
     fun safeBodyText(): String = bodyText()
@@ -421,7 +459,11 @@ private class UrlConnectionGitHubHttpClient : GitHubHttpClient {
                 connection.inputStream
             }
             val bytes = stream?.use { it.readBytesLimited(request.maxResponseBytes) } ?: ByteArray(0)
-            return GitHubHttpResponse(status, bytes)
+            val headers = connection.headerFields
+                .filterKeys { it != null }
+                .mapNotNull { (name, values) -> values.firstOrNull()?.let { name.lowercase() to it } }
+                .toMap()
+            return GitHubHttpResponse(status, bytes, headers)
         } finally {
             connection.disconnect()
         }
@@ -514,6 +556,92 @@ private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
         output.write(buffer, 0, read)
     }
     return output.toByteArray()
+}
+
+/** Content GitHub inlined in an object-metadata response (files up to ~1 MB), or null when it left it out. */
+private fun String.embeddedBase64ContentOrNull(): ByteArray? {
+    if (extractJsonString("encoding") != "base64") return null
+    val content = rawJsonStringValue("content")?.takeIf { it.isNotBlank() } ?: return null
+    return runCatching { Base64.getMimeDecoder().decode(content) }
+        .getOrNull()
+        ?.takeIf { it.size <= MaxSyncDocumentBytes }
+}
+
+/**
+ * Linear scan for a (possibly ~1 MB) string value. The regex in [extractJsonString] recurses per character in
+ * java.util.regex and can overflow the stack on inputs that long. Escapes are dropped rather than decoded,
+ * which is right for base64 (GitHub only escapes its line breaks) and is all this is used for.
+ */
+private fun String.rawJsonStringValue(name: String): String? {
+    val keyIndex = indexOf("\"$name\"").takeIf { it >= 0 } ?: return null
+    var index = indexOf(':', startIndex = keyIndex + name.length + 2).takeIf { it >= 0 } ?: return null
+    index += 1
+    while (index < length && this[index].isWhitespace()) index += 1
+    if (index >= length || this[index] != '"') return null
+    index += 1
+    val value = StringBuilder()
+    while (index < length) {
+        when (val char = this[index]) {
+            '\\' -> index += 2
+            '"' -> return value.toString()
+            else -> {
+                value.append(char)
+                index += 1
+            }
+        }
+    }
+    return null
+}
+
+internal data class CachedSyncDocumentMetadata(val etag: String, val sha: String)
+
+/** Last ETag and SHA seen per repository path, for conditional metadata requests. */
+internal object GitHubMetadataCache {
+    private const val MaxEntries = 256
+    private val entries = LinkedHashMap<String, CachedSyncDocumentMetadata>(16, 0.75f, true)
+
+    @Synchronized
+    fun get(key: String): CachedSyncDocumentMetadata? = entries[key]
+
+    @Synchronized
+    fun put(key: String, metadata: CachedSyncDocumentMetadata) {
+        entries[key] = metadata
+        if (entries.size > MaxEntries) entries.remove(entries.keys.first())
+    }
+
+    @Synchronized
+    fun clear() = entries.clear()
+}
+
+/** Size-bounded LRU of sync-document bytes keyed by git blob SHA (content-addressed, so never stale). */
+internal object GitHubBlobCache {
+    private const val MaxTotalBytes = 12 * 1024 * 1024
+    private const val MaxEntryBytes = 6 * 1024 * 1024
+    private val entries = LinkedHashMap<String, ByteArray>(16, 0.75f, true)
+    private var totalBytes = 0
+
+    @Synchronized
+    fun get(sha: String): ByteArray? = entries[sha]
+
+    @Synchronized
+    fun put(sha: String, bytes: ByteArray) {
+        if (bytes.size > MaxEntryBytes) return
+        entries.put(sha, bytes)?.let { totalBytes -= it.size }
+        totalBytes += bytes.size
+        val iterator = entries.entries.iterator()
+        while (totalBytes > MaxTotalBytes && iterator.hasNext()) {
+            val eldest = iterator.next()
+            if (eldest.key == sha) continue
+            totalBytes -= eldest.value.size
+            iterator.remove()
+        }
+    }
+
+    @Synchronized
+    fun clear() {
+        entries.clear()
+        totalBytes = 0
+    }
 }
 
 private fun String.extractJsonString(name: String): String? {

@@ -8,22 +8,64 @@ import com.vayana.core.backup.PortableTombstone
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.backup.patchSlicedPortableReadingProgress
+import com.vayana.core.backup.portableSnapshotSliceDataEquals
 import com.vayana.core.backup.portableSnapshotSlicePaths
+import com.vayana.core.backup.repointPortableSnapshotSlices
 import com.vayana.core.backup.toSlicedJsonDocuments
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
-data class RemotePortableSnapshotDocument(
+/**
+ * The latest snapshot pointer plus lazy access to its slices. A slice is downloaded the first time someone
+ * asks for it, so a caller that only needs positions (the manifest's "books") never pays for annotations or
+ * sessions. A missing (404) slice falls back to the manifest text, as before.
+ */
+class RemotePortableSnapshotDocument internal constructor(
     val jsonText: String,
     val sha: String,
     val sliced: Boolean,
-    internal val sliceJsonByKey: Map<String, String> = emptyMap(),
+    sliceJsonByKey: Map<String, String> = emptyMap(),
+    private val slicePaths: Map<String, String> = emptyMap(),
+    private val loadSlice: (suspend (String) -> String)? = null,
 ) {
-    fun jsonFor(slice: RemotePortableSnapshotSlice): String =
-        sliceJsonByKey[slice.key] ?: jsonText
+    constructor(jsonText: String, sha: String, sliced: Boolean) : this(jsonText, sha, sliced, emptyMap())
+
+    private val loadedSlices = ConcurrentHashMap(sliceJsonByKey)
+    private val missingSlices: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    suspend fun jsonFor(slice: RemotePortableSnapshotSlice): String = sliceJsonOrNull(slice.key) ?: jsonText
+
+    /** Downloads the given slices concurrently, for callers about to read most of them. */
+    suspend fun prefetch(slices: Collection<RemotePortableSnapshotSlice> = RemotePortableSnapshotSlice.entries) {
+        coroutineScope {
+            slices.filter { it.key in slicePaths && !loadedSlices.containsKey(it.key) }
+                .map { slice -> async { sliceJsonOrNull(slice.key) } }
+                .awaitAll()
+        }
+    }
+
+    /** The slice's own document, or null when this snapshot has no such slice or it is gone (404). */
+    internal suspend fun sliceJsonOrNull(key: String): String? {
+        loadedSlices[key]?.let { return it }
+        if (key in missingSlices) return null
+        val path = slicePaths[key] ?: return null
+        val loader = loadSlice ?: return null
+        val json = loadSnapshotSliceOrNull(path, loader)
+        if (json == null) missingSlices += key else loadedSlices[key] = json
+        return json
+    }
+
+    /** A slice already in memory, without triggering a download. */
+    internal fun loadedSliceJsonOrNull(key: String): String? = loadedSlices[key]
+
+    internal fun slicePathOrNull(key: String): String? = slicePaths[key]
 }
 
 enum class RemotePortableSnapshotSlice(val key: String) {
@@ -67,36 +109,75 @@ suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocument(): Remote
 suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocumentUnlessSha(
     skipSha: String?,
 ): RemotePortableSnapshotDocument? {
-    val latest = getSyncDocumentWithSha(PortableSnapshotLatestPath)
-    if (skipSha != null && latest.sha == skipSha) return null
+    val latest = getSyncDocumentWithShaUnless(PortableSnapshotLatestPath, skipSha) ?: return null
     val latestJson = latest.bytes.toString(Charsets.UTF_8)
     return remotePortableSnapshotDocumentFrom(
         latestJson = latestJson,
         sha = latest.sha,
         slicePaths = portableSnapshotSlicePaths(latestJson),
-        loadSlice = { path -> getSyncDocument(path).toString(Charsets.UTF_8) },
+        loadSlice = { path -> getSnapshotSliceCached(path) },
     )
 }
 
-internal suspend fun remotePortableSnapshotDocumentFrom(
+internal fun remotePortableSnapshotDocumentFrom(
     latestJson: String,
     sha: String,
     slicePaths: Map<String, String>,
     loadSlice: suspend (String) -> String,
-): RemotePortableSnapshotDocument {
+): RemotePortableSnapshotDocument =
     if (slicePaths.isEmpty()) {
-        return RemotePortableSnapshotDocument(jsonText = latestJson, sha = sha, sliced = false)
+        RemotePortableSnapshotDocument(jsonText = latestJson, sha = sha, sliced = false)
+    } else {
+        RemotePortableSnapshotDocument(
+            jsonText = latestJson,
+            sha = sha,
+            sliced = true,
+            slicePaths = slicePaths,
+            loadSlice = loadSlice,
+        )
     }
-    val slices = slicePaths.mapNotNull { (key, path) ->
-        val jsonText = loadSnapshotSliceOrNull(path, loadSlice) ?: return@mapNotNull null
-        key to jsonText
-    }.toMap()
-    return RemotePortableSnapshotDocument(
-        jsonText = latestJson,
-        sha = sha,
-        sliced = true,
-        sliceJsonByKey = slices,
-    )
+
+/**
+ * Slice files are written once to a timestamped path and never rewritten (see [putNewSyncDocument]), so a
+ * slice read by path stays valid for the life of the process and repeat syncs skip the download entirely.
+ */
+private suspend fun GitHubContentsAssetStore.getSnapshotSliceCached(path: String): String {
+    val key = "$cacheScope|$path"
+    SnapshotSliceCache.get(key)?.let { return it }
+    val json = getSyncDocument(path).toString(Charsets.UTF_8)
+    SnapshotSliceCache.put(key, json)
+    return json
+}
+
+/** Process-wide, size-bounded LRU of slice texts keyed by repository scope and path. */
+internal object SnapshotSliceCache {
+    private const val MaxTotalChars = 6 * 1024 * 1024
+    private const val MaxEntryChars = 3 * 1024 * 1024
+    private val entries = LinkedHashMap<String, String>(16, 0.75f, true)
+    private var totalChars = 0
+
+    @Synchronized
+    fun get(key: String): String? = entries[key]
+
+    @Synchronized
+    fun put(key: String, json: String) {
+        if (json.length > MaxEntryChars) return
+        entries.put(key, json)?.let { totalChars -= it.length }
+        totalChars += json.length
+        val iterator = entries.entries.iterator()
+        while (totalChars > MaxTotalChars && iterator.hasNext()) {
+            val eldest = iterator.next()
+            if (eldest.key == key) continue
+            totalChars -= eldest.value.length
+            iterator.remove()
+        }
+    }
+
+    @Synchronized
+    fun clear() {
+        entries.clear()
+        totalChars = 0
+    }
 }
 
 private suspend fun loadSnapshotSliceOrNull(path: String, loadSlice: suspend (String) -> String): String? =
@@ -150,9 +231,16 @@ suspend fun GitHubContentsAssetStore.pushPortableReadingProgress(
         }
         return pushResult
     }
+    // Only slices with local data to merge are worth downloading; the rest can't change.
+    val neededSliceKeys = buildList {
+        if (readingSessions.isNotEmpty()) add(RemotePortableSnapshotSlice.ReadingSessions.key)
+        if (wordLookupCounters.isNotEmpty()) add(RemotePortableSnapshotSlice.WordLookupCounters.key)
+        if (tombstones.isNotEmpty()) add(RemotePortableSnapshotSlice.Tombstones.key)
+    }
+    val sliceJsonByKey = neededSliceKeys.mapNotNull { key -> remote.sliceJsonOrNull(key)?.let { key to it } }.toMap()
     val result = patchSlicedPortableReadingProgress(
         manifestJson = remote.jsonText,
-        sliceJsonByKey = remote.sliceJsonByKey,
+        sliceJsonByKey = sliceJsonByKey,
         patches = patches,
         exportedAt = exportedAt,
         readingSessions = readingSessions,
@@ -160,7 +248,10 @@ suspend fun GitHubContentsAssetStore.pushPortableReadingProgress(
         tombstones = tombstones,
     )
     if (result.changed > 0) {
-        result.sliceWrites.forEach { (path, jsonText) -> putSyncDocument(path, jsonText.toByteArray(Charsets.UTF_8)) }
+        result.sliceWrites.forEach { (path, jsonText) ->
+            putNewSyncDocument(path, jsonText.toByteArray(Charsets.UTF_8))
+            SnapshotSliceCache.put("$cacheScope|$path", jsonText)
+        }
         putSyncDocumentIfUnchanged(PortableSnapshotLatestPath, result.manifestJson.toByteArray(Charsets.UTF_8), remote.sha)
     }
     return PortableReadingProgressPushResult(
@@ -177,11 +268,23 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     expectedLatestSha: String?,
     diagnosticsLogStore: DiagnosticsLogStore? = null,
     onProgress: ((PortableSnapshotPublishProgress) -> Unit)? = null,
+    /**
+     * The snapshot this publish replaces. A slice whose records match one of its slices that is already in
+     * memory keeps pointing at that published file instead of being uploaded (and committed) again.
+     */
+    previous: RemotePortableSnapshotDocument? = null,
 ) {
     val documents = snapshot.toSlicedJsonDocuments()
     val latestDocument = documents.last { it.path == PortableSnapshotLatestPath }
-    val sliceDocuments = documents.filter { it.path != PortableSnapshotLatestPath }
-    val latestBytes = latestDocument.jsonText.toByteArray(Charsets.UTF_8)
+    val allSliceDocuments = documents.filter { it.path != PortableSnapshotLatestPath }
+    val reusedPathsByKey = allSliceDocuments.mapNotNull { document ->
+        val key = document.sliceKey ?: return@mapNotNull null
+        val previousJson = previous?.loadedSliceJsonOrNull(key) ?: return@mapNotNull null
+        val previousPath = previous.slicePathOrNull(key) ?: return@mapNotNull null
+        if (portableSnapshotSliceDataEquals(key, document.jsonText, previousJson)) key to previousPath else null
+    }.toMap()
+    val sliceDocuments = allSliceDocuments.filter { it.sliceKey !in reusedPathsByKey }
+    val latestBytes = repointPortableSnapshotSlices(latestDocument.jsonText, reusedPathsByKey).toByteArray(Charsets.UTF_8)
     val sliceBytes = sliceDocuments.map { document -> document.path to document.jsonText.toByteArray(Charsets.UTF_8) }
     val totalDocuments = sliceBytes.size + 2
     val totalBytes = sliceBytes.sumOf { it.second.size } + latestBytes.size + latestBytes.size
@@ -203,8 +306,10 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     completedDocuments += 1
     completedBytes += latestBytes.size
     report(PortableSnapshotPublishStage.DEVICE_SNAPSHOT, deviceSnapshotPath)
-    sliceBytes.forEach { (path, bytes) ->
-        putSyncDocument(path, bytes)
+    sliceDocuments.zip(sliceBytes).forEach { (document, pathAndBytes) ->
+        val (path, bytes) = pathAndBytes
+        putNewSyncDocument(path, bytes)
+        SnapshotSliceCache.put("$cacheScope|$path", document.jsonText)
         completedDocuments += 1
         completedBytes += bytes.size
         report(PortableSnapshotPublishStage.SNAPSHOT_SLICE, path)
@@ -233,6 +338,7 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
             append("exportedAt=").append(snapshot.exportedAt)
             append(", books=").append(snapshot.books.size)
             append(", slices=").append(sliceDocuments.size)
+            append(", reusedSlices=").append(reusedPathsByKey.size)
             append(", latestBytes=").append(latestBytes.size)
             append(", sliceBytes=").append(sliceBytes.sumOf { it.second.size })
             append(", prunedDirs=").append(pruneSummary.directoriesPruned)
