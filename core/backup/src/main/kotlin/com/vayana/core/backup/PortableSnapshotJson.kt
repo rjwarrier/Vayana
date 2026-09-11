@@ -209,6 +209,9 @@ private const val MaxSnapshotTextChars = 16_384
 private const val MaxSnapshotWordChars = 120
 private const val MaxSnapshotWriterOriginChars = 120
 private const val MaxSnapshotFileHashChars = 256
+private const val MaxSnapshotPathChars = 240
+const val PortableSnapshotLatestPath = "vayana/snapshot-latest.json"
+const val CurrentPortableSnapshotSliceVersion = 1
 
 fun PortableSnapshot.toJsonString(): String =
     JSONObject()
@@ -227,6 +230,98 @@ fun PortableSnapshot.toJsonString(): String =
         .put("settings", JSONObject(settings))
         .put("syncConflicts", syncConflicts.toJsonArray { it.toJson() })
         .toString(2)
+
+data class PortableSnapshotDocument(
+    val path: String,
+    val jsonText: String,
+)
+
+fun PortableSnapshot.toSlicedJsonDocuments(): List<PortableSnapshotDocument> {
+    val slices = PortableSnapshotSlice.entries.map { slice ->
+        PortableSnapshotDocument(
+            path = slice.path(exportedAt),
+            jsonText = sliceJson(slice).toString(2),
+        )
+    }
+    val manifest = JSONObject()
+        .put("formatVersion", formatVersion)
+        .put("exportedAt", exportedAt)
+        .put("deviceLabel", deviceLabel)
+        .put("sliceVersion", CurrentPortableSnapshotSliceVersion)
+        .put("books", books.toJsonArray { it.toJson() })
+        .put("settings", JSONObject(settings))
+        .put("syncConflicts", syncConflicts.toJsonArray { it.toJson() })
+        .put(
+            "slices",
+            JSONObject().also { root ->
+                PortableSnapshotSlice.entries.forEach { slice -> root.put(slice.key, slice.path(exportedAt)) }
+            },
+        )
+    return slices + PortableSnapshotDocument(path = PortableSnapshotLatestPath, jsonText = manifest.toString(2))
+}
+
+fun portableSnapshotSlicePaths(jsonText: String): Map<String, String> {
+    require(jsonText.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(jsonText)
+    val slices = root.optJSONObject("slices") ?: return emptyMap()
+    return buildMap {
+        PortableSnapshotSlice.entries.forEach { slice ->
+            val path = slices.optSnapshotBoundedString(slice.key, MaxSnapshotPathChars) ?: return@forEach
+            if (slice.isValidPath(path)) put(slice.key, path)
+        }
+    }
+}
+
+fun mergePortableSnapshotSlices(baseJson: String, sliceJsonByKey: Map<String, String>): String {
+    require(baseJson.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot is too large" }
+    val root = JSONObject(baseJson)
+    PortableSnapshotSlice.entries.forEach { slice ->
+        val sliceJson = sliceJsonByKey[slice.key] ?: return@forEach
+        require(sliceJson.length <= MaxPortableSnapshotJsonChars) { "Portable snapshot slice is too large" }
+        val sliceRoot = JSONObject(sliceJson)
+        root.put(slice.jsonArrayName, sliceRoot.optJSONArray(slice.jsonArrayName) ?: JSONArray())
+    }
+    return root.toString(2)
+}
+
+fun portableSnapshotHasSlices(jsonText: String): Boolean = portableSnapshotSlicePaths(jsonText).isNotEmpty()
+
+private fun PortableSnapshot.sliceJson(slice: PortableSnapshotSlice): JSONObject =
+    JSONObject()
+        .put("formatVersion", formatVersion)
+        .put("exportedAt", exportedAt)
+        .put("deviceLabel", deviceLabel)
+        .put(
+            slice.jsonArrayName,
+            when (slice) {
+                PortableSnapshotSlice.Annotations -> annotations.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.Shelves -> shelves.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.ShelfMemberships -> shelfMemberships.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.ReadingSessions -> readingSessions.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.VocabularyCards -> vocabularyCards.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.WordLookupCounters -> wordLookupCounters.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.BookAliases -> bookAliases.toJsonArray { it.toJson() }
+                PortableSnapshotSlice.Tombstones -> tombstones.toJsonArray { it.toJson() }
+            },
+        )
+
+private enum class PortableSnapshotSlice(val key: String, val jsonArrayName: String, private val fileName: String) {
+    Annotations("annotations", "annotations", "annotations.json"),
+    Shelves("shelves", "shelves", "shelves.json"),
+    ShelfMemberships("shelfMemberships", "shelfMemberships", "shelf-memberships.json"),
+    ReadingSessions("readingSessions", "readingSessions", "reading-sessions.json"),
+    VocabularyCards("vocabularyCards", "vocabularyCards", "vocabulary-cards.json"),
+    WordLookupCounters("wordLookupCounters", "wordLookupCounters", "word-lookup-counters.json"),
+    BookAliases("bookAliases", "bookAliases", "book-aliases.json"),
+    Tombstones("tombstones", "tombstones", "tombstones.json");
+
+    fun path(exportedAt: Long): String = "vayana/snapshot-slices/$exportedAt/$fileName"
+
+    fun isValidPath(path: String): Boolean =
+        path.length <= MaxSnapshotPathChars && pathRegex.matches(path)
+
+    private val pathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*/${Regex.escape(fileName)}$")
+}
 
 private fun PortableBook.toJson(): JSONObject =
     JSONObject()
@@ -262,6 +357,10 @@ private fun PortableBook.toJson(): JSONObject =
         .putOptional("customFontFamily", customFontFamily)
         .putOptional("customSideMarginPercent", customSideMarginPercent)
         .putOptional("readNextAddedAt", readNextAddedAt)
+        .putOptional("goodreadsUrl", goodreadsUrl)
+        .putOptional("goodreadsRating", goodreadsRating?.toDouble())
+        .putOptional("goodreadsRatingsCount", goodreadsRatingsCount)
+        .putOptional("originalPublicationYear", originalPublicationYear)
 
 private fun PortableAsset.toJson(): JSONObject =
     JSONObject()

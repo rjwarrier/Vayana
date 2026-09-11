@@ -360,7 +360,11 @@ private fun validateAssetPath(path: String) {
 }
 
 private fun validateSyncDocumentPath(path: String) {
-    require(path == "vayana/snapshot-latest.json" || path.startsWith("vayana/snapshots/")) { "Invalid sync document path" }
+    require(
+        path == "vayana/snapshot-latest.json" ||
+            path.startsWith("vayana/snapshots/") ||
+            path.startsWith("vayana/snapshot-slices/"),
+    ) { "Invalid sync document path" }
     require(path.endsWith(".json")) { "Invalid sync document path" }
     require(".." !in path && "//" !in path) { "Invalid sync document path" }
     require(path.matches(SyncDocumentPathRegex)) { "Invalid sync document path" }

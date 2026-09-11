@@ -8,7 +8,9 @@ import com.vayana.core.backup.parsePortableReadingSessions
 import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.PortableReadingSession
+import com.vayana.core.backup.PortableSnapshotLatestPath
 import com.vayana.core.backup.parsePortableReadingProgresses
+import com.vayana.core.backup.portableSnapshotHasSlices
 import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.common.DispatcherProvider
@@ -137,7 +139,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
 
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlySyncAttempts) {
-            val remoteSnapshot = runCatchingCancellable { store.getSyncDocumentWithSha(SnapshotLatestPath) }
+            val remoteSnapshot = runCatchingCancellable { store.getSyncDocumentWithSha(PortableSnapshotLatestPath) }
                 .getOrElse { throwable ->
                     return@withContext if (throwable.isMissingRemoteSnapshot()) {
                         ReadingProgressSyncResult(
@@ -171,6 +173,14 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 pulled += pullRemoteWordLookupCounters(jsonText)
             }
 
+            if (portableSnapshotHasSlices(jsonText)) {
+                lastAppliedRemoteSha.set(remoteSnapshot.sha)
+                return@withContext ReadingProgressSyncResult(
+                    status = if (pulled > 0) ReadingProgressSyncStatus.PULLED else ReadingProgressSyncStatus.NO_CHANGES,
+                    pulled = pulled,
+                )
+            }
+
             val attempt = runCatchingCancellable {
                 val patchResult = patchPortableReadingProgressOnly(
                     jsonText = jsonText,
@@ -183,7 +193,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 val pushed = patchResult.patched + patchResult.sessionsAdded + patchResult.wordLookupCountersMerged + patchResult.tombstonesMerged
                 if (pushed > 0) {
                     store.putSyncDocumentIfUnchanged(
-                        path = SnapshotLatestPath,
+                        path = PortableSnapshotLatestPath,
                         bytes = patchResult.jsonText.toByteArray(Charsets.UTF_8),
                         expectedSha = remoteSnapshot.sha,
                     )
@@ -418,7 +428,6 @@ private fun Throwable.isMissingRemoteSnapshot(): Boolean =
 private fun Throwable.isGitHubConflict(): Boolean =
     this is GitHubAssetStoreException && statusCode == HttpURLConnection.HTTP_CONFLICT
 
-private const val SnapshotLatestPath = "vayana/snapshot-latest.json"
 private const val MaxProgressOnlySyncAttempts = 2
 private const val MinSyncIntervalMillis = 20_000L
 private const val MaxSyncFailureBodyChars = 320

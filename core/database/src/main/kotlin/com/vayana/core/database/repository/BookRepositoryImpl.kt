@@ -430,6 +430,10 @@ class BookRepositoryImpl @Inject constructor(
                     coverAssetSha256 = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetSha256 else existing.coverAssetSha256,
                     coverAssetSizeBytes = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetSizeBytes else existing.coverAssetSizeBytes,
                     coverAssetUploadedAt = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetUploadedAt else existing.coverAssetUploadedAt,
+                    goodreadsUrl = existing.goodreadsUrl.mergeRemoteOptional(record.goodreadsUrl, shouldApplyRemoteMetadata),
+                    goodreadsRating = existing.goodreadsRating.mergeRemoteOptional(record.goodreadsRating, shouldApplyRemoteMetadata),
+                    goodreadsRatingsCount = existing.goodreadsRatingsCount.mergeRemoteOptional(record.goodreadsRatingsCount, shouldApplyRemoteMetadata),
+                    originalPublicationYear = existing.originalPublicationYear.mergeRemoteOptional(record.originalPublicationYear, shouldApplyRemoteMetadata),
                     updatedAt = maxOf(existing.updatedAt, record.updatedAt),
                 )
                 if (merged != existing) {
@@ -442,7 +446,8 @@ class BookRepositoryImpl @Inject constructor(
             val progressResetAt = tombstoneDao.findBySyncId(readingProgressResetTombstoneId(existing.syncId))?.deletedAt
             bookDao.update(
                 record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath)
-                    .withLocalOnlyFieldsFrom(existing)
+                    .withCoverAlternatesFrom(existing)
+                    .withMergedGoodreadsFieldsFrom(existing)
                     .keepingResetProgress(existing, progressResetAt),
             )
             return CloudBookMergeResult.UPDATED
@@ -507,14 +512,17 @@ internal fun BookEntity.toDomain(): Book = Book(
     goodreadsCoverPath = goodreadsCoverPath,
 )
 
-/** Goodreads extras and the alternate covers never travel through sync, so a cloud rewrite must carry them over. */
-private fun BookEntity.withLocalOnlyFieldsFrom(existing: BookEntity): BookEntity = copy(
-    goodreadsUrl = existing.goodreadsUrl,
-    goodreadsRating = existing.goodreadsRating,
-    goodreadsRatingsCount = existing.goodreadsRatingsCount,
-    originalPublicationYear = existing.originalPublicationYear,
+/** Alternate cover choices are local files, so a cloud rewrite must carry them over. */
+private fun BookEntity.withCoverAlternatesFrom(existing: BookEntity): BookEntity = copy(
     customCoverPath = existing.customCoverPath,
     goodreadsCoverPath = existing.goodreadsCoverPath,
+)
+
+private fun BookEntity.withMergedGoodreadsFieldsFrom(existing: BookEntity): BookEntity = copy(
+    goodreadsUrl = existing.goodreadsUrl.mergeRemoteOptional(goodreadsUrl, remoteIsNewer = updatedAt > existing.updatedAt),
+    goodreadsRating = existing.goodreadsRating.mergeRemoteOptional(goodreadsRating, remoteIsNewer = updatedAt > existing.updatedAt),
+    goodreadsRatingsCount = existing.goodreadsRatingsCount.mergeRemoteOptional(goodreadsRatingsCount, remoteIsNewer = updatedAt > existing.updatedAt),
+    originalPublicationYear = existing.originalPublicationYear.mergeRemoteOptional(originalPublicationYear, remoteIsNewer = updatedAt > existing.updatedAt),
 )
 
 /** Cloud progress recorded before a local reading-stats reset ([resetAt]) mustn't bring the old stats back. */
@@ -571,6 +579,10 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         customFontFamily = customFontFamily,
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
+        goodreadsUrl = goodreadsUrl,
+        goodreadsRating = goodreadsRating?.coerceIn(0f, 5f),
+        goodreadsRatingsCount = goodreadsRatingsCount,
+        originalPublicationYear = originalPublicationYear,
 )
 
 private fun CloudBookRecord.hasCoverAsset(): Boolean =
@@ -589,6 +601,13 @@ private fun String?.normalizedBookTagsCsv(): String? =
         ?.take(MaxBookTagsCsvChars)
         ?.trimEnd(',', ' ')
         ?.ifBlank { null }
+
+private fun <T> T?.mergeRemoteOptional(remote: T?, remoteIsNewer: Boolean): T? =
+    when {
+        remote == null -> this
+        this == null || remoteIsNewer -> remote
+        else -> this
+    }
 
 private fun String.normalizedBookTag(): String =
     map { if (Character.isISOControl(it)) ' ' else it }

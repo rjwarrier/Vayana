@@ -115,6 +115,10 @@ class SnapshotExporter @Inject constructor(
         customFontFamily = customFontFamily,
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
+        goodreadsUrl = goodreadsUrl,
+        goodreadsRating = goodreadsRating,
+        goodreadsRatingsCount = goodreadsRatingsCount,
+        originalPublicationYear = originalPublicationYear,
     )
 
     private fun AnnotationEntity.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableAnnotation? {

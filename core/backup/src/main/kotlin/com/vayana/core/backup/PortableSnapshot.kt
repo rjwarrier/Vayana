@@ -50,6 +50,10 @@ data class PortableBook(
     val customFontFamily: String?,
     val customSideMarginPercent: Int?,
     val readNextAddedAt: Long?,
+    val goodreadsUrl: String? = null,
+    val goodreadsRating: Float? = null,
+    val goodreadsRatingsCount: Int? = null,
+    val originalPublicationYear: Int? = null,
 )
 
 data class PortableAsset(

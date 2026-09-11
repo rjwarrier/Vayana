@@ -32,6 +32,11 @@ import com.vayana.core.backup.parsePortableShelves
 import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.parsePortableVocabularyCards
 import com.vayana.core.backup.parsePortableWordLookupCounters
+import com.vayana.core.backup.PortableSnapshotLatestPath
+import com.vayana.core.backup.mergePortableSnapshotSlices
+import com.vayana.core.backup.portableSnapshotHasSlices
+import com.vayana.core.backup.portableSnapshotSlicePaths
+import com.vayana.core.backup.toSlicedJsonDocuments
 import com.vayana.core.backup.toJsonString
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
@@ -250,6 +255,7 @@ private data class ReadingProgressMergeSummary(
     val failureMessage: String? = null,
     val remoteSnapshotJson: String? = null,
     val remoteSnapshotSha: String? = null,
+    val remoteSnapshotSliced: Boolean = false,
 ) {
     val conflictCount: Int
         get() = conflicts.size
@@ -315,6 +321,12 @@ private data class ReadingProgressOnlyPushSummary(
     val pushed: Int = 0,
     val failed: Boolean = false,
     val failureMessage: String? = null,
+)
+
+private data class RemoteSnapshotDocument(
+    val jsonText: String,
+    val sha: String,
+    val sliced: Boolean,
 )
 
 private data class SnapshotMetadataSaveResult(
@@ -908,6 +920,7 @@ class LibraryViewModel @Inject constructor(
             val progressPush = pushReadingProgressOnly(
                 remoteSnapshotJson = progressMerge.remoteSnapshotJson.orEmpty(),
                 remoteSnapshotSha = progressMerge.remoteSnapshotSha,
+                remoteSnapshotSliced = progressMerge.remoteSnapshotSliced,
                 store = store,
             )
             finishSyncProgress(
@@ -1120,8 +1133,8 @@ class LibraryViewModel @Inject constructor(
 
     private suspend fun pullReadingProgress(store: GitHubContentsAssetStore): ReadingProgressMergeSummary =
         runCatchingCancellable {
-            val remoteDocument = store.getSyncDocumentWithSha("vayana/snapshot-latest.json")
-            val snapshotJson = remoteDocument.bytes.toString(Charsets.UTF_8)
+            val remoteDocument = store.getLatestSnapshotDocument()
+            val snapshotJson = remoteDocument.jsonText
             val tombstoneMerge = mergeCloudTombstones(snapshotJson)
             if (tombstoneMerge.failed) {
                 return@runCatchingCancellable ReadingProgressMergeSummary(
@@ -1130,6 +1143,7 @@ class LibraryViewModel @Inject constructor(
                     failureMessage = tombstoneMerge.failureMessage,
                     remoteSnapshotJson = snapshotJson,
                     remoteSnapshotSha = remoteDocument.sha,
+                    remoteSnapshotSliced = remoteDocument.sliced,
                 )
             }
             val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
@@ -1137,6 +1151,7 @@ class LibraryViewModel @Inject constructor(
                 skipped = progressMerge.skipped + tombstoneMerge.skipped,
                 remoteSnapshotJson = snapshotJson,
                 remoteSnapshotSha = remoteDocument.sha,
+                remoteSnapshotSliced = remoteDocument.sliced,
             )
         }.getOrElse { throwable ->
             if (throwable.isMissingRemoteSnapshot()) {
@@ -1148,6 +1163,23 @@ class LibraryViewModel @Inject constructor(
                 ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
             }
         }
+
+    private suspend fun GitHubContentsAssetStore.getLatestSnapshotDocument(): RemoteSnapshotDocument {
+        val latest = getSyncDocumentWithSha(PortableSnapshotLatestPath)
+        val latestJson = latest.bytes.toString(Charsets.UTF_8)
+        val slicePaths = portableSnapshotSlicePaths(latestJson)
+        if (slicePaths.isEmpty()) {
+            return RemoteSnapshotDocument(jsonText = latestJson, sha = latest.sha, sliced = false)
+        }
+        val slices = slicePaths.mapValues { (_, path) ->
+            getSyncDocument(path).toString(Charsets.UTF_8)
+        }
+        return RemoteSnapshotDocument(
+            jsonText = mergePortableSnapshotSlices(latestJson, slices),
+            sha = latest.sha,
+            sliced = true,
+        )
+    }
 
     private suspend fun mergeReadingProgressSnapshot(snapshotJson: String): ReadingProgressMergeSummary {
         val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
@@ -1444,12 +1476,21 @@ class LibraryViewModel @Inject constructor(
         )
         repeat(MaxSnapshotMetadataSaveAttempts) { attemptIndex ->
             val saveAttempt = runCatchingCancellable {
-                val snapshotBytes = snapshotExporter.export()
+                val snapshot = snapshotExporter.export()
                     .copy(syncConflicts = latestConflicts)
-                    .toJsonString()
-                    .toByteArray(Charsets.UTF_8)
-                store.putSyncDocument(syncConfig.deviceSnapshotPath, snapshotBytes)
-                store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, latestExpectedSha)
+                val documents = snapshot.toSlicedJsonDocuments()
+                val latestDocument = documents.last { it.path == PortableSnapshotLatestPath }
+                store.putSyncDocument(syncConfig.deviceSnapshotPath, latestDocument.jsonText.toByteArray(Charsets.UTF_8))
+                documents
+                    .filter { it.path != PortableSnapshotLatestPath }
+                    .forEach { document ->
+                        store.putSyncDocument(document.path, document.jsonText.toByteArray(Charsets.UTF_8))
+                    }
+                store.putSyncDocumentIfUnchanged(
+                    path = PortableSnapshotLatestPath,
+                    bytes = latestDocument.jsonText.toByteArray(Charsets.UTF_8),
+                    expectedSha = latestExpectedSha,
+                )
             }
             saveAttempt.onSuccess { return result(synced = true) }
             val throwable = saveAttempt.exceptionOrNull()
@@ -1466,11 +1507,11 @@ class LibraryViewModel @Inject constructor(
                 )
             }
 
-            val currentDocument = runCatchingCancellable { store.getSyncDocumentWithSha("vayana/snapshot-latest.json") }
+            val currentDocument = runCatchingCancellable { store.getLatestSnapshotDocument() }
                 .getOrElse { refetchFailure ->
                     return result(synced = false, failureMessage = refetchFailure.syncFailureMessage())
                 }
-            val currentJson = currentDocument.bytes.toString(Charsets.UTF_8)
+            val currentJson = currentDocument.jsonText
             val rebase = mergeRemoteSnapshotForMetadataRebase(currentJson, store)
             rebaseBooksCreated += rebase.booksCreated
             rebaseBooksUpdated += rebase.booksUpdated
@@ -1516,8 +1557,10 @@ class LibraryViewModel @Inject constructor(
     private suspend fun pushReadingProgressOnly(
         remoteSnapshotJson: String,
         remoteSnapshotSha: String?,
+        remoteSnapshotSliced: Boolean,
         store: GitHubContentsAssetStore,
     ): ReadingProgressOnlyPushSummary {
+        if (remoteSnapshotSliced) return ReadingProgressOnlyPushSummary()
         var jsonText = remoteSnapshotJson
         var sha = remoteSnapshotSha
         var lastFailure: Throwable? = null
@@ -1550,7 +1593,7 @@ class LibraryViewModel @Inject constructor(
                 val pushed = result.patched + result.sessionsAdded + result.wordLookupCountersMerged + result.tombstonesMerged
                 if (pushed > 0) {
                     val snapshotBytes = result.jsonText.toByteArray(Charsets.UTF_8)
-                    store.putSyncDocumentIfUnchanged("vayana/snapshot-latest.json", snapshotBytes, sha)
+                    store.putSyncDocumentIfUnchanged(PortableSnapshotLatestPath, snapshotBytes, sha)
                 }
                 ReadingProgressOnlyPushSummary(pushed = pushed)
             }
@@ -1562,7 +1605,7 @@ class LibraryViewModel @Inject constructor(
             if (throwable?.isGitHubConflict() != true || attemptIndex == MaxProgressOnlyPushAttempts - 1) {
                 return ReadingProgressOnlyPushSummary(failed = true, failureMessage = throwable?.syncFailureMessage())
             }
-            val refetch = runCatchingCancellable { store.getSyncDocumentWithSha("vayana/snapshot-latest.json") }
+            val refetch = runCatchingCancellable { store.getSyncDocumentWithSha(PortableSnapshotLatestPath) }
             val document = refetch.getOrElse { refetchFailure ->
                 return ReadingProgressOnlyPushSummary(failed = true, failureMessage = refetchFailure.syncFailureMessage())
             }
@@ -1944,7 +1987,7 @@ class LibraryViewModel @Inject constructor(
 
     /**
      * Series, genres and description go through [BookRepository.updateMetadata] like a manual edit, so they sync;
-     * the Goodreads rating, year and link stay local to this device. Fields the page didn't have leave the book's
+     * Goodreads rating, year and link travel as optional sync metadata. Fields the page didn't have leave the book's
      * own values alone. Quotes are added last, as popular highlights, skipping any the book already has.
      */
     private suspend fun applyGoodreadsInLibrary(
@@ -2232,6 +2275,10 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         customFontFamily = customFontFamily,
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
+        goodreadsUrl = goodreadsUrl,
+        goodreadsRating = goodreadsRating,
+        goodreadsRatingsCount = goodreadsRatingsCount,
+        originalPublicationYear = originalPublicationYear,
     )
 }
 

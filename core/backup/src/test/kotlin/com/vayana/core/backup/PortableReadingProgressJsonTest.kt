@@ -99,6 +99,10 @@ class PortableReadingProgressJsonTest {
                   "lastLocator": "epubcfi(/6/2)",
                   "readingPercent": 0.35,
                   "rating": 4.5,
+                  "goodreadsUrl": "https://www.goodreads.com/book/show/16046748",
+                  "goodreadsRating": 4.1,
+                  "goodreadsRatingsCount": 12345,
+                  "originalPublicationYear": 2012,
                   "createdAt": 1000,
                   "updatedAt": 2000,
                   "lastReadAt": 1900,
@@ -116,6 +120,10 @@ class PortableReadingProgressJsonTest {
         assertEquals("abcdEFGH1234_wxyz", books.single().fileAsset.id)
         assertEquals("coverEFGH1234_wxyz", books.single().coverAsset?.id)
         assertEquals(0.35f, books.single().readingPercent)
+        assertEquals("https://www.goodreads.com/book/show/16046748", books.single().goodreadsUrl)
+        assertEquals(4.1f, books.single().goodreadsRating)
+        assertEquals(12345, books.single().goodreadsRatingsCount)
+        assertEquals(2012, books.single().originalPublicationYear)
     }
 
     @Test
@@ -133,6 +141,42 @@ class PortableReadingProgressJsonTest {
         )
 
         assertEquals(emptyList(), books)
+    }
+
+    @Test
+    fun sanitizesUnsafeGoodreadsCloudBookFields() {
+        val books = parsePortableCloudBooks(
+            """
+            {
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Book",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "fileAsset": {
+                    "id": "abcdEFGH1234_wxyz",
+                    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                    "sizeBytes": 42,
+                    "uploadedAt": 3000
+                  },
+                  "goodreadsUrl": "https://evil.example/book/show/16046748",
+                  "goodreadsRating": 9.9,
+                  "goodreadsRatingsCount": 1500000000,
+                  "originalPublicationYear": 5000,
+                  "createdAt": 1000,
+                  "updatedAt": 2000
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, books.size)
+        assertEquals(null, books.single().goodreadsUrl)
+        assertEquals(5f, books.single().goodreadsRating)
+        assertEquals(null, books.single().goodreadsRatingsCount)
+        assertEquals(null, books.single().originalPublicationYear)
     }
 
     @Test
@@ -158,6 +202,10 @@ class PortableReadingProgressJsonTest {
                   "lastLocator": "old",
                   "readingPercent": 0.25,
                   "rating": 4.5,
+                  "goodreadsUrl": "https://www.goodreads.com/book/show/16046748",
+                  "goodreadsRating": 4.1,
+                  "goodreadsRatingsCount": 12345,
+                  "originalPublicationYear": 2012,
                   "updatedAt": 2000,
                   "lastReadAt": 1900,
                   "totalReadingSeconds": 90
@@ -187,6 +235,10 @@ class PortableReadingProgressJsonTest {
         assertEquals("cloud, tags", book.getString("tagsCsv"))
         assertEquals(4.5, book.getDouble("rating"))
         assertEquals("asset-a", book.getJSONObject("fileAsset").getString("id"))
+        assertEquals("https://www.goodreads.com/book/show/16046748", book.getString("goodreadsUrl"))
+        assertEquals(4.1, book.getDouble("goodreadsRating"))
+        assertEquals(12345, book.getInt("goodreadsRatingsCount"))
+        assertEquals(2012, book.getInt("originalPublicationYear"))
         assertEquals("new", book.getString("lastLocator"))
         assertEquals(0.75, book.getDouble("readingPercent"))
         assertEquals(4000L, book.getLong("lastReadAt"))
@@ -711,4 +763,144 @@ class PortableReadingProgressJsonTest {
         assertEquals("epubcfi(/6/4)", conflict.getJSONObject("remote").getString("locator"))
         assertTrue(conflict.has("detectedAt"))
     }
+
+    @Test
+    fun writesSlicedSnapshotManifestAndVersionedSlices() {
+        val snapshot = testPortableSnapshot()
+
+        val documents = snapshot.toSlicedJsonDocuments()
+        val manifestDocument = documents.last()
+        val manifest = JSONObject(manifestDocument.jsonText)
+        val slices = manifest.getJSONObject("slices")
+
+        assertEquals(9, documents.size)
+        assertEquals(PortableSnapshotLatestPath, manifestDocument.path)
+        assertEquals(CurrentPortableSnapshotSliceVersion, manifest.getInt("sliceVersion"))
+        assertEquals("vayana/snapshot-slices/12345/annotations.json", slices.getString("annotations"))
+        assertEquals("vayana/snapshot-slices/12345/reading-sessions.json", slices.getString("readingSessions"))
+        assertEquals(false, manifest.has("annotations"))
+        assertEquals(false, manifest.has("readingSessions"))
+        assertEquals(1, manifest.getJSONArray("books").length())
+    }
+
+    @Test
+    fun mergesSlicedSnapshotDocumentsForLegacyParsers() {
+        val documents = testPortableSnapshot().toSlicedJsonDocuments()
+        val manifest = documents.last { it.path == PortableSnapshotLatestPath }.jsonText
+        val slicesByKey = portableSnapshotSlicePaths(manifest).mapValues { (_, path) ->
+            documents.single { it.path == path }.jsonText
+        }
+
+        val merged = mergePortableSnapshotSlices(manifest, slicesByKey)
+
+        assertEquals(true, portableSnapshotHasSlices(manifest))
+        assertEquals("note-a", parsePortableAnnotations(merged).single().syncId)
+        assertEquals("shelf-a", parsePortableShelves(merged).single().syncId)
+        assertEquals("session-a", parsePortableReadingSessions(merged).single().syncId)
+        assertEquals("word", parsePortableVocabularyCards(merged).single().word)
+        assertEquals("lookup", parsePortableWordLookupCounters(merged).single().word)
+        assertEquals("book-a", parsePortableBookAliases(merged).single().syncId)
+        assertEquals("note-a", parsePortableTombstones(merged).single().syncId)
+    }
+
+    @Test
+    fun ignoresUnsafeSlicedSnapshotManifestPaths() {
+        val manifest = JSONObject()
+            .put(
+                "slices",
+                JSONObject()
+                    .put("annotations", "vayana/snapshot-slices/12345/../annotations.json")
+                    .put("readingSessions", "vayana/snapshot-slices/0/reading-sessions.json")
+                    .put("shelves", "vayana/snapshot-slices/12345/shelves.json"),
+            )
+
+        val paths = portableSnapshotSlicePaths(manifest.toString())
+
+        assertEquals(mapOf("shelves" to "vayana/snapshot-slices/12345/shelves.json"), paths)
+    }
+
+    private fun testPortableSnapshot(): PortableSnapshot =
+        PortableSnapshot(
+            formatVersion = 1,
+            exportedAt = 12345,
+            deviceLabel = "Phone",
+            books = listOf(
+                PortableBook(
+                    syncId = "book-a",
+                    title = "Book A",
+                    author = "Author",
+                    series = null,
+                    seriesNumber = null,
+                    description = null,
+                    tagsCsv = null,
+                    format = "EPUB",
+                    fileHash = "hash-a",
+                    fileAvailability = "LOCAL",
+                    fileAvailableLocally = true,
+                    fileAsset = null,
+                    coverAvailableLocally = false,
+                    coverAsset = null,
+                    lastLocator = "epubcfi(/6/2)",
+                    readingPercent = 0.25f,
+                    rating = 0f,
+                    groupId = null,
+                    isDeleted = false,
+                    wordCount = null,
+                    pageEstimate = null,
+                    createdAt = 1000,
+                    updatedAt = 2000,
+                    lastReadAt = 2000,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 60,
+                    customFontSizePercent = null,
+                    customLineHeight = null,
+                    customFontFamily = null,
+                    customSideMarginPercent = null,
+                    readNextAddedAt = null,
+                    goodreadsUrl = "https://www.goodreads.com/book/show/16046748",
+                    goodreadsRating = 4.1f,
+                    goodreadsRatingsCount = 12345,
+                    originalPublicationYear = 2012,
+                ),
+            ),
+            annotations = listOf(
+                PortableAnnotation(
+                    syncId = "note-a",
+                    bookSyncId = "book-a",
+                    type = "HIGHLIGHT",
+                    colorKey = "yellow",
+                    locator = "epubcfi(/6/4)",
+                    chapterTitle = "Chapter",
+                    chapterHref = "chapter.xhtml",
+                    selectedText = "Selected text",
+                    readerNote = null,
+                    createdAt = 2000,
+                    updatedAt = 2100,
+                    isDeleted = false,
+                ),
+            ),
+            shelves = listOf(PortableShelf(syncId = "shelf-a", name = "Favorites", createdAt = 1000, updatedAt = 1000)),
+            shelfMemberships = listOf(PortableShelfMembership(bookSyncId = "book-a", shelfSyncId = "shelf-a", createdAt = 1100)),
+            readingSessions = listOf(
+                PortableReadingSession(syncId = "session-a", bookSyncId = "book-a", startedAt = 1200, endedAt = 1260, durationSeconds = 60),
+            ),
+            vocabularyCards = listOf(
+                PortableVocabularyCard(
+                    syncId = "card-a",
+                    word = "word",
+                    definition = "definition",
+                    sentence = null,
+                    bookSyncId = "book-a",
+                    bookTitle = "Book A",
+                    createdAt = 1300,
+                    lastReviewedAt = null,
+                    known = false,
+                ),
+            ),
+            wordLookupCounters = listOf(PortableWordLookupCounter(word = "lookup", writerOrigin = "origin", count = 2, lastLookedUpAt = 1400)),
+            bookAliases = listOf(PortableBookAlias(syncId = "book-a", fileHash = "hash-old", createdAt = 1500)),
+            tombstones = listOf(PortableTombstone(syncId = "note-a", entityType = "annotation", deletedAt = 1600)),
+            settings = mapOf("theme" to "sepia"),
+        )
 }

@@ -49,6 +49,10 @@ data class PortableCloudBook(
     val customFontFamily: String?,
     val customSideMarginPercent: Int?,
     val readNextAddedAt: Long?,
+    val goodreadsUrl: String? = null,
+    val goodreadsRating: Float? = null,
+    val goodreadsRatingsCount: Int? = null,
+    val originalPublicationYear: Int? = null,
 )
 
 data class PortableReadingProgressPatch(
@@ -301,6 +305,10 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                     customFontFamily = book.optBoundedString("customFontFamily", MaxTitleChars),
                     customSideMarginPercent = book.optPositiveIntOrNull("customSideMarginPercent"),
                     readNextAddedAt = book.optPositiveLongOrNull("readNextAddedAt"),
+                    goodreadsUrl = book.optGoodreadsUrlOrNull(),
+                    goodreadsRating = book.optFiniteFloatOrNull("goodreadsRating", min = 0f, max = 5f),
+                    goodreadsRatingsCount = book.optPositiveIntOrNull("goodreadsRatingsCount")?.takeIf { it <= MaxGoodreadsRatingsCount },
+                    originalPublicationYear = book.optPublicationYearOrNull(),
                 ),
             )
         }
@@ -354,10 +362,26 @@ private fun JSONObject.optPositiveIntOrNull(name: String): Int? =
 private fun JSONObject.optDoubleOrNull(name: String): Double? =
     if (has(name) && !isNull(name)) optDouble(name) else null
 
+private fun JSONObject.optFiniteFloatOrNull(name: String, min: Float, max: Float): Float? =
+    optDoubleOrNull(name)
+        ?.takeIf { it.isFinite() }
+        ?.toFloat()
+        ?.coerceIn(min, max)
+
 private fun JSONObject.optBoundedString(name: String, maxChars: Int): String? =
     optString(name)
         .trim()
         .takeIf { it.isNotEmpty() && it.length <= maxChars }
+
+private fun JSONObject.optGoodreadsUrlOrNull(): String? =
+    optBoundedString("goodreadsUrl", MaxGoodreadsUrlChars)
+        ?.takeIf { url ->
+            url.startsWith("https://www.goodreads.com/", ignoreCase = true) ||
+                url.startsWith("http://www.goodreads.com/", ignoreCase = true)
+        }
+
+private fun JSONObject.optPublicationYearOrNull(): Int? =
+    optPositiveIntOrNull("originalPublicationYear")?.takeIf { it in MinPublicationYear..MaxPublicationYear }
 
 private fun JSONObject.putNullable(name: String, value: Any?): JSONObject =
     put(name, value ?: JSONObject.NULL)
@@ -391,6 +415,10 @@ private const val MaxWordChars = 120
 private const val MaxWriterOriginChars = 120
 private const val MaxDescriptionChars = 16_384
 private const val MaxTagsCsvChars = 2_048
+private const val MaxGoodreadsUrlChars = 2_048
+private const val MaxGoodreadsRatingsCount = 1_000_000_000
+private const val MinPublicationYear = 1
+private const val MaxPublicationYear = 3_000
 private const val MaxFormatChars = 32
 private const val MaxEntityTypeChars = 64
 private const val MaxAssetIdChars = 128

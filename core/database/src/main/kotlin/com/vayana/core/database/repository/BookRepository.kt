@@ -71,6 +71,10 @@ data class CloudBookRecord(
     val customFontFamily: String?,
     val customSideMarginPercent: Int?,
     val readNextAddedAt: Long?,
+    val goodreadsUrl: String?,
+    val goodreadsRating: Float?,
+    val goodreadsRatingsCount: Int?,
+    val originalPublicationYear: Int?,
 )
 
 enum class CloudBookMergeResult {
@@ -115,10 +119,7 @@ interface BookRepository {
 
     suspend fun updateCover(id: Long, coverPath: String?)
 
-    /**
-     * Goodreads import extras. Local to this device and deliberately leaves `updatedAt` alone, so saving them
-     * doesn't make the book look edited to sync.
-     */
+    /** Goodreads import extras. Saving them does not disturb reading-position conflict detection. */
     suspend fun updateGoodreadsInfo(
         id: Long,
         goodreadsUrl: String?,

@@ -56,10 +56,7 @@ data class BookEntity(
     val customSideMarginPercent: Int? = null,
     /** Non-null while queued in "Read next", ordered ascending (earliest add = next up). */
     val readNextAddedAt: Long? = null,
-    /**
-     * Goodreads import extras. Local to this device - cloud sync neither sends nor overwrites them (see
-     * `BookRepositoryImpl.withLocalOnlyFieldsFrom`).
-     */
+    /** Goodreads import extras synced as optional portable metadata. */
     val goodreadsUrl: String? = null,
     val goodreadsRating: Float? = null,
     val goodreadsRatingsCount: Int? = null,

@@ -253,6 +253,35 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun acceptsVersionedSnapshotSlicePath() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"annotations":[]}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val bytes = store.getSyncDocument("vayana/snapshot-slices/12345/annotations.json")
+
+        assertContentEquals("""{"annotations":[]}""".toByteArray(), bytes)
+        assertEquals(
+            "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices/12345/annotations.json?ref=main",
+            client.requests.single().url,
+        )
+    }
+
+    @Test
+    fun rejectsUnsafeSnapshotSlicePath() = runBlocking {
+        val client = RecordingGitHubHttpClient()
+        val store = testStore(client)
+
+        val failure = assertFailsWith<IllegalArgumentException> {
+            store.getSyncDocument("vayana/snapshot-slices/12345/../annotations.json")
+        }
+
+        assertEquals("Invalid sync document path", failure.message)
+        assertTrue(client.requests.isEmpty())
+    }
+
+    @Test
     fun exposesGitHubFailuresWithStatusAndBody() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(500, """{"message":"boom","token":"secret"}""".toByteArray()),
