@@ -551,8 +551,8 @@ class LibraryViewModel @Inject constructor(
     /** Fetches [link] and pauses on a preview; applying still uses the same import path after confirmation. */
     fun importFromGoodreads(bookId: Long, link: String) {
         if (_goodreadsImport.value is GoodreadsImportState.Working) return
+        _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_BOOK)
         viewModelScope.launch {
-            _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_BOOK)
             when (val result = goodreadsMetadataFetcher.fetch(link)) {
                 is GoodreadsFetchResult.Failure -> _goodreadsImport.value = GoodreadsImportState.Failed(result.error)
                 is GoodreadsFetchResult.Success -> _goodreadsImport.value = GoodreadsImportState.Preview(result.metadata)
@@ -571,9 +571,12 @@ class LibraryViewModel @Inject constructor(
         _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
         viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) {
-                applyGoodreadsInLibrary(bookId, preview.metadata) { workId ->
-                    preview.capturedQuotes ?: goodreadsMetadataFetcher.fetchQuotes(workId)
-                }
+                applyGoodreadsInLibrary(
+                    bookId = bookId,
+                    metadata = preview.metadata,
+                    capturedQuotes = preview.capturedQuotes,
+                    loadQuotes = goodreadsMetadataFetcher::fetchQuotes,
+                )
             }
             _goodreadsImport.value = GoodreadsImportState.Done
         }
@@ -1947,6 +1950,7 @@ class LibraryViewModel @Inject constructor(
     private suspend fun applyGoodreadsInLibrary(
         bookId: Long,
         metadata: GoodreadsBookMetadata,
+        capturedQuotes: List<ParsedQuote>? = null,
         loadQuotes: suspend (workId: String) -> List<ParsedQuote>?,
     ): BookDetailMessage {
         val book = bookRepository.getById(bookId) ?: return BookDetailMessage.GOODREADS_FAILED
@@ -1978,15 +1982,15 @@ class LibraryViewModel @Inject constructor(
             _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
             val (coverBytes, quotes) = coroutineScope {
                 val cover = async { coverUrl?.let { goodreadsMetadataFetcher.downloadCover(it) } }
-                val fetchedQuotes = async { workId?.let { loadQuotes(it) } }
+                val fetchedQuotes = async { capturedQuotes ?: workId?.let { loadQuotes(it) } }
                 cover.await() to fetchedQuotes.await()
             }
             val coverApplied = coverUrl == null || coverBytes?.let { applyGoodreadsCover(book, it) } != null
             // Null means the quotes page couldn't be read at all, as opposed to it simply having none new.
             val quotesResult: QuoteImportResult? = when {
+                quotes != null -> addGoodreadsQuotes(bookId, quotes)
                 workId == null -> QuoteImportResult(added = 0, skipped = 0)
-                quotes == null -> null
-                else -> addGoodreadsQuotes(bookId, quotes)
+                else -> null
             }
             when {
                 !coverApplied -> BookDetailMessage.GOODREADS_COVER_FAILED
