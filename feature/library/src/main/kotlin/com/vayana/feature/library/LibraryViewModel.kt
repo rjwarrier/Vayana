@@ -1457,6 +1457,7 @@ class LibraryViewModel @Inject constructor(
                     snapshot = snapshot,
                     deviceSnapshotPath = syncConfig.deviceSnapshotPath,
                     expectedLatestSha = latestExpectedSha,
+                    diagnosticsLogStore = diagnosticsLogStore,
                 )
             }
             saveAttempt.onSuccess { return result(synced = true) }

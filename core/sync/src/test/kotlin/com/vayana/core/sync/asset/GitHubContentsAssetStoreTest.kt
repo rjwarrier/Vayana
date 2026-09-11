@@ -364,10 +364,13 @@ class GitHubContentsAssetStoreTest {
         )
         val store = testStore(client)
 
-        store.pruneOlderPortableSnapshotSlices(currentExportedAt = 4000)
+        val summary = store.pruneOlderPortableSnapshotSlices(currentExportedAt = 4000)
 
         val deleteRequests = client.requests.filter { it.method == "DELETE" }
         assertEquals(listOf("GET", "GET", "DELETE"), client.requests.map { it.method })
+        assertEquals(1, summary.directoriesPruned)
+        assertEquals(1, summary.filesPruned)
+        assertEquals(false, summary.failed)
         assertEquals(1, deleteRequests.size)
         assertEquals(
             "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices/1000/annotations.json",
