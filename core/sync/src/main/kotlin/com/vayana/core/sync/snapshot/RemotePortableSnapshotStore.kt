@@ -32,6 +32,28 @@ enum class RemotePortableSnapshotSlice(val key: String) {
     Tombstones("tombstones"),
 }
 
+enum class PortableSnapshotPublishStage {
+    DEVICE_SNAPSHOT,
+    SNAPSHOT_SLICE,
+    LATEST_POINTER,
+    PRUNING,
+}
+
+data class PortableSnapshotPublishProgress(
+    val stage: PortableSnapshotPublishStage,
+    val completedDocuments: Int,
+    val totalDocuments: Int,
+    val completedBytes: Int,
+    val totalBytes: Int,
+    val currentPath: String? = null,
+) {
+    val fraction: Float = when {
+        totalBytes > 0 -> (completedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+        totalDocuments > 0 -> (completedDocuments.toFloat() / totalDocuments.toFloat()).coerceIn(0f, 1f)
+        else -> 0f
+    }
+}
+
 suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocument(): RemotePortableSnapshotDocument {
     val latest = getSyncDocumentWithSha(PortableSnapshotLatestPath)
     val latestJson = latest.bytes.toString(Charsets.UTF_8)
@@ -76,21 +98,48 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     deviceSnapshotPath: String,
     expectedLatestSha: String?,
     diagnosticsLogStore: DiagnosticsLogStore? = null,
+    onProgress: ((PortableSnapshotPublishProgress) -> Unit)? = null,
 ) {
     val documents = snapshot.toSlicedJsonDocuments()
     val latestDocument = documents.last { it.path == PortableSnapshotLatestPath }
     val sliceDocuments = documents.filter { it.path != PortableSnapshotLatestPath }
     val latestBytes = latestDocument.jsonText.toByteArray(Charsets.UTF_8)
     val sliceBytes = sliceDocuments.map { document -> document.path to document.jsonText.toByteArray(Charsets.UTF_8) }
+    val totalDocuments = sliceBytes.size + 2
+    val totalBytes = sliceBytes.sumOf { it.second.size } + latestBytes.size + latestBytes.size
+    var completedDocuments = 0
+    var completedBytes = 0
+    fun report(stage: PortableSnapshotPublishStage, path: String? = null) {
+        onProgress?.invoke(
+            PortableSnapshotPublishProgress(
+                stage = stage,
+                completedDocuments = completedDocuments,
+                totalDocuments = totalDocuments,
+                completedBytes = completedBytes,
+                totalBytes = totalBytes,
+                currentPath = path,
+            ),
+        )
+    }
     putSyncDocument(deviceSnapshotPath, latestBytes)
+    completedDocuments += 1
+    completedBytes += latestBytes.size
+    report(PortableSnapshotPublishStage.DEVICE_SNAPSHOT, deviceSnapshotPath)
     sliceBytes.forEach { (path, bytes) ->
         putSyncDocument(path, bytes)
+        completedDocuments += 1
+        completedBytes += bytes.size
+        report(PortableSnapshotPublishStage.SNAPSHOT_SLICE, path)
     }
     putSyncDocumentIfUnchanged(
         path = PortableSnapshotLatestPath,
         bytes = latestBytes,
         expectedSha = expectedLatestSha,
     )
+    completedDocuments += 1
+    completedBytes += latestBytes.size
+    report(PortableSnapshotPublishStage.LATEST_POINTER, PortableSnapshotLatestPath)
+    report(PortableSnapshotPublishStage.PRUNING)
     var pruneSummary = SnapshotSlicePruneSummary()
     try {
         pruneSummary = pruneOlderPortableSnapshotSlices(currentExportedAt = snapshot.exportedAt)

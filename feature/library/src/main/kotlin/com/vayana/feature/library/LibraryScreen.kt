@@ -876,9 +876,11 @@ private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismiss
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 items(rows, key = { it.name }) { step ->
+                    val status = progress.statusFor(step)
                     GitHubSyncProgressRow(
                         label = step.label(),
-                        status = progress.statusFor(step),
+                        status = status,
+                        detail = progress.detailFor(step, status),
                     )
                 }
             }
@@ -896,7 +898,7 @@ private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismiss
 }
 
 @Composable
-private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus) {
+private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus, detail: String? = null) {
     val colors = status.containerAndContentColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -917,9 +919,11 @@ private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus) {
                     color = colors.second,
                 )
                 Text(
-                    text = status.label(),
+                    text = detail ?: status.label(),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.second.copy(alpha = 0.74f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -3581,6 +3585,13 @@ private fun GitHubSyncProgressState.statusFor(step: GitHubSyncProgressStep): Git
         else -> GitHubSyncStepStatus.WAITING
     }
 }
+
+private fun GitHubSyncProgressState.detailFor(step: GitHubSyncProgressStep, status: GitHubSyncStepStatus): String? =
+    detail.takeIf {
+        step == GitHubSyncProgressStep.SAVING_SNAPSHOT &&
+            this.step == step &&
+            status == GitHubSyncStepStatus.RUNNING
+    }
 
 @Composable
 private fun BookDetailMessage.label(): String = when (this) {

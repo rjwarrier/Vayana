@@ -89,6 +89,8 @@ import com.vayana.core.sync.asset.CloudBookFileDownloadPhase
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import com.vayana.core.sync.asset.GitHubRepository
+import com.vayana.core.sync.snapshot.PortableSnapshotPublishProgress
+import com.vayana.core.sync.snapshot.PortableSnapshotPublishStage
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
@@ -241,9 +243,13 @@ data class GitHubSyncProgressState(
     val cloudBooksCreated: Int = 0,
     val cloudBooksUpdated: Int = 0,
     val progressUpdated: Int = 0,
+    val stepProgress: Float? = null,
     val isRunning: Boolean = true,
 ) {
-    val fraction: Float = (completedSteps.toFloat() / totalSteps.toFloat()).coerceIn(0f, 1f)
+    val fraction: Float = (
+        (completedSteps.toFloat() + (stepProgress ?: 0f).coerceIn(0f, 1f)) /
+            totalSteps.toFloat()
+        ).coerceIn(0f, 1f)
 }
 
 private data class ReadingProgressMergeSummary(
@@ -275,6 +281,31 @@ private interface SyncMergeOutcome {
 private fun List<SyncMergeOutcome>.anyFailed(): Boolean = any { it.failed }
 private fun List<SyncMergeOutcome>.totalSkipped(): Int = sumOf { it.skipped }
 private fun List<SyncMergeOutcome>.firstFailureMessage(): String? = firstNotNullOfOrNull { it.failureMessage }
+
+private fun PortableSnapshotPublishProgress.toSyncProgressDetail(): String =
+    when (stage) {
+        PortableSnapshotPublishStage.DEVICE_SNAPSHOT -> "Saving this device snapshot"
+        PortableSnapshotPublishStage.SNAPSHOT_SLICE -> {
+            val sliceNumber = completedDocuments.coerceAtLeast(1) - 1
+            val sliceTotal = (totalDocuments - 2).coerceAtLeast(1)
+            "Saving snapshot slice $sliceNumber of $sliceTotal: ${currentPath.toSnapshotSliceLabel()}"
+        }
+        PortableSnapshotPublishStage.LATEST_POINTER -> "Publishing latest snapshot"
+        PortableSnapshotPublishStage.PRUNING -> "Cleaning old snapshot slices"
+    }
+
+private fun String?.toSnapshotSliceLabel(): String =
+    when (this?.substringAfterLast('/')) {
+        "annotations.json" -> "annotations"
+        "shelves.json" -> "shelves"
+        "shelf-memberships.json" -> "shelf memberships"
+        "reading-sessions.json" -> "reading sessions"
+        "vocabulary-cards.json" -> "vocabulary cards"
+        "word-lookup-counters.json" -> "word lookup counters"
+        "book-aliases.json" -> "book aliases"
+        "tombstones.json" -> "deleted items"
+        else -> "library metadata"
+    }
 
 private data class CloudLibraryMergeSummary(
     val created: Int = 0,
@@ -1081,11 +1112,27 @@ class LibraryViewModel @Inject constructor(
             cloudBooksUpdated = cloudLibraryMerge.updated,
             downloadedCovers = cloudLibraryMerge.coversDownloaded,
         )
+        val snapshotProgress: (PortableSnapshotPublishProgress) -> Unit = { progress ->
+            updateSyncProgress(
+                step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
+                detail = progress.toSyncProgressDetail(),
+                completedSteps = 4,
+                uploadedBooks = uploaded,
+                failedBooks = failed,
+                uploadedCovers = uploadedCovers,
+                progressUpdated = progressMerge.applied,
+                cloudBooksCreated = cloudLibraryMerge.created,
+                cloudBooksUpdated = cloudLibraryMerge.updated,
+                downloadedCovers = cloudLibraryMerge.coversDownloaded,
+                stepProgress = progress.fraction,
+            )
+        }
         val metadataSave = saveMetadataSnapshotWithRebase(
             store = store,
             syncConfig = syncConfig,
             expectedSha = progressMerge.remoteSnapshotSha,
             conflicts = progressMerge.conflicts,
+            onSnapshotProgress = snapshotProgress,
         )
         // A rebase (409-conflict retry) may have pulled and merged additional remote data into the local DB after
         // the counts above were computed; fold its deltas in so the reported summary reflects what actually synced.
@@ -1432,6 +1479,7 @@ class LibraryViewModel @Inject constructor(
         syncConfig: GitHubSyncConfig,
         expectedSha: String?,
         conflicts: List<PortableSyncConflict>,
+        onSnapshotProgress: (PortableSnapshotPublishProgress) -> Unit = {},
     ): SnapshotMetadataSaveResult {
         var latestExpectedSha = expectedSha
         var latestConflicts = conflicts
@@ -1460,6 +1508,7 @@ class LibraryViewModel @Inject constructor(
                     deviceSnapshotPath = syncConfig.deviceSnapshotPath,
                     expectedLatestSha = latestExpectedSha,
                     diagnosticsLogStore = diagnosticsLogStore,
+                    onProgress = onSnapshotProgress,
                 )
             }
             saveAttempt.onSuccess { return result(synced = true) }
@@ -1691,6 +1740,7 @@ class LibraryViewModel @Inject constructor(
         cloudBooksCreated: Int = _syncProgress.value?.cloudBooksCreated ?: 0,
         cloudBooksUpdated: Int = _syncProgress.value?.cloudBooksUpdated ?: 0,
         progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
+        stepProgress: Float? = null,
     ) {
         _syncProgress.value = GitHubSyncProgressState(
             step = step,
@@ -1703,6 +1753,7 @@ class LibraryViewModel @Inject constructor(
             cloudBooksCreated = cloudBooksCreated,
             cloudBooksUpdated = cloudBooksUpdated,
             progressUpdated = progressUpdated,
+            stepProgress = stepProgress?.coerceIn(0f, 1f),
         )
     }
 
