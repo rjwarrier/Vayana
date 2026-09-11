@@ -79,6 +79,7 @@ import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupCounterMergeResult
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.database.repository.appliesOver
+import com.vayana.core.datastore.settings.DefaultCoverSource
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.diagnostics.DiagnosticCategory
@@ -424,6 +425,7 @@ class LibraryViewModel @Inject constructor(
     private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
+    private val launchReadingProgressCoordinator: LaunchReadingProgressCoordinator,
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
     private val bookDao: BookDao,
@@ -474,6 +476,31 @@ class LibraryViewModel @Inject constructor(
 
     private val _bookDetailMessage = MutableStateFlow<BookDetailMessage?>(null)
     val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
+
+    val pendingLaunchProgressChange: StateFlow<BookProgressChange?> =
+        launchReadingProgressCoordinator.pendingProgressChange
+
+    init {
+        viewModelScope.launch {
+            combine(libraryBooks, githubSyncReady) { books, syncReady ->
+                if (!syncReady) {
+                    null
+                } else {
+                    books.maxByOrNull { it.lastReadAt ?: 0L }
+                        ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
+                        ?.id
+                }
+            }
+                .distinctUntilChanged()
+                .collect { bookId ->
+                    if (bookId != null) {
+                        launchReadingProgressCoordinator.checkOnce(bookId) {
+                            syncReadingProgressForBook(bookId = bookId, silent = true)
+                        }
+                    }
+                }
+        }
+    }
 
     fun updateQuery(query: String) {
         controls.update { it.copy(query = query) }
@@ -610,14 +637,16 @@ class LibraryViewModel @Inject constructor(
         _goodreadsImport.value = GoodreadsImportState.Preview(metadata, quotes)
     }
 
-    fun applyPendingGoodreads(bookId: Long) {
+    fun applyPendingGoodreads(bookId: Long, options: GoodreadsImportOptions = GoodreadsImportOptions()) {
         val preview = _goodreadsImport.value as? GoodreadsImportState.Preview ?: return
+        if (!options.hasAnySelection) return
         _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
         viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) {
                 applyGoodreadsInLibrary(
                     bookId = bookId,
                     metadata = preview.metadata,
+                    options = options,
                     capturedQuotes = preview.capturedQuotes,
                     loadQuotes = goodreadsMetadataFetcher::fetchQuotes,
                 )
@@ -828,8 +857,9 @@ class LibraryViewModel @Inject constructor(
     suspend fun syncNow(
         allowInitialSync: Boolean = false,
         mode: GitHubSyncMode = GitHubSyncMode.FULL,
+        showProgress: Boolean = true,
     ): GitHubSyncNowResult {
-        val result = runSyncNow(allowInitialSync, mode)
+        val result = runSyncNow(allowInitialSync, mode, showProgress)
         if (result is GitHubSyncNowResult.Complete && (result.pullFailed || !result.metadataSynced)) {
             withContext(dispatchers.io) {
                 diagnosticsLogStore.record(
@@ -854,9 +884,12 @@ class LibraryViewModel @Inject constructor(
      * screen triggered this is exactly the one already showing this book's progress, so it's the
      * right place to ask, no matter that the write already happened underneath.
      */
-    suspend fun syncReadingProgressForBook(bookId: Long): BookProgressSyncOutcome {
+    suspend fun syncReadingProgressForBook(
+        bookId: Long,
+        silent: Boolean = false,
+    ): BookProgressSyncOutcome {
         val before = bookRepository.getById(bookId)
-        val result = syncNow(mode = GitHubSyncMode.READING_PROGRESS_ONLY)
+        val result = syncNow(mode = GitHubSyncMode.READING_PROGRESS_ONLY, showProgress = !silent)
         val after = bookRepository.getById(bookId)
         // Only offer to revert when there was a real prior position to protect - a book going
         // from "never opened" to some synced progress isn't a conflict, just filling in data.
@@ -879,6 +912,10 @@ class LibraryViewModel @Inject constructor(
         return BookProgressSyncOutcome(result, changed)
     }
 
+    fun acknowledgePendingLaunchProgressChange(bookId: Long) {
+        launchReadingProgressCoordinator.acknowledge(bookId)
+    }
+
     /** Reverts to a specific book's pre-sync position - the "stay" side of the prompt above. */
     fun revertReadingProgress(bookId: Long, locator: String?, percent: Float) {
         val cfi = locator?.takeIf { it.isNotBlank() } ?: return
@@ -888,27 +925,28 @@ class LibraryViewModel @Inject constructor(
     private suspend fun runSyncNow(
         allowInitialSync: Boolean,
         mode: GitHubSyncMode,
+        showProgress: Boolean,
     ): GitHubSyncNowResult = withContext(dispatchers.io) {
-        updateSyncProgress(GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
+        updateSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
         val settings = settingsRepository.snapshot.first()
         if (!settings.githubSyncEnabled) {
-            finishSyncProgress(GitHubSyncProgressStep.FAILED, "GitHub sync is turned off")
+            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub sync is turned off")
             return@withContext GitHubSyncNowResult.SyncDisabled
         }
         val syncConfig = settings.gitHubSyncConfig()
         if (syncConfig == null) {
-            finishSyncProgress(GitHubSyncProgressStep.FAILED, "GitHub settings are incomplete")
+            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub settings are incomplete")
             return@withContext GitHubSyncNowResult.ConfigIncomplete
         }
         val store = runCatchingCancellable { syncConfig.assetStore() }
             .getOrElse {
-                finishSyncProgress(GitHubSyncProgressStep.FAILED, "GitHub settings are invalid")
+                finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub settings are invalid")
                 return@withContext GitHubSyncNowResult.ConfigIncomplete
             }
-        updateSyncProgress(GitHubSyncProgressStep.READING_CLOUD, "Reading cloud library", completedSteps = 1)
+        updateSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.READING_CLOUD, "Reading cloud library", completedSteps = 1)
         val progressMerge = pullReadingProgress(store)
         if (progressMerge.failed) {
-            finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
+            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
                 failed = 0,
@@ -923,7 +961,7 @@ class LibraryViewModel @Inject constructor(
             )
         }
         if (progressMerge.missingRemoteSnapshot && mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
-            finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress could not be found")
+            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be found")
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
                 failed = 0,
@@ -939,11 +977,12 @@ class LibraryViewModel @Inject constructor(
             )
         }
         if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
-            finishSyncProgress(GitHubSyncProgressStep.FAILED, "Cloud progress needs confirmation")
+            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress needs confirmation")
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
         }
         if (mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
             updateSyncProgress(
+                showProgress = showProgress,
                 step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
                 detail = "Saving reading progress",
                 completedSteps = 4,
@@ -956,6 +995,7 @@ class LibraryViewModel @Inject constructor(
                 store = store,
             )
             finishSyncProgress(
+                showProgress = showProgress,
                 step = if (progressPush.failed) GitHubSyncProgressStep.FAILED else GitHubSyncProgressStep.COMPLETE,
                 detail = if (progressPush.failed) "Reading progress save failed" else "Reading progress synced",
                 progressUpdated = progressMerge.applied,
@@ -975,6 +1015,7 @@ class LibraryViewModel @Inject constructor(
             )
         }
         updateSyncProgress(
+            showProgress = showProgress,
             step = GitHubSyncProgressStep.ADDING_CLOUD_BOOKS,
             detail = "Adding cloud books",
             completedSteps = 2,
@@ -1044,6 +1085,7 @@ class LibraryViewModel @Inject constructor(
             }
 
         updateSyncProgress(
+            showProgress = showProgress,
             step = GitHubSyncProgressStep.UPLOADING_BOOKS,
             detail = "Uploading ${uploadCandidates.size} books and ${coverUploadCandidates.size} covers",
             completedSteps = 3,
@@ -1070,6 +1112,7 @@ class LibraryViewModel @Inject constructor(
                 failed += 1
             }
             updateSyncProgress(
+                showProgress = showProgress,
                 step = GitHubSyncProgressStep.UPLOADING_BOOKS,
                 detail = "Uploaded $uploaded of ${uploadCandidates.size} local books",
                 completedSteps = 3,
@@ -1095,6 +1138,7 @@ class LibraryViewModel @Inject constructor(
                 uploadedCovers += 1
             }
             updateSyncProgress(
+                showProgress = showProgress,
                 step = GitHubSyncProgressStep.UPLOADING_BOOKS,
                 detail = "Uploaded $uploadedCovers of ${coverUploadCandidates.size} covers",
                 completedSteps = 3,
@@ -1108,6 +1152,7 @@ class LibraryViewModel @Inject constructor(
             )
         }
         updateSyncProgress(
+            showProgress = showProgress,
             step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
             detail = "Saving latest snapshot",
             completedSteps = 4,
@@ -1121,6 +1166,7 @@ class LibraryViewModel @Inject constructor(
         )
         val snapshotProgress: (PortableSnapshotPublishProgress) -> Unit = { progress ->
             updateSyncProgress(
+                showProgress = showProgress,
                 step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
                 detail = progress.toSyncProgressDetail(),
                 completedSteps = 4,
@@ -1152,6 +1198,7 @@ class LibraryViewModel @Inject constructor(
         val totalSkipped = progressMerge.skipped + entityMerges.totalSkipped() + metadataSave.extraSkipped
         val anyPullFailed = progressMerge.failed || entityMerges.anyFailed() || metadataSave.extraFailed
         finishSyncProgress(
+            showProgress = showProgress,
             step = if (metadataSave.synced && failed == 0 && !anyPullFailed) {
                 GitHubSyncProgressStep.COMPLETE
             } else {
@@ -1737,6 +1784,7 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun updateSyncProgress(
+        showProgress: Boolean = true,
         step: GitHubSyncProgressStep,
         detail: String,
         completedSteps: Int,
@@ -1749,6 +1797,7 @@ class LibraryViewModel @Inject constructor(
         progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
         stepProgress: Float? = null,
     ) {
+        if (!showProgress) return
         _syncProgress.value = GitHubSyncProgressState(
             step = step,
             detail = detail,
@@ -1765,6 +1814,7 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun finishSyncProgress(
+        showProgress: Boolean = true,
         step: GitHubSyncProgressStep,
         detail: String,
         uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
@@ -1775,6 +1825,7 @@ class LibraryViewModel @Inject constructor(
         cloudBooksUpdated: Int = _syncProgress.value?.cloudBooksUpdated ?: 0,
         progressUpdated: Int = _syncProgress.value?.progressUpdated ?: 0,
     ) {
+        if (!showProgress) return
         _syncProgress.value = GitHubSyncProgressState(
             step = step,
             detail = detail,
@@ -1895,6 +1946,7 @@ class LibraryViewModel @Inject constructor(
                 series = metadata.series,
                 seriesNumber = metadata.seriesNumber,
                 description = metadata.description,
+                tagsCsv = metadata.tags.joinToString(",").ifBlank { null },
                 coverPath = coverFile?.let { storageRoots.relativize(it) },
                 filePath = storageRoots.relativize(imported.file),
                 format = format,
@@ -2020,14 +2072,15 @@ class LibraryViewModel @Inject constructor(
     private suspend fun applyGoodreadsInLibrary(
         bookId: Long,
         metadata: GoodreadsBookMetadata,
+        options: GoodreadsImportOptions,
         capturedQuotes: List<ParsedQuote>? = null,
         loadQuotes: suspend (workId: String) -> List<ParsedQuote>?,
     ): BookDetailMessage {
         val book = bookRepository.getById(bookId) ?: return BookDetailMessage.GOODREADS_FAILED
         return runCatchingCancellable {
-            val applySeries = metadata.series != null
-            val applyDescription = !metadata.description.isNullOrBlank()
-            val applyGenres = metadata.genres.isNotEmpty()
+            val applySeries = options.series && metadata.series != null
+            val applyDescription = options.description && !metadata.description.isNullOrBlank()
+            val applyGenres = options.genres && metadata.genres.isNotEmpty()
             if (applySeries || applyDescription || applyGenres) {
                 bookRepository.updateMetadata(
                     id = bookId,
@@ -2039,26 +2092,31 @@ class LibraryViewModel @Inject constructor(
                     tagsCsv = if (applyGenres) book.tagsCsv.withGoodreadsGenres(metadata.genres) else book.tagsCsv,
                 )
             }
-            bookRepository.updateGoodreadsInfo(
-                id = bookId,
-                goodreadsUrl = metadata.canonicalUrl,
-                rating = metadata.averageRating ?: book.goodreadsRating,
-                ratingsCount = metadata.ratingsCount ?: book.goodreadsRatingsCount,
-                originalPublicationYear = metadata.originalPublicationYear ?: book.originalPublicationYear,
-            )
+            if (options.goodreadsInfo) {
+                bookRepository.updateGoodreadsInfo(
+                    id = bookId,
+                    goodreadsUrl = metadata.canonicalUrl,
+                    rating = metadata.averageRating ?: book.goodreadsRating,
+                    ratingsCount = metadata.ratingsCount ?: book.goodreadsRatingsCount,
+                    originalPublicationYear = metadata.originalPublicationYear ?: book.originalPublicationYear,
+                )
+            }
             // Cover and quotes only need the metadata already in hand, so both downloads run at once.
-            val coverUrl = metadata.coverUrl
-            val workId = metadata.workId
+            val coverUrl = metadata.coverUrl?.takeIf { options.cover }
+            val workId = metadata.workId?.takeIf { options.quotes }
             _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
             val (coverBytes, quotes) = coroutineScope {
                 val cover = async { coverUrl?.let { goodreadsMetadataFetcher.downloadCover(it) } }
-                val fetchedQuotes = async { capturedQuotes ?: workId?.let { loadQuotes(it) } }
+                val fetchedQuotes = async { capturedQuotes?.takeIf { options.quotes } ?: workId?.let { loadQuotes(it) } }
                 cover.await() to fetchedQuotes.await()
             }
-            val coverApplied = coverUrl == null || coverBytes?.let { applyGoodreadsCover(book, it) } != null
+            val coverApplied = coverUrl == null || coverBytes?.let { bytes ->
+                applyGoodreadsCover(book, bytes, settingsRepository.snapshot.first().defaultCoverSource)
+            } != null
             // Null means the quotes page couldn't be read at all, as opposed to it simply having none new.
             val quotesResult: QuoteImportResult? = when {
                 quotes != null -> addGoodreadsQuotes(bookId, quotes)
+                !options.quotes -> QuoteImportResult(added = 0, skipped = 0)
                 workId == null -> QuoteImportResult(added = 0, skipped = 0)
                 else -> null
             }
@@ -2093,13 +2151,17 @@ class LibraryViewModel @Inject constructor(
     }
 
     /** [book] must carry root-relative paths; [bytes] is an already-validated image from Goodreads. */
-    private suspend fun applyGoodreadsCover(book: Book, bytes: ByteArray) {
+    private suspend fun applyGoodreadsCover(book: Book, bytes: ByteArray, defaultCoverSource: DefaultCoverSource) {
         val goodreadsPath = storageRoots.relativize(saveCover(bytes))
         val previousGoodreads = book.goodreadsCoverPath
         // Whatever was showing before stays switchable as "your cover", unless it was itself a Goodreads one.
         val custom = book.customCoverPath ?: book.coverPath?.takeIf { it != previousGoodreads }
         bookRepository.updateCoverAlternates(book.id, customCoverPath = custom, goodreadsCoverPath = goodreadsPath)
-        bookRepository.updateCover(book.id, goodreadsPath)
+        val activeCover = when (defaultCoverSource) {
+            DefaultCoverSource.YOURS -> custom ?: goodreadsPath
+            DefaultCoverSource.GOODREADS -> goodreadsPath
+        }
+        bookRepository.updateCover(book.id, activeCover)
         previousGoodreads?.takeIf { it != custom }?.let { storageRoots.resolve(it).delete() }
     }
 

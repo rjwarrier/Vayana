@@ -236,8 +236,17 @@ fun BookDetailRoute(
     val allShelves by viewModel.shelves.collectAsState()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
     val goodreadsImport by viewModel.goodreadsImport.collectAsState()
+    val pendingLaunchProgressChange by viewModel.pendingLaunchProgressChange.collectAsState()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
     var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
+
+    LaunchedEffect(bookId, pendingLaunchProgressChange) {
+        val prompt = pendingLaunchProgressChange ?: return@LaunchedEffect
+        if (prompt.bookId == bookId) {
+            progressChangePrompt = prompt
+            viewModel.acknowledgePendingLaunchProgressChange(bookId)
+        }
+    }
 
     BookDetailScreen(
         modifier = modifier,
@@ -302,7 +311,7 @@ fun BookDetailRoute(
         goodreadsImport = goodreadsImport,
         onImportGoodreads = { link -> viewModel.importFromGoodreads(bookId, link) },
         onImportGoodreadsCapture = { metadata, quotes -> viewModel.importFromGoodreadsCapture(bookId, metadata, quotes) },
-        onApplyGoodreads = { viewModel.applyPendingGoodreads(bookId) },
+        onApplyGoodreads = { options -> viewModel.applyPendingGoodreads(bookId, options) },
         onResetReadingStats = { viewModel.resetReadingStats(bookId) },
         onDismissGoodreads = viewModel::dismissGoodreadsImport,
         onUseCover = { source -> viewModel.useCover(bookId, source) },
@@ -2020,7 +2029,7 @@ private fun BookDetailScreen(
     goodreadsImport: GoodreadsImportState,
     onImportGoodreads: (String) -> Unit,
     onImportGoodreadsCapture: (GoodreadsBookMetadata, List<ParsedQuote>?) -> Unit,
-    onApplyGoodreads: () -> Unit,
+    onApplyGoodreads: (GoodreadsImportOptions) -> Unit,
     onResetReadingStats: () -> Unit,
     onDismissGoodreads: () -> Unit,
     onUseCover: (CoverSource) -> Unit,
@@ -4149,11 +4158,26 @@ private fun GoodreadsPreviewDialog(
     book: Book,
     metadata: GoodreadsBookMetadata,
     capturedQuoteCount: Int?,
-    onApply: () -> Unit,
+    onApply: (GoodreadsImportOptions) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val currentGenres = book.tags()
     val proposedGenres = book.tagsCsv.withGoodreadsGenresPreview(metadata.genres)
+    val hasQuotes = metadata.workId != null || (capturedQuoteCount ?: 0) > 0
+    var includeSeries by remember(metadata) { mutableStateOf(metadata.series != null) }
+    var includeDescription by remember(metadata) { mutableStateOf(!metadata.description.isNullOrBlank()) }
+    var includeGenres by remember(metadata) { mutableStateOf(metadata.genres.isNotEmpty()) }
+    var includeCover by remember(metadata) { mutableStateOf(metadata.coverUrl != null) }
+    var includeGoodreadsInfo by remember(metadata) { mutableStateOf(metadata.averageRating != null || metadata.originalPublicationYear != null) }
+    var includeQuotes by remember(metadata, capturedQuoteCount) { mutableStateOf(hasQuotes) }
+    val selectedOptions = GoodreadsImportOptions(
+        series = includeSeries,
+        description = includeDescription,
+        genres = includeGenres,
+        cover = includeCover,
+        goodreadsInfo = includeGoodreadsInfo,
+        quotes = includeQuotes,
+    )
     ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
         ExpressiveDialogHeader(
             icon = Icons.Outlined.Link,
@@ -4168,6 +4192,8 @@ private fun GoodreadsPreviewDialog(
                     label = stringResource(R.string.library_goodreads_preview_series),
                     current = book.seriesDisplayOrNone().ifBlank { stringResource(R.string.library_goodreads_preview_empty) },
                     proposed = listOfNotNull(it, metadata.seriesNumber?.let { number -> "#$number" }).joinToString(" "),
+                    selected = includeSeries,
+                    onSelectedChange = { includeSeries = it },
                 )
             }
             metadata.description?.takeIf { it.isNotBlank() }?.let {
@@ -4177,6 +4203,8 @@ private fun GoodreadsPreviewDialog(
                         stringResource(R.string.library_goodreads_preview_empty)
                     },
                     proposed = it.take(PreviewTextLimit),
+                    selected = includeDescription,
+                    onSelectedChange = { includeDescription = it },
                 )
             }
             if (metadata.genres.isNotEmpty()) {
@@ -4184,6 +4212,8 @@ private fun GoodreadsPreviewDialog(
                     label = stringResource(R.string.library_goodreads_preview_tags),
                     current = currentGenres.joinToString(", ").ifBlank { stringResource(R.string.library_goodreads_preview_empty) },
                     proposed = proposedGenres.joinToString(", "),
+                    selected = includeGenres,
+                    onSelectedChange = { includeGenres = it },
                 )
             }
             metadata.coverUrl?.let {
@@ -4195,6 +4225,8 @@ private fun GoodreadsPreviewDialog(
                         stringResource(R.string.library_goodreads_preview_present)
                     },
                     proposed = stringResource(R.string.library_goodreads_preview_goodreads_cover),
+                    selected = includeCover,
+                    onSelectedChange = { includeCover = it },
                 )
             }
             val rating = metadata.averageRating
@@ -4209,14 +4241,20 @@ private fun GoodreadsPreviewDialog(
                         rating?.let { stringResource(R.string.library_goodreads_rating, it) },
                         metadata.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) },
                     ).joinToString(" · "),
+                    selected = includeGoodreadsInfo,
+                    onSelectedChange = { includeGoodreadsInfo = it },
                 )
             }
-            GoodreadsPreviewRow(
-                label = stringResource(R.string.library_goodreads_preview_quotes),
-                current = stringResource(R.string.library_goodreads_preview_current_quotes),
-                proposed = capturedQuoteCount?.let { stringResource(R.string.library_goodreads_preview_captured_quotes, it) }
-                    ?: stringResource(R.string.library_goodreads_preview_fetch_quotes),
-            )
+            if (hasQuotes) {
+                GoodreadsPreviewRow(
+                    label = stringResource(R.string.library_goodreads_preview_quotes),
+                    current = stringResource(R.string.library_goodreads_preview_current_quotes),
+                    proposed = capturedQuoteCount?.let { stringResource(R.string.library_goodreads_preview_captured_quotes, it) }
+                        ?: stringResource(R.string.library_goodreads_preview_fetch_quotes),
+                    selected = includeQuotes,
+                    onSelectedChange = { includeQuotes = it },
+                )
+            }
         }
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -4226,7 +4264,11 @@ private fun GoodreadsPreviewDialog(
             FilledTonalButton(onClick = onDismiss, shape = Radii.buttonShape) {
                 Text(stringResource(R.string.library_edit_metadata_cancel))
             }
-            Button(onClick = onApply, shape = Radii.buttonShape) {
+            Button(
+                onClick = { onApply(selectedOptions) },
+                enabled = selectedOptions.hasAnySelection,
+                shape = Radii.buttonShape,
+            ) {
                 Text(stringResource(R.string.library_goodreads_preview_apply))
             }
         }
@@ -4234,37 +4276,52 @@ private fun GoodreadsPreviewDialog(
 }
 
 @Composable
-private fun GoodreadsPreviewRow(label: String, current: String, proposed: String) {
+private fun GoodreadsPreviewRow(
+    label: String,
+    current: String,
+    proposed: String,
+    selected: Boolean,
+    onSelectedChange: (Boolean) -> Unit,
+) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelectedChange(!selected) },
         shape = Radii.cardShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         tonalElevation = Elevations.level1,
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.Top,
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(R.string.library_goodreads_preview_current, current),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(R.string.library_goodreads_preview_proposed, proposed),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Checkbox(checked = selected, onCheckedChange = onSelectedChange)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.library_goodreads_preview_current, current),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.library_goodreads_preview_proposed, proposed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

@@ -6,5 +6,6 @@ class EpubMetadata(
     val series: String?,
     val seriesNumber: String?,
     val description: String?,
+    val tags: List<String>,
     val coverBytes: ByteArray?,
 )

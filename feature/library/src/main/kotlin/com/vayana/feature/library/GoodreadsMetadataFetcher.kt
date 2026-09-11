@@ -54,6 +54,18 @@ sealed interface GoodreadsImportState {
     data object Done : GoodreadsImportState
 }
 
+data class GoodreadsImportOptions(
+    val series: Boolean = true,
+    val description: Boolean = true,
+    val genres: Boolean = true,
+    val cover: Boolean = true,
+    val goodreadsInfo: Boolean = true,
+    val quotes: Boolean = true,
+) {
+    val hasAnySelection: Boolean
+        get() = series || description || genres || cover || goodreadsInfo || quotes
+}
+
 /** The two covers a book can switch between once Goodreads has supplied one. */
 enum class CoverSource { CUSTOM, GOODREADS }
 

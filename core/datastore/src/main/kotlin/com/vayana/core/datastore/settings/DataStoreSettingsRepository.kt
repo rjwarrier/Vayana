@@ -125,6 +125,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         readerBionicReading = read(SettingsRegistry.ReaderBionicReading),
         dailyReadingGoalMinutes = read(SettingsRegistry.DailyReadingGoalMinutes),
         yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
+        defaultCoverSource = read(SettingsRegistry.DefaultCoverSource),
         landscapeTwoColumnLayout = read(SettingsRegistry.LandscapeTwoColumnLayout),
         kindleDeviceName = read(SettingsRegistry.KindleDeviceName),
         githubSyncEnabled = read(SettingsRegistry.GithubSyncEnabled),

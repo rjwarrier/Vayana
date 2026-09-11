@@ -19,5 +19,6 @@ object PortableSettings {
         SettingsRegistry.ReaderBionicReading.key,
         SettingsRegistry.DailyReadingGoalMinutes.key,
         SettingsRegistry.YearlyBooksGoal.key,
+        SettingsRegistry.DefaultCoverSource.key,
     )
 }

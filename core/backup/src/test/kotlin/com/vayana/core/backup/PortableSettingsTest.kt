@@ -7,10 +7,11 @@ import kotlin.test.assertTrue
 
 class PortableSettingsTest {
     @Test
-    fun allowlistContainsOnlyPortableReaderPreferences() {
+    fun allowlistContainsOnlyPortablePreferences() {
         assertTrue(SettingsRegistry.ReaderFontSize.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.ReaderTheme.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.DailyReadingGoalMinutes.key in PortableSettings.allowlist)
+        assertTrue(SettingsRegistry.DefaultCoverSource.key in PortableSettings.allowlist)
 
         assertFalse(SettingsRegistry.KindleDeviceName.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.GithubSyncEnabled.key in PortableSettings.allowlist)

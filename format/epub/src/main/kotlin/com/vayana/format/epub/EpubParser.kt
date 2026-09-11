@@ -24,10 +24,12 @@ object EpubParser {
             var series: String? = null
             var seriesNumber: String? = null
             var description: String? = null
+            val tags = linkedSetOf<String>()
             var coverId: String? = null
             var coverHref: String? = null
             val manifestHrefById = mutableMapOf<String, String>()
             val manifestPropertiesById = mutableMapOf<String, String>()
+            val collectionsById = linkedMapOf<String, EpubCollectionMetadata>()
 
             val parser = Xml.newPullParser().apply {
                 setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
@@ -35,6 +37,7 @@ object EpubParser {
             }
 
             var currentTag: String? = null
+            var currentMeta: ActiveMeta? = null
             var event = parser.eventType
             while (event != XmlPullParser.END_DOCUMENT) {
                 when (event) {
@@ -42,12 +45,23 @@ object EpubParser {
                         currentTag = parser.name
                         when (parser.name) {
                             "meta" -> {
-                                if (parser.getAttributeValue(null, "name") == "cover") {
-                                    coverId = parser.getAttributeValue(null, "content")
+                                val name = parser.getAttributeValue(null, "name")
+                                val content = parser.getAttributeValue(null, "content")?.cleanMetadataValue()
+                                if (name == "cover") {
+                                    coverId = content
                                 }
-                                when (parser.getAttributeValue(null, "name")) {
-                                    "calibre:series" -> series = parser.getAttributeValue(null, "content")?.trim().orEmpty().ifBlank { null }
-                                    "calibre:series_index" -> seriesNumber = parser.getAttributeValue(null, "content")?.trim().orEmpty().ifBlank { null }
+                                when (name) {
+                                    "calibre:series" -> series = content
+                                    "calibre:series_index" -> seriesNumber = content
+                                }
+                                val property = parser.getAttributeValue(null, "property")
+                                if (property != null) {
+                                    currentMeta = ActiveMeta(
+                                        property = property,
+                                        id = parser.getAttributeValue(null, "id"),
+                                        refines = parser.getAttributeValue(null, "refines")?.removePrefix("#"),
+                                    )
+                                    content?.let { value -> collectionsById.applyMeta(currentMeta, value) }
                                 }
                             }
                             "item" -> {
@@ -62,16 +76,30 @@ object EpubParser {
                     XmlPullParser.TEXT -> {
                         val text = parser.text?.trim().orEmpty()
                         if (text.isNotEmpty()) {
-                            when (currentTag) {
+                            val activeMeta = currentMeta
+                            if (activeMeta != null) {
+                                collectionsById.applyMeta(activeMeta, text)
+                            } else when (currentTag) {
                                 "title" -> if (title == null) title = text
                                 "creator" -> if (author == null) author = text
                                 "description" -> if (description == null) description = text
+                                "subject" -> tags.addAll(text.toTags())
                             }
                         }
                     }
-                    XmlPullParser.END_TAG -> currentTag = null
+                    XmlPullParser.END_TAG -> {
+                        if (parser.name == "meta") currentMeta = null
+                        currentTag = null
+                    }
                 }
                 event = parser.next()
+            }
+
+            if (series == null) {
+                val collection = collectionsById.values.firstOrNull { it.type == "series" }
+                    ?: collectionsById.values.firstOrNull()
+                series = collection?.name
+                seriesNumber = seriesNumber ?: collection?.position
             }
 
             coverHref = manifestPropertiesById.entries
@@ -91,6 +119,7 @@ object EpubParser {
                 series = series,
                 seriesNumber = seriesNumber,
                 description = description,
+                tags = tags.toList(),
                 coverBytes = coverBytes,
             )
         }
@@ -112,3 +141,40 @@ object EpubParser {
         error("Not a valid EPUB: no rootfile in container.xml")
     }
 }
+
+private data class ActiveMeta(
+    val property: String,
+    val id: String?,
+    val refines: String?,
+)
+
+private data class EpubCollectionMetadata(
+    val name: String? = null,
+    val type: String? = null,
+    val position: String? = null,
+)
+
+private fun MutableMap<String, EpubCollectionMetadata>.applyMeta(meta: ActiveMeta, rawValue: String) {
+    val value = rawValue.cleanMetadataValue() ?: return
+    when (meta.property) {
+        "belongs-to-collection" -> {
+            val id = meta.id ?: "collection:${size + 1}"
+            this[id] = (this[id] ?: EpubCollectionMetadata()).copy(name = value)
+        }
+        "collection-type" -> {
+            val id = meta.refines ?: return
+            this[id] = (this[id] ?: EpubCollectionMetadata()).copy(type = value)
+        }
+        "group-position" -> {
+            val id = meta.refines ?: return
+            this[id] = (this[id] ?: EpubCollectionMetadata()).copy(position = value)
+        }
+    }
+}
+
+private fun String?.cleanMetadataValue(): String? =
+    this?.trim()?.ifBlank { null }
+
+private fun String.toTags(): List<String> =
+    split(',', ';')
+        .mapNotNull { it.cleanMetadataValue() }

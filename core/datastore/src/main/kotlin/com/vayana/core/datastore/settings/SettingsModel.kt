@@ -108,6 +108,7 @@ data class SettingsSnapshot(
     val readerBionicReading: Boolean = false,
     val dailyReadingGoalMinutes: Int = 20,
     val yearlyBooksGoal: Int = 12,
+    val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
     val landscapeTwoColumnLayout: Boolean = true,
     val kindleDeviceName: String = "My Vayana",
     val githubSyncEnabled: Boolean = false,
@@ -123,6 +124,8 @@ enum class ReaderFontFamily { SERIF, SANS, MONO }
 enum class ReaderTheme { SYSTEM, LIGHT, PAPER, SEPIA, MINT, SKY, ROSE, DARK, OLED }
 
 enum class TapZoneMode { THREE_ZONE }
+
+enum class DefaultCoverSource { YOURS, GOODREADS }
 
 object SettingsRegistry {
     val ThemeMode: ChoiceSetting<com.vayana.core.designsystem.theme.ThemeMode> =
@@ -329,6 +332,18 @@ object SettingsRegistry {
         range = 0..100,
         step = 1,
     )
+    val DefaultCoverSource: ChoiceSetting<com.vayana.core.datastore.settings.DefaultCoverSource> =
+        ChoiceSetting<com.vayana.core.datastore.settings.DefaultCoverSource>(
+        key = "library.default_cover_source",
+        defaultValue = com.vayana.core.datastore.settings.DefaultCoverSource.YOURS,
+        titleRes = R.string.settings_default_cover_source_title,
+        subtitleRes = R.string.settings_default_cover_source_subtitle,
+        group = SettingsGroup.APPEARANCE,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.DefaultCoverSource>>(
+            ChoiceOption(com.vayana.core.datastore.settings.DefaultCoverSource.YOURS, R.string.settings_default_cover_source_yours),
+            ChoiceOption(com.vayana.core.datastore.settings.DefaultCoverSource.GOODREADS, R.string.settings_default_cover_source_goodreads),
+        ),
+    )
     val LandscapeTwoColumnLayout: BooleanSetting = BooleanSetting(
         key = "appearance.landscape_two_column_layout",
         defaultValue = true,
@@ -417,6 +432,7 @@ object SettingsRegistry {
         ReaderBionicReading,
         DailyReadingGoalMinutes,
         YearlyBooksGoal,
+        DefaultCoverSource,
         LandscapeTwoColumnLayout,
         GithubSyncEnabled,
         KindleDeviceName,

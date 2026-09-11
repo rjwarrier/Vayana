@@ -1818,6 +1818,8 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderBionicReading -> readerBionicReading
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
+    SettingsRegistry.DefaultCoverSource -> defaultCoverSource
+    SettingsRegistry.LandscapeTwoColumnLayout -> landscapeTwoColumnLayout
     SettingsRegistry.KindleDeviceName -> kindleDeviceName
     SettingsRegistry.GithubSyncEnabled -> githubSyncEnabled
     SettingsRegistry.GithubOwner -> githubOwner
@@ -1855,6 +1857,8 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
         SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"
         SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
+        SettingsRegistry.DefaultCoverSource -> "default cover source goodreads yours custom book covers library import"
+        SettingsRegistry.LandscapeTwoColumnLayout -> "landscape two column layout wide screen tablet foldable"
         SettingsRegistry.KindleDeviceName -> "kindle device name label sync send to kindle backup transfer"
         SettingsRegistry.GithubSyncEnabled -> "github sync cloud enable repository books notes settings"
         SettingsRegistry.GithubOwner -> "github owner username organization account sync repository"

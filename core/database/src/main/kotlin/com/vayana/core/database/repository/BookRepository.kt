@@ -138,6 +138,7 @@ interface BookRepository {
         series: String?,
         seriesNumber: String?,
         description: String?,
+        tagsCsv: String? = null,
         coverPath: String?,
         filePath: String,
         format: BookFormat,
