@@ -2661,7 +2661,7 @@ private fun List<Book>.filterBy(filter: LibraryFilter): List<Book> = when (filte
     LibraryFilter.NOT_STARTED -> filter { it.readingPercent <= 0f }
 }
 
-private fun Book.hasMeaningfulSyncedProgressChange(after: Book): Boolean {
+internal fun Book.hasMeaningfulSyncedProgressChange(after: Book): Boolean {
     if (lastLocator.isNullOrBlank()) return false
     return normalizedProgressLocator() != after.normalizedProgressLocator() ||
         abs(readingPercent.coerceIn(0f, 1f) - after.readingPercent.coerceIn(0f, 1f)) >= ProgressPromptPercentEpsilon ||
