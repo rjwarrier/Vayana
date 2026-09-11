@@ -22,11 +22,14 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.ceil
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 
 data class DailyReadingMinutes(
@@ -129,9 +132,13 @@ class StatisticsViewModel @Inject constructor(
         settingsRepository.snapshot,
     ) { books, annotations, topWords, sessions, settings -> CoreInputs(books, annotations, topWords, sessions, settings) }
 
+    /** One live query shared by the summary and the card count, instead of two. */
+    private val vocabularyCards = vocabularyCardRepository.observeAll()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
     val summary: StateFlow<StatisticsSummary> = combine(
         coreInputs,
-        vocabularyCardRepository.observeAll(),
+        vocabularyCards,
     ) { inputs, vocabularyCards ->
         inputs.books.toSummary(
             annotations = inputs.annotations,
@@ -141,9 +148,13 @@ class StatisticsViewModel @Inject constructor(
             dailyGoalMinutes = inputs.settings.dailyReadingGoalMinutes,
             yearlyGoalBooks = inputs.settings.yearlyBooksGoal,
         )
-    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+    }
+        // Summarising every book and session re-runs on each change to any of them; keep it off the main thread.
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
 
-    val vocabularyCardCount: StateFlow<Int> = vocabularyCardRepository.observeAll()
+    val vocabularyCardCount: StateFlow<Int> = vocabularyCards
         .map { it.size }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)

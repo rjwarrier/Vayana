@@ -9,9 +9,11 @@ import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -57,7 +59,10 @@ class NotesViewModel @Inject constructor(
             booksWithNotes = booksWithNotes,
             allAnnotations = annotations,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotesUiState())
+    }
+        // Grouping every annotation by book re-runs on each book or annotation change; keep it off the main thread.
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotesUiState())
 
     fun updateNote(annotation: Annotation, readerNote: String) {
         viewModelScope.launch {

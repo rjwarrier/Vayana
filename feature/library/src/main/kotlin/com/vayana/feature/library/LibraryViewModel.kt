@@ -109,6 +109,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -467,7 +468,11 @@ class LibraryViewModel @Inject constructor(
             controls = controls,
             githubSyncReady = syncReady,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
+    }
+        // Filtering (including description search) and sorting run per keystroke and per DB change: keep them
+        // off the main thread.
+        .flowOn(dispatchers.default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
     fun observeBook(bookId: Long): StateFlow<Book?> = libraryBooks
         .map { books -> books.firstOrNull { it.id == bookId } }
@@ -509,8 +514,11 @@ class LibraryViewModel @Inject constructor(
     )
 
     init {
+        // One launch check for the most recently read book, then stop observing. Staying subscribed kept the full
+        // book query live for the whole session, re-running it on every page turn's position write (and, when a
+        // check failed offline, retrying the network call on each of them).
         viewModelScope.launch {
-            combine(libraryBooks, githubSyncReady) { books, syncReady ->
+            val bookId = combine(bookRepository.observeAll(), githubSyncReady) { books, syncReady ->
                 if (!syncReady) {
                     null
                 } else {
@@ -519,14 +527,12 @@ class LibraryViewModel @Inject constructor(
                         ?.id
                 }
             }
-                .distinctUntilChanged()
-                .collect { bookId ->
-                    if (bookId != null) {
-                        launchReadingProgressCoordinator.checkOnce(bookId) {
-                            syncReadingProgressForBook(bookId = bookId, silent = true)
-                        }
-                    }
-                }
+                .flowOn(dispatchers.default)
+                .first { it != null }
+                ?: return@launch
+            launchReadingProgressCoordinator.checkOnce(bookId) {
+                syncReadingProgressForBook(bookId = bookId, silent = true)
+            }
         }
     }
 
@@ -945,14 +951,16 @@ class LibraryViewModel @Inject constructor(
             null
         }
         if ((result as? GitHubSyncNowResult.Complete)?.launchProgressCheckOutcome == LaunchProgressCheckOutcome.CHECKED) {
-            diagnosticsLogStore.recordLaunchProgressCheck(
-                bookId = bookId,
-                message = buildString {
-                    append(if (changed == null) "Launch progress check found no newer progress" else "Launch progress check found newer progress")
-                    (after ?: before)?.title?.let { append(" for \"").append(it).append('"') }
-                },
-                detail = "progressUpdated=${result.progressUpdated}, conflicts=${result.conflicts}",
-            )
+            withContext(dispatchers.io) {
+                diagnosticsLogStore.recordLaunchProgressCheck(
+                    bookId = bookId,
+                    message = buildString {
+                        append(if (changed == null) "Launch progress check found no newer progress" else "Launch progress check found newer progress")
+                        (after ?: before)?.title?.let { append(" for \"").append(it).append('"') }
+                    },
+                    detail = "progressUpdated=${result.progressUpdated}, conflicts=${result.conflicts}",
+                )
+            }
         }
         return BookProgressSyncOutcome(result, changed)
     }
@@ -2260,8 +2268,9 @@ class LibraryViewModel @Inject constructor(
         goodreadsCoverPath = goodreadsCoverPath?.let { storageRoots.resolve(it) }?.takeIf { it.isFile }?.absolutePath,
     )
 
+    /** Runs on the IO dispatcher: resolving alternates stats two cover files per book on every emission. */
     private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> =
-        map { books -> books.map { it.withAbsolutePaths() } }
+        map { books -> books.map { it.withAbsolutePaths() } }.flowOn(dispatchers.io)
 
     private fun saveCover(bytes: ByteArray): File {
         val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.jpg")

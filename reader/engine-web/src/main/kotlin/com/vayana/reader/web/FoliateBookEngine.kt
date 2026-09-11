@@ -28,6 +28,7 @@ import com.vayana.reader.api.TocEntry
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import java.util.zip.ZipFile
 import kotlin.math.ceil
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -81,6 +82,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     private val resources = ConcurrentHashMap<String, Pair<String, ByteArray>>()
     private val nextResourceId = AtomicLong()
 
+    // Images need no rewriting by foliate, so rather than the base64 bridge above they are streamed straight out
+    // of the open EPUB: id -> (zip entry name, MIME type). See JsBridge.entryUrl and Loader.loadItem in epub.js.
+    private val entryResources = ConcurrentHashMap<String, Pair<String, String>>()
+    private val bookZipLock = Any()
+    private var bookZip: ZipFile? = null
+
     private val assetLoader = WebViewAssetLoader.Builder()
         .addPathHandler("/assets/") { path -> serveAsset(path) }
         .addPathHandler("/resource/") { path ->
@@ -94,6 +101,13 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 mapOf("Cache-Control" to "no-store"),
                 bytes.inputStream(),
             )
+        }
+        .addPathHandler("/entry/") { path ->
+            val (entryName, mimeType) = entryResources[path.removePrefix("/entry/")] ?: return@addPathHandler null
+            val stream = runCatching {
+                openBookZip()?.let { zip -> zip.getEntry(entryName)?.let(zip::getInputStream) }
+            }.getOrNull() ?: return@addPathHandler null
+            WebResourceResponse(mimeType, null, 200, "OK", mapOf("Cache-Control" to "no-store"), stream)
         }
         .addPathHandler("/fonts/") { path -> serveFont(path) }
         .addPathHandler("/book/") { path ->
@@ -199,8 +213,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         if (bookFile.length() <= 0L) {
             return Result.failure(IllegalStateException("Book file is empty"))
         }
+        closeBookZip()
         currentBookFile = bookFile
         resources.clear()
+        entryResources.clear()
         val deferred = CompletableDeferred<Result<OpenBook>>()
         openResult = deferred
 
@@ -321,7 +337,21 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         openResult = null
         pendingOpen = null
         resources.clear()
+        entryResources.clear()
+        closeBookZip()
         webView.destroy()
+    }
+
+    /** The current book opened as a zip, on first use; reads through it are safe from any thread. */
+    private fun openBookZip(): ZipFile? = synchronized(bookZipLock) {
+        bookZip ?: currentBookFile?.let { file -> runCatching { ZipFile(file) }.getOrNull() }?.also { bookZip = it }
+    }
+
+    private fun closeBookZip() {
+        synchronized(bookZipLock) {
+            runCatching { bookZip?.close() }
+            bookZip = null
+        }
     }
 
     private fun evaluateOpen(bookUrl: String, lastLocatorCfi: String?) {
@@ -357,6 +387,20 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         @JavascriptInterface
         fun unregisterResource(id: String) {
             resources.remove(id)
+        }
+
+        /**
+         * A URL streaming the image stored at [href] in the open EPUB, or "" (so epub.js falls back to
+         * registerResource) when it isn't an image or the entry can't be found under that name.
+         */
+        @JavascriptInterface
+        fun entryUrl(href: String, mimeType: String): String {
+            if (!mimeType.startsWith("image/")) return ""
+            val zip = openBookZip() ?: return ""
+            if (runCatching { zip.getEntry(href) }.getOrNull() == null) return ""
+            val id = nextResourceId.getAndIncrement().toString()
+            entryResources[id] = href to mimeType
+            return "$ORIGIN/entry/$id"
         }
     }
 

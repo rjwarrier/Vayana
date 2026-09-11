@@ -643,6 +643,10 @@ class Encryption {
             this.#uris.set(uri, algorithm)
         }
     }
+    // Vayana: lets the loader tell which entries can be served as stored, without a decoder.
+    has(uri) {
+        return this.#uris.has(uri)
+    }
     getDecoder(uri) {
         return this.#decoders.get(this.#uris.get(uri)) ?? (x => x)
     }
@@ -726,9 +730,10 @@ class Loader {
     #children = new Map()
     #refCount = new Map()
     eventTarget = new EventTarget()
-    constructor({ loadText, loadBlob, resources }) {
+    constructor({ loadText, loadBlob, resources, isPlain }) {
         this.loadText = loadText
         this.loadBlob = loadBlob
+        this.isPlain = isPlain
         this.manifest = resources.manifest
         this.assets = resources.manifest
         // needed only when replacing in (X)HTML w/o parsing (see below)
@@ -801,6 +806,13 @@ class Loader {
             // prevent circular references
             && parents.every(p => p !== href)
         if (shouldReplace) return this.loadReplaced(item, parents)
+        // Vayana: images need no rewriting, so let the app stream them straight out of the EPUB instead of
+        // reading each into JS, base64-encoding it and copying it across the bridge. Obfuscated entries and
+        // anything the app can't find still take the normal path below.
+        if (window.AndroidBridge?.entryUrl && /^image\//.test(mediaType) && this.isPlain?.(href)) {
+            const url = window.AndroidBridge.entryUrl(href, mediaType)
+            if (url) return url
+        }
         // NOTE: this can be replaced with `Promise.try()`
         const tryLoadBlob = Promise.resolve().then(() => this.loadBlob(href))
         return this.createURL(href, tryLoadBlob, mediaType, parent)
@@ -999,6 +1011,7 @@ ${doc.querySelector('parsererror').innerText}`)
             loadBlob: uri => Promise.resolve(this.loadBlob(uri))
                 .then(this.#encryption.getDecoder(uri)),
             resources: this.resources,
+            isPlain: uri => !this.#encryption.has(uri),
         })
         this.transformTarget = this.#loader.eventTarget
         this.sections = this.resources.spine.map((spineItem, index) => {
