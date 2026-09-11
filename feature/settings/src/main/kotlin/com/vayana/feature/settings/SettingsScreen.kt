@@ -646,6 +646,11 @@ private fun SettingsGroupDetail(
         if (group == SettingsGroup.SYNC) {
             item {
                 SettingsContentContainer {
+                    GitHubSyncHealthCard(settings = settings, connectionState = githubConnectionTestState)
+                }
+            }
+            item {
+                SettingsContentContainer {
                     GitHubConnectionTestCard(
                         state = githubConnectionTestState,
                         onTest = onTestGitHubConnection,
@@ -708,6 +713,117 @@ private fun SettingsContentContainer(content: @Composable () -> Unit) {
             content()
         }
     }
+}
+
+@Composable
+private fun GitHubSyncHealthCard(settings: SettingsSnapshot, connectionState: GitHubConnectionTestState) {
+    val enabled = settings.githubSyncEnabled
+    val repositoryReady = settings.githubOwner.isNotBlank() && settings.githubRepository.isNotBlank() && settings.githubBranch.isNotBlank()
+    val tokenReady = settings.githubToken.isNotBlank()
+    val passphraseReady = settings.githubSyncPassphrase.isNotBlank()
+    val ready = enabled && repositoryReady && tokenReady && passphraseReady
+    val statusText = when {
+        !enabled -> stringResource(R.string.settings_github_health_off)
+        ready -> stringResource(R.string.settings_github_health_ready)
+        else -> stringResource(R.string.settings_github_health_needs_setup)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = Radii.cardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = Elevations.level1,
+    ) {
+        Column(
+            modifier = Modifier.padding(Paddings.card),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsIconBubble(icon = if (ready) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber, selected = ready)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_github_health_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SyncHealthRow(
+                    label = stringResource(R.string.settings_github_health_repository),
+                    value = if (repositoryReady) {
+                        "${settings.githubOwner}/${settings.githubRepository} · ${settings.githubBranch}"
+                    } else {
+                        stringResource(R.string.settings_github_health_missing)
+                    },
+                    healthy = repositoryReady,
+                )
+                SyncHealthRow(
+                    label = stringResource(R.string.settings_github_health_token),
+                    value = if (tokenReady) stringResource(R.string.settings_github_health_present) else stringResource(R.string.settings_github_health_missing),
+                    healthy = tokenReady,
+                )
+                SyncHealthRow(
+                    label = stringResource(R.string.settings_github_health_passphrase),
+                    value = if (passphraseReady) stringResource(R.string.settings_github_health_present) else stringResource(R.string.settings_github_health_missing),
+                    healthy = passphraseReady,
+                )
+                SyncHealthRow(
+                    label = stringResource(R.string.settings_github_health_last_check),
+                    value = connectionState.healthLabel(),
+                    healthy = connectionState is GitHubConnectionTestState.Connected || connectionState is GitHubConnectionTestState.ReadyForInitialSync,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncHealthRow(label: String, value: String, healthy: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Icon(
+            imageVector = if (healthy) Icons.Outlined.CheckCircle else Icons.Outlined.Close,
+            contentDescription = null,
+            modifier = Modifier.size(Sizes.iconSmall),
+            tint = if (healthy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f, fill = false),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun GitHubConnectionTestState.healthLabel(): String = when (this) {
+    GitHubConnectionTestState.Idle -> stringResource(R.string.settings_github_health_not_checked)
+    GitHubConnectionTestState.Working -> stringResource(R.string.settings_github_connection_test_working)
+    GitHubConnectionTestState.Connected -> stringResource(R.string.settings_github_connection_test_connected)
+    GitHubConnectionTestState.ReadyForInitialSync -> stringResource(R.string.settings_github_connection_test_ready_initial)
+    GitHubConnectionTestState.MissingConfig -> stringResource(R.string.settings_github_connection_test_missing_config)
+    is GitHubConnectionTestState.Failed -> stringResource(R.string.settings_github_connection_test_failed, message)
 }
 
 @Composable

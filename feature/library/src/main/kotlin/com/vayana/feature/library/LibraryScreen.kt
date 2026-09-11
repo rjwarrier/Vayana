@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -299,6 +300,7 @@ fun BookDetailRoute(
         goodreadsImport = goodreadsImport,
         onImportGoodreads = { link -> viewModel.importFromGoodreads(bookId, link) },
         onImportGoodreadsCapture = { metadata, quotes -> viewModel.importFromGoodreadsCapture(bookId, metadata, quotes) },
+        onApplyGoodreads = { viewModel.applyPendingGoodreads(bookId) },
         onResetReadingStats = { viewModel.resetReadingStats(bookId) },
         onDismissGoodreads = viewModel::dismissGoodreadsImport,
         onUseCover = { source -> viewModel.useCover(bookId, source) },
@@ -1766,6 +1768,7 @@ private fun BookDetailScreen(
     goodreadsImport: GoodreadsImportState,
     onImportGoodreads: (String) -> Unit,
     onImportGoodreadsCapture: (GoodreadsBookMetadata, List<ParsedQuote>?) -> Unit,
+    onApplyGoodreads: () -> Unit,
     onResetReadingStats: () -> Unit,
     onDismissGoodreads: () -> Unit,
     onUseCover: (CoverSource) -> Unit,
@@ -1849,6 +1852,18 @@ private fun BookDetailScreen(
                                     showGoodreadsDialog = true
                                 },
                             )
+                            book.goodreadsUrl?.takeIf { it.isNotBlank() }?.let { goodreadsUrl ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_goodreads_refresh)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+                                    onClick = {
+                                        actionsExpanded = false
+                                        onDismissGoodreads()
+                                        showGoodreadsDialog = true
+                                        onImportGoodreads(goodreadsUrl)
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.library_import_quotes)) },
                                 leadingIcon = { Icon(Icons.Outlined.EditNote, contentDescription = null) },
@@ -2281,21 +2296,10 @@ private fun BookDetailScreen(
     }
 
     progressChangePrompt?.let { prompt ->
-        ConfirmActionDialog(
-            onDismissRequest = { onRevertSyncedProgress(prompt) },
-            icon = Icons.Outlined.Sync,
-            title = stringResource(R.string.library_book_progress_sync_prompt_title),
-            body = stringResource(
-                R.string.library_book_progress_sync_prompt_body,
-                (prompt.previousPercent * 100).roundToInt(),
-                (prompt.newPercent * 100).roundToInt(),
-            ),
-            confirmLabel = stringResource(R.string.library_book_progress_sync_prompt_keep),
-            dismissLabel = stringResource(
-                R.string.library_book_progress_sync_prompt_revert,
-                (prompt.previousPercent * 100).roundToInt(),
-            ),
-            onConfirm = onKeepSyncedProgress,
+        ReadingProgressSyncDialog(
+            prompt = prompt,
+            onKeepSyncedProgress = onKeepSyncedProgress,
+            onRevertSyncedProgress = { onRevertSyncedProgress(prompt) },
         )
     }
 
@@ -2329,21 +2333,33 @@ private fun BookDetailScreen(
                 onDismissGoodreads()
             }
         }
-        GoodreadsImportDialog(
-            state = goodreadsImport,
-            initialLink = book.goodreadsUrl.orEmpty(),
-            browseFallbackQuery = listOfNotNull(book.title, book.author).joinToString(" "),
-            onImport = onImportGoodreads,
-            onBrowse = { url ->
-                showGoodreadsDialog = false
-                onDismissGoodreads()
-                goodreadsBrowserUrl = url
-            },
-            onDismiss = {
-                showGoodreadsDialog = false
-                onDismissGoodreads()
-            },
-        )
+        when (val importState = goodreadsImport) {
+            is GoodreadsImportState.Preview -> GoodreadsPreviewDialog(
+                book = book,
+                metadata = importState.metadata,
+                capturedQuoteCount = importState.capturedQuotes?.size,
+                onApply = onApplyGoodreads,
+                onDismiss = {
+                    showGoodreadsDialog = false
+                    onDismissGoodreads()
+                },
+            )
+            else -> GoodreadsImportDialog(
+                state = importState,
+                initialLink = book.goodreadsUrl.orEmpty(),
+                browseFallbackQuery = listOfNotNull(book.title, book.author).joinToString(" "),
+                onImport = onImportGoodreads,
+                onBrowse = { url ->
+                    showGoodreadsDialog = false
+                    onDismissGoodreads()
+                    goodreadsBrowserUrl = url
+                },
+                onDismiss = {
+                    showGoodreadsDialog = false
+                    onDismissGoodreads()
+                },
+            )
+        }
     }
 
     if (showResetStatsDialog && book != null) {
@@ -3580,10 +3596,10 @@ private fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.LOCAL_FILE_REMOVED -> stringResource(R.string.library_remove_from_device_done)
     BookDetailMessage.LOCAL_FILE_REMOVE_UNAVAILABLE -> stringResource(R.string.library_remove_from_device_unavailable)
     BookDetailMessage.LOCAL_FILE_REMOVE_FAILED -> stringResource(R.string.library_remove_from_device_failed)
-    is BookDetailMessage.QUOTES_IMPORTED -> stringResource(R.string.library_quotes_imported_message, count)
+    is BookDetailMessage.QUOTES_IMPORTED -> stringResource(R.string.library_quotes_imported_message, added, skipped)
     BookDetailMessage.MARKED_FINISHED -> stringResource(R.string.library_marked_finished)
     BookDetailMessage.GOODREADS_APPLIED -> stringResource(R.string.library_goodreads_applied)
-    is BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES -> stringResource(R.string.library_goodreads_applied_quotes, quotesAdded)
+    is BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES -> stringResource(R.string.library_goodreads_applied_quotes, quotesAdded, quotesSkipped)
     BookDetailMessage.GOODREADS_COVER_FAILED -> stringResource(R.string.library_goodreads_cover_failed)
     BookDetailMessage.GOODREADS_QUOTES_FAILED -> stringResource(R.string.library_goodreads_quotes_failed)
     BookDetailMessage.READING_STATS_RESET -> stringResource(R.string.library_reading_stats_reset)
@@ -3643,10 +3659,110 @@ private fun CoverSourceSwitch(selected: CoverSource, onSelect: (CoverSource) -> 
     }
 }
 
+@Composable
+private fun ReadingProgressSyncDialog(
+    prompt: BookProgressChange,
+    onKeepSyncedProgress: () -> Unit,
+    onRevertSyncedProgress: () -> Unit,
+) {
+    val previousPercent = (prompt.previousPercent * 100).roundToInt()
+    val newPercent = (prompt.newPercent * 100).roundToInt()
+    ExpressiveDialogSurface(onDismissRequest = onRevertSyncedProgress) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.Sync,
+            title = stringResource(R.string.library_book_progress_sync_prompt_title),
+            supportingText = stringResource(R.string.library_book_progress_sync_prompt_body, previousPercent, newPercent),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val stackChoices = maxWidth < 360.dp
+            if (stackChoices) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    ProgressChoiceCard(
+                        label = stringResource(R.string.library_book_progress_sync_prompt_local),
+                        percent = previousPercent,
+                        timestamp = prompt.previousLastReadAt ?: prompt.previousUpdatedAt,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ProgressChoiceCard(
+                        label = stringResource(R.string.library_book_progress_sync_prompt_synced),
+                        percent = newPercent,
+                        timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    ProgressChoiceCard(
+                        label = stringResource(R.string.library_book_progress_sync_prompt_local),
+                        percent = previousPercent,
+                        timestamp = prompt.previousLastReadAt ?: prompt.previousUpdatedAt,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ProgressChoiceCard(
+                        label = stringResource(R.string.library_book_progress_sync_prompt_synced),
+                        percent = newPercent,
+                        timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            FilledTonalButton(onClick = onRevertSyncedProgress, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.library_book_progress_sync_prompt_revert, previousPercent))
+            }
+            Button(onClick = onKeepSyncedProgress, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.library_book_progress_sync_prompt_keep))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressChoiceCard(label: String, percent: Int, timestamp: Long, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = Radii.cardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        tonalElevation = Elevations.level1,
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "$percent%",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+            Text(
+                text = timestamp.formatDate(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 /**
- * Paste a Goodreads link and import - no review step: everything the page has is applied (series, genres as tags,
- * description, cover with the current one kept switchable, original year, rating) and its popular quotes become
- * highlights in the book. The dialog closes itself once the import lands; the result shows as a snackbar.
+ * Paste a Goodreads link and read it into a preview. Applying the preview fills in details, cover and popular quotes.
  */
 @Composable
 private fun GoodreadsImportDialog(
@@ -3769,6 +3885,131 @@ private fun GoodreadsImportDialog(
     }
 }
 
+@Composable
+private fun GoodreadsPreviewDialog(
+    book: Book,
+    metadata: GoodreadsBookMetadata,
+    capturedQuoteCount: Int?,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val currentGenres = book.tags()
+    val proposedGenres = book.tagsCsv.withGoodreadsGenresPreview(metadata.genres)
+    ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.Link,
+            title = stringResource(R.string.library_goodreads_preview_title),
+            supportingText = stringResource(R.string.library_goodreads_preview_body),
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            metadata.series?.let {
+                GoodreadsPreviewRow(
+                    label = stringResource(R.string.library_goodreads_preview_series),
+                    current = book.seriesDisplayOrNone().ifBlank { stringResource(R.string.library_goodreads_preview_empty) },
+                    proposed = listOfNotNull(it, metadata.seriesNumber?.let { number -> "#$number" }).joinToString(" "),
+                )
+            }
+            metadata.description?.takeIf { it.isNotBlank() }?.let {
+                GoodreadsPreviewRow(
+                    label = stringResource(R.string.library_goodreads_preview_description),
+                    current = book.description?.cleanHtml()?.take(PreviewTextLimit).orEmpty().ifBlank {
+                        stringResource(R.string.library_goodreads_preview_empty)
+                    },
+                    proposed = it.take(PreviewTextLimit),
+                )
+            }
+            if (metadata.genres.isNotEmpty()) {
+                GoodreadsPreviewRow(
+                    label = stringResource(R.string.library_goodreads_preview_tags),
+                    current = currentGenres.joinToString(", ").ifBlank { stringResource(R.string.library_goodreads_preview_empty) },
+                    proposed = proposedGenres.joinToString(", "),
+                )
+            }
+            metadata.coverUrl?.let {
+                GoodreadsPreviewRow(
+                    label = stringResource(R.string.library_goodreads_preview_cover),
+                    current = if (book.coverPath.isNullOrBlank()) {
+                        stringResource(R.string.library_goodreads_preview_empty)
+                    } else {
+                        stringResource(R.string.library_goodreads_preview_present)
+                    },
+                    proposed = stringResource(R.string.library_goodreads_preview_goodreads_cover),
+                )
+            }
+            val rating = metadata.averageRating
+            if (rating != null || metadata.originalPublicationYear != null) {
+                GoodreadsPreviewRow(
+                    label = stringResource(R.string.library_goodreads_preview_goodreads_info),
+                    current = listOfNotNull(
+                        book.goodreadsRating?.let { stringResource(R.string.library_goodreads_rating, it) },
+                        book.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) },
+                    ).joinToString(" · ").ifBlank { stringResource(R.string.library_goodreads_preview_empty) },
+                    proposed = listOfNotNull(
+                        rating?.let { stringResource(R.string.library_goodreads_rating, it) },
+                        metadata.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) },
+                    ).joinToString(" · "),
+                )
+            }
+            GoodreadsPreviewRow(
+                label = stringResource(R.string.library_goodreads_preview_quotes),
+                current = stringResource(R.string.library_goodreads_preview_current_quotes),
+                proposed = capturedQuoteCount?.let { stringResource(R.string.library_goodreads_preview_captured_quotes, it) }
+                    ?: stringResource(R.string.library_goodreads_preview_fetch_quotes),
+            )
+        }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            FilledTonalButton(onClick = onDismiss, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.library_edit_metadata_cancel))
+            }
+            Button(onClick = onApply, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.library_goodreads_preview_apply))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoodreadsPreviewRow(label: String, current: String, proposed: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = Radii.cardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        tonalElevation = Elevations.level1,
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.library_goodreads_preview_current, current),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.library_goodreads_preview_proposed, proposed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 private fun android.content.Context.shareBookFile(book: Book) {
     val source = File(book.filePath)
     val sharedFile = source.copyToSharedBookFile(this, book.shareFileName(source))
@@ -3880,6 +4121,15 @@ private fun List<String>.distinctSortedIgnoreCase(): List<String> =
         .sortedWith(String.CASE_INSENSITIVE_ORDER)
 
 private fun Book.tags(): List<String> = tagsCsv.orEmpty().tags()
+
+private fun Book.seriesDisplayOrNone(): String =
+    listOfNotNull(series?.takeIf { it.isNotBlank() }, seriesNumber?.takeIf { it.isNotBlank() }?.let { "#$it" })
+        .joinToString(" ")
+
+private fun String?.withGoodreadsGenresPreview(genres: List<String>): List<String> =
+    (orEmpty().split(",").map { it.trim() } + genres.take(GoodreadsMaxGenreTags))
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
 
 private fun String.tags(): List<String> =
     split(",")
@@ -4088,6 +4338,7 @@ private const val MaxBookTagChars = 40
 private const val MaxBookTagsInputChars = 1_024
 private const val MaxSharedBookFileSegmentChars = 80
 private const val MaxSharedBookFileExtensionChars = 8
+private const val PreviewTextLimit = 180
 private const val SearchFieldUnfocusedBorderAlpha = 0.35f
 private const val GeneratedCoverAuthorAlpha = 0.8f
 

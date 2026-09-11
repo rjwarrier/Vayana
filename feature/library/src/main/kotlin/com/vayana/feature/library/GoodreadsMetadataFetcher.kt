@@ -49,6 +49,7 @@ sealed interface GoodreadsImportState {
     data object Idle : GoodreadsImportState
     data class Working(val step: GoodreadsImportStep) : GoodreadsImportState
     data class Failed(val error: GoodreadsFetchError) : GoodreadsImportState
+    data class Preview(val metadata: GoodreadsBookMetadata, val capturedQuotes: List<ParsedQuote>? = null) : GoodreadsImportState
     /** The import landed; the dialog closes itself and the result shows as a snackbar. */
     data object Done : GoodreadsImportState
 }

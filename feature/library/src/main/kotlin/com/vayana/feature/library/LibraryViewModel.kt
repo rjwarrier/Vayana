@@ -120,6 +120,8 @@ data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported
 
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
+private data class QuoteImportResult(val added: Int, val skipped: Int)
+
 sealed interface BookDetailMessage {
     data object METADATA_SAVED : BookDetailMessage
     data object RATING_SAVED : BookDetailMessage
@@ -133,10 +135,10 @@ sealed interface BookDetailMessage {
     data object LOCAL_FILE_REMOVED : BookDetailMessage
     data object LOCAL_FILE_REMOVE_UNAVAILABLE : BookDetailMessage
     data object LOCAL_FILE_REMOVE_FAILED : BookDetailMessage
-    data class QUOTES_IMPORTED(val count: Int) : BookDetailMessage
+    data class QUOTES_IMPORTED(val added: Int, val skipped: Int) : BookDetailMessage
     data object MARKED_FINISHED : BookDetailMessage
     data object GOODREADS_APPLIED : BookDetailMessage
-    data class GOODREADS_APPLIED_WITH_QUOTES(val quotesAdded: Int) : BookDetailMessage
+    data class GOODREADS_APPLIED_WITH_QUOTES(val quotesAdded: Int, val quotesSkipped: Int) : BookDetailMessage
     data object GOODREADS_COVER_FAILED : BookDetailMessage
     data object GOODREADS_QUOTES_FAILED : BookDetailMessage
     data object GOODREADS_FAILED : BookDetailMessage
@@ -336,6 +338,10 @@ data class BookProgressChange(
     val previousLocator: String?,
     val previousPercent: Float,
     val newPercent: Float,
+    val previousUpdatedAt: Long,
+    val newUpdatedAt: Long,
+    val previousLastReadAt: Long?,
+    val newLastReadAt: Long?,
 )
 
 data class BookProgressSyncOutcome(
@@ -542,29 +548,33 @@ class LibraryViewModel @Inject constructor(
     private val _goodreadsImport = MutableStateFlow<GoodreadsImportState>(GoodreadsImportState.Idle)
     val goodreadsImport: StateFlow<GoodreadsImportState> = _goodreadsImport
 
-    /** Fetches [link] and applies everything it yields - details, cover and quotes - with no review step. */
+    /** Fetches [link] and pauses on a preview; applying still uses the same import path after confirmation. */
     fun importFromGoodreads(bookId: Long, link: String) {
         if (_goodreadsImport.value is GoodreadsImportState.Working) return
         viewModelScope.launch {
             _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_BOOK)
             when (val result = goodreadsMetadataFetcher.fetch(link)) {
                 is GoodreadsFetchResult.Failure -> _goodreadsImport.value = GoodreadsImportState.Failed(result.error)
-                is GoodreadsFetchResult.Success -> {
-                    _bookDetailMessage.value = withContext(dispatchers.io) {
-                        applyGoodreadsInLibrary(bookId, result.metadata, goodreadsMetadataFetcher::fetchQuotes)
-                    }
-                    _goodreadsImport.value = GoodreadsImportState.Done
-                }
+                is GoodreadsFetchResult.Success -> _goodreadsImport.value = GoodreadsImportState.Preview(result.metadata)
             }
         }
     }
 
-    /** What the in-app Goodreads browser captured: applied like a direct import, with the quotes it already read. */
+    /** What the in-app Goodreads browser captured: previewed like a direct import, with the quotes it already read. */
     fun importFromGoodreadsCapture(bookId: Long, metadata: GoodreadsBookMetadata, quotes: List<ParsedQuote>?) {
         if (_goodreadsImport.value is GoodreadsImportState.Working) return
+        _goodreadsImport.value = GoodreadsImportState.Preview(metadata, quotes)
+    }
+
+    fun applyPendingGoodreads(bookId: Long) {
+        val preview = _goodreadsImport.value as? GoodreadsImportState.Preview ?: return
         _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
         viewModelScope.launch {
-            _bookDetailMessage.value = withContext(dispatchers.io) { applyGoodreadsInLibrary(bookId, metadata) { quotes } }
+            _bookDetailMessage.value = withContext(dispatchers.io) {
+                applyGoodreadsInLibrary(bookId, preview.metadata) { workId ->
+                    preview.capturedQuotes ?: goodreadsMetadataFetcher.fetchQuotes(workId)
+                }
+            }
             _goodreadsImport.value = GoodreadsImportState.Done
         }
     }
@@ -629,12 +639,8 @@ class LibraryViewModel @Inject constructor(
             }
             if (quotes.isEmpty()) return@launch
 
-            val now = System.currentTimeMillis()
-            val annotations = quotes.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now) }
-            withContext(dispatchers.io) {
-                annotationRepository.createAll(annotations)
-            }
-            _bookDetailMessage.value = BookDetailMessage.QUOTES_IMPORTED(quotes.size)
+            val result = withContext(dispatchers.io) { addGoodreadsQuotes(bookId, quotes) }
+            _bookDetailMessage.value = BookDetailMessage.QUOTES_IMPORTED(result.added, result.skipped)
         }
     }
 
@@ -815,6 +821,10 @@ class LibraryViewModel @Inject constructor(
                 previousLocator = before.lastLocator,
                 previousPercent = before.readingPercent,
                 newPercent = after.readingPercent,
+                previousUpdatedAt = before.updatedAt,
+                newUpdatedAt = after.updatedAt,
+                previousLastReadAt = before.lastReadAt,
+                newLastReadAt = after.lastReadAt,
             )
         } else {
             null
@@ -1973,15 +1983,18 @@ class LibraryViewModel @Inject constructor(
             }
             val coverApplied = coverUrl == null || coverBytes?.let { applyGoodreadsCover(book, it) } != null
             // Null means the quotes page couldn't be read at all, as opposed to it simply having none new.
-            val quotesAdded: Int? = when {
-                workId == null -> 0
+            val quotesResult: QuoteImportResult? = when {
+                workId == null -> QuoteImportResult(added = 0, skipped = 0)
                 quotes == null -> null
                 else -> addGoodreadsQuotes(bookId, quotes)
             }
             when {
                 !coverApplied -> BookDetailMessage.GOODREADS_COVER_FAILED
-                quotesAdded == null -> BookDetailMessage.GOODREADS_QUOTES_FAILED
-                quotesAdded > 0 -> BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES(quotesAdded)
+                quotesResult == null -> BookDetailMessage.GOODREADS_QUOTES_FAILED
+                quotesResult.added > 0 || quotesResult.skipped > 0 -> BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES(
+                    quotesResult.added,
+                    quotesResult.skipped,
+                )
                 else -> BookDetailMessage.GOODREADS_APPLIED
             }
         }.getOrElse { BookDetailMessage.GOODREADS_FAILED }
@@ -1991,7 +2004,7 @@ class LibraryViewModel @Inject constructor(
      * Adds [quotes] exactly as a pasted-quotes import does ([importQuotes]) - popular-highlight underlines the reader
      * places in the text - minus any whose text the book already has, so importing the same link again is harmless.
      */
-    private suspend fun addGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): Int {
+    private suspend fun addGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): QuoteImportResult {
         // Compared on letters and digits only, so curly-vs-straight quotes or spacing can't sneak a duplicate in.
         val known = annotationRepository.observeForBook(bookId).first()
             .mapTo(HashSet()) { quoteMatchKey(it.selectedText.orEmpty()) }
@@ -1999,10 +2012,10 @@ class LibraryViewModel @Inject constructor(
             val key = quoteMatchKey(quote.quoteText)
             key.isNotEmpty() && known.add(key)
         }
-        if (fresh.isEmpty()) return 0
+        if (fresh.isEmpty()) return QuoteImportResult(added = 0, skipped = quotes.size)
         val now = System.currentTimeMillis()
         annotationRepository.createAll(fresh.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now) })
-        return fresh.size
+        return QuoteImportResult(added = fresh.size, skipped = quotes.size - fresh.size)
     }
 
     /** [book] must carry root-relative paths; [bytes] is an already-validated image from Goodreads. */
