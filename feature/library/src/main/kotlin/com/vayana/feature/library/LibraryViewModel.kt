@@ -2011,6 +2011,22 @@ class LibraryViewModel @Inject constructor(
             if (replaced) {
                 importedFile = null
                 coverFile = null
+                // A re-exported calibre file may carry new tags (or a series the book lacked). Merge them in
+                // rather than replace, so tags the user added by hand survive.
+                val fileSeriesMissing = existingBook.series.isNullOrBlank() && metadata.series != null
+                if (metadata.tags.isNotEmpty() || fileSeriesMissing) {
+                    bookRepository.getById(bookId)?.let { current ->
+                        bookRepository.updateMetadata(
+                            id = bookId,
+                            title = current.title,
+                            author = current.author,
+                            series = if (fileSeriesMissing) metadata.series else current.series,
+                            seriesNumber = if (fileSeriesMissing) metadata.seriesNumber else current.seriesNumber,
+                            description = current.description,
+                            tagsCsv = current.tagsCsv.withMergedTags(metadata.tags),
+                        )
+                    }
+                }
                 File(existingBook.filePath).delete()
                 existingBook.coverPath?.let { File(it).delete() }
                 BookDetailMessage.SOURCE_REPLACED
@@ -2178,7 +2194,10 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun String?.withGoodreadsGenres(genres: List<String>): String =
-        (orEmpty().split(",").map { it.trim() } + genres.take(GoodreadsMaxGenreTags))
+        withMergedTags(genres.take(GoodreadsMaxGenreTags))
+
+    private fun String?.withMergedTags(tags: List<String>): String =
+        (orEmpty().split(",").map { it.trim() } + tags)
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase() }
             .joinToString(",")

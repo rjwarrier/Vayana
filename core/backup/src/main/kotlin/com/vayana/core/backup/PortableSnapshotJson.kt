@@ -33,7 +33,7 @@ fun parsePortableAnnotations(jsonText: String): List<PortableAnnotation> {
                     locator = locator,
                     chapterTitle = obj.optSnapshotBoundedString("chapterTitle", MaxSnapshotTitleChars),
                     chapterHref = obj.optSnapshotBoundedString("chapterHref", MaxSnapshotLocatorChars),
-                    selectedText = obj.optString("selectedText").take(MaxSnapshotTextChars),
+                    selectedText = obj.optPortableStringOrNull("selectedText").orEmpty().take(MaxSnapshotTextChars),
                     readerNote = obj.optSnapshotBoundedString("readerNote", MaxSnapshotTextChars),
                     createdAt = createdAt,
                     updatedAt = updatedAt,
@@ -190,7 +190,7 @@ fun parsePortableTombstones(jsonText: String): List<PortableTombstone> {
 }
 
 private fun JSONObject.optSnapshotBoundedString(name: String, maxChars: Int): String? =
-    optString(name).trim().takeIf { it.isNotEmpty() && it.length <= maxChars }
+    optPortableStringOrNull(name)?.takeIf { it.length <= maxChars }
 
 private const val MaxPortableSnapshotJsonChars = 16 * 1024 * 1024
 private const val MaxPortableSnapshotAnnotations = 100_000

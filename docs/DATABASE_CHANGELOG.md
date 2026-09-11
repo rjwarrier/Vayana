@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 16
+Data repair only, no schema change. Android's `org.json` returns the text `"null"` from `optString` for an
+explicit JSON null, so cloud sync had stored `"null"` as a real value in synced text columns. The migration
+sets these back to `NULL`: `books.author`, `series`, `seriesNumber`, `description`, `lastLocator`,
+`customFontFamily`, `tagsCsv`, `goodreadsUrl`; `annotations.chapterTitle`, `chapterHref`, `readerNote`;
+`vocabulary_cards.sentence`, `bookTitle`. `annotations.selectedText` (non-null) becomes `''`.
+
 ## Version 15
 Adds Goodreads import extras and switchable covers to `books` (all nullable, existing rows migrate as null):
 

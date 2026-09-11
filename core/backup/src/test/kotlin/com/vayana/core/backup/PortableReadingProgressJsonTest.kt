@@ -144,6 +144,48 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
+    fun nullAndLiteralNullTextFieldsReadAsAbsent() {
+        val books = parsePortableCloudBooks(
+            """
+            {
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "title": "Remote Book",
+                  "author": null,
+                  "series": "null",
+                  "seriesNumber": "null",
+                  "description": null,
+                  "tagsCsv": "null",
+                  "customFontFamily": "null",
+                  "format": "EPUB",
+                  "fileHash": "hash-cloud",
+                  "fileAsset": {
+                    "id": "abcdEFGH1234_wxyz",
+                    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                    "sizeBytes": 42,
+                    "uploadedAt": 3000
+                  },
+                  "lastLocator": "null",
+                  "createdAt": 1000,
+                  "updatedAt": 2000
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        val book = books.single()
+        assertEquals(null, book.author)
+        assertEquals(null, book.series)
+        assertEquals(null, book.seriesNumber)
+        assertEquals(null, book.description)
+        assertEquals(null, book.tagsCsv)
+        assertEquals(null, book.customFontFamily)
+        assertEquals(null, book.lastLocator)
+    }
+
+    @Test
     fun sanitizesUnsafeGoodreadsCloudBookFields() {
         val books = parsePortableCloudBooks(
             """

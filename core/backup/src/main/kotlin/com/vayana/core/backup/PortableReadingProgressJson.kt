@@ -371,9 +371,17 @@ private fun JSONObject.optFiniteFloatOrNull(name: String, min: Float, max: Float
         ?.coerceIn(min, max)
 
 private fun JSONObject.optBoundedString(name: String, maxChars: Int): String? =
-    optString(name)
-        .trim()
-        .takeIf { it.isNotEmpty() && it.length <= maxChars }
+    optPortableStringOrNull(name)?.takeIf { it.length <= maxChars }
+
+/**
+ * A trimmed, non-empty string field, or null. Android's org.json turns an explicit JSON null into the text
+ * "null" via optString (the desktop org.json used by unit tests doesn't), and earlier builds synced that text
+ * back out as a real value, so the literal "null" also reads as absent.
+ */
+internal fun JSONObject.optPortableStringOrNull(name: String): String? {
+    if (isNull(name)) return null
+    return optString(name).trim().takeIf { it.isNotEmpty() && it != "null" }
+}
 
 private fun JSONObject.optGoodreadsUrlOrNull(): String? =
     optBoundedString("goodreadsUrl", MaxGoodreadsUrlChars)
