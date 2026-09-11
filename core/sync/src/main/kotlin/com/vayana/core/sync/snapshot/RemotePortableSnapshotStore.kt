@@ -6,6 +6,7 @@ import com.vayana.core.backup.mergePortableSnapshotSlices
 import com.vayana.core.backup.portableSnapshotSlicePaths
 import com.vayana.core.backup.toSlicedJsonDocuments
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
+import kotlinx.coroutines.CancellationException
 
 data class RemotePortableSnapshotDocument(
     val jsonText: String,
@@ -49,4 +50,39 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
         bytes = latestDocument.jsonText.toByteArray(Charsets.UTF_8),
         expectedSha = expectedLatestSha,
     )
+    try {
+        pruneOlderPortableSnapshotSlices(currentExportedAt = snapshot.exportedAt)
+    } catch (throwable: Throwable) {
+        if (throwable is CancellationException) throw throwable
+    }
 }
+
+private suspend fun GitHubContentsAssetStore.pruneOlderPortableSnapshotSlices(currentExportedAt: Long) {
+    val retainedExportTimes = listSyncDocumentDirectory(SnapshotSlicesRoot)
+        .asSequence()
+        .filter { it.type == "dir" }
+        .mapNotNull { it.name.toLongOrNull() }
+        .filter { it > 0L }
+        .plus(currentExportedAt)
+        .distinct()
+        .sortedDescending()
+        .take(RetainedSnapshotSliceSets)
+        .toSet()
+    val staleDirectories = listSyncDocumentDirectory(SnapshotSlicesRoot)
+        .asSequence()
+        .filter { it.type == "dir" }
+        .mapNotNull { entry -> entry.name.toLongOrNull()?.takeIf { it > 0L } }
+        .filterNot { it in retainedExportTimes }
+        .toList()
+    staleDirectories.forEach { exportedAt ->
+        listSyncDocumentDirectory("$SnapshotSlicesRoot/$exportedAt")
+            .asSequence()
+            .filter { it.type == "file" }
+            .map { it.path }
+            .filter { it.startsWith("$SnapshotSlicesRoot/$exportedAt/") && it.endsWith(".json") }
+            .forEach { path -> deleteSyncDocumentIfExists(path) }
+    }
+}
+
+private const val SnapshotSlicesRoot = "vayana/snapshot-slices"
+private const val RetainedSnapshotSliceSets = 3

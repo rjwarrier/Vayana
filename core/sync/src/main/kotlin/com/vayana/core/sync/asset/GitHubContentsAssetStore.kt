@@ -93,6 +93,40 @@ class GitHubContentsAssetStore(
         GitHubSyncDocument(bytes = contentResponse.body, sha = sha)
     }
 
+    suspend fun listSyncDocumentDirectory(path: String): List<GitHubContentEntry> = withContext(dispatcher) {
+        validateSyncDocumentDirectoryPath(path)
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "GET",
+                url = contentsUrl(path, includeRef = true),
+                headers = jsonHeaders(),
+                maxResponseBytes = MaxSyncDocumentJsonBytes,
+            ),
+        )
+        when (response.statusCode) {
+            HttpURLConnection.HTTP_OK -> parseContentEntries(response.bodyText())
+            HttpURLConnection.HTTP_NOT_FOUND -> emptyList()
+            else -> throw GitHubAssetStoreException("GitHub metadata directory lookup failed", response.statusCode, response.safeBodyText())
+        }
+    }
+
+    suspend fun deleteSyncDocumentIfExists(path: String): Unit = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        val sha = findExistingSha(path) ?: return@withContext
+        val body = buildDeleteBody("Prune Vayana metadata $path", sha)
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "DELETE",
+                url = contentsUrl(path),
+                headers = jsonHeaders(),
+                body = body.toByteArray(Charsets.UTF_8),
+            ),
+        )
+        if (response.statusCode !in setOf(HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_ACCEPTED, HttpURLConnection.HTTP_NO_CONTENT)) {
+            throw GitHubAssetStoreException("GitHub metadata delete failed", response.statusCode, response.safeBodyText())
+        }
+    }
+
     private fun getSyncDocumentSha(path: String): String {
         val response = client.execute(
             GitHubHttpRequest(
@@ -284,6 +318,19 @@ class GitHubContentsAssetStore(
             }
         """.trimIndent()
     }
+
+    private fun buildDeleteBody(message: String, sha: String): String =
+        """
+            {
+              "message":"${message.escapeJson()}",
+              "sha":"${sha.escapeJson()}",
+              "branch":"${repository.branch.escapeJson()}",
+              "committer":{
+                "name":"${committerName.escapeJson()}",
+                "email":"${committerEmail.escapeJson()}"
+              }
+            }
+        """.trimIndent()
 }
 
 sealed interface GitHubConnectionTestResult {
@@ -294,6 +341,13 @@ sealed interface GitHubConnectionTestResult {
 data class GitHubSyncDocument(
     val bytes: ByteArray,
     val sha: String,
+)
+
+data class GitHubContentEntry(
+    val name: String,
+    val path: String,
+    val type: String,
+    val sha: String?,
 )
 
 data class GitHubHttpRequest(
@@ -368,6 +422,23 @@ private fun validateSyncDocumentPath(path: String) {
     require(path.endsWith(".json")) { "Invalid sync document path" }
     require(".." !in path && "//" !in path) { "Invalid sync document path" }
     require(path.matches(SyncDocumentPathRegex)) { "Invalid sync document path" }
+}
+
+private fun validateSyncDocumentDirectoryPath(path: String) {
+    require(path == "vayana/snapshot-slices" || path.matches(SnapshotSliceDirectoryPathRegex)) { "Invalid sync document directory path" }
+    require(".." !in path && "//" !in path) { "Invalid sync document directory path" }
+}
+
+private fun parseContentEntries(jsonText: String): List<GitHubContentEntry> {
+    return JsonObjectRegex.findAll(jsonText).map { match ->
+        val entry = match.value
+        GitHubContentEntry(
+            name = entry.extractJsonString("name").orEmpty(),
+            path = entry.extractJsonString("path").orEmpty(),
+            type = entry.extractJsonString("type").orEmpty(),
+            sha = entry.extractJsonString("sha")?.takeIf { it.matches(GitHubObjectShaRegex) },
+        )
+    }.toList()
 }
 
 private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
@@ -446,7 +517,9 @@ private val GitHubNameRegex = Regex("^[A-Za-z0-9_.-]{1,100}$")
 private val GitHubBranchRegex = Regex("^[A-Za-z0-9._/-]{1,255}$")
 private val GitHubObjectShaRegex = Regex("^[a-f0-9]{40,64}$")
 private val SyncDocumentPathRegex = Regex("^[A-Za-z0-9._/-]{1,240}$")
+private val SnapshotSliceDirectoryPathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*$")
 private val AuthorizationTokenRegex = Regex(""""token"\s*:\s*"[^"]+"""")
+private val JsonObjectRegex = Regex("""\{[^{}]*}""")
 private const val NetworkTimeoutMillis = 30_000
 private const val MaxPutAttempts = 3
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024

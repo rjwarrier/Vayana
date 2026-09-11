@@ -282,6 +282,65 @@ class GitHubContentsAssetStoreTest {
     }
 
     @Test
+    fun listsSnapshotSliceDirectories() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(
+                200,
+                """
+                [
+                  {"name":"12345","path":"vayana/snapshot-slices/12345","type":"dir","sha":"$ExistingSha"},
+                  {"name":"notes.txt","path":"vayana/snapshot-slices/notes.txt","type":"file","sha":"$ExistingSha"}
+                ]
+                """.trimIndent().toByteArray(),
+            ),
+        )
+        val store = testStore(client)
+
+        val entries = store.listSyncDocumentDirectory("vayana/snapshot-slices")
+
+        assertEquals(2, entries.size)
+        assertEquals("12345", entries[0].name)
+        assertEquals("dir", entries[0].type)
+        assertEquals(
+            "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices?ref=main",
+            client.requests.single().url,
+        )
+    }
+
+    @Test
+    fun rejectsUnsafeSyncDocumentDirectoryPath() = runBlocking {
+        val client = RecordingGitHubHttpClient()
+        val store = testStore(client)
+
+        val failure = assertFailsWith<IllegalArgumentException> {
+            store.listSyncDocumentDirectory("vayana/snapshot-slices/../12345")
+        }
+
+        assertEquals("Invalid sync document directory path", failure.message)
+        assertTrue(client.requests.isEmpty())
+    }
+
+    @Test
+    fun deletesExistingSyncDocument() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, """{"sha":"$ExistingSha"}""".toByteArray()),
+            GitHubHttpResponse(200, """{"commit":{"sha":"deleted-sha"}}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        store.deleteSyncDocumentIfExists("vayana/snapshot-slices/12345/annotations.json")
+
+        assertEquals(listOf("GET", "DELETE"), client.requests.map { it.method })
+        assertEquals(
+            "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices/12345/annotations.json",
+            client.requests[1].url,
+        )
+        val body = client.requests[1].bodyText()
+        assertTrue(body.contains(""""sha":"$ExistingSha""""))
+        assertTrue(body.contains(""""branch":"main""""))
+    }
+
+    @Test
     fun exposesGitHubFailuresWithStatusAndBody() = runBlocking {
         val client = RecordingGitHubHttpClient(
             GitHubHttpResponse(500, """{"message":"boom","token":"secret"}""".toByteArray()),
