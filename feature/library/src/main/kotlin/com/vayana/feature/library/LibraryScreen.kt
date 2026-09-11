@@ -1399,6 +1399,7 @@ private fun LibraryAddMenuIcon(icon: ImageVector) {
     }
 }
 
+private data class LibraryDisplayBooks(val hero: Book?, val rows: List<Book>)
 private data class LibraryGroupSection(val label: String, val books: List<Book>)
 
 @Composable
@@ -1411,8 +1412,8 @@ private fun LibraryGrid(
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
 ) {
-    val lastOpenedBook = rememberCurrentReadingBook(books)
-    val sections = books.toGroupSections(groupBy)
+    val displayBooks = rememberLibraryDisplayBooks(books)
+    val sections = displayBooks.rows.toGroupSections(groupBy)
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
@@ -1426,22 +1427,21 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        if (lastOpenedBook != null) {
-            item(key = "hero:${lastOpenedBook.id}", span = { GridItemSpan(maxLineSpan) }) {
+        displayBooks.hero?.let { heroBook ->
+            item(key = "hero:${heroBook.id}", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
-                    book = lastOpenedBook,
-                    isDownloading = lastOpenedBook.id == downloadingBookId,
-                    downloadProgress = if (lastOpenedBook.id == downloadingBookId) downloadProgress else null,
-                    onClick = { onBookClick(lastOpenedBook) },
-                    onMarkFinished = { onMarkFinished(lastOpenedBook) },
+                    book = heroBook,
+                    isDownloading = heroBook.id == downloadingBookId,
+                    downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
+                    onClick = { onBookClick(heroBook) },
+                    onMarkFinished = { onMarkFinished(heroBook) },
                     modifier = Modifier.animateItem(),
                 )
             }
         }
 
         if (sections == null) {
-            val gridBooks = books.without(lastOpenedBook)
-            gridItems(gridBooks, key = { it.id }) { book ->
+            gridItems(displayBooks.rows, key = { it.id }) { book ->
                 BookCoverCell(
                     book = book,
                     isDownloading = book.id == downloadingBookId,
@@ -1453,27 +1453,24 @@ private fun LibraryGrid(
             }
         } else {
             sections.forEach { section ->
-                val sectionBooks = section.books.without(lastOpenedBook)
-                if (sectionBooks.isNotEmpty()) {
-                    item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = section.label,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier
-                                .padding(top = Spacing.sm, bottom = Spacing.xs)
-                                .animateItem(),
-                        )
-                    }
-                    gridItems(sectionBooks, key = { it.id }) { book ->
-                        BookCoverCell(
-                            book = book,
-                            isDownloading = book.id == downloadingBookId,
-                            downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
-                            onMarkFinished = { onMarkFinished(book) },
-                            modifier = Modifier.animateItem(),
-                            onClick = { onBookClick(book) },
-                        )
-                    }
+                item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = section.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier
+                            .padding(top = Spacing.sm, bottom = Spacing.xs)
+                            .animateItem(),
+                    )
+                }
+                gridItems(section.books, key = { it.id }) { book ->
+                    BookCoverCell(
+                        book = book,
+                        isDownloading = book.id == downloadingBookId,
+                        downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                        onMarkFinished = { onMarkFinished(book) },
+                        modifier = Modifier.animateItem(),
+                        onClick = { onBookClick(book) },
+                    )
                 }
             }
         }
@@ -1490,8 +1487,8 @@ private fun LibraryList(
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
 ) {
-    val lastOpenedBook = rememberCurrentReadingBook(books)
-    val sections = books.toGroupSections(groupBy)
+    val displayBooks = rememberLibraryDisplayBooks(books)
+    val sections = displayBooks.rows.toGroupSections(groupBy)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1503,22 +1500,21 @@ private fun LibraryList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        if (lastOpenedBook != null) {
-            item(key = "hero:${lastOpenedBook.id}") {
+        displayBooks.hero?.let { heroBook ->
+            item(key = "hero:${heroBook.id}") {
                 LibraryHeroCard(
-                    book = lastOpenedBook,
-                    isDownloading = lastOpenedBook.id == downloadingBookId,
-                    downloadProgress = if (lastOpenedBook.id == downloadingBookId) downloadProgress else null,
-                    onClick = { onBookClick(lastOpenedBook) },
-                    onMarkFinished = { onMarkFinished(lastOpenedBook) },
+                    book = heroBook,
+                    isDownloading = heroBook.id == downloadingBookId,
+                    downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
+                    onClick = { onBookClick(heroBook) },
+                    onMarkFinished = { onMarkFinished(heroBook) },
                     modifier = Modifier.animateItem(),
                 )
             }
         }
 
         if (sections == null) {
-            val listBooks = books.without(lastOpenedBook)
-            items(listBooks, key = { it.id }) { book ->
+            items(displayBooks.rows, key = { it.id }) { book ->
                 LibraryListRow(
                     book = book,
                     isDownloading = book.id == downloadingBookId,
@@ -1530,27 +1526,24 @@ private fun LibraryList(
             }
         } else {
             sections.forEach { section ->
-                val sectionBooks = section.books.without(lastOpenedBook)
-                if (sectionBooks.isNotEmpty()) {
-                    item(key = "header:${section.label}") {
-                        Text(
-                            text = section.label,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier
-                                .padding(top = Spacing.sm, bottom = Spacing.xs)
-                                .animateItem(),
-                        )
-                    }
-                    items(sectionBooks, key = { it.id }) { book ->
-                        LibraryListRow(
-                            book = book,
-                            isDownloading = book.id == downloadingBookId,
-                            downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
-                            onClick = { onBookClick(book) },
-                            onMarkFinished = { onMarkFinished(book) },
-                            modifier = Modifier.animateItem(),
-                        )
-                    }
+                item(key = "header:${section.label}") {
+                    Text(
+                        text = section.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier
+                            .padding(top = Spacing.sm, bottom = Spacing.xs)
+                            .animateItem(),
+                    )
+                }
+                items(section.books, key = { it.id }) { book ->
+                    LibraryListRow(
+                        book = book,
+                        isDownloading = book.id == downloadingBookId,
+                        downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                        onClick = { onBookClick(book) },
+                        onMarkFinished = { onMarkFinished(book) },
+                        modifier = Modifier.animateItem(),
+                    )
                 }
             }
         }
@@ -1558,14 +1551,15 @@ private fun LibraryList(
 }
 
 @Composable
-private fun rememberCurrentReadingBook(books: List<Book>): Book? =
+private fun rememberLibraryDisplayBooks(books: List<Book>): LibraryDisplayBooks =
     remember(books) {
-        books.maxByOrNull { it.lastReadAt ?: 0L }
+        val hero = books.maxByOrNull { it.lastReadAt ?: 0L }
             ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
+        LibraryDisplayBooks(
+            hero = hero,
+            rows = if (hero == null) books else books.filter { it.id != hero.id },
+        )
     }
-
-private fun List<Book>.without(book: Book?): List<Book> =
-    if (book == null) this else filter { it.id != book.id }
 
 @Composable
 private fun LibraryListRow(
