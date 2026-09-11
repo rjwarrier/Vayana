@@ -2,7 +2,6 @@ package com.vayana.core.sync.snapshot
 
 import com.vayana.core.backup.PortableSnapshot
 import com.vayana.core.backup.PortableSnapshotLatestPath
-import com.vayana.core.backup.mergePortableSnapshotSlices
 import com.vayana.core.backup.portableSnapshotSlicePaths
 import com.vayana.core.backup.toSlicedJsonDocuments
 import com.vayana.core.diagnostics.DiagnosticCategory
@@ -14,7 +13,23 @@ data class RemotePortableSnapshotDocument(
     val jsonText: String,
     val sha: String,
     val sliced: Boolean,
-)
+    internal val sliceJsonByKey: Map<String, String> = emptyMap(),
+) {
+    fun jsonFor(slice: RemotePortableSnapshotSlice): String =
+        sliceJsonByKey[slice.key] ?: jsonText
+}
+
+enum class RemotePortableSnapshotSlice(val key: String) {
+    Books("books"),
+    Annotations("annotations"),
+    Shelves("shelves"),
+    ShelfMemberships("shelfMemberships"),
+    ReadingSessions("readingSessions"),
+    VocabularyCards("vocabularyCards"),
+    WordLookupCounters("wordLookupCounters"),
+    BookAliases("bookAliases"),
+    Tombstones("tombstones"),
+}
 
 suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocument(): RemotePortableSnapshotDocument {
     val latest = getSyncDocumentWithSha(PortableSnapshotLatestPath)
@@ -27,9 +42,10 @@ suspend fun GitHubContentsAssetStore.getLatestPortableSnapshotDocument(): Remote
         getSyncDocument(path).toString(Charsets.UTF_8)
     }
     return RemotePortableSnapshotDocument(
-        jsonText = mergePortableSnapshotSlices(latestJson, slices),
+        jsonText = latestJson,
         sha = latest.sha,
         sliced = true,
+        sliceJsonByKey = slices,
     )
 }
 

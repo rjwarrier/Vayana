@@ -401,7 +401,7 @@ private fun JSONObject.toPortableAssetOrNull(): PortableAsset? {
     }.getOrNull()
 }
 
-private const val MaxPortableProgressJsonChars = 8 * 1024 * 1024
+private const val MaxPortableProgressJsonChars = 16 * 1024 * 1024
 private const val MaxPortableProgressBooks = 20_000
 private const val MaxPortableProgressReadingSessions = 200_000
 private const val MaxPortableProgressWordLookupCounters = 100_000

@@ -31,6 +31,7 @@ import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.github.assetStore
 import com.vayana.core.sync.github.gitHubSyncConfig
+import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
 import java.net.HttpURLConnection
 import java.util.concurrent.atomic.AtomicLong
@@ -153,24 +154,24 @@ class ReadingProgressOnlySyncer @Inject constructor(
                         )
                     }
                 }
-            val jsonText = remoteSnapshot.jsonText
+            val booksJson = remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Books)
 
             // Remote content is unchanged since the last time we fully processed it: whatever we
             // would apply locally, we already applied. Skip parsing and merging every book again.
             val remoteAlreadyApplied = remoteSnapshot.sha == lastAppliedRemoteSha.get()
             var pulled = 0
             if (!remoteAlreadyApplied) {
-                val parseAttempt = runCatchingCancellable { parsePortableReadingProgresses(jsonText) }
+                val parseAttempt = runCatchingCancellable { parsePortableReadingProgresses(booksJson) }
                 parseAttempt.onFailure { throwable ->
                     return@withContext ReadingProgressSyncResult(
                         status = ReadingProgressSyncStatus.FAILED,
                         failureMessage = throwable.message,
                     )
                 }
-                pulled = pullRemoteTombstones(jsonText)
+                pulled = pullRemoteTombstones(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
                 pulled += pullRemoteProgress(parseAttempt.getOrDefault(emptyList()))
-                pulled += pullRemoteReadingSessions(jsonText)
-                pulled += pullRemoteWordLookupCounters(jsonText)
+                pulled += pullRemoteReadingSessions(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
+                pulled += pullRemoteWordLookupCounters(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
             }
 
             if (remoteSnapshot.sliced) {
@@ -183,7 +184,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
 
             val attempt = runCatchingCancellable {
                 val patchResult = patchPortableReadingProgressOnly(
-                    jsonText = jsonText,
+                    jsonText = booksJson,
                     patches = patches,
                     exportedAt = System.currentTimeMillis(),
                     readingSessions = readingSessions,

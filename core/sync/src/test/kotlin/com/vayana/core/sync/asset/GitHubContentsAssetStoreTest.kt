@@ -1,6 +1,8 @@
 package com.vayana.core.sync.asset
 
 import com.vayana.core.sync.snapshot.pruneOlderPortableSnapshotSlices
+import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
+import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -105,7 +107,7 @@ class GitHubContentsAssetStoreTest {
 
         assertContentEquals("""{"books":[]}""".toByteArray(), bytes)
         assertEquals("application/vnd.github.raw", client.requests.single().headers["Accept"])
-        assertEquals(8 * 1024 * 1024, client.requests.single().maxResponseBytes)
+        assertEquals(MaxSyncDocumentBytesForTest, client.requests.single().maxResponseBytes)
     }
 
     @Test
@@ -130,7 +132,7 @@ class GitHubContentsAssetStoreTest {
         assertContentEquals("""{"books":[]}""".toByteArray(), document.bytes)
         assertEquals(ExistingSha, document.sha)
         assertEquals(listOf("application/vnd.github.raw", "application/vnd.github.object+json"), client.requests.map { it.headers["Accept"] })
-        assertEquals(listOf(8 * 1024 * 1024, 16 * 1024 * 1024), client.requests.map { it.maxResponseBytes })
+        assertEquals(listOf(MaxSyncDocumentBytesForTest, MaxSyncDocumentJsonBytesForTest), client.requests.map { it.maxResponseBytes })
     }
 
     @Test
@@ -201,7 +203,7 @@ class GitHubContentsAssetStoreTest {
             client.requests.single().url,
         )
         assertEquals("application/vnd.github.raw", client.requests.single().headers["Accept"])
-        assertEquals(8 * 1024 * 1024, client.requests.single().maxResponseBytes)
+        assertEquals(MaxSyncDocumentBytesForTest, client.requests.single().maxResponseBytes)
     }
 
     @Test
@@ -267,6 +269,35 @@ class GitHubContentsAssetStoreTest {
             "https://api.github.test/repos/owner/repo/contents/vayana/snapshot-slices/12345/annotations.json?ref=main",
             client.requests.single().url,
         )
+    }
+
+    @Test
+    fun remotePortableSnapshotDocumentKeepsSlicesSeparate() {
+        val manifest = """
+            {
+              "books":[{"syncId":"book-a"}],
+              "slices":{
+                "annotations":"vayana/snapshot-slices/12345/annotations.json",
+                "readingSessions":"vayana/snapshot-slices/12345/reading-sessions.json"
+              }
+            }
+        """.trimIndent()
+        val annotations = """{"annotations":[{"syncId":"note-a"}]}"""
+        val readingSessions = """{"readingSessions":[{"syncId":"session-a"}]}"""
+        val document = RemotePortableSnapshotDocument(
+            jsonText = manifest,
+            sha = ExistingSha,
+            sliced = true,
+            sliceJsonByKey = mapOf(
+                RemotePortableSnapshotSlice.Annotations.key to annotations,
+                RemotePortableSnapshotSlice.ReadingSessions.key to readingSessions,
+            ),
+        )
+
+        assertEquals(true, document.sliced)
+        assertEquals(manifest, document.jsonFor(RemotePortableSnapshotSlice.Books))
+        assertEquals(annotations, document.jsonFor(RemotePortableSnapshotSlice.Annotations))
+        assertEquals(readingSessions, document.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
     }
 
     @Test
@@ -457,3 +488,5 @@ private fun GitHubHttpRequest.bodyText(): String {
 
 private const val AssetId = "abcdEFGH1234_wxyz"
 private const val ExistingSha = "0123456789abcdef0123456789abcdef01234567"
+private const val MaxSyncDocumentBytesForTest = 16 * 1024 * 1024
+private const val MaxSyncDocumentJsonBytesForTest = MaxSyncDocumentBytesForTest * 2

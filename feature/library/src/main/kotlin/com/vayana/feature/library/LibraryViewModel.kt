@@ -89,6 +89,8 @@ import com.vayana.core.sync.asset.CloudBookFileDownloadPhase
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import com.vayana.core.sync.asset.GitHubRepository
+import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
+import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
 import com.vayana.core.sync.snapshot.putPortableSnapshotDocuments
 import com.vayana.core.filesystem.BookFileImporter
@@ -251,7 +253,7 @@ private data class ReadingProgressMergeSummary(
     val failed: Boolean = false,
     val missingRemoteSnapshot: Boolean = false,
     val failureMessage: String? = null,
-    val remoteSnapshotJson: String? = null,
+    val remoteSnapshot: RemotePortableSnapshotDocument? = null,
     val remoteSnapshotSha: String? = null,
     val remoteSnapshotSliced: Boolean = false,
 ) {
@@ -910,7 +912,7 @@ class LibraryViewModel @Inject constructor(
                 progressUpdated = progressMerge.applied,
             )
             val progressPush = pushReadingProgressOnly(
-                remoteSnapshotJson = progressMerge.remoteSnapshotJson.orEmpty(),
+                remoteSnapshotJson = progressMerge.remoteSnapshot?.jsonFor(RemotePortableSnapshotSlice.Books).orEmpty(),
                 remoteSnapshotSha = progressMerge.remoteSnapshotSha,
                 remoteSnapshotSliced = progressMerge.remoteSnapshotSliced,
                 store = store,
@@ -940,52 +942,53 @@ class LibraryViewModel @Inject constructor(
             completedSteps = 2,
             progressUpdated = progressMerge.applied,
         )
-        val tombstoneMerge = if (progressMerge.missingRemoteSnapshot) {
+        val remoteSnapshot = progressMerge.remoteSnapshot
+        val tombstoneMerge = if (remoteSnapshot == null) {
             GenericSyncMergeSummary()
         } else {
-            mergeCloudTombstones(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudTombstones(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
         }
-        val cloudLibraryMerge = if (progressMerge.missingRemoteSnapshot) {
+        val cloudLibraryMerge = if (remoteSnapshot == null) {
             CloudLibraryMergeSummary()
         } else {
-            mergeCloudLibrary(progressMerge.remoteSnapshotJson.orEmpty(), store)
+            mergeCloudLibrary(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Books), store)
         }
-        val bookAliasMerge = if (progressMerge.missingRemoteSnapshot) {
+        val bookAliasMerge = if (remoteSnapshot == null) {
             GenericSyncMergeSummary()
         } else {
-            mergeCloudBookAliases(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudBookAliases(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.BookAliases))
         }
-        val shelfMerge = if (progressMerge.missingRemoteSnapshot) {
+        val shelfMerge = if (remoteSnapshot == null) {
             GenericSyncMergeSummary()
         } else {
-            mergeCloudShelves(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudShelves(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Shelves))
         }
         // Must run after cloudLibraryMerge/shelfMerge: records whose book or shelf was just
         // created above can only resolve sync ids to local rows once those rows exist.
-        val shelfMembershipMerge = if (progressMerge.missingRemoteSnapshot) {
+        val shelfMembershipMerge = if (remoteSnapshot == null) {
             GenericSyncMergeSummary()
         } else {
-            mergeCloudShelfMemberships(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudShelfMemberships(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ShelfMemberships))
         }
-        val vocabularyCardMerge = if (progressMerge.missingRemoteSnapshot) {
+        val vocabularyCardMerge = if (remoteSnapshot == null) {
             GenericSyncMergeSummary()
         } else {
-            mergeCloudVocabularyCards(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudVocabularyCards(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.VocabularyCards))
         }
-        val readingSessionMerge = if (progressMerge.missingRemoteSnapshot) {
+        val readingSessionMerge = if (remoteSnapshot == null) {
             ReadingSessionMergeSummary()
         } else {
-            mergeCloudReadingSessions(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudReadingSessions(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
         }
-        val wordLookupCounterMerge = if (progressMerge.missingRemoteSnapshot) {
+        val wordLookupCounterMerge = if (remoteSnapshot == null) {
             WordLookupCounterMergeSummary()
         } else {
-            mergeCloudWordLookupCounters(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudWordLookupCounters(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
         }
-        val annotationMerge = if (progressMerge.missingRemoteSnapshot) {
+        val annotationMerge = if (remoteSnapshot == null) {
             AnnotationMergeSummary()
         } else {
-            mergeCloudAnnotations(progressMerge.remoteSnapshotJson.orEmpty())
+            mergeCloudAnnotations(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Annotations))
         }
         val booksBeforeRepair = bookRepository.observeAll().first()
         val repairedCovers = repairMissingCoversFromLocalFiles(booksBeforeRepair)
@@ -1126,22 +1129,21 @@ class LibraryViewModel @Inject constructor(
     private suspend fun pullReadingProgress(store: GitHubContentsAssetStore): ReadingProgressMergeSummary =
         runCatchingCancellable {
             val remoteDocument = store.getLatestPortableSnapshotDocument()
-            val snapshotJson = remoteDocument.jsonText
-            val tombstoneMerge = mergeCloudTombstones(snapshotJson)
+            val tombstoneMerge = mergeCloudTombstones(remoteDocument.jsonFor(RemotePortableSnapshotSlice.Tombstones))
             if (tombstoneMerge.failed) {
                 return@runCatchingCancellable ReadingProgressMergeSummary(
                     failed = true,
                     skipped = tombstoneMerge.skipped,
                     failureMessage = tombstoneMerge.failureMessage,
-                    remoteSnapshotJson = snapshotJson,
+                    remoteSnapshot = remoteDocument,
                     remoteSnapshotSha = remoteDocument.sha,
                     remoteSnapshotSliced = remoteDocument.sliced,
                 )
             }
-            val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
+            val progressMerge = mergeReadingProgressSnapshot(remoteDocument.jsonFor(RemotePortableSnapshotSlice.Books))
             progressMerge.copy(
                 skipped = progressMerge.skipped + tombstoneMerge.skipped,
-                remoteSnapshotJson = snapshotJson,
+                remoteSnapshot = remoteDocument,
                 remoteSnapshotSha = remoteDocument.sha,
                 remoteSnapshotSliced = remoteDocument.sliced,
             )
@@ -1479,8 +1481,7 @@ class LibraryViewModel @Inject constructor(
                 .getOrElse { refetchFailure ->
                     return result(synced = false, failureMessage = refetchFailure.syncFailureMessage())
                 }
-            val currentJson = currentDocument.jsonText
-            val rebase = mergeRemoteSnapshotForMetadataRebase(currentJson, store)
+            val rebase = mergeRemoteSnapshotForMetadataRebase(currentDocument, store)
             rebaseBooksCreated += rebase.booksCreated
             rebaseBooksUpdated += rebase.booksUpdated
             rebaseSkipped += rebase.summary.skipped
@@ -1495,19 +1496,19 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun mergeRemoteSnapshotForMetadataRebase(
-        snapshotJson: String,
+        snapshot: RemotePortableSnapshotDocument,
         store: GitHubContentsAssetStore,
     ): SnapshotRebaseMerge = runCatchingCancellable {
-        val tombstoneMerge = mergeCloudTombstones(snapshotJson)
-        val progressMerge = mergeReadingProgressSnapshot(snapshotJson)
-        val cloudLibraryMerge = mergeCloudLibrary(snapshotJson, store)
-        val bookAliasMerge = mergeCloudBookAliases(snapshotJson)
-        val shelfMerge = mergeCloudShelves(snapshotJson)
-        val shelfMembershipMerge = mergeCloudShelfMemberships(snapshotJson)
-        val vocabularyCardMerge = mergeCloudVocabularyCards(snapshotJson)
-        val readingSessionMerge = mergeCloudReadingSessions(snapshotJson)
-        val wordLookupCounterMerge = mergeCloudWordLookupCounters(snapshotJson)
-        val annotationMerge = mergeCloudAnnotations(snapshotJson)
+        val tombstoneMerge = mergeCloudTombstones(snapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
+        val progressMerge = mergeReadingProgressSnapshot(snapshot.jsonFor(RemotePortableSnapshotSlice.Books))
+        val cloudLibraryMerge = mergeCloudLibrary(snapshot.jsonFor(RemotePortableSnapshotSlice.Books), store)
+        val bookAliasMerge = mergeCloudBookAliases(snapshot.jsonFor(RemotePortableSnapshotSlice.BookAliases))
+        val shelfMerge = mergeCloudShelves(snapshot.jsonFor(RemotePortableSnapshotSlice.Shelves))
+        val shelfMembershipMerge = mergeCloudShelfMemberships(snapshot.jsonFor(RemotePortableSnapshotSlice.ShelfMemberships))
+        val vocabularyCardMerge = mergeCloudVocabularyCards(snapshot.jsonFor(RemotePortableSnapshotSlice.VocabularyCards))
+        val readingSessionMerge = mergeCloudReadingSessions(snapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
+        val wordLookupCounterMerge = mergeCloudWordLookupCounters(snapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
+        val annotationMerge = mergeCloudAnnotations(snapshot.jsonFor(RemotePortableSnapshotSlice.Annotations))
         val entityMerges = listOf(
             cloudLibraryMerge, tombstoneMerge, bookAliasMerge, shelfMerge, shelfMembershipMerge,
             vocabularyCardMerge, readingSessionMerge, wordLookupCounterMerge, annotationMerge,
