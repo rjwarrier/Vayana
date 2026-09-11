@@ -11,7 +11,6 @@ import com.vayana.core.backup.PortableCloudBook
 import com.vayana.core.backup.PortableAsset
 import com.vayana.core.backup.PortableReadingProgressPatch
 import com.vayana.core.backup.PortableReadingSession
-import com.vayana.core.backup.PortableReadingPositionAlternative
 import com.vayana.core.backup.PortableSyncConflict
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.SnapshotExporter
@@ -25,7 +24,6 @@ import com.vayana.core.backup.PortableVocabularyCard
 import com.vayana.core.backup.parsePortableAnnotations
 import com.vayana.core.backup.parsePortableBookAliases
 import com.vayana.core.backup.parsePortableCloudBooks
-import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.backup.parsePortableReadingSessions
 import com.vayana.core.backup.parsePortableShelfMemberships
 import com.vayana.core.backup.parsePortableShelves
@@ -66,8 +64,6 @@ import com.vayana.core.database.repository.CloudShelfMembershipRecord
 import com.vayana.core.database.repository.CloudShelfRecord
 import com.vayana.core.database.repository.CloudVocabularyCardRecord
 import com.vayana.core.database.repository.CloudWordLookupCounter
-import com.vayana.core.database.repository.ReadingProgressMergeResult
-import com.vayana.core.database.repository.ReadingProgressVersion
 import com.vayana.core.database.repository.ReadingSessionMergeResult
 import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.ShelfMembershipMergeResult
@@ -287,7 +283,7 @@ internal data class ReadingProgressMergeSummary(
  * from a plain list of these instead of a hand-written N-term OR/sum/elvis chain naming every entity type
  * (previously duplicated, with drift, between the main sync path and the conflict-rebase retry path).
  */
-private interface SyncMergeOutcome {
+internal interface SyncMergeOutcome {
     val failed: Boolean
     val skipped: Int
     val failureMessage: String?
@@ -354,7 +350,7 @@ private data class AnnotationMergeSummary(
     override val failureMessage: String? = null,
 ) : SyncMergeOutcome
 
-private data class GenericSyncMergeSummary(
+internal data class GenericSyncMergeSummary(
     val created: Int = 0,
     val updated: Int = 0,
     override val skipped: Int = 0,
@@ -493,6 +489,12 @@ class LibraryViewModel @Inject constructor(
 
     val pendingLaunchProgressChange: StateFlow<BookProgressChange?> =
         launchReadingProgressCoordinator.pendingProgressChange
+
+    private val remoteReadingProgressMerger = RemoteReadingProgressMerger(
+        bookRepository = bookRepository,
+        localDeviceLabel = { settingsRepository.snapshot.first().deviceLabelForSync() },
+        mergeTombstones = { tombstonesJson -> mergeCloudTombstones(tombstonesJson) },
+    )
 
     private val launchReadingProgressPull = LaunchReadingProgressPull(
         markers = object : LaunchProgressMarkerStore {
@@ -1287,28 +1289,7 @@ class LibraryViewModel @Inject constructor(
                     remoteSnapshotSha = skipRemoteSnapshotSha,
                     skippedAlreadyChecked = true,
                 )
-            val tombstoneMerge = if (applyTombstones) {
-                mergeCloudTombstones(remoteDocument.jsonFor(RemotePortableSnapshotSlice.Tombstones))
-            } else {
-                GenericSyncMergeSummary()
-            }
-            if (tombstoneMerge.failed) {
-                return@runCatchingCancellable ReadingProgressMergeSummary(
-                    failed = true,
-                    skipped = tombstoneMerge.skipped,
-                    failureMessage = tombstoneMerge.failureMessage,
-                    remoteSnapshot = remoteDocument,
-                    remoteSnapshotSha = remoteDocument.sha,
-                    remoteSnapshotSliced = remoteDocument.sliced,
-                )
-            }
-            val progressMerge = mergeReadingProgressSnapshot(remoteDocument.jsonFor(RemotePortableSnapshotSlice.Books))
-            progressMerge.copy(
-                skipped = progressMerge.skipped + tombstoneMerge.skipped,
-                remoteSnapshot = remoteDocument,
-                remoteSnapshotSha = remoteDocument.sha,
-                remoteSnapshotSliced = remoteDocument.sliced,
-            )
+            remoteReadingProgressMerger.merge(remoteDocument, applyTombstones)
         }.getOrElse { throwable ->
             if (throwable.isMissingRemoteSnapshot()) {
                 ReadingProgressMergeSummary(
@@ -1319,37 +1300,6 @@ class LibraryViewModel @Inject constructor(
                 ReadingProgressMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
             }
         }
-
-    private suspend fun mergeReadingProgressSnapshot(snapshotJson: String): ReadingProgressMergeSummary {
-        val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
-        val localDeviceLabel = settingsRepository.snapshot.first().deviceLabelForSync()
-        return remoteSnapshot.progresses.fold(ReadingProgressMergeSummary()) { summary, progress ->
-            val mergeResult = bookRepository.applySyncedReadingProgress(
-                syncId = progress.syncId,
-                fileHash = progress.fileHash,
-                locator = progress.lastLocator,
-                readingPercent = progress.readingPercent,
-                lastReadAt = progress.lastReadAt,
-                remoteUpdatedAt = progress.updatedAt,
-                startedReadingAt = progress.startedReadingAt,
-                finishedReadingAt = progress.finishedReadingAt,
-                totalReadingSeconds = progress.totalReadingSeconds,
-            )
-            when (mergeResult) {
-                ReadingProgressMergeResult.AppliedRemote -> summary.copy(applied = summary.applied + 1)
-                is ReadingProgressMergeResult.ConflictLocalKept -> summary.copy(
-                    conflicts = summary.conflicts + mergeResult.toPortableConflict(
-                        localDeviceLabel = localDeviceLabel,
-                        remoteDeviceLabel = remoteSnapshot.deviceLabel,
-                    ),
-                )
-                ReadingProgressMergeResult.LocalNewer,
-                ReadingProgressMergeResult.NoLocalMatch,
-                ReadingProgressMergeResult.InvalidRemote,
-                -> summary.copy(skipped = summary.skipped + 1)
-            }
-        }
-    }
 
     private suspend fun mergeCloudLibrary(snapshotJson: String, store: GitHubContentsAssetStore): CloudLibraryMergeSummary =
         runCatchingCancellable {
@@ -1664,7 +1614,7 @@ class LibraryViewModel @Inject constructor(
         store: GitHubContentsAssetStore,
     ): SnapshotRebaseMerge = runCatchingCancellable {
         val tombstoneMerge = mergeCloudTombstones(snapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
-        val progressMerge = mergeReadingProgressSnapshot(snapshot.jsonFor(RemotePortableSnapshotSlice.Books))
+        val progressMerge = remoteReadingProgressMerger.mergeProgress(snapshot.jsonFor(RemotePortableSnapshotSlice.Books))
         val cloudLibraryMerge = mergeCloudLibrary(snapshot.jsonFor(RemotePortableSnapshotSlice.Books), store)
         val bookAliasMerge = mergeCloudBookAliases(snapshot.jsonFor(RemotePortableSnapshotSlice.BookAliases))
         val shelfMerge = mergeCloudShelves(snapshot.jsonFor(RemotePortableSnapshotSlice.Shelves))
@@ -2557,30 +2507,6 @@ private fun SettingsSnapshot.gitHubSyncConfig(): GitHubSyncConfig? {
         committerName = deviceLabelForSync(),
     )
 }
-
-private fun ReadingProgressMergeResult.ConflictLocalKept.toPortableConflict(
-    localDeviceLabel: String,
-    remoteDeviceLabel: String?,
-): PortableSyncConflict =
-    PortableSyncConflict(
-        type = "readingPosition",
-        syncId = local.syncId,
-        reason = reason.name,
-        detectedAt = System.currentTimeMillis(),
-        localDeviceLabel = localDeviceLabel,
-        remoteDeviceLabel = remoteDeviceLabel?.takeIf { it.isNotBlank() },
-        local = local.toPortableAlternative(),
-        remote = remote.toPortableAlternative(),
-    )
-
-private fun ReadingProgressVersion.toPortableAlternative(): PortableReadingPositionAlternative =
-    PortableReadingPositionAlternative(
-        fileHash = fileHash,
-        locator = locator,
-        readingPercent = readingPercent,
-        lastReadAt = lastReadAt,
-        updatedAt = updatedAt,
-    )
 
 private fun GitHubSyncConfig.assetStore(): GitHubContentsAssetStore =
     GitHubContentsAssetStore(
