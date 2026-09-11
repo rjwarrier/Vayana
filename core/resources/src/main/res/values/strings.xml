@@ -44,6 +44,8 @@
     <string name="library_book_file_missing">This book file is not available on this device.</string>
     <string name="library_book_upload_pending">This book needs to upload before other devices can download it.</string>
     <string name="library_sync_now_content_description">Sync now</string>
+    <string name="library_more_content_description">More library actions</string>
+    <string name="library_settings_title">Settings</string>
     <string name="library_sync_all">Full sync</string>
     <string name="library_sync_reading_progress_only">Reading progress only</string>
     <string name="library_sync_progress_button">Sync</string>

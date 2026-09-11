@@ -1027,7 +1027,7 @@ private fun LibraryTopBar(
     onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     var filterExpanded by remember { mutableStateOf(false) }
-    var groupExpanded by remember { mutableStateOf(false) }
+    var moreExpanded by remember { mutableStateOf(false) }
     var syncExpanded by remember { mutableStateOf(false) }
 
     Column(
@@ -1102,24 +1102,6 @@ private fun LibraryTopBar(
                         )
                     }
                 }
-                LibraryTopBarIconButton(onClick = { groupExpanded = true }) {
-                    Icon(
-                        imageVector = Icons.Outlined.Category,
-                        contentDescription = stringResource(R.string.library_group_content_description),
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                DropdownMenu(expanded = groupExpanded, onDismissRequest = { groupExpanded = false }) {
-                    LibraryGroupBy.entries.forEach { groupBy ->
-                        DropdownMenuItem(
-                            text = { Text(groupBy.label()) },
-                            onClick = {
-                                groupExpanded = false
-                                onGroupByChange(groupBy)
-                            },
-                        )
-                    }
-                }
                 LibraryTopBarIconButton(
                     onClick = {
                         onViewModeChange(
@@ -1145,26 +1127,64 @@ private fun LibraryTopBar(
                         modifier = Modifier.size(Sizes.icon),
                     )
                 }
-                LibraryTopBarIconButton(onClick = onShelvesClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.CollectionsBookmark,
-                        contentDescription = stringResource(R.string.library_shelves_content_description),
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                LibraryTopBarIconButton(onClick = onRecentlyDeletedClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.RestoreFromTrash,
-                        contentDescription = stringResource(R.string.library_recently_deleted_content_description),
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                LibraryTopBarIconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = stringResource(R.string.library_settings_content_description),
-                        modifier = Modifier.size(Sizes.icon),
-                    )
+                Box {
+                    LibraryTopBarIconButton(onClick = { moreExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.MoreVert,
+                            contentDescription = stringResource(R.string.library_more_content_description),
+                            modifier = Modifier.size(Sizes.icon),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = moreExpanded,
+                        onDismissRequest = { moreExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_group_content_description)) },
+                            leadingIcon = { Icon(Icons.Outlined.Category, contentDescription = null) },
+                            enabled = false,
+                            onClick = {},
+                        )
+                        LibraryGroupBy.entries.forEach { groupBy ->
+                            DropdownMenuItem(
+                                text = { Text(groupBy.label()) },
+                                leadingIcon = {
+                                    if (controls.groupBy == groupBy) {
+                                        Icon(Icons.Outlined.Check, contentDescription = null)
+                                    }
+                                },
+                                onClick = {
+                                    moreExpanded = false
+                                    onGroupByChange(groupBy)
+                                },
+                            )
+                        }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_shelves_title)) },
+                            leadingIcon = { Icon(Icons.Outlined.CollectionsBookmark, contentDescription = null) },
+                            onClick = {
+                                moreExpanded = false
+                                onShelvesClick()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_recently_deleted_title)) },
+                            leadingIcon = { Icon(Icons.Outlined.RestoreFromTrash, contentDescription = null) },
+                            onClick = {
+                                moreExpanded = false
+                                onRecentlyDeletedClick()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_settings_title)) },
+                            leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                            onClick = {
+                                moreExpanded = false
+                                onSettingsClick()
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -1391,10 +1411,7 @@ private fun LibraryGrid(
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
 ) {
-    val lastOpenedBook = remember(books) {
-        books.filter { (it.lastReadAt ?: 0L) > 0L }
-            .maxByOrNull { it.lastReadAt ?: 0L }
-    }
+    val lastOpenedBook = rememberCurrentReadingBook(books)
     val sections = books.toGroupSections(groupBy)
 
     LazyVerticalGrid(
@@ -1423,7 +1440,7 @@ private fun LibraryGrid(
         }
 
         if (sections == null) {
-            val gridBooks = if (lastOpenedBook != null) books.filter { it.id != lastOpenedBook.id } else books
+            val gridBooks = books.without(lastOpenedBook)
             gridItems(gridBooks, key = { it.id }) { book ->
                 BookCoverCell(
                     book = book,
@@ -1436,7 +1453,7 @@ private fun LibraryGrid(
             }
         } else {
             sections.forEach { section ->
-                val sectionBooks = if (lastOpenedBook != null) section.books.filter { it.id != lastOpenedBook.id } else section.books
+                val sectionBooks = section.books.without(lastOpenedBook)
                 if (sectionBooks.isNotEmpty()) {
                     item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
                         Text(
@@ -1473,10 +1490,7 @@ private fun LibraryList(
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
 ) {
-    val lastOpenedBook = remember(books) {
-        books.filter { (it.lastReadAt ?: 0L) > 0L }
-            .maxByOrNull { it.lastReadAt ?: 0L }
-    }
+    val lastOpenedBook = rememberCurrentReadingBook(books)
     val sections = books.toGroupSections(groupBy)
 
     LazyColumn(
@@ -1503,7 +1517,7 @@ private fun LibraryList(
         }
 
         if (sections == null) {
-            val listBooks = if (lastOpenedBook != null) books.filter { it.id != lastOpenedBook.id } else books
+            val listBooks = books.without(lastOpenedBook)
             items(listBooks, key = { it.id }) { book ->
                 LibraryListRow(
                     book = book,
@@ -1516,7 +1530,7 @@ private fun LibraryList(
             }
         } else {
             sections.forEach { section ->
-                val sectionBooks = if (lastOpenedBook != null) section.books.filter { it.id != lastOpenedBook.id } else section.books
+                val sectionBooks = section.books.without(lastOpenedBook)
                 if (sectionBooks.isNotEmpty()) {
                     item(key = "header:${section.label}") {
                         Text(
@@ -1542,6 +1556,16 @@ private fun LibraryList(
         }
     }
 }
+
+@Composable
+private fun rememberCurrentReadingBook(books: List<Book>): Book? =
+    remember(books) {
+        books.maxByOrNull { it.lastReadAt ?: 0L }
+            ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
+    }
+
+private fun List<Book>.without(book: Book?): List<Book> =
+    if (book == null) this else filter { it.id != book.id }
 
 @Composable
 private fun LibraryListRow(
