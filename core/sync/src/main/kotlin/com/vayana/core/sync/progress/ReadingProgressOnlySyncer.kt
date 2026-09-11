@@ -10,7 +10,6 @@ import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.PortableSnapshotLatestPath
 import com.vayana.core.backup.parsePortableReadingProgresses
-import com.vayana.core.backup.portableSnapshotHasSlices
 import com.vayana.core.backup.patchPortableReadingProgressOnly
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.common.DispatcherProvider
@@ -32,6 +31,7 @@ import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.github.assetStore
 import com.vayana.core.sync.github.gitHubSyncConfig
+import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
 import java.net.HttpURLConnection
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -139,7 +139,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
 
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlySyncAttempts) {
-            val remoteSnapshot = runCatchingCancellable { store.getSyncDocumentWithSha(PortableSnapshotLatestPath) }
+            val remoteSnapshot = runCatchingCancellable { store.getLatestPortableSnapshotDocument() }
                 .getOrElse { throwable ->
                     return@withContext if (throwable.isMissingRemoteSnapshot()) {
                         ReadingProgressSyncResult(
@@ -153,7 +153,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                         )
                     }
                 }
-            val jsonText = remoteSnapshot.bytes.toString(Charsets.UTF_8)
+            val jsonText = remoteSnapshot.jsonText
 
             // Remote content is unchanged since the last time we fully processed it: whatever we
             // would apply locally, we already applied. Skip parsing and merging every book again.
@@ -173,7 +173,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 pulled += pullRemoteWordLookupCounters(jsonText)
             }
 
-            if (portableSnapshotHasSlices(jsonText)) {
+            if (remoteSnapshot.sliced) {
                 lastAppliedRemoteSha.set(remoteSnapshot.sha)
                 return@withContext ReadingProgressSyncResult(
                     status = if (pulled > 0) ReadingProgressSyncStatus.PULLED else ReadingProgressSyncStatus.NO_CHANGES,
