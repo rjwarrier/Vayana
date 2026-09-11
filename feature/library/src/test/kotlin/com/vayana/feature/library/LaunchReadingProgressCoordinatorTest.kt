@@ -71,6 +71,17 @@ class LaunchReadingProgressCoordinatorTest {
         assertNull(coordinator.pendingProgressChange.value)
     }
 
+    @Test
+    fun recentOutcomeReturnsCompletedLaunchResultForSameBook() = runBlocking {
+        val coordinator = LaunchReadingProgressCoordinator()
+        val outcome = BookProgressSyncOutcome(successResult(), progressChange(bookId = 11L))
+
+        coordinator.checkOnce(bookId = 11L) { outcome }
+
+        assertEquals(outcome, coordinator.recentOutcomeFor(bookId = 11L))
+        assertNull(coordinator.recentOutcomeFor(bookId = 12L))
+    }
+
     private fun successResult() = GitHubSyncNowResult.Complete(
         uploaded = 0,
         failed = 0,

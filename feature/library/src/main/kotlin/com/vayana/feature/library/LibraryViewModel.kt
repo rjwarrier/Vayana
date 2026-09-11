@@ -106,6 +106,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -913,9 +914,7 @@ class LibraryViewModel @Inject constructor(
         val after = bookRepository.getById(bookId)
         // Only offer to revert when there was a real prior position to protect - a book going
         // from "never opened" to some synced progress isn't a conflict, just filling in data.
-        val changed = if (before != null && after != null && !before.lastLocator.isNullOrBlank() &&
-            (before.lastLocator != after.lastLocator || before.readingPercent != after.readingPercent)
-        ) {
+        val changed = if (before != null && after != null && before.hasMeaningfulSyncedProgressChange(after)) {
             BookProgressChange(
                 bookId = bookId,
                 previousLocator = before.lastLocator,
@@ -942,6 +941,9 @@ class LibraryViewModel @Inject constructor(
     fun acknowledgePendingLaunchProgressChange(bookId: Long) {
         launchReadingProgressCoordinator.acknowledge(bookId)
     }
+
+    suspend fun recentLaunchProgressOutcomeFor(bookId: Long): BookProgressSyncOutcome? =
+        launchReadingProgressCoordinator.recentOutcomeFor(bookId)
 
     /** Reverts to a specific book's pre-sync position - the "stay" side of the prompt above. */
     fun revertReadingProgress(bookId: Long, locator: String?, percent: Float) {
@@ -977,7 +979,7 @@ class LibraryViewModel @Inject constructor(
             diagnosticsLogStore.recordLaunchProgressCheck(
                 bookId = launchReadingProgressBookId,
                 message = "Silent launch progress check skipped by fresh local marker",
-                detail = "syncTarget=$syncTarget, checkedAt=${existingLaunchMarker.checkedAt}",
+                detail = "syncTarget=$syncTarget, checkedAt=${existingLaunchMarker.checkedAt}, outcome=${existingLaunchMarker.outcome}",
             )
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
@@ -1056,6 +1058,11 @@ class LibraryViewModel @Inject constructor(
             )
         }
         if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
+            val launchOutcome = if (progressMerge.skippedAlreadyChecked) {
+                LaunchProgressCheckOutcome.SKIPPED_UNCHANGED_REMOTE
+            } else {
+                LaunchProgressCheckOutcome.CHECKED
+            }
             if (progressMerge.skippedAlreadyChecked) {
                 diagnosticsLogStore.recordLaunchProgressCheck(
                     bookId = launchReadingProgressBookId,
@@ -1063,7 +1070,7 @@ class LibraryViewModel @Inject constructor(
                     detail = "syncTarget=$syncTarget, remoteSnapshotSha=${progressMerge.remoteSnapshotSha.orEmpty()}",
                 )
             }
-            progressMerge.remoteSnapshotSha?.takeIf { !progressMerge.skippedAlreadyChecked }?.let { remoteSnapshotSha ->
+            progressMerge.remoteSnapshotSha?.let { remoteSnapshotSha ->
                 val bookId = launchReadingProgressBookId
                 if (bookId != null) {
                     settingsRepository.updateLaunchReadingProgressCheckMarker(
@@ -1072,6 +1079,7 @@ class LibraryViewModel @Inject constructor(
                             syncTarget = syncTarget,
                             remoteSnapshotSha = remoteSnapshotSha,
                             checkedAt = System.currentTimeMillis(),
+                            outcome = launchOutcome.name,
                         ),
                     )
                 }
@@ -1087,11 +1095,7 @@ class LibraryViewModel @Inject constructor(
                 skipped = progressMerge.skipped + if (progressMerge.skippedAlreadyChecked) 1 else 0,
                 pullFailed = false,
                 metadataSynced = true,
-                launchProgressCheckOutcome = if (progressMerge.skippedAlreadyChecked) {
-                    LaunchProgressCheckOutcome.SKIPPED_UNCHANGED_REMOTE
-                } else {
-                    LaunchProgressCheckOutcome.CHECKED
-                },
+                launchProgressCheckOutcome = launchOutcome,
             )
         }
         if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
@@ -2727,6 +2731,24 @@ private fun List<Book>.filterBy(filter: LibraryFilter): List<Book> = when (filte
     LibraryFilter.NOT_STARTED -> filter { it.readingPercent <= 0f }
 }
 
+private fun Book.hasMeaningfulSyncedProgressChange(after: Book): Boolean {
+    if (lastLocator.isNullOrBlank()) return false
+    return normalizedProgressLocator() != after.normalizedProgressLocator() ||
+        abs(readingPercent.coerceIn(0f, 1f) - after.readingPercent.coerceIn(0f, 1f)) >= ProgressPromptPercentEpsilon ||
+        readingStatus() != after.readingStatus()
+}
+
+private fun Book.normalizedProgressLocator(): String? =
+    lastLocator?.trim()?.takeIf { it.isNotBlank() }
+
+private fun Book.readingStatus(): ReadingStatus = when {
+    finishedReadingAt != null || readingPercent >= FinishedThreshold -> ReadingStatus.FINISHED
+    !lastLocator.isNullOrBlank() || readingPercent > ProgressPromptPercentEpsilon || startedReadingAt != null -> ReadingStatus.READING
+    else -> ReadingStatus.NOT_STARTED
+}
+
+private enum class ReadingStatus { NOT_STARTED, READING, FINISHED }
+
 private fun List<Book>.filterByQuery(query: String): List<Book> {
     val normalizedQuery = query.trim()
     if (normalizedQuery.isEmpty()) return this
@@ -2778,5 +2800,6 @@ private const val CloudBookDownloadProgressTotalSteps = 5
 private const val MaxBookTags = 32
 private const val MaxBookTagChars = 40
 private const val MaxBookTagsCsvChars = 1_024
+private const val ProgressPromptPercentEpsilon = 0.001f
 
 private val SupportedCoverExtensions = setOf("jpg", "jpeg", "png", "webp")

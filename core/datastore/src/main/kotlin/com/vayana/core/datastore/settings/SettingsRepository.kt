@@ -31,4 +31,5 @@ data class LaunchReadingProgressCheckMarker(
     val syncTarget: String,
     val remoteSnapshotSha: String,
     val checkedAt: Long,
+    val outcome: String = "",
 )

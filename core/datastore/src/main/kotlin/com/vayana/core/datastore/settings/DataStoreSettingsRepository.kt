@@ -245,6 +245,7 @@ private fun Preferences.readLaunchReadingProgressCheckMarker(): LaunchReadingPro
             syncTarget = syncTarget,
             remoteSnapshotSha = remoteSnapshotSha,
             checkedAt = checkedAt,
+            outcome = json.optString("outcome"),
         )
     }.getOrNull()
 }
@@ -255,4 +256,5 @@ private fun LaunchReadingProgressCheckMarker.serialize(): String =
         .put("syncTarget", syncTarget)
         .put("remoteSnapshotSha", remoteSnapshotSha)
         .put("checkedAt", checkedAt)
+        .put("outcome", outcome)
         .toString()
