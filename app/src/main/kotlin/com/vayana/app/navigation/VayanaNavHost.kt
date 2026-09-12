@@ -18,6 +18,7 @@ import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
 import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.help.HelpRoute as HelpScreenRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
+import com.vayana.feature.search.SearchRoute as SearchScreenRoute
 import com.vayana.feature.settings.DiagnosticsRoute as DiagnosticsScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
 import com.vayana.feature.statistics.LearnWordsRoute as LearnWordsScreenRoute
@@ -45,6 +46,7 @@ fun VayanaNavHost(
             LibraryListDetailRoute(
                 navController = navController,
                 onSettingsClick = { navController.navigate(SettingsRoute) },
+                onSearchClick = { navController.navigate(SearchRoute) },
                 onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
                 onShelvesClick = { navController.navigate(ShelvesRoute) },
                 onContinueReading = { bookId -> navController.navigate(ReaderRoute(bookId)) },
@@ -81,6 +83,13 @@ fun VayanaNavHost(
         }
         composable<DiagnosticsRoute> {
             DiagnosticsScreenRoute(onBack = { navController.popBackStack() })
+        }
+        composable<SearchRoute> {
+            SearchScreenRoute(
+                onBack = { navController.popBackStack() },
+                onOpenBook = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+                onOpenReader = { bookId, locator -> navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator)) },
+            )
         }
         composable<RecentlyDeletedRoute> {
             RecentlyDeletedScreenRoute(onBack = { navController.popBackStack() })

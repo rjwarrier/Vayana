@@ -180,6 +180,7 @@ import kotlinx.coroutines.launch
 fun LibraryRoute(
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
+    onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -209,6 +210,7 @@ fun LibraryRoute(
         onDownloadCloudBook = viewModel::downloadCloudBook,
         onSyncNow = viewModel::syncNow,
         onSettingsClick = onSettingsClick,
+        onSearchClick = onSearchClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
         onShelvesClick = onShelvesClick,
         onQueryChange = viewModel::updateQuery,
@@ -341,6 +343,7 @@ private fun LibraryScreen(
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
     onSyncNow: suspend (Boolean, GitHubSyncMode) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
+    onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     onQueryChange: (String) -> Unit,
@@ -517,6 +520,7 @@ private fun LibraryScreen(
                 syncBadge = syncBadge,
                 onSyncNow = { mode -> handleSyncNow(mode = mode) },
                 onSettingsClick = onSettingsClick,
+                onSearchClick = onSearchClick,
                 onRecentlyDeletedClick = onRecentlyDeletedClick,
                 onShelvesClick = onShelvesClick,
                 onQueryChange = onQueryChange,
@@ -1027,6 +1031,7 @@ private fun LibraryTopBar(
     syncBadge: LibrarySyncBadge?,
     onSyncNow: (GitHubSyncMode) -> Unit,
     onSettingsClick: () -> Unit,
+    onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     onQueryChange: (String) -> Unit,
@@ -1092,6 +1097,13 @@ private fun LibraryTopBar(
                             )
                         }
                     }
+                }
+                LibraryTopBarIconButton(onClick = onSearchClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = stringResource(R.string.library_search_content_description),
+                        modifier = Modifier.size(Sizes.icon),
+                    )
                 }
                 LibraryTopBarIconButton(onClick = { filterExpanded = true }) {
                     Icon(

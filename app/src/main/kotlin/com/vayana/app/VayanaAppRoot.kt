@@ -22,6 +22,7 @@ import com.vayana.app.navigation.VayanaBottomBar
 import com.vayana.app.navigation.VayanaNavHost
 import com.vayana.app.navigation.VayanaNavigationRail
 import com.vayana.core.designsystem.theme.VayanaTheme
+import com.vayana.feature.onboarding.OnboardingRoute
 
 @Composable
 fun VayanaAppRoot() {
@@ -34,6 +35,11 @@ fun VayanaAppRoot() {
         darkVariant = settings.darkVariant,
         motionSetting = settings.motionSetting,
     ) {
+        if (!settings.onboardingCompleted) {
+            OnboardingRoute(modifier = Modifier.fillMaxSize())
+            return@VayanaTheme
+        }
+
         val navController = rememberNavController()
         val currentDestination = navController.currentBackStackEntryAsState().value?.destination
         val showNavigation = currentDestination?.hasRoute(ReaderRoute::class) != true

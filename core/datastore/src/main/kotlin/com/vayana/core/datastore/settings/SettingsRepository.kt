@@ -17,6 +17,8 @@ interface SettingsRepository {
 
     suspend fun updateLaunchReadingProgressCheckMarker(marker: LaunchReadingProgressCheckMarker)
 
+    suspend fun updateOnboardingCompleted(completed: Boolean)
+
     suspend fun reset(setting: Setting<out Any>)
 
     suspend fun resetAll()

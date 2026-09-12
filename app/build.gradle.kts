@@ -33,8 +33,10 @@ dependencies {
     implementation(project(":feature:library"))
     implementation(project(":feature:notes"))
     implementation(project(":feature:statistics"))
+    implementation(project(":feature:onboarding"))
     implementation(project(":feature:reader"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:search"))
     implementation(project(":feature:help"))
 
     implementation(libs.androidx.core.ktx)

@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 fun LibraryListDetailRoute(
     navController: NavHostController,
     onSettingsClick: () -> Unit,
+    onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     onContinueReading: (Long) -> Unit,
@@ -49,6 +50,7 @@ fun LibraryListDetailRoute(
         LibraryRoute(
             onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
             onSettingsClick = onSettingsClick,
+            onSearchClick = onSearchClick,
             onRecentlyDeletedClick = onRecentlyDeletedClick,
             onShelvesClick = onShelvesClick,
         )
@@ -72,6 +74,7 @@ fun LibraryListDetailRoute(
                         scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, bookId) }
                     },
                     onSettingsClick = onSettingsClick,
+                    onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
                 )

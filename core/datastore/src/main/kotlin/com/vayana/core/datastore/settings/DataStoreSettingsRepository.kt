@@ -30,6 +30,7 @@ private val Context.vayanaSettingsDataStore by preferencesDataStore(name = "vaya
 private val ReaderImportedFontsKey = stringPreferencesKey("reader.imported_fonts")
 private val ReaderCustomFontIdKey = stringPreferencesKey("reader.custom_font_id")
 private val LaunchReadingProgressCheckMarkerKey = stringPreferencesKey("sync.launch_reading_progress_check_marker")
+private val OnboardingCompletedKey = booleanPreferencesKey("onboarding.completed")
 
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
@@ -76,6 +77,10 @@ class DataStoreSettingsRepository @Inject constructor(
         }
     }
 
+    override suspend fun updateOnboardingCompleted(completed: Boolean) {
+        dataStore.edit { preferences -> preferences[OnboardingCompletedKey] = completed }
+    }
+
     override suspend fun reset(setting: Setting<out Any>) {
         dataStore.edit { preferences -> preferences.remove(setting.preferencesKey()) }
     }
@@ -110,6 +115,7 @@ abstract class SettingsModule {
 private fun Preferences.toSnapshot(): SettingsSnapshot {
     val importedFonts = readImportedFonts()
     return SettingsSnapshot(
+        onboardingCompleted = this[OnboardingCompletedKey] ?: false,
         themeMode = read(SettingsRegistry.ThemeMode),
         displayProfile = read(SettingsRegistry.DisplayProfile),
         darkVariant = read(SettingsRegistry.DarkVariant),

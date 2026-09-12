@@ -2,10 +2,51 @@
 <resources>
     <string name="app_name">vayana</string>
     <string name="app_tagline">read, undisturbed.</string>
+    <string name="about_version">v%1$s  ·  Build %2$s</string>
+    <string name="about_credit">From the Labs of RJ | Vibe Coded</string>
+    <string name="about_made_in">Made in 🇮🇳</string>
+    <string name="about_github">View source</string>
+    <string name="about_website">Vayana releases</string>
+    <string name="about_share">Share Vayana</string>
+    <string name="about_share_text">Vayana is a calm Android reader for books, notes, highlights, vocabulary, and reading progress — check it out: https://github.com/rjwarrier/Vayana/releases</string>
 
     <string name="nav_library">Library</string>
     <string name="nav_notes">Notes</string>
     <string name="nav_statistics">Statistics</string>
+
+    <string name="search_title">Search</string>
+    <string name="search_back_content_description">Back</string>
+    <string name="search_placeholder">Search books, notes, highlights</string>
+    <string name="search_empty_title">Find anything you saved</string>
+    <string name="search_empty_body">Search titles, authors, descriptions, shelves, highlights, notes, and chapter names.</string>
+    <string name="search_no_matches_title">No matches found</string>
+    <string name="search_no_matches_body">Try a title, author, note phrase, or highlighted passage.</string>
+    <string name="search_books_header">Books (%1$d)</string>
+    <string name="search_notes_header">Notes &amp; highlights (%1$d)</string>
+    <string name="search_match_title">Title</string>
+    <string name="search_match_author">Author</string>
+    <string name="search_match_series">Series</string>
+    <string name="search_match_tags">Tags</string>
+    <string name="search_match_description">Description</string>
+    <string name="search_match_highlight">Highlight</string>
+    <string name="search_match_note">Note</string>
+    <string name="search_match_chapter">Chapter</string>
+
+    <string name="onboarding_welcome_title">Read, undisturbed</string>
+    <string name="onboarding_welcome_body">Vayana keeps your books, notes, highlights, vocabulary, and reading progress together on this device.</string>
+    <string name="onboarding_appearance_title">Choose your screen</string>
+    <string name="onboarding_appearance_body">Use the standard profile for phones and tablets, or e-ink for high-contrast screens with calmer motion.</string>
+    <string name="onboarding_import_title">Bring in your books</string>
+    <string name="onboarding_import_body">Start from the Library button to import EPUB files, add a physical book, or organize titles into shelves.</string>
+    <string name="onboarding_sync_title">Sync when you want it</string>
+    <string name="onboarding_sync_body">GitHub sync is optional. Turn it on later from Settings when you want encrypted portable library state across devices.</string>
+    <string name="onboarding_done_title">You are ready</string>
+    <string name="onboarding_done_body">Open the Library, add a book, and Vayana will remember where you read, what you marked, and the words you looked up.</string>
+    <string name="onboarding_display_standard">Standard</string>
+    <string name="onboarding_display_eink">E-ink</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_finish">Start reading</string>
 
     <string name="library_title">vayana</string>
     <string name="input_clear_content_description">Clear text</string>

@@ -85,6 +85,7 @@ data class ImportedFont(
 )
 
 data class SettingsSnapshot(
+    val onboardingCompleted: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val displayProfile: DisplayProfile = DisplayProfile.STANDARD,
     val darkVariant: DarkVariant = DarkVariant.STANDARD,
