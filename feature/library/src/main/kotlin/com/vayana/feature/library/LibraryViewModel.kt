@@ -401,6 +401,8 @@ data class BookProgressSyncOutcome(
 
 enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
 
+enum class LibrarySortDirection { ASCENDING, DESCENDING }
+
 enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
 
 enum class LibraryGroupBy { NONE, AUTHOR, SERIES }
@@ -410,6 +412,7 @@ enum class LibraryViewMode { THUMBNAILS, LIST }
 data class LibraryControls(
     val query: String = "",
     val sort: LibrarySort = LibrarySort.IMPORT_DATE,
+    val sortDirection: LibrarySortDirection = LibrarySortDirection.DESCENDING,
     val filter: LibraryFilter = LibraryFilter.ALL,
     val groupBy: LibraryGroupBy = LibraryGroupBy.NONE,
     val viewMode: LibraryViewMode = LibraryViewMode.THUMBNAILS,
@@ -464,7 +467,7 @@ class LibraryViewModel @Inject constructor(
             books = books
                 .filterBy(controls.filter)
                 .filterByQuery(controls.query)
-                .sortedBy(controls.sort),
+                .sortedBy(controls.sort, controls.sortDirection),
             controls = controls,
             githubSyncReady = syncReady,
         )
@@ -541,7 +544,13 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun updateSort(sort: LibrarySort) {
-        controls.update { it.copy(sort = sort) }
+        controls.update { controls ->
+            if (controls.sort == sort) {
+                controls.copy(sortDirection = controls.sortDirection.toggled())
+            } else {
+                controls.copy(sort = sort, sortDirection = LibrarySortDirection.ASCENDING)
+            }
+        }
     }
 
     fun updateFilter(filter: LibraryFilter) {
@@ -2666,12 +2675,37 @@ private fun String.normalizedBookTag(): String =
         .take(MaxBookTagChars)
         .trim()
 
-private fun List<Book>.sortedBy(sort: LibrarySort): List<Book> = when (sort) {
-    LibrarySort.IMPORT_DATE -> sortedWith(compareByDescending<Book> { it.createdAt }.thenBy { it.title.lowercase() })
-    LibrarySort.TITLE -> sortedWith(compareBy<Book> { it.title.lowercase() }.thenByDescending { it.createdAt })
-    LibrarySort.AUTHOR -> sortedWith(compareBy<Book> { it.author.orEmpty().lowercase() }.thenBy { it.title.lowercase() })
-    LibrarySort.LAST_READ -> sortedWith(compareByDescending<Book> { it.lastReadAt ?: 0L }.thenBy { it.title.lowercase() })
-    LibrarySort.PROGRESS -> sortedWith(compareByDescending<Book> { it.readingPercent }.thenBy { it.title.lowercase() })
+private fun LibrarySortDirection.toggled(): LibrarySortDirection = when (this) {
+    LibrarySortDirection.ASCENDING -> LibrarySortDirection.DESCENDING
+    LibrarySortDirection.DESCENDING -> LibrarySortDirection.ASCENDING
+}
+
+private fun List<Book>.sortedBy(sort: LibrarySort, direction: LibrarySortDirection): List<Book> = when (sort) {
+    LibrarySort.IMPORT_DATE -> if (direction == LibrarySortDirection.ASCENDING) {
+        sortedWith(compareBy<Book> { it.createdAt }.thenBy { it.title.lowercase() })
+    } else {
+        sortedWith(compareByDescending<Book> { it.createdAt }.thenBy { it.title.lowercase() })
+    }
+    LibrarySort.TITLE -> if (direction == LibrarySortDirection.ASCENDING) {
+        sortedWith(compareBy<Book> { it.title.lowercase() }.thenByDescending { it.createdAt })
+    } else {
+        sortedWith(compareByDescending<Book> { it.title.lowercase() }.thenByDescending { it.createdAt })
+    }
+    LibrarySort.AUTHOR -> if (direction == LibrarySortDirection.ASCENDING) {
+        sortedWith(compareBy<Book> { it.author.orEmpty().lowercase() }.thenBy { it.title.lowercase() })
+    } else {
+        sortedWith(compareByDescending<Book> { it.author.orEmpty().lowercase() }.thenBy { it.title.lowercase() })
+    }
+    LibrarySort.LAST_READ -> if (direction == LibrarySortDirection.ASCENDING) {
+        sortedWith(compareBy<Book> { it.lastReadAt ?: 0L }.thenBy { it.title.lowercase() })
+    } else {
+        sortedWith(compareByDescending<Book> { it.lastReadAt ?: 0L }.thenBy { it.title.lowercase() })
+    }
+    LibrarySort.PROGRESS -> if (direction == LibrarySortDirection.ASCENDING) {
+        sortedWith(compareBy<Book> { it.readingPercent }.thenBy { it.title.lowercase() })
+    } else {
+        sortedWith(compareByDescending<Book> { it.readingPercent }.thenBy { it.title.lowercase() })
+    }
 }
 
 private const val FinishedThreshold = 0.98f

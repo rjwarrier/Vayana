@@ -45,6 +45,8 @@ import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
@@ -513,22 +515,28 @@ private fun LibraryScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            LibraryTopBar(
-                controls = uiState.controls,
-                showSyncNow = true,
-                syncRunning = syncRunning,
-                syncBadge = syncBadge,
-                onSyncNow = { mode -> handleSyncNow(mode = mode) },
-                onSettingsClick = onSettingsClick,
-                onSearchClick = onSearchClick,
-                onRecentlyDeletedClick = onRecentlyDeletedClick,
-                onShelvesClick = onShelvesClick,
-                onQueryChange = onQueryChange,
-                onSortChange = onSortChange,
-                onFilterChange = onFilterChange,
-                onGroupByChange = onGroupByChange,
-                onViewModeChange = onViewModeChange,
-            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = Elevations.none,
+            ) {
+                LibraryTopBar(
+                    controls = uiState.controls,
+                    showSyncNow = true,
+                    syncRunning = syncRunning,
+                    syncBadge = syncBadge,
+                    onSyncNow = { mode -> handleSyncNow(mode = mode) },
+                    onSettingsClick = onSettingsClick,
+                    onSearchClick = onSearchClick,
+                    onRecentlyDeletedClick = onRecentlyDeletedClick,
+                    onShelvesClick = onShelvesClick,
+                    onQueryChange = onQueryChange,
+                    onSortChange = onSortChange,
+                    onFilterChange = onFilterChange,
+                    onGroupByChange = onGroupByChange,
+                    onViewModeChange = onViewModeChange,
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
@@ -1114,8 +1122,19 @@ private fun LibraryTopBar(
                 }
                 DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
                     LibrarySort.entries.forEach { sort ->
+                        val selected = controls.sort == sort
                         DropdownMenuItem(
                             text = { Text(sort.label()) },
+                            trailingIcon = if (selected) {
+                                {
+                                    Icon(
+                                        imageVector = controls.sortDirection.icon(),
+                                        contentDescription = null,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             onClick = {
                                 filterExpanded = false
                                 onSortChange(sort)
@@ -3772,6 +3791,11 @@ private fun LibrarySort.label(): String = when (this) {
     LibrarySort.AUTHOR -> stringResource(R.string.library_sort_author)
     LibrarySort.LAST_READ -> stringResource(R.string.library_sort_last_read)
     LibrarySort.PROGRESS -> stringResource(R.string.library_sort_progress)
+}
+
+private fun LibrarySortDirection.icon(): ImageVector = when (this) {
+    LibrarySortDirection.ASCENDING -> Icons.Outlined.ArrowUpward
+    LibrarySortDirection.DESCENDING -> Icons.Outlined.ArrowDownward
 }
 
 @Composable

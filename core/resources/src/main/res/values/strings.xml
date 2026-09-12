@@ -319,7 +319,7 @@
     <string name="library_read_next_add">Add to Read next</string>
     <string name="library_read_next_remove">Remove from Read next</string>
     <string name="library_read_next_added">Added to Read next</string>
-    <string name="library_sort_import_date">Import date</string>
+    <string name="library_sort_import_date">Import order</string>
     <string name="library_sort_title">Title</string>
     <string name="library_sort_author">Author</string>
     <string name="library_sort_last_read">Last read</string>

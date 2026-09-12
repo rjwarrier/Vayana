@@ -35,6 +35,7 @@ fun ExpressiveDialogSurface(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     scrollable: Boolean = false,
+    animateContentSize: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(onDismissRequest = onDismissRequest) {
@@ -48,7 +49,7 @@ fun ExpressiveDialogSurface(
         ) {
             val columnModifier = Modifier
                 .padding(Spacing.lg)
-                .vayanaAnimateContentSize()
+                .then(if (animateContentSize) Modifier.vayanaAnimateContentSize() else Modifier)
                 .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
             Column(
                 modifier = columnModifier,

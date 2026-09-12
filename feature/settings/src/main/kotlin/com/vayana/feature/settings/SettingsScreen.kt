@@ -1061,7 +1061,11 @@ private fun ShareVayanaDialog(
     var includeImage by rememberSaveable { mutableStateOf(true) }
     var selectedTheme by rememberSaveable { mutableStateOf(initialTheme) }
 
-    ExpressiveDialogSurface(onDismissRequest = onDismissRequest, scrollable = true) {
+    ExpressiveDialogSurface(
+        onDismissRequest = onDismissRequest,
+        scrollable = true,
+        animateContentSize = false,
+    ) {
         ExpressiveDialogHeader(
             icon = Icons.Outlined.IosShare,
             title = chooserTitle,
