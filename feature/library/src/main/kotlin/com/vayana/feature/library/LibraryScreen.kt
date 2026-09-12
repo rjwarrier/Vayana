@@ -1130,6 +1130,7 @@ private fun LibraryTopBar(
                                     Icon(
                                         imageVector = controls.sortDirection.icon(),
                                         contentDescription = null,
+                                        modifier = Modifier.size(Sizes.iconSmall),
                                     )
                                 }
                             } else {
