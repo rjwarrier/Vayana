@@ -137,6 +137,11 @@ private val SettingsAboutBadgeSize = 64.dp
 private const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
 private const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
 
+private data class SettingsDestinationState(
+    val group: SettingsGroup? = null,
+    val helpAndAboutOpen: Boolean = false,
+)
+
 @Composable
 fun SettingsRoute(
     onBack: () -> Unit,
@@ -214,11 +219,15 @@ private fun SettingsScreen(
 ) {
     var showResetAllDialog by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<SettingsGroup?>(null) }
+    var helpAndAboutOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     val visibleSettings = remember(query) { SettingsRegistry.all.filterByQuery(query) }
 
-    BackHandler(enabled = selectedGroup != null) { selectedGroup = null }
+    BackHandler(enabled = selectedGroup != null || helpAndAboutOpen) {
+        selectedGroup = null
+        helpAndAboutOpen = false
+    }
 
     Scaffold(
         modifier = modifier,
@@ -226,12 +235,23 @@ private fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = selectedGroup?.let { stringResource(it.titleRes) } ?: stringResource(R.string.settings_title),
+                        text = when {
+                            helpAndAboutOpen -> stringResource(R.string.settings_help_about_card_title)
+                            selectedGroup != null -> stringResource(selectedGroup!!.titleRes)
+                            else -> stringResource(R.string.settings_title)
+                        },
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { if (selectedGroup != null) selectedGroup = null else onBack() }) {
+                    IconButton(onClick = {
+                        if (selectedGroup != null || helpAndAboutOpen) {
+                            selectedGroup = null
+                            helpAndAboutOpen = false
+                        } else {
+                            onBack()
+                        }
+                    }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = stringResource(R.string.settings_back_content_description),
@@ -239,18 +259,6 @@ private fun SettingsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onDiagnosticsClick) {
-                        Icon(
-                            imageVector = Icons.Outlined.BugReport,
-                            contentDescription = stringResource(R.string.settings_diagnostics_content_description),
-                        )
-                    }
-                    IconButton(onClick = onHelpClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                            contentDescription = stringResource(R.string.settings_help_content_description),
-                        )
-                    }
                     IconButton(onClick = { showResetAllDialog = true }) {
                         Icon(
                             imageVector = Icons.Outlined.RestartAlt,
@@ -269,31 +277,42 @@ private fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         AnimatedContent(
-            targetState = selectedGroup,
+            targetState = SettingsDestinationState(selectedGroup, helpAndAboutOpen),
             transitionSpec = vayanaContentTransform(),
             label = "SettingsNav",
-        ) { group ->
-            if (group == null) {
+        ) { destination ->
+            when {
+                destination.helpAndAboutOpen -> {
+                    HelpAndAboutDetail(
+                        contentPadding = innerPadding,
+                        onHelpClick = onHelpClick,
+                        onDiagnosticsClick = onDiagnosticsClick,
+                    )
+                }
+                destination.group == null -> {
                 SettingsHub(
                     contentPadding = innerPadding,
                     query = query,
                     visibleSettings = visibleSettings,
                     settings = settings,
                     backupState = backupState,
-                    onHelpClick = onHelpClick,
-                    onDiagnosticsClick = onDiagnosticsClick,
+                    onHelpAndAboutClick = { helpAndAboutOpen = true },
                     onQueryChange = { query = it },
-                    onGroupSelected = { selectedGroup = it },
+                    onGroupSelected = {
+                        selectedGroup = it
+                        helpAndAboutOpen = false
+                    },
                     onUpdate = onUpdate,
                     onReset = onReset,
                     onCreateBackup = onCreateBackup,
                     onPickRestoreFile = onPickRestoreFile,
                     onDismissBackupState = onDismissBackupState,
                 )
-            } else {
+                }
+                else -> {
                 SettingsGroupDetail(
                     contentPadding = innerPadding,
-                    group = group,
+                    group = destination.group,
                     settings = settings,
                     githubSyncSettingsTransferState = githubSyncSettingsTransferState,
                     githubConnectionTestState = githubConnectionTestState,
@@ -309,6 +328,7 @@ private fun SettingsScreen(
                     onDismissGitHubConnectionTestState = onDismissGitHubConnectionTestState,
                     onDismissReaderFontImportState = onDismissReaderFontImportState,
                 )
+                }
             }
         }
     }
@@ -530,8 +550,7 @@ private fun SettingsHub(
     visibleSettings: List<Setting<out Any>>,
     settings: SettingsSnapshot,
     backupState: BackupUiState,
-    onHelpClick: () -> Unit,
-    onDiagnosticsClick: () -> Unit,
+    onHelpAndAboutClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onGroupSelected: (SettingsGroup) -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
@@ -581,10 +600,7 @@ private fun SettingsHub(
             }
             item {
                 SettingsContentContainer {
-                    HelpAndAboutCard(
-                        onHelpClick = onHelpClick,
-                        onDiagnosticsClick = onDiagnosticsClick,
-                    )
+                    HelpAndAboutHubCard(onClick = onHelpAndAboutClick)
                 }
             }
         } else if (visibleSettings.isEmpty()) {
@@ -742,39 +758,93 @@ private fun SettingsContentContainer(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HelpAndAboutCard(
-    onHelpClick: () -> Unit,
-    onDiagnosticsClick: () -> Unit,
-) {
+private fun HelpAndAboutHubCard(onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.large),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = Elevations.none,
     ) {
-        Column(
-            modifier = Modifier.padding(Paddings.card),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(Paddings.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(
-                text = stringResource(R.string.settings_help_about_card_title),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
+            SettingsIconBubble(icon = Icons.AutoMirrored.Outlined.HelpOutline, selected = false)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_help_about_card_title),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.settings_help_about_card_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.settings_category_open_content_description),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SettingsNavigationCard(
-                title = stringResource(R.string.settings_open_help_title),
-                subtitle = stringResource(R.string.settings_open_help_subtitle),
-                icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                onClick = onHelpClick,
-            )
-            SettingsNavigationCard(
-                title = stringResource(R.string.settings_open_diagnostics_title),
-                subtitle = stringResource(R.string.settings_open_diagnostics_subtitle),
-                icon = Icons.Outlined.BugReport,
-                onClick = onDiagnosticsClick,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-            SettingsAboutSection()
+        }
+    }
+}
+
+@Composable
+private fun HelpAndAboutDetail(
+    contentPadding: PaddingValues,
+    onHelpClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = SettingsPagePadding,
+            top = contentPadding.calculateTopPadding() + SettingsPagePadding,
+            end = SettingsPagePadding,
+            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
+        ),
+        verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
+    ) {
+        item {
+            SettingsContentContainer {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radii.large),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = Elevations.none,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(Paddings.card),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        SettingsNavigationCard(
+                            title = stringResource(R.string.settings_open_help_title),
+                            subtitle = stringResource(R.string.settings_open_help_subtitle),
+                            icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                            onClick = onHelpClick,
+                        )
+                        SettingsNavigationCard(
+                            title = stringResource(R.string.settings_open_diagnostics_title),
+                            subtitle = stringResource(R.string.settings_open_diagnostics_subtitle),
+                            icon = Icons.Outlined.BugReport,
+                            onClick = onDiagnosticsClick,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        Text(
+                            text = stringResource(R.string.settings_about_section_title),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        SettingsAboutSection()
+                    }
+                }
+            }
         }
     }
 }

@@ -486,6 +486,8 @@
     <string name="settings_help_content_description">Help &amp; About</string>
     <string name="settings_diagnostics_content_description">Diagnostics</string>
     <string name="settings_help_about_card_title">Help and about</string>
+    <string name="settings_help_about_card_subtitle">Help, diagnostics, version, source, and sharing.</string>
+    <string name="settings_about_section_title">About</string>
     <string name="settings_open_help_title">Help</string>
     <string name="settings_open_help_subtitle">Feature guide, reading tips, sync basics, and recovery notes.</string>
     <string name="settings_open_diagnostics_title">Diagnostics</string>
