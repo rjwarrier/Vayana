@@ -3,6 +3,7 @@ package com.vayana.feature.settings
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.DrawableRes
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,6 +91,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -103,6 +105,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.datastore.settings.BooleanSetting
 import com.vayana.core.datastore.settings.ImportedFont
@@ -123,6 +126,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -773,7 +777,20 @@ private fun HelpAndAboutHubCard(onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            SettingsIconBubble(icon = Icons.AutoMirrored.Outlined.HelpOutline, selected = false)
+            Surface(
+                modifier = Modifier.size(SettingsCategoryBadgeSize),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                contentColor = MaterialTheme.colorScheme.primary,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.settings_help_about_card_title),
@@ -910,6 +927,11 @@ private fun SettingsAboutSection() {
     }
     val shareTitle = stringResource(R.string.about_share)
     val shareText = stringResource(R.string.about_share_text)
+    val shareImageRes = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+        R.drawable.vayana_share_dark_reader
+    } else {
+        R.drawable.vayana_share_light
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -982,7 +1004,7 @@ private fun SettingsAboutSection() {
                 Text(text = stringResource(R.string.about_github), textAlign = TextAlign.Center)
             }
             OutlinedButton(
-                onClick = { context.shareApp(shareTitle, shareText) },
+                onClick = { context.shareApp(shareTitle, shareText, shareImageRes) },
                 modifier = Modifier.weight(1f),
             ) {
                 Icon(imageVector = Icons.Outlined.IosShare, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
@@ -2176,10 +2198,28 @@ private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
     else -> stringResource(subtitleRes)
 }
 
-private fun android.content.Context.shareApp(chooserTitle: String, shareText: String) {
+private fun android.content.Context.shareApp(
+    chooserTitle: String,
+    shareText: String,
+    @DrawableRes imageRes: Int,
+) {
+    val imageUri = stageSharePromoImage(imageRes)
     val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
+        type = if (imageUri != null) "image/jpeg" else "text/plain"
         putExtra(Intent.EXTRA_TEXT, shareText)
+        if (imageUri != null) {
+            putExtra(Intent.EXTRA_STREAM, imageUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
     }
     startActivity(Intent.createChooser(intent, chooserTitle))
 }
+
+private fun android.content.Context.stageSharePromoImage(@DrawableRes imageRes: Int): Uri? = runCatching {
+    val dir = File(cacheDir, "shared_images").apply { mkdirs() }
+    val imageFile = File(dir, "vayana_share.jpg")
+    resources.openRawResource(imageRes).use { input ->
+        imageFile.outputStream().use { output -> input.copyTo(output) }
+    }
+    FileProvider.getUriForFile(this, "$packageName.fileprovider", imageFile)
+}.getOrNull()
