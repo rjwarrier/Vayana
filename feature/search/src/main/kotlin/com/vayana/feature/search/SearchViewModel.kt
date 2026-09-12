@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -57,18 +58,20 @@ class SearchViewModel @Inject constructor(
     private val storageRoots: StorageRoots,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
+    private val books = bookRepository.observeAll()
+        .map { rawBooks -> rawBooks.map { it.withAbsolutePaths() } }
+        .flowOn(Dispatchers.Default)
 
     val uiState: StateFlow<GlobalSearchUiState> = combine(
         query,
-        bookRepository.observeAll(),
+        books,
         annotationRepository.observeAll(),
-    ) { query, rawBooks, annotations ->
-        val books = rawBooks.map { it.withAbsolutePaths() }
-        val booksById = books.associateBy { it.id }
+    ) { query, books, annotations ->
         val trimmed = query.trim()
         if (trimmed.isEmpty()) {
             GlobalSearchUiState(query = query, totalCandidates = books.size + annotations.size)
         } else {
+            val booksById = books.associateBy { it.id }
             GlobalSearchUiState(
                 query = query,
                 books = books.mapNotNull { book -> book.searchMatch(trimmed)?.let { BookSearchResult(book, it) } }

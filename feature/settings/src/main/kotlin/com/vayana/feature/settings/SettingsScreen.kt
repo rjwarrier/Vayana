@@ -144,6 +144,12 @@ private val SettingsContentMaxWidth = 840.dp
 private val SettingsTwoColumnBreakpoint = 680.dp
 private val SettingsCategoryBadgeSize = 42.dp
 private val SettingsAboutBadgeSize = 64.dp
+private val SettingsCategoryEntries: List<Pair<SettingsGroup, Int>> by lazy {
+    SettingsGroup.entries.mapNotNull { group ->
+        val settingCount = SettingsRegistry.all.count { it.group == group }
+        if (settingCount > 0) group to settingCount else null
+    }
+}
 
 private const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
 private const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
@@ -575,11 +581,6 @@ private fun SettingsHub(
     onPickRestoreFile: (Uri) -> Unit,
     onDismissBackupState: () -> Unit,
 ) {
-    val categoryEntries = SettingsGroup.entries.mapNotNull { group ->
-        val settingCount = SettingsRegistry.all.count { it.group == group }
-        if (settingCount > 0) group to settingCount else null
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -609,7 +610,7 @@ private fun SettingsHub(
             item {
                 SettingsContentContainer {
                     SettingsCategoryCards(
-                        categoryEntries = categoryEntries,
+                        categoryEntries = SettingsCategoryEntries,
                         onGroupSelected = onGroupSelected,
                     )
                 }
@@ -659,7 +660,7 @@ private fun SettingsGroupDetail(
     onDismissGitHubConnectionTestState: () -> Unit,
     onDismissReaderFontImportState: () -> Unit,
 ) {
-    val groupSettings = SettingsRegistry.all.filter { it.group == group }
+    val groupSettings = remember(group) { SettingsRegistry.all.filter { it.group == group } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
