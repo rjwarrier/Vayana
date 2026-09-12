@@ -1,21 +1,15 @@
 package com.vayana.feature.help
 
-import android.content.Intent
-import android.os.Build
 import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -26,34 +20,25 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Bookmarks
-import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.IosShare
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.vayana.core.designsystem.tokens.Elevations
@@ -65,10 +50,6 @@ import com.vayana.core.resources.R
 
 private val HelpPagePadding = 20.dp
 private val HelpIconBadgeSize = 42.dp
-private val AboutIconBadgeSize = 64.dp
-
-private const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
-private const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
 
 data class HelpSection(
     @param:StringRes val title: Int,
@@ -208,12 +189,6 @@ fun HelpRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(HelpPagePadding),
         ) {
             item {
-                AboutVayanaCard()
-            }
-            item {
-                AboutActions()
-            }
-            item {
                 Text(
                     text = stringResource(R.string.help_heading),
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
@@ -222,140 +197,6 @@ fun HelpRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             }
             items(helpSections) { section ->
                 HelpSectionCard(section)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AboutVayanaCard(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val packageInfo = remember(context) {
-        context.packageManager.getPackageInfo(context.packageName, 0)
-    }
-    val versionCode = remember(packageInfo) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toLong()
-        }
-    }
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            Surface(
-                modifier = Modifier.size(AboutIconBadgeSize),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(R.string.app_tagline),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.about_version,
-                        packageInfo.versionName ?: "0.1.0",
-                        versionCode.toString(),
-                    ),
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(
-                text = stringResource(R.string.about_credit),
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.about_made_in),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AboutActions(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    val shareTitle = stringResource(R.string.about_share)
-    val shareText = stringResource(R.string.about_share_text)
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        tonalElevation = Elevations.none,
-    ) {
-        Column(
-            modifier = Modifier.padding(Paddings.card),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                OutlinedButton(
-                    onClick = { uriHandler.openUri(VAYANA_GITHUB_URL) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(imageVector = Icons.Outlined.Code, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text(text = stringResource(R.string.about_github), textAlign = TextAlign.Center)
-                }
-                OutlinedButton(
-                    onClick = { context.shareApp(shareTitle, shareText) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(imageVector = Icons.Outlined.IosShare, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text(text = shareTitle, textAlign = TextAlign.Center)
-                }
-            }
-            FilledTonalButton(
-                onClick = { uriHandler.openUri(VAYANA_RELEASES_URL) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(imageVector = Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(text = stringResource(R.string.about_website), textAlign = TextAlign.Center)
             }
         }
     }
@@ -422,12 +263,4 @@ private fun HelpSectionCard(section: HelpSection) {
             }
         }
     }
-}
-
-private fun android.content.Context.shareApp(chooserTitle: String, shareText: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, shareText)
-    }
-    startActivity(Intent.createChooser(intent, chooserTitle))
 }
