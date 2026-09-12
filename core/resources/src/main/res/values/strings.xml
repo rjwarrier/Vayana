@@ -13,6 +13,9 @@
     <string name="share_app_include_image">Include image</string>
     <string name="share_app_include_image_subtitle">Attach the promo image along with your message</string>
     <string name="share_app_message_label">Message</string>
+    <string name="share_app_theme_label">Image theme</string>
+    <string name="share_app_theme_light">Light</string>
+    <string name="share_app_theme_dark">Dark</string>
     <string name="share_app_link_note">This link is added at the end automatically:</string>
     <string name="share_app_button">Share %1$s</string>
     <string name="share_app_preview_content_description">Vayana promo image preview</string>

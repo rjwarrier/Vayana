@@ -148,6 +148,11 @@ private val SettingsAboutBadgeSize = 64.dp
 private const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
 private const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
 
+private enum class SharePromoTheme(@param:DrawableRes val imageRes: Int) {
+    LIGHT(R.drawable.vayana_share_light),
+    DARK(R.drawable.vayana_share_dark_reader),
+}
+
 private data class SettingsDestinationState(
     val group: SettingsGroup? = null,
     val helpAndAboutOpen: Boolean = false,
@@ -935,10 +940,10 @@ private fun SettingsAboutSection() {
     }
     val shareTitle = stringResource(R.string.about_share)
     val shareText = stringResource(R.string.about_share_text)
-    val shareImageRes = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
-        R.drawable.vayana_share_dark_reader
+    val initialShareTheme = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+        SharePromoTheme.DARK
     } else {
-        R.drawable.vayana_share_light
+        SharePromoTheme.LIGHT
     }
 
     Column(
@@ -1033,11 +1038,11 @@ private fun SettingsAboutSection() {
     if (showShareDialog) {
         ShareVayanaDialog(
             initialMessage = shareText,
-            imageRes = shareImageRes,
+            initialTheme = initialShareTheme,
             chooserTitle = shareTitle,
             onDismissRequest = { showShareDialog = false },
-            onShare = { message, includeImage ->
-                context.shareApp(shareTitle, message, if (includeImage) shareImageRes else null)
+            onShare = { message, imageRes ->
+                context.shareApp(shareTitle, message, imageRes)
             },
         )
     }
@@ -1046,13 +1051,14 @@ private fun SettingsAboutSection() {
 @Composable
 private fun ShareVayanaDialog(
     initialMessage: String,
-    @DrawableRes imageRes: Int,
+    initialTheme: SharePromoTheme,
     chooserTitle: String,
     onDismissRequest: () -> Unit,
-    onShare: (message: String, includeImage: Boolean) -> Unit,
+    onShare: (message: String, imageRes: Int?) -> Unit,
 ) {
     var message by rememberSaveable { mutableStateOf(initialMessage) }
     var includeImage by rememberSaveable { mutableStateOf(true) }
+    var selectedTheme by rememberSaveable { mutableStateOf(initialTheme) }
 
     ExpressiveDialogSurface(onDismissRequest = onDismissRequest, scrollable = true) {
         ExpressiveDialogHeader(
@@ -1063,7 +1069,7 @@ private fun ShareVayanaDialog(
 
         if (includeImage) {
             Image(
-                painter = painterResource(imageRes),
+                painter = painterResource(selectedTheme.imageRes),
                 contentDescription = stringResource(R.string.share_app_preview_content_description),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -1100,6 +1106,31 @@ private fun ShareVayanaDialog(
             }
         }
 
+        if (includeImage) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(
+                    text = stringResource(R.string.share_app_theme_label),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilterChip(
+                        selected = selectedTheme == SharePromoTheme.LIGHT,
+                        onClick = { selectedTheme = SharePromoTheme.LIGHT },
+                        label = { Text(stringResource(R.string.share_app_theme_light)) },
+                    )
+                    FilterChip(
+                        selected = selectedTheme == SharePromoTheme.DARK,
+                        onClick = { selectedTheme = SharePromoTheme.DARK },
+                        label = { Text(stringResource(R.string.share_app_theme_dark)) },
+                    )
+                }
+            }
+        }
+
         OutlinedTextField(
             value = message,
             onValueChange = { message = it },
@@ -1131,7 +1162,7 @@ private fun ShareVayanaDialog(
             }
             Button(
                 onClick = {
-                    onShare(message, includeImage)
+                    onShare(message, selectedTheme.imageRes.takeIf { includeImage })
                     onDismissRequest()
                 },
                 shape = Radii.buttonShape,
