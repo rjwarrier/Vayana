@@ -8,7 +8,14 @@
     <string name="about_github">View source</string>
     <string name="about_website">Vayana releases</string>
     <string name="about_share">Share Vayana</string>
-    <string name="about_share_text">Vayana is a calm Android reader for books, notes, highlights, vocabulary, and reading progress — check it out: https://github.com/rjwarrier/Vayana/releases</string>
+    <string name="about_share_text">Vayana is a calm Android reader for books, notes, highlights, vocabulary, and reading progress — check it out!</string>
+    <string name="share_app_dialog_subtitle">Preview the image, tune the message, then share.</string>
+    <string name="share_app_include_image">Include image</string>
+    <string name="share_app_include_image_subtitle">Attach the promo image along with your message</string>
+    <string name="share_app_message_label">Message</string>
+    <string name="share_app_link_note">This link is added at the end automatically:</string>
+    <string name="share_app_button">Share %1$s</string>
+    <string name="share_app_preview_content_description">Vayana promo image preview</string>
 
     <string name="nav_library">Library</string>
     <string name="nav_notes">Notes</string>

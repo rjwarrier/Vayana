@@ -9,10 +9,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -87,15 +89,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -117,6 +122,8 @@ import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.datastore.settings.StringSetting
+import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
+import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
@@ -914,6 +921,7 @@ private fun SettingsNavigationCard(
 private fun SettingsAboutSection() {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    var showShareDialog by rememberSaveable { mutableStateOf(false) }
     val packageInfo = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
@@ -1004,7 +1012,7 @@ private fun SettingsAboutSection() {
                 Text(text = stringResource(R.string.about_github), textAlign = TextAlign.Center)
             }
             OutlinedButton(
-                onClick = { context.shareApp(shareTitle, shareText, shareImageRes) },
+                onClick = { showShareDialog = true },
                 modifier = Modifier.weight(1f),
             ) {
                 Icon(imageVector = Icons.Outlined.IosShare, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
@@ -1019,6 +1027,119 @@ private fun SettingsAboutSection() {
             Icon(imageVector = Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
             Spacer(modifier = Modifier.width(Spacing.xs))
             Text(text = stringResource(R.string.about_website), textAlign = TextAlign.Center)
+        }
+    }
+
+    if (showShareDialog) {
+        ShareVayanaDialog(
+            initialMessage = shareText,
+            imageRes = shareImageRes,
+            chooserTitle = shareTitle,
+            onDismissRequest = { showShareDialog = false },
+            onShare = { message, includeImage ->
+                context.shareApp(shareTitle, message, if (includeImage) shareImageRes else null)
+            },
+        )
+    }
+}
+
+@Composable
+private fun ShareVayanaDialog(
+    initialMessage: String,
+    @DrawableRes imageRes: Int,
+    chooserTitle: String,
+    onDismissRequest: () -> Unit,
+    onShare: (message: String, includeImage: Boolean) -> Unit,
+) {
+    var message by rememberSaveable { mutableStateOf(initialMessage) }
+    var includeImage by rememberSaveable { mutableStateOf(true) }
+
+    ExpressiveDialogSurface(onDismissRequest = onDismissRequest, scrollable = true) {
+        ExpressiveDialogHeader(
+            icon = Icons.Outlined.IosShare,
+            title = chooserTitle,
+            supportingText = stringResource(R.string.share_app_dialog_subtitle),
+        )
+
+        if (includeImage) {
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = stringResource(R.string.share_app_preview_content_description),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(Radii.large)),
+            )
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.medium),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = Elevations.none,
+        ) {
+            Row(
+                modifier = Modifier.padding(Paddings.card),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.share_app_include_image),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.share_app_include_image_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = includeImage, onCheckedChange = { includeImage = it })
+            }
+        }
+
+        OutlinedTextField(
+            value = message,
+            onValueChange = { message = it },
+            label = { Text(stringResource(R.string.share_app_message_label)) },
+            minLines = 4,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(
+                text = stringResource(R.string.share_app_link_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = VAYANA_RELEASES_URL,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(android.R.string.cancel))
+            }
+            Button(
+                onClick = {
+                    onShare(message, includeImage)
+                    onDismissRequest()
+                },
+                shape = Radii.buttonShape,
+            ) {
+                Icon(imageVector = Icons.Outlined.IosShare, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text(stringResource(R.string.share_app_button, stringResource(R.string.app_name)))
+            }
         }
     }
 }
@@ -2200,13 +2321,21 @@ private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
 
 private fun android.content.Context.shareApp(
     chooserTitle: String,
-    shareText: String,
-    @DrawableRes imageRes: Int,
+    message: String,
+    @DrawableRes imageRes: Int?,
 ) {
-    val imageUri = stageSharePromoImage(imageRes)
+    val body = buildString {
+        val trimmed = message.trim()
+        if (trimmed.isNotEmpty()) {
+            append(trimmed)
+            append("\n\n")
+        }
+        append(VAYANA_RELEASES_URL)
+    }
+    val imageUri = imageRes?.let { stageSharePromoImage(it) }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = if (imageUri != null) "image/jpeg" else "text/plain"
-        putExtra(Intent.EXTRA_TEXT, shareText)
+        putExtra(Intent.EXTRA_TEXT, body)
         if (imageUri != null) {
             putExtra(Intent.EXTRA_STREAM, imageUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
