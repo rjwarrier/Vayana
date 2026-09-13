@@ -1,31 +1,23 @@
 package com.vayana.feature.settings
 
-import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import androidx.annotation.DrawableRes
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,28 +30,18 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Code
-import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FormatSize
-import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.IosShare
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,18 +49,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -89,41 +67,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.vayana.core.datastore.settings.BooleanSetting
 import com.vayana.core.datastore.settings.ImportedFont
-import com.vayana.core.datastore.settings.ChoiceSetting
-import com.vayana.core.datastore.settings.FloatSetting
-import com.vayana.core.datastore.settings.IntSetting
 import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
-import com.vayana.core.datastore.settings.StringSetting
-import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
-import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
@@ -134,17 +93,11 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.roundToInt
 
-private val SettingsPagePadding = Paddings.page
+internal val SettingsPagePadding = Paddings.page
 private val SettingsContentMaxWidth = Sizes.settingsContentMaxWidth
 private val SettingsTwoColumnBreakpoint = Sizes.twoColumnBreakpoint
-private val SettingsCategoryBadgeSize = Sizes.badge
-private val SettingsAboutBadgeSize = Sizes.badgeLarge
+internal val SettingsCategoryBadgeSize = Sizes.badge
 private val SettingsCategoryEntries: List<Pair<SettingsGroup, Int>> by lazy {
     SettingsGroup.entries.mapNotNull { group ->
         val settingCount = SettingsRegistry.all.count { it.group == group }
@@ -152,13 +105,8 @@ private val SettingsCategoryEntries: List<Pair<SettingsGroup, Int>> by lazy {
     }
 }
 
-private const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
-private const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
-
-private enum class SharePromoTheme(@param:DrawableRes val imageRes: Int) {
-    LIGHT(R.drawable.vayana_share_light),
-    DARK(R.drawable.vayana_share_dark_reader),
-}
+internal const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
+internal const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
 
 private data class SettingsDestinationState(
     val group: SettingsGroup? = null,
@@ -549,23 +497,6 @@ private fun SettingsScreen(
     }
 }
 
-private fun Long.formatBackupDate(): String {
-    if (this <= 0L) return ""
-    return SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()).format(Date(this))
-}
-
-private fun Long.formatByteSize(): String {
-    if (this < 1024) return "$this B"
-    val units = listOf("KB", "MB", "GB")
-    var value = this / 1024.0
-    var unitIndex = 0
-    while (value >= 1024.0 && unitIndex < units.lastIndex) {
-        value /= 1024.0
-        unitIndex++
-    }
-    return "%.1f %s".format(Locale.getDefault(), value, units[unitIndex])
-}
-
 @Composable
 private fun SettingsHub(
     contentPadding: PaddingValues,
@@ -764,7 +695,7 @@ private fun SettingsCategoryCards(
 }
 
 @Composable
-private fun SettingsContentContainer(content: @Composable () -> Unit) {
+internal fun SettingsContentContainer(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
@@ -776,112 +707,7 @@ private fun SettingsContentContainer(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HelpAndAboutHubCard(onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(Paddings.card),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Surface(
-                modifier = Modifier.size(SettingsCategoryBadgeSize),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                contentColor = MaterialTheme.colorScheme.primary,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                        contentDescription = null,
-                        modifier = Modifier.size(Sizes.iconMedium),
-                    )
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.settings_help_about_card_title),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = stringResource(R.string.settings_help_about_card_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                contentDescription = stringResource(R.string.settings_category_open_content_description),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun HelpAndAboutDetail(
-    contentPadding: PaddingValues,
-    onHelpClick: () -> Unit,
-    onDiagnosticsClick: () -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = SettingsPagePadding,
-            top = contentPadding.calculateTopPadding() + SettingsPagePadding,
-            end = SettingsPagePadding,
-            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
-        ),
-        verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
-    ) {
-        item {
-            SettingsContentContainer {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(Radii.large),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = Elevations.none,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(Paddings.card),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                    ) {
-                        SettingsNavigationCard(
-                            title = stringResource(R.string.settings_open_help_title),
-                            subtitle = stringResource(R.string.settings_open_help_subtitle),
-                            icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                            onClick = onHelpClick,
-                        )
-                        SettingsNavigationCard(
-                            title = stringResource(R.string.settings_open_diagnostics_title),
-                            subtitle = stringResource(R.string.settings_open_diagnostics_subtitle),
-                            icon = Icons.Outlined.BugReport,
-                            onClick = onDiagnosticsClick,
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        Text(
-                            text = stringResource(R.string.settings_about_section_title),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        SettingsAboutSection()
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsNavigationCard(
+internal fun SettingsNavigationCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
@@ -920,452 +746,6 @@ private fun SettingsNavigationCard(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
-}
-
-@Composable
-private fun SettingsAboutSection() {
-    val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    var showShareDialog by rememberSaveable { mutableStateOf(false) }
-    val packageInfo = remember(context) {
-        context.packageManager.getPackageInfo(context.packageName, 0)
-    }
-    val versionCode = remember(packageInfo) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toLong()
-        }
-    }
-    val shareTitle = stringResource(R.string.about_share)
-    val shareText = stringResource(R.string.about_share_text)
-    val initialShareTheme = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
-        SharePromoTheme.DARK
-    } else {
-        SharePromoTheme.LIGHT
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        Surface(
-            modifier = Modifier.size(SettingsAboutBadgeSize),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Outlined.AutoStories,
-                    contentDescription = null,
-                    modifier = Modifier.size(Sizes.iconLarge),
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.app_tagline),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.about_version,
-                    packageInfo.versionName ?: "0.1.0",
-                    versionCode.toString(),
-                ),
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Text(
-            text = stringResource(R.string.about_credit),
-            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = stringResource(R.string.about_made_in),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            OutlinedButton(
-                onClick = { uriHandler.openUri(VAYANA_GITHUB_URL) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(imageVector = Icons.Outlined.Code, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(text = stringResource(R.string.about_github), textAlign = TextAlign.Center)
-            }
-            OutlinedButton(
-                onClick = { showShareDialog = true },
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(imageVector = Icons.Outlined.IosShare, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(text = shareTitle, textAlign = TextAlign.Center)
-            }
-        }
-        FilledTonalButton(
-            onClick = { uriHandler.openUri(VAYANA_RELEASES_URL) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(imageVector = Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-            Spacer(modifier = Modifier.width(Spacing.xs))
-            Text(text = stringResource(R.string.about_website), textAlign = TextAlign.Center)
-        }
-    }
-
-    if (showShareDialog) {
-        ShareVayanaDialog(
-            initialMessage = shareText,
-            initialTheme = initialShareTheme,
-            chooserTitle = shareTitle,
-            onDismissRequest = { showShareDialog = false },
-            onShare = { message, imageRes ->
-                context.shareApp(shareTitle, message, imageRes)
-            },
-        )
-    }
-}
-
-@Composable
-private fun ShareVayanaDialog(
-    initialMessage: String,
-    initialTheme: SharePromoTheme,
-    chooserTitle: String,
-    onDismissRequest: () -> Unit,
-    onShare: (message: String, imageRes: Int?) -> Unit,
-) {
-    var message by rememberSaveable { mutableStateOf(initialMessage) }
-    var includeImage by rememberSaveable { mutableStateOf(true) }
-    var selectedTheme by rememberSaveable { mutableStateOf(initialTheme) }
-
-    ExpressiveDialogSurface(
-        onDismissRequest = onDismissRequest,
-        scrollable = true,
-        animateContentSize = false,
-    ) {
-        ExpressiveDialogHeader(
-            icon = Icons.Outlined.IosShare,
-            title = chooserTitle,
-            supportingText = stringResource(R.string.share_app_dialog_subtitle),
-        )
-
-        if (includeImage) {
-            Image(
-                painter = painterResource(selectedTheme.imageRes),
-                contentDescription = stringResource(R.string.share_app_preview_content_description),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(Radii.large)),
-            )
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radii.medium),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = Elevations.none,
-        ) {
-            Row(
-                modifier = Modifier.padding(Paddings.card),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.share_app_include_image),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(R.string.share_app_include_image_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = includeImage, onCheckedChange = { includeImage = it })
-            }
-        }
-
-        if (includeImage) {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(
-                    text = stringResource(R.string.share_app_theme_label),
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FilterChip(
-                        selected = selectedTheme == SharePromoTheme.LIGHT,
-                        onClick = { selectedTheme = SharePromoTheme.LIGHT },
-                        label = { Text(stringResource(R.string.share_app_theme_light)) },
-                    )
-                    FilterChip(
-                        selected = selectedTheme == SharePromoTheme.DARK,
-                        onClick = { selectedTheme = SharePromoTheme.DARK },
-                        label = { Text(stringResource(R.string.share_app_theme_dark)) },
-                    )
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = message,
-            onValueChange = { message = it },
-            label = { Text(stringResource(R.string.share_app_message_label)) },
-            minLines = 4,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(
-                text = stringResource(R.string.share_app_link_note),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = VAYANA_RELEASES_URL,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(android.R.string.cancel))
-            }
-            Button(
-                onClick = {
-                    onShare(message, selectedTheme.imageRes.takeIf { includeImage })
-                    onDismissRequest()
-                },
-                shape = Radii.buttonShape,
-            ) {
-                Icon(imageVector = Icons.Outlined.IosShare, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(stringResource(R.string.share_app_button, stringResource(R.string.app_name)))
-            }
-        }
-    }
-}
-
-@Composable
-private fun GitHubSyncHealthCard(settings: SettingsSnapshot, connectionState: GitHubConnectionTestState) {
-    val enabled = settings.githubSyncEnabled
-    val repositoryReady = settings.githubOwner.isNotBlank() && settings.githubRepository.isNotBlank() && settings.githubBranch.isNotBlank()
-    val tokenReady = settings.githubToken.isNotBlank()
-    val passphraseReady = settings.githubSyncPassphrase.isNotBlank()
-    val ready = enabled && repositoryReady && tokenReady && passphraseReady
-    val statusText = when {
-        !enabled -> stringResource(R.string.settings_github_health_off)
-        ready -> stringResource(R.string.settings_github_health_ready)
-        else -> stringResource(R.string.settings_github_health_needs_setup)
-    }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = Radii.cardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = Elevations.level1,
-    ) {
-        Column(
-            modifier = Modifier.padding(Paddings.card),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                SettingsIconBubble(icon = if (ready) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber, selected = ready)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_github_health_title),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                SyncHealthRow(
-                    label = stringResource(R.string.settings_github_health_repository),
-                    value = if (repositoryReady) {
-                        "${settings.githubOwner}/${settings.githubRepository} · ${settings.githubBranch}"
-                    } else {
-                        stringResource(R.string.settings_github_health_missing)
-                    },
-                    healthy = repositoryReady,
-                )
-                SyncHealthRow(
-                    label = stringResource(R.string.settings_github_health_token),
-                    value = if (tokenReady) stringResource(R.string.settings_github_health_present) else stringResource(R.string.settings_github_health_missing),
-                    healthy = tokenReady,
-                )
-                SyncHealthRow(
-                    label = stringResource(R.string.settings_github_health_passphrase),
-                    value = if (passphraseReady) stringResource(R.string.settings_github_health_present) else stringResource(R.string.settings_github_health_missing),
-                    healthy = passphraseReady,
-                )
-                SyncHealthRow(
-                    label = stringResource(R.string.settings_github_health_last_check),
-                    value = connectionState.healthLabel(),
-                    healthy = connectionState is GitHubConnectionTestState.Connected || connectionState is GitHubConnectionTestState.ReadyForInitialSync,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SyncHealthRow(label: String, value: String, healthy: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Icon(
-            imageVector = if (healthy) Icons.Outlined.CheckCircle else Icons.Outlined.Close,
-            contentDescription = null,
-            modifier = Modifier.size(Sizes.iconSmall),
-            tint = if (healthy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f, fill = false),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun GitHubConnectionTestState.healthLabel(): String = when (this) {
-    GitHubConnectionTestState.Idle -> stringResource(R.string.settings_github_health_not_checked)
-    GitHubConnectionTestState.Working -> stringResource(R.string.settings_github_connection_test_working)
-    GitHubConnectionTestState.Connected -> stringResource(R.string.settings_github_connection_test_connected)
-    GitHubConnectionTestState.ReadyForInitialSync -> stringResource(R.string.settings_github_connection_test_ready_initial)
-    GitHubConnectionTestState.MissingConfig -> stringResource(R.string.settings_github_connection_test_missing_config)
-    is GitHubConnectionTestState.Failed -> stringResource(R.string.settings_github_connection_test_failed, message)
-}
-
-@Composable
-private fun GitHubConnectionTestCard(
-    state: GitHubConnectionTestState,
-    onTest: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val working = state is GitHubConnectionTestState.Working
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(Paddings.card)
-                .vayanaAnimateContentSize(),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                SettingsIconBubble(icon = Icons.Outlined.Sync, selected = false)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_github_connection_test_title),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_github_connection_test_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            FilledTonalButton(
-                onClick = onTest,
-                enabled = !working,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (working) {
-                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
-                } else {
-                    Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                }
-                Text(stringResource(R.string.settings_github_connection_test_action), modifier = Modifier.padding(start = Spacing.xs))
-            }
-            when (state) {
-                GitHubConnectionTestState.Working -> Text(
-                    text = stringResource(R.string.settings_github_connection_test_working),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                GitHubConnectionTestState.Connected -> BackupStatusRow(
-                    message = stringResource(R.string.settings_github_connection_test_connected),
-                    isError = false,
-                    onDismiss = onDismiss,
-                )
-                GitHubConnectionTestState.ReadyForInitialSync -> BackupStatusRow(
-                    message = stringResource(R.string.settings_github_connection_test_ready_initial),
-                    isError = false,
-                    onDismiss = onDismiss,
-                )
-                GitHubConnectionTestState.MissingConfig -> SyncWarningCallout(
-                    message = stringResource(R.string.settings_github_connection_test_missing_config),
-                    onDismiss = onDismiss,
-                )
-                is GitHubConnectionTestState.Failed -> SyncWarningCallout(
-                    message = stringResource(R.string.settings_github_connection_test_failed, state.message),
-                    onDismiss = onDismiss,
-                )
-                GitHubConnectionTestState.Idle -> Unit
-            }
         }
     }
 }
@@ -1473,106 +853,6 @@ private fun ReaderCustomFontsCard(
 }
 
 @Composable
-private fun GitHubSyncSettingsTransferCard(
-    state: GitHubSyncSettingsTransferState,
-    onExport: (Uri) -> Unit,
-    onImport: (Uri) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val exportFileName = remember {
-        "vayana-github-sync-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.vayana-ghsync"
-    }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        uri?.let(onExport)
-    }
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(onImport)
-    }
-    val working = state is GitHubSyncSettingsTransferState.Working
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(Paddings.card)
-                .vayanaAnimateContentSize(),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                SettingsIconBubble(icon = Icons.Outlined.Storage, selected = false)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_github_transfer_title),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_github_transfer_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                FilledTonalButton(
-                    onClick = { exportLauncher.launch(exportFileName) },
-                    enabled = !working,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(imageVector = Icons.Outlined.FileUpload, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Text(stringResource(R.string.settings_github_transfer_export), modifier = Modifier.padding(start = Spacing.xs))
-                }
-                FilledTonalButton(
-                    onClick = { importLauncher.launch(arrayOf("application/octet-stream", "*/*")) },
-                    enabled = !working,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(imageVector = Icons.Outlined.FileDownload, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Text(stringResource(R.string.settings_github_transfer_import), modifier = Modifier.padding(start = Spacing.xs))
-                }
-            }
-            when (state) {
-                GitHubSyncSettingsTransferState.Working -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
-                    Text(stringResource(R.string.settings_github_transfer_working), style = MaterialTheme.typography.bodySmall)
-                }
-                GitHubSyncSettingsTransferState.ExportComplete -> BackupStatusRow(
-                    message = stringResource(R.string.settings_github_transfer_export_complete),
-                    isError = false,
-                    onDismiss = onDismiss,
-                )
-                GitHubSyncSettingsTransferState.ImportComplete -> BackupStatusRow(
-                    message = stringResource(R.string.settings_github_transfer_import_complete),
-                    isError = false,
-                    onDismiss = onDismiss,
-                )
-                GitHubSyncSettingsTransferState.MissingPassphrase -> SyncWarningCallout(
-                    message = stringResource(R.string.settings_github_transfer_missing_passphrase),
-                    onDismiss = onDismiss,
-                )
-                is GitHubSyncSettingsTransferState.Failed -> SyncWarningCallout(
-                    message = stringResource(R.string.settings_github_transfer_failed, state.message),
-                    onDismiss = onDismiss,
-                )
-                GitHubSyncSettingsTransferState.Idle -> Unit
-            }
-        }
-    }
-}
-
-@Composable
 private fun SettingsGroupHeader(group: SettingsGroup, settingCount: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1647,194 +927,6 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
 }
 
 @Composable
-private fun BackupRestoreCard(
-    backupState: BackupUiState,
-    onCreateBackup: (Uri) -> Unit,
-    onPickRestoreFile: (Uri) -> Unit,
-    onDismissBackupState: () -> Unit,
-) {
-    val backupFileName = remember {
-        "vayana-backup-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.zip"
-    }
-    val createBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        uri?.let(onCreateBackup)
-    }
-    val pickRestoreFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(onPickRestoreFile)
-    }
-    val working = backupState is BackupUiState.Working
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = Elevations.none,
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(Paddings.card)
-                .vayanaAnimateContentSize(),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                SettingsIconBubble(icon = Icons.Outlined.Backup, selected = false)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_backup_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_backup_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                FilledTonalButton(
-                    onClick = { createBackupLauncher.launch(backupFileName) },
-                    enabled = !working,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(imageVector = Icons.Outlined.Backup, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Text(stringResource(R.string.settings_backup_create), modifier = Modifier.padding(start = Spacing.xs))
-                }
-                FilledTonalButton(
-                    onClick = {
-                        pickRestoreFileLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-                    },
-                    enabled = !working,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Text(stringResource(R.string.settings_backup_restore), modifier = Modifier.padding(start = Spacing.xs))
-                }
-            }
-
-            when (backupState) {
-                BackupUiState.Working -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
-                    Text(stringResource(R.string.settings_backup_working), style = MaterialTheme.typography.bodySmall)
-                }
-                BackupUiState.BackupComplete -> BackupStatusRow(
-                    message = stringResource(R.string.settings_backup_complete),
-                    isError = false,
-                    onDismiss = onDismissBackupState,
-                )
-                is BackupUiState.BackupFailed -> BackupStatusRow(
-                    message = stringResource(R.string.settings_backup_failed, backupState.message),
-                    isError = true,
-                    onDismiss = onDismissBackupState,
-                )
-                is BackupUiState.RestoreFailed -> BackupStatusRow(
-                    message = stringResource(R.string.settings_restore_failed, backupState.message),
-                    isError = true,
-                    onDismiss = onDismissBackupState,
-                )
-                is BackupUiState.RestoreIncompatible -> BackupStatusRow(
-                    message = backupState.message,
-                    isError = true,
-                    onDismiss = onDismissBackupState,
-                )
-                BackupUiState.Idle -> Unit
-            }
-        }
-    }
-}
-
-@Composable
-private fun SyncWarningCallout(message: String, onDismiss: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLarge),
-        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.72f),
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.error.copy(alpha = 0.34f)),
-        tonalElevation = Elevations.shadowSmall,
-    ) {
-        Row(
-            modifier = Modifier.padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Surface(
-                modifier = Modifier.size(SettingsCategoryBadgeSize),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError,
-                tonalElevation = Elevations.shadowSmall,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Outlined.WarningAmber,
-                        contentDescription = null,
-                        modifier = Modifier.size(Sizes.iconSmall),
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_sync_warning_title),
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.86f),
-                )
-            }
-            FilledTonalButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(Radii.full),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            ) {
-                Text(stringResource(R.string.settings_sync_warning_dismiss))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BackupStatusRow(message: String, isError: Boolean, onDismiss: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = onDismiss) {
-            Icon(
-                imageVector = Icons.Outlined.Close,
-                contentDescription = stringResource(R.string.input_clear_content_description),
-                modifier = Modifier.size(Sizes.iconSmall),
-            )
-        }
-    }
-}
-
-@Composable
 private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
@@ -1906,7 +998,7 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
 }
 
 @Composable
-private fun SettingsIconBubble(icon: ImageVector, selected: Boolean) {
+internal fun SettingsIconBubble(icon: ImageVector, selected: Boolean) {
     Surface(
         modifier = Modifier.size(Sizes.touchTarget),
         shape = RoundedCornerShape(Radii.large),
@@ -1991,276 +1083,8 @@ private fun SettingsPanelCard(
     }
 }
 
-@Composable
-private fun SettingRow(
-    setting: Setting<out Any>,
-    value: Any,
-    onUpdate: (Setting<Any>, Any) -> Unit,
-    onReset: (Setting<out Any>) -> Unit,
-) {
-    val isModified = value != setting.defaultValue
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .vayanaAnimateContentSize(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Paddings.card),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(setting.titleRes),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                setting.subtitleRes?.let { subtitleRes ->
-                    Text(
-                        text = stringResource(subtitleRes),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-            ) {
-                if (isModified) {
-                    IconButton(onClick = { onReset(setting) }) {
-                        Icon(
-                            imageVector = Icons.Outlined.RestartAlt,
-                            contentDescription = stringResource(R.string.settings_reset_one_content_description),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-                if (setting is BooleanSetting) {
-                    Switch(
-                        checked = value as Boolean,
-                        onCheckedChange = { onUpdate(setting.asAny(), it) },
-                    )
-                }
-            }
-        }
-        when (setting) {
-            is BooleanSetting -> Unit
-            is IntSetting -> IntSettingControl(setting = setting, value = value as Int, onUpdate = { onUpdate(setting.asAny(), it) })
-            is FloatSetting -> FloatSettingControl(setting = setting, value = value as Float, onUpdate = { onUpdate(setting.asAny(), it) })
-            is StringSetting -> StringSettingControl(setting = setting, value = value as String, onUpdate = { onUpdate(setting.asAny(), it) })
-            is ChoiceSetting<*> -> ChoiceSettingControl(setting = setting, value = value, onUpdate = { onUpdate(setting.asAny(), it) })
-        }
-    }
-}
-
-@Composable
-private fun IntSettingControl(setting: IntSetting, value: Int, onUpdate: (Int) -> Unit) {
-    val display = setting.intDisplay()
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = display(setting.range.first),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Surface(
-                shape = RoundedCornerShape(Radii.full),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Text(
-                    text = display(value),
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            Text(
-                text = display(setting.range.last),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Slider(
-            value = value.toFloat(),
-            onValueChange = { onUpdate((it / setting.step).roundToInt() * setting.step) },
-            valueRange = setting.range.first.toFloat()..setting.range.last.toFloat(),
-            steps = ((setting.range.last - setting.range.first) / setting.step - 1).coerceAtLeast(0),
-        )
-    }
-}
-
-private fun IntSetting.intDisplay(): (Int) -> String = when (this) {
-    SettingsRegistry.ReaderFontSize -> { value -> (value / 100f).formatScale() }
-    SettingsRegistry.ReaderSideMargin -> { value -> value.toString() }
-    SettingsRegistry.ReaderHeaderGap -> { value -> "${value}dp" }
-    SettingsRegistry.ReaderFooterGap -> { value -> "${value}dp" }
-    SettingsRegistry.DailyReadingGoalMinutes -> { value -> value.toString() }
-    SettingsRegistry.YearlyBooksGoal -> { value -> value.toString() }
-    else -> { value -> value.toString() }
-}
-
-@Composable
-private fun FloatSettingControl(setting: FloatSetting, value: Float, onUpdate: (Float) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = setting.range.start.formatScale(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Surface(
-                shape = RoundedCornerShape(Radii.full),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Text(
-                    text = value.formatScale(),
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            Text(
-                text = setting.range.endInclusive.formatScale(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Slider(
-            value = value,
-            onValueChange = { raw -> onUpdate(((raw / setting.step).roundToInt() * setting.step).coerceIn(setting.range.start, setting.range.endInclusive)) },
-            valueRange = setting.range,
-            steps = (((setting.range.endInclusive - setting.range.start) / setting.step).roundToInt() - 1).coerceAtLeast(0),
-        )
-    }
-}
-
-private fun Float.formatScale(): String {
-    val roundedToHundredth = (this * 100).roundToInt() / 100f
-    val label = if (roundedToHundredth % 1f == 0f) {
-        roundedToHundredth.toInt().toString()
-    } else {
-        "%.2f".format(Locale.getDefault(), roundedToHundredth).trimEnd('0').trimEnd('.')
-    }
-    return "${label}x"
-}
-
-@Composable
-private fun StringSettingControl(setting: StringSetting, value: String, onUpdate: (String) -> Unit) {
-    val focusManager = LocalFocusManager.current
-    var pendingValue by remember(setting.key, value) { mutableStateOf(value) }
-    OutlinedTextField(
-        value = pendingValue,
-        onValueChange = {
-            pendingValue = it.take(setting.maxLength)
-            onUpdate(pendingValue)
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
-        singleLine = true,
-        shape = RoundedCornerShape(Radii.large),
-        keyboardOptions = KeyboardOptions(
-            imeAction = ImeAction.Done,
-            keyboardType = if (setting.secure) KeyboardType.Password else KeyboardType.Text,
-        ),
-        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-        visualTransformation = if (setting.secure) PasswordVisualTransformation() else VisualTransformation.None,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-        ),
-    )
-}
-
-@Composable
-private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate: (Any) -> Unit) {
-    val scrollState = rememberScrollState()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .padding(start = Paddings.card, end = Paddings.card, bottom = Spacing.md),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        setting.options.forEach { option ->
-            val selected = option.value == value
-            val cornerRadius by animateDpAsState(
-                targetValue = if (selected) Radii.full else Radii.small,
-                label = "SettingsChoiceChipCorner",
-            )
-            FilterChip(
-                selected = selected,
-                onClick = { onUpdate(option.value) },
-                label = {
-                    Text(
-                        text = stringResource(option.labelRes),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                        ),
-                    )
-                },
-                leadingIcon = if (selected) {
-                    {
-                        Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconSmall),
-                        )
-                    }
-                } else {
-                    null
-                },
-                shape = RoundedCornerShape(cornerRadius),
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = selected,
-                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                    selectedBorderColor = MaterialTheme.colorScheme.primary,
-                    borderWidth = Strokes.outline,
-                    selectedBorderWidth = Strokes.none,
-                ),
-            )
-        }
-    }
-}
-
 @Suppress("UNCHECKED_CAST")
-private fun Setting<out Any>.asAny(): Setting<Any> = this as Setting<Any>
+internal fun Setting<out Any>.asAny(): Setting<Any> = this as Setting<Any>
 
 private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (setting) {
     SettingsRegistry.ThemeMode -> themeMode
@@ -2338,7 +1162,7 @@ private fun Setting<out Any>.searchTokens(): String {
 }
 
 @Composable
-private fun SettingsGroup.icon(): ImageVector = when (this) {
+internal fun SettingsGroup.icon(): ImageVector = when (this) {
     SettingsGroup.APPEARANCE -> Icons.Outlined.Palette
     SettingsGroup.READER_TYPOGRAPHY -> Icons.Outlined.FormatSize
     SettingsGroup.READER_LAYOUT -> Icons.Outlined.Visibility
@@ -2349,43 +1173,9 @@ private fun SettingsGroup.icon(): ImageVector = when (this) {
 }
 
 @Composable
-private fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
+internal fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
     SettingsGroup.GOALS,
     SettingsGroup.MAINTENANCE,
     -> stringResource(subtitleRes, settingCount)
     else -> stringResource(subtitleRes)
 }
-
-private fun android.content.Context.shareApp(
-    chooserTitle: String,
-    message: String,
-    @DrawableRes imageRes: Int?,
-) {
-    val body = buildString {
-        val trimmed = message.trim()
-        if (trimmed.isNotEmpty()) {
-            append(trimmed)
-            append("\n\n")
-        }
-        append(VAYANA_RELEASES_URL)
-    }
-    val imageUri = imageRes?.let { stageSharePromoImage(it) }
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = if (imageUri != null) "image/jpeg" else "text/plain"
-        putExtra(Intent.EXTRA_TEXT, body)
-        if (imageUri != null) {
-            putExtra(Intent.EXTRA_STREAM, imageUri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-    }
-    startActivity(Intent.createChooser(intent, chooserTitle))
-}
-
-private fun android.content.Context.stageSharePromoImage(@DrawableRes imageRes: Int): Uri? = runCatching {
-    val dir = File(cacheDir, "shared_images").apply { mkdirs() }
-    val imageFile = File(dir, "vayana_share.jpg")
-    resources.openRawResource(imageRes).use { input ->
-        imageFile.outputStream().use { output -> input.copyTo(output) }
-    }
-    FileProvider.getUriForFile(this, "$packageName.fileprovider", imageFile)
-}.getOrNull()

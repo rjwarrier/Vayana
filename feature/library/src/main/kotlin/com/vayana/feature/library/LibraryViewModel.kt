@@ -2661,14 +2661,6 @@ private fun String.normalizedTagsCsv(): String? =
         .trimEnd(',', ' ')
         .ifBlank { null }
 
-private fun String.normalizedBookTag(): String =
-    map { if (Character.isISOControl(it)) ' ' else it }
-        .joinToString("")
-        .trim()
-        .replace(Regex("\\s+"), " ")
-        .take(MaxBookTagChars)
-        .trim()
-
 private fun LibrarySortDirection.toggled(): LibrarySortDirection = when (this) {
     LibrarySortDirection.ASCENDING -> LibrarySortDirection.DESCENDING
     LibrarySortDirection.DESCENDING -> LibrarySortDirection.ASCENDING
@@ -2711,7 +2703,6 @@ private const val MaxConcurrentCoverDownloads = 4
 private const val GitHubSyncProgressTotalSteps = 5
 private const val CloudBookDownloadProgressTotalSteps = 5
 private const val MaxBookTags = 32
-private const val MaxBookTagChars = 40
 private const val MaxBookTagsCsvChars = 1_024
 private const val ProgressPromptPercentEpsilon = 0.001f
 
