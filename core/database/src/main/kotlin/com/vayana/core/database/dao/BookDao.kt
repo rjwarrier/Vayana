@@ -185,7 +185,10 @@ interface BookDao {
     @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun setReadNext(id: Long, readNextAddedAt: Long?, updatedAt: Long)
 
-    @Query("SELECT * FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt ASC")
+    @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt DESC")
+    suspend fun getReadNextQueueIdsNewestFirst(): List<Long>
+
+    @Query("SELECT * FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt ASC LIMIT 2")
     fun observeReadNextQueue(): Flow<List<BookEntity>>
 
     @Query("SELECT * FROM books ORDER BY syncId ASC")

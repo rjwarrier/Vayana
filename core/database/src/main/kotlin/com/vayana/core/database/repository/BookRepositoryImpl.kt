@@ -306,7 +306,15 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.observeReadNextQueue().map { entities -> entities.map { it.toDomain() } }
 
     override suspend fun setReadNext(id: Long, queued: Boolean) {
-        bookDao.setReadNext(id, if (queued) System.currentTimeMillis() else null, System.currentTimeMillis())
+        database.withTransaction {
+            val timestamp = System.currentTimeMillis()
+            bookDao.setReadNext(id, if (queued) timestamp else null, timestamp)
+            if (queued) {
+                bookDao.getReadNextQueueIdsNewestFirst()
+                    .drop(MaxReadNextQueueBooks)
+                    .forEach { overflowId -> bookDao.setReadNext(overflowId, null, timestamp) }
+            }
+        }
     }
 
     override suspend fun attachDownloadedFile(
@@ -621,4 +629,5 @@ private fun String.normalizedBookTag(): String =
 private const val MaxBookTags = 32
 private const val MaxBookTagChars = 40
 private const val MaxBookTagsCsvChars = 1_024
+private const val MaxReadNextQueueBooks = 2
 private const val RemoteProgressEventBufferCapacity = 32

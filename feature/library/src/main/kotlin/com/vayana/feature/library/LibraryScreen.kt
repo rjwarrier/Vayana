@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -278,6 +277,7 @@ fun BookDetailRoute(
         onAddToShelf = { shelfId -> viewModel.addBookToShelf(bookId, shelfId) },
         onRemoveFromShelf = { shelfId -> viewModel.removeBookFromShelf(bookId, shelfId) },
         onSetReadNext = { queued -> viewModel.setReadNext(bookId, queued) },
+        onSetBookReadNext = viewModel::setReadNext,
         onBack = onBack,
         onContinueReading = onContinueReading,
         onUpdateMetadata = { title, author, series, seriesNumber, description, tagsCsv ->
@@ -1762,11 +1762,12 @@ private fun ReadNextShelf(
                 }
             }
         }
-        LazyRow(
+        val previewBooks = books.take(MaxReadNextPreviewBooks)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            contentPadding = PaddingValues(end = Spacing.sm),
         ) {
-            items(books.take(MaxReadNextPreviewBooks), key = { it.id }) { book ->
+            previewBooks.forEach { book ->
                 ReadNextBookCard(
                     book = book,
                     isSuggestion = isSuggestion,
@@ -1774,6 +1775,7 @@ private fun ReadNextShelf(
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(book) },
                     onRemove = { onRemove(book) },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -1788,10 +1790,10 @@ private fun ReadNextBookCard(
     downloadProgress: Float?,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
 ) {
     Surface(
-        modifier = Modifier
-            .width(280.dp)
+        modifier = modifier
             .clickable(enabled = !isDownloading, onClick = onClick),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -2305,6 +2307,7 @@ private fun BookDetailScreen(
     onAddToShelf: (Long) -> Unit,
     onRemoveFromShelf: (Long) -> Unit,
     onSetReadNext: (Boolean) -> Unit,
+    onSetBookReadNext: (Long, Boolean) -> Unit,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
     onUpdateMetadata: (String, String, String, String, String, String) -> Unit,
@@ -2853,6 +2856,10 @@ private fun BookDetailScreen(
         ReadNextSeriesBreakDialog(
             warning = warning,
             onDismissRequest = { readNextSeriesBreakWarning = null },
+            onFollowCurrentSeries = {
+                readNextSeriesBreakWarning = null
+                onSetBookReadNext(warning.nextBook.id, true)
+            },
             onConfirm = {
                 readNextSeriesBreakWarning = null
                 onSetReadNext(true)
@@ -3926,6 +3933,7 @@ private fun TagSuggestionField(
 private fun ReadNextSeriesBreakDialog(
     warning: ReadNextSeriesBreakWarning,
     onDismissRequest: () -> Unit,
+    onFollowCurrentSeries: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     ExpressiveDialogSurface(onDismissRequest = onDismissRequest, animateContentSize = false) {
@@ -3964,10 +3972,19 @@ private fun ReadNextSeriesBreakDialog(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(
+        Button(
+            onClick = onFollowCurrentSeries,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = Spacing.sm),
+            shape = Radii.buttonShape,
+        ) {
+            Text(stringResource(R.string.library_read_next_series_break_follow), maxLines = 1)
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.xs),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -3982,6 +3999,7 @@ private fun ReadNextSeriesBreakDialog(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
                 shape = Radii.buttonShape,
+                colors = ButtonDefaults.filledTonalButtonColors(),
             ) {
                 Text(stringResource(R.string.library_read_next_series_break_confirm), maxLines = 1)
             }
@@ -5072,7 +5090,7 @@ private fun Book.hasStartedReading(): Boolean =
 
 private const val MetadataSuggestionLimit = 5
 private const val TagSuggestionLimit = 6
-private const val MaxReadNextPreviewBooks = 12
+private const val MaxReadNextPreviewBooks = 2
 private const val MaxBookTags = 32
 private const val MaxBookTagChars = 40
 private const val MaxBookTagsInputChars = 1_024

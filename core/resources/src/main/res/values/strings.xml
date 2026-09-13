@@ -325,6 +325,7 @@
     <string name="library_read_next_added">Added to Read next</string>
     <string name="library_read_next_series_break_title">Break series order?</string>
     <string name="library_read_next_series_break_body">You are currently reading "%1$s", Book No. %2$s in the series "%3$s". The next book in that series is "%4$s". You are about to queue "%5$s", which will break the series. Are you sure?</string>
+    <string name="library_read_next_series_break_follow">Follow current series</string>
     <string name="library_read_next_series_break_confirm">Queue anyway</string>
     <string name="library_sort_import_date">Import order</string>
     <string name="library_sort_title">Title</string>
