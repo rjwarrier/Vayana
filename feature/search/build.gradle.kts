@@ -11,4 +11,6 @@ dependencies {
     implementation(project(":core:filesystem"))
     implementation(libs.coil.compose)
     implementation(libs.coil.core)
+
+    testImplementation(kotlin("test"))
 }

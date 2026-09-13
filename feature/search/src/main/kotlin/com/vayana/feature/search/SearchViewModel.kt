@@ -60,7 +60,7 @@ enum class SearchMatchedField {
     CHAPTER,
 }
 
-private data class SearchResults(
+internal data class SearchResults(
     val query: String = "",
     val books: List<BookSearchResult> = emptyList(),
     val annotations: List<AnnotationSearchResult> = emptyList(),
@@ -108,7 +108,7 @@ class SearchViewModel @Inject constructor(
     }
 }
 
-private fun searchResults(
+internal fun searchResults(
     text: String,
     bookIds: List<Long>,
     annotations: List<Annotation>,
