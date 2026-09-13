@@ -400,7 +400,17 @@ class BookRepositoryImpl @Inject constructor(
         if (record.syncId.isBlank() || record.title.isBlank() || record.fileHash.isBlank()) {
             return CloudBookMergeResult.SKIPPED
         }
-        return database.withTransaction { mergeCloudBookLocked(record) }
+        return database.withTransaction {
+            mergeCloudBookLocked(record).also { result ->
+                if (result != CloudBookMergeResult.SKIPPED) trimReadNextQueueKeepingUpdatedAt()
+            }
+        }
+    }
+
+    // Only setReadNext enforces the cap locally; a merged cloud record can queue more books than that.
+    private suspend fun trimReadNextQueueKeepingUpdatedAt() {
+        val overflowIds = bookDao.getReadNextQueueIdsNewestFirst().drop(MaxReadNextQueueBooks)
+        if (overflowIds.isNotEmpty()) bookDao.clearReadNextKeepingUpdatedAt(overflowIds)
     }
 
     private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
