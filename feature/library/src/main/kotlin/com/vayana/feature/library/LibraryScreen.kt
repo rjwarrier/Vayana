@@ -2850,20 +2850,9 @@ private fun BookDetailScreen(
     }
 
     readNextSeriesBreakWarning?.let { warning ->
-        ConfirmActionDialog(
+        ReadNextSeriesBreakDialog(
+            warning = warning,
             onDismissRequest = { readNextSeriesBreakWarning = null },
-            icon = Icons.AutoMirrored.Outlined.PlaylistAdd,
-            title = stringResource(R.string.library_read_next_series_break_title),
-            body = stringResource(
-                R.string.library_read_next_series_break_body,
-                warning.currentBook.title,
-                warning.currentBookNumber,
-                warning.currentBook.series.orEmpty(),
-                warning.nextBook.title,
-                warning.queuedBook.title,
-            ),
-            confirmLabel = stringResource(R.string.library_read_next_series_break_confirm),
-            dismissLabel = stringResource(R.string.library_edit_metadata_cancel),
             onConfirm = {
                 readNextSeriesBreakWarning = null
                 onSetReadNext(true)
@@ -3928,6 +3917,73 @@ private fun TagSuggestionField(
                         shape = RoundedCornerShape(Radii.full),
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadNextSeriesBreakDialog(
+    warning: ReadNextSeriesBreakWarning,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    ExpressiveDialogSurface(onDismissRequest = onDismissRequest, animateContentSize = false) {
+        Surface(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            tonalElevation = Elevations.level1,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.PlaylistAdd,
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(Spacing.md)
+                    .size(Sizes.iconLarge),
+            )
+        }
+        Text(
+            text = stringResource(R.string.library_read_next_series_break_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = stringResource(
+                R.string.library_read_next_series_break_body,
+                warning.currentBook.title,
+                warning.currentBookNumber,
+                warning.currentBook.series.orEmpty(),
+                warning.nextBook.title,
+                warning.queuedBook.title,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(
+                onClick = onDismissRequest,
+                modifier = Modifier.weight(1f),
+                shape = Radii.buttonShape,
+            ) {
+                Text(stringResource(R.string.library_edit_metadata_cancel), maxLines = 1)
+            }
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.weight(1f),
+                shape = Radii.buttonShape,
+            ) {
+                Text(stringResource(R.string.library_read_next_series_break_confirm), maxLines = 1)
             }
         }
     }
