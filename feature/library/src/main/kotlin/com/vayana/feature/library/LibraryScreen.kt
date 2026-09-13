@@ -116,6 +116,9 @@ import java.io.File
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -1231,7 +1234,7 @@ private fun LibraryListRow(
         ) {
             Box(modifier = Modifier.width(Sizes.coverWidthMin * 0.58f)) {
                 BookCover(book = book, modifier = Modifier.fillMaxWidth())
-                BookFinishedTick(
+                BookFinishedBadge(
                     book = book,
                     onMarkFinished = onMarkFinished,
                     modifier = Modifier.align(Alignment.TopEnd),
@@ -1370,7 +1373,7 @@ private fun LibraryHeroCard(
                         .width(Sizes.coverWidthMin)
                         .clip(RoundedCornerShape(Radii.small)),
                 )
-                BookFinishedTick(
+                BookFinishedBadge(
                     book = book,
                     onMarkFinished = onMarkFinished,
                     modifier = Modifier.align(Alignment.TopEnd),
@@ -1519,7 +1522,7 @@ private fun BookCoverCell(
     Column(modifier = modifier.clickable(enabled = !isDownloading, onClick = onClick)) {
         Box {
             BookCover(book = book, modifier = Modifier.fillMaxWidth())
-            BookFinishedTick(
+            BookFinishedBadge(
                 book = book,
                 onMarkFinished = onMarkFinished,
                 modifier = Modifier.align(Alignment.TopEnd),
@@ -1590,31 +1593,45 @@ private fun BookCoverCell(
  * Uses the same "finished" test as the detail screen's menu so the two never disagree.
  */
 @Composable
-private fun BookFinishedTick(book: Book, onMarkFinished: () -> Unit, modifier: Modifier = Modifier) {
+private fun BookFinishedBadge(book: Book, onMarkFinished: () -> Unit, modifier: Modifier = Modifier) {
     val isFinished = book.finishedReadingAt != null || book.readingPercent >= 1f
-    val badge = @Composable { description: String ->
+    if (isFinished) {
+        // A word, not a tick: unfinished books already show a tick as their "mark as finished" button.
+        val finishedDescription = stringResource(R.string.library_book_finished)
         Surface(
-            shape = CircleShape,
-            color = if (isFinished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = modifier
+                .padding(Spacing.xs)
+                .semantics { contentDescription = finishedDescription },
+            shape = RoundedCornerShape(Radii.full),
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             tonalElevation = Elevations.shadowSmall,
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Check,
-                contentDescription = description,
+            Text(
+                text = stringResource(R.string.library_book_read_badge),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
                 modifier = Modifier
-                    .padding(Spacing.xs)
-                    .size(Sizes.iconSmall),
+                    .clearAndSetSemantics { }
+                    .padding(horizontal = Paddings.badgeHorizontal, vertical = Paddings.badgeVertical),
             )
-        }
-    }
-    if (isFinished) {
-        Box(modifier = modifier.size(Sizes.touchTarget), contentAlignment = Alignment.Center) {
-            badge(stringResource(R.string.library_book_finished))
         }
     } else {
         IconButton(onClick = onMarkFinished, modifier = modifier.size(Sizes.touchTarget)) {
-            badge(stringResource(R.string.library_mark_finished))
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                tonalElevation = Elevations.shadowSmall,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = stringResource(R.string.library_mark_finished),
+                    modifier = Modifier
+                        .padding(Spacing.xs)
+                        .size(Sizes.iconSmall),
+                )
+            }
         }
     }
 }

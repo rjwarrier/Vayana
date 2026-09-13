@@ -31,4 +31,6 @@ object Paddings {
     val sheetContentBottom = Spacing.xl
     val page = 20.dp
     val heatmapCellGap = 3.dp
+    val badgeHorizontal = Spacing.sm
+    val badgeVertical = 2.dp
 }

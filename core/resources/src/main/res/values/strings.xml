@@ -270,6 +270,7 @@
     <string name="library_mark_finished_confirm_title">Mark as finished?</string>
     <string name="library_mark_finished_confirm_body">“%1$s” will be marked as finished and its progress set to 100%%.</string>
     <string name="library_book_finished">Finished</string>
+    <string name="library_book_read_badge">Read</string>
     <string name="library_reset_reading_stats">Reset reading stats</string>
     <string name="library_reset_reading_stats_title">Reset reading stats?</string>
     <string name="library_reset_reading_stats_body">“%1$s” goes back to unread: progress, reading position, started and finished dates, reading time and reading sessions are all cleared. Highlights, notes and your rating stay. This can\'t be undone.</string>
