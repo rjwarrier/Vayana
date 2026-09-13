@@ -416,6 +416,10 @@ private fun LibraryScreen(
     val showReadNextQueue = readNextQueue.isNotEmpty() &&
         uiState.controls.query.isBlank() &&
         uiState.controls.filter == LibraryFilter.ALL
+    val showReadNextSuggestions = readNextQueue.isEmpty() &&
+        uiState.controls.query.isBlank() &&
+        uiState.controls.filter == LibraryFilter.ALL
+    val activeReadNextQueue = readNextQueue.takeIf { showReadNextQueue }.orEmpty()
 
     fun handleBookClick(book: Book) {
         if (activeDownloadBookId != null) return
@@ -564,7 +568,8 @@ private fun LibraryScreen(
             when (uiState.controls.viewMode) {
                 LibraryViewMode.THUMBNAILS -> LibraryGrid(
                     books = uiState.books,
-                    readNextQueue = readNextQueue.takeIf { showReadNextQueue }.orEmpty(),
+                    readNextQueue = activeReadNextQueue,
+                    showReadNextSuggestions = showReadNextSuggestions,
                     groupBy = uiState.controls.groupBy,
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
@@ -576,7 +581,8 @@ private fun LibraryScreen(
                 )
                 LibraryViewMode.LIST -> LibraryList(
                     books = uiState.books,
-                    readNextQueue = readNextQueue.takeIf { showReadNextQueue }.orEmpty(),
+                    readNextQueue = activeReadNextQueue,
+                    showReadNextSuggestions = showReadNextSuggestions,
                     groupBy = uiState.controls.groupBy,
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
@@ -1460,11 +1466,18 @@ private fun LibraryAddMenuIcon(icon: ImageVector) {
 
 private data class LibraryDisplayBooks(val hero: Book?, val rows: List<Book>)
 private data class LibraryGroupSection(val label: String, val books: List<Book>)
+private data class ReadNextSeriesBreakWarning(
+    val currentBook: Book,
+    val currentBookNumber: String,
+    val nextBook: Book,
+    val queuedBook: Book,
+)
 
 @Composable
 private fun LibraryGrid(
     books: List<Book>,
     readNextQueue: List<Book>,
+    showReadNextSuggestions: Boolean,
     groupBy: LibraryGroupBy,
     contentPadding: PaddingValues,
     downloadingBookId: Long?,
@@ -1475,6 +1488,11 @@ private fun LibraryGrid(
     onViewAllReadNext: () -> Unit,
 ) {
     val displayBooks = rememberLibraryDisplayBooks(books)
+    val suggestedReadNext = if (showReadNextSuggestions) {
+        rememberSuggestedReadNext(books = books, currentBook = displayBooks.hero)
+    } else {
+        emptyList()
+    }
     val sections = displayBooks.rows.toGroupSections(groupBy)
     val placementSpec = rememberLazyItemPlacementSpec()
 
@@ -1490,20 +1508,6 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        if (readNextQueue.isNotEmpty()) {
-            item(key = "read-next", span = { GridItemSpan(maxLineSpan) }) {
-                ReadNextShelf(
-                    books = readNextQueue,
-                    downloadingBookId = downloadingBookId,
-                    downloadProgress = downloadProgress,
-                    onBookClick = onBookClick,
-                    onRemove = onRemoveFromReadNext,
-                    onViewAll = onViewAllReadNext,
-                    modifier = Modifier.animateItem(placementSpec = placementSpec),
-                )
-            }
-        }
-
         displayBooks.hero?.let { heroBook ->
             item(key = "hero:${heroBook.id}", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
@@ -1512,6 +1516,22 @@ private fun LibraryGrid(
                     downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(heroBook) },
                     onMarkFinished = { onMarkFinished(heroBook) },
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
+                )
+            }
+        }
+
+        val readNextBooks = readNextQueue.ifEmpty { suggestedReadNext }
+        if (readNextBooks.isNotEmpty()) {
+            item(key = if (readNextQueue.isNotEmpty()) "read-next" else "read-next-suggestions", span = { GridItemSpan(maxLineSpan) }) {
+                ReadNextShelf(
+                    books = readNextBooks,
+                    isSuggestion = readNextQueue.isEmpty(),
+                    downloadingBookId = downloadingBookId,
+                    downloadProgress = downloadProgress,
+                    onBookClick = onBookClick,
+                    onRemove = onRemoveFromReadNext,
+                    onViewAll = onViewAllReadNext,
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
             }
@@ -1558,6 +1578,7 @@ private fun LibraryGrid(
 private fun LibraryList(
     books: List<Book>,
     readNextQueue: List<Book>,
+    showReadNextSuggestions: Boolean,
     groupBy: LibraryGroupBy,
     contentPadding: PaddingValues,
     downloadingBookId: Long?,
@@ -1568,6 +1589,11 @@ private fun LibraryList(
     onViewAllReadNext: () -> Unit,
 ) {
     val displayBooks = rememberLibraryDisplayBooks(books)
+    val suggestedReadNext = if (showReadNextSuggestions) {
+        rememberSuggestedReadNext(books = books, currentBook = displayBooks.hero)
+    } else {
+        emptyList()
+    }
     val sections = displayBooks.rows.toGroupSections(groupBy)
     val placementSpec = rememberLazyItemPlacementSpec()
 
@@ -1581,20 +1607,6 @@ private fun LibraryList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        if (readNextQueue.isNotEmpty()) {
-            item(key = "read-next") {
-                ReadNextShelf(
-                    books = readNextQueue,
-                    downloadingBookId = downloadingBookId,
-                    downloadProgress = downloadProgress,
-                    onBookClick = onBookClick,
-                    onRemove = onRemoveFromReadNext,
-                    onViewAll = onViewAllReadNext,
-                    modifier = Modifier.animateItem(placementSpec = placementSpec),
-                )
-            }
-        }
-
         displayBooks.hero?.let { heroBook ->
             item(key = "hero:${heroBook.id}") {
                 LibraryHeroCard(
@@ -1603,6 +1615,22 @@ private fun LibraryList(
                     downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(heroBook) },
                     onMarkFinished = { onMarkFinished(heroBook) },
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
+                )
+            }
+        }
+
+        val readNextBooks = readNextQueue.ifEmpty { suggestedReadNext }
+        if (readNextBooks.isNotEmpty()) {
+            item(key = if (readNextQueue.isNotEmpty()) "read-next" else "read-next-suggestions") {
+                ReadNextShelf(
+                    books = readNextBooks,
+                    isSuggestion = readNextQueue.isEmpty(),
+                    downloadingBookId = downloadingBookId,
+                    downloadProgress = downloadProgress,
+                    onBookClick = onBookClick,
+                    onRemove = onRemoveFromReadNext,
+                    onViewAll = onViewAllReadNext,
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
             }
@@ -1657,6 +1685,39 @@ private fun rememberLibraryDisplayBooks(books: List<Book>): LibraryDisplayBooks 
     }
 
 @Composable
+private fun rememberSuggestedReadNext(books: List<Book>, currentBook: Book?): List<Book> =
+    remember(books, currentBook) {
+        val current = currentBook
+            ?.takeIf { it.hasStartedReading() && it.finishedReadingAt == null }
+            ?: return@remember emptyList()
+        val currentSeries = current.series?.metadataKey()?.takeIf { it.isNotBlank() } ?: return@remember emptyList()
+        val currentSeriesNumber = current.seriesNumber?.toDoubleOrNull()
+        val nextInSeries = books
+            .asSequence()
+            .filter { it.id != current.id }
+            .filter { it.series?.metadataKey() == currentSeries }
+            .filter { it.isReadNextCandidate() }
+            .mapNotNull { book -> book.seriesNumber?.toDoubleOrNull()?.let { number -> number to book } }
+            .filter { (number, _) -> currentSeriesNumber == null || number > currentSeriesNumber }
+            .minWithOrNull(compareBy<Pair<Double, Book>> { it.first }.thenBy { it.second.title.metadataKey() })
+            ?.second
+        val fallbackByAuthor = if (nextInSeries == null) {
+            val author = current.author?.metadataKey()?.takeIf { it.isNotBlank() }
+            books
+                .asSequence()
+                .filter { author != null && it.author?.metadataKey() == author }
+                .filter { it.id != current.id }
+                .filter { it.series?.metadataKey() != currentSeries || it.seriesNumber?.toDoubleOrNull()?.let { number -> currentSeriesNumber != null && number > currentSeriesNumber } == true }
+                .filter { it.isReadNextCandidate() }
+                .sortedWith(compareBy<Book> { it.series?.metadataKey().orEmpty() }.thenBy { it.seriesNumber?.toDoubleOrNull() ?: Double.MAX_VALUE }.thenBy { it.title.metadataKey() })
+                .firstOrNull()
+        } else {
+            null
+        }
+        listOfNotNull(nextInSeries ?: fallbackByAuthor)
+    }
+
+@Composable
 private fun rememberLazyItemPlacementSpec() = vayanaSpring<IntOffset>(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = Spring.StiffnessMedium,
@@ -1665,6 +1726,7 @@ private fun rememberLazyItemPlacementSpec() = vayanaSpring<IntOffset>(
 @Composable
 private fun ReadNextShelf(
     books: List<Book>,
+    isSuggestion: Boolean,
     downloadingBookId: Long?,
     downloadProgress: Float?,
     onBookClick: (Book) -> Unit,
@@ -1682,29 +1744,32 @@ private fun ReadNextShelf(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.library_read_next_title),
+                    text = stringResource(if (isSuggestion) R.string.library_read_next_suggestions_title else R.string.library_read_next_title),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = stringResource(R.string.library_read_next_subtitle),
+                    text = stringResource(if (isSuggestion) R.string.library_read_next_suggestions_subtitle else R.string.library_read_next_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            TextButton(onClick = onViewAll) {
-                Text(stringResource(R.string.library_read_next_view_all))
+            if (!isSuggestion) {
+                TextButton(onClick = onViewAll) {
+                    Text(stringResource(R.string.library_read_next_view_all))
+                }
             }
         }
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             contentPadding = PaddingValues(end = Spacing.sm),
         ) {
             items(books.take(MaxReadNextPreviewBooks), key = { it.id }) { book ->
                 ReadNextBookCard(
                     book = book,
+                    isSuggestion = isSuggestion,
                     isDownloading = book.id == downloadingBookId,
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(book) },
@@ -1718,6 +1783,7 @@ private fun ReadNextShelf(
 @Composable
 private fun ReadNextBookCard(
     book: Book,
+    isSuggestion: Boolean,
     isDownloading: Boolean,
     downloadProgress: Float?,
     onClick: () -> Unit,
@@ -1725,42 +1791,25 @@ private fun ReadNextBookCard(
 ) {
     Surface(
         modifier = Modifier
-            .width(156.dp)
+            .width(280.dp)
             .clickable(enabled = !isDownloading, onClick = onClick),
-        shape = RoundedCornerShape(Radii.large),
+        shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
+        tonalElevation = Elevations.none,
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box {
                 BookCover(
                     book = book,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .width(Sizes.coverWidthMin * 0.48f)
                         .aspectRatio(Sizes.coverAspectRatio)
                         .clip(RoundedCornerShape(Radii.small)),
                 )
-                Surface(
-                    modifier = Modifier.align(Alignment.TopEnd),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    tonalElevation = Elevations.shadowSmall,
-                ) {
-                    IconButton(
-                        onClick = onRemove,
-                        modifier = Modifier.size(Sizes.touchTarget),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = stringResource(R.string.library_read_next_remove),
-                            modifier = Modifier.size(Sizes.iconSmall),
-                        )
-                    }
-                }
                 if (isDownloading) {
                     CircularProgressIndicator(
                         progress = { downloadProgress ?: 0f },
@@ -1771,20 +1820,43 @@ private fun ReadNextBookCard(
                     )
                 }
             }
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = book.author.orEmpty().ifBlank { stringResource(R.string.library_group_unknown_author) },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Text(
+                    text = book.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = book.author.orEmpty().ifBlank { stringResource(R.string.library_group_unknown_author) },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                book.seriesDisplayOrNone().takeIf { it.isNotBlank() }?.let { series ->
+                    Text(
+                        text = series,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (!isSuggestion) {
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = stringResource(R.string.library_read_next_remove),
+                        modifier = Modifier.size(Sizes.iconSmall),
+                    )
+                }
+            }
         }
     }
 }
@@ -2269,6 +2341,7 @@ private fun BookDetailScreen(
     var showEditCoverDialog by remember { mutableStateOf(false) }
     var showShareBookDialog by remember { mutableStateOf(false) }
     var showRemoveFromDeviceDialog by remember { mutableStateOf(false) }
+    var readNextSeriesBreakWarning by remember { mutableStateOf<ReadNextSeriesBreakWarning?>(null) }
     var actionsExpanded by remember { mutableStateOf(false) }
     var shareImageOptions by remember { mutableStateOf(BookShareImageOptions()) }
     val detailMessageText = detailMessage?.label()
@@ -2720,7 +2793,21 @@ private fun BookDetailScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         if (book.format != BookFormat.PHYSICAL) {
                             val isQueued = book.readNextAddedAt != null
-                            ElevatedButton(onClick = { onSetReadNext(!isQueued) }, modifier = Modifier.fillMaxWidth()) {
+                            ElevatedButton(
+                                onClick = {
+                                    if (isQueued) {
+                                        onSetReadNext(false)
+                                    } else {
+                                        val warning = libraryBooks.readNextSeriesBreakWarningFor(book)
+                                        if (warning == null) {
+                                            onSetReadNext(true)
+                                        } else {
+                                            readNextSeriesBreakWarning = warning
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
                                 Icon(if (isQueued) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.PlaylistAdd, contentDescription = null)
                                 Text(
                                     text = stringResource(if (isQueued) R.string.library_read_next_remove else R.string.library_read_next_add),
@@ -2758,6 +2845,28 @@ private fun BookDetailScreen(
             onConfirm = {
                 showDeleteDialog = false
                 onDeleteBook()
+            },
+        )
+    }
+
+    readNextSeriesBreakWarning?.let { warning ->
+        ConfirmActionDialog(
+            onDismissRequest = { readNextSeriesBreakWarning = null },
+            icon = Icons.AutoMirrored.Outlined.PlaylistAdd,
+            title = stringResource(R.string.library_read_next_series_break_title),
+            body = stringResource(
+                R.string.library_read_next_series_break_body,
+                warning.currentBook.title,
+                warning.currentBookNumber,
+                warning.currentBook.series.orEmpty(),
+                warning.nextBook.title,
+                warning.queuedBook.title,
+            ),
+            confirmLabel = stringResource(R.string.library_read_next_series_break_confirm),
+            dismissLabel = stringResource(R.string.library_edit_metadata_cancel),
+            onConfirm = {
+                readNextSeriesBreakWarning = null
+                onSetReadNext(true)
             },
         )
     }
@@ -4608,6 +4717,38 @@ private fun Book.canRemoveLocalFileFromDevice(): Boolean =
         !fileAssetSha256.isNullOrBlank() &&
         fileAssetSizeBytes != null &&
         fileAssetUploadedAt != null
+
+private fun Book.isReadNextCandidate(): Boolean =
+    format != BookFormat.PHYSICAL &&
+        finishedReadingAt == null &&
+        readingPercent < 1f
+
+private fun List<Book>.readNextSeriesBreakWarningFor(queuedBook: Book): ReadNextSeriesBreakWarning? {
+    val current = asSequence()
+        .filter { it.id != queuedBook.id }
+        .filter { it.hasStartedReading() && it.finishedReadingAt == null }
+        .filter { !it.series.isNullOrBlank() && !it.seriesNumber.isNullOrBlank() }
+        .maxByOrNull { it.lastReadAt ?: it.startedReadingAt ?: 0L }
+        ?: return null
+    val currentSeriesKey = current.series.orEmpty().metadataKey()
+    if (queuedBook.series?.metadataKey() == currentSeriesKey) return null
+    val currentNumber = current.seriesNumber?.toDoubleOrNull() ?: return null
+    val nextBook = asSequence()
+        .filter { it.id != current.id }
+        .filter { it.series?.metadataKey() == currentSeriesKey }
+        .filter { it.isReadNextCandidate() }
+        .mapNotNull { book -> book.seriesNumber?.toDoubleOrNull()?.let { number -> number to book } }
+        .filter { (number, _) -> number > currentNumber }
+        .minWithOrNull(compareBy<Pair<Double, Book>> { it.first }.thenBy { it.second.title.metadataKey() })
+        ?.second
+        ?: return null
+    return ReadNextSeriesBreakWarning(
+        currentBook = current,
+        currentBookNumber = current.seriesNumber.orEmpty(),
+        nextBook = nextBook,
+        queuedBook = queuedBook,
+    )
+}
 
 private fun BookFormat.shareMimeType(): String = when (this) {
     BookFormat.EPUB -> "application/epub+zip"
