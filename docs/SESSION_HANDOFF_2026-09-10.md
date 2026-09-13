@@ -1,6 +1,9 @@
 # Session handoff — 2026-09-10
 
-Uncommitted work on `main` (last commit `ab156eb feat: replace reader sync toasts with a status dot`).
+> **Historical.** Everything below was committed on 2026-09-10/11 (from `a6147e5` onward) and the database has
+> since moved to v18. For the current state see [`HANDOFF.md`](HANDOFF.md).
+
+Written while this was uncommitted work on `main` (last commit `ab156eb feat: replace reader sync toasts with a status dot`).
 `./gradlew :app:assembleDebug` passes; the debug build is installed on the user's Pixel 9 Pro XL.
 `GoodreadsParsingTest` (8 tests) passes. Nothing below was committed, and most of it was **not exercised
 on-device** beyond the user's own spot checks — see "Unverified" at the end.
