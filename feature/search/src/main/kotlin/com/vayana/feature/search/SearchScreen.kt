@@ -88,7 +88,7 @@ fun SearchRoute(
         onQueryChange = viewModel::updateQuery,
         onFilterChange = viewModel::updateFilter,
         onSubmitSearch = viewModel::recordSearch,
-        onUseRecentSearch = viewModel::useRecentSearch,
+        onUseRecentSearch = viewModel::updateQuery,
         onClearRecentSearches = viewModel::clearRecentSearches,
         onBack = onBack,
         onOpenBook = { bookId ->
@@ -180,7 +180,7 @@ private fun SearchScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
                     )
-                    if (uiState.hasQuery && (uiState.books.isNotEmpty() || uiState.annotations.isNotEmpty())) {
+                    if (uiState.hasQuery && uiState.totalMatches > 0) {
                         SearchFilterChips(uiState = uiState, onFilterChange = onFilterChange)
                     }
                 }
@@ -478,25 +478,20 @@ private fun SearchEmptyState(
 private fun SearchFilterChips(uiState: GlobalSearchUiState, onFilterChange: (SearchFilter) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         SearchFilter.entries.forEach { filter ->
-            val count = when (filter) {
-                SearchFilter.ALL -> uiState.books.size + uiState.annotations.size
-                SearchFilter.BOOKS -> uiState.books.size
-                SearchFilter.NOTES -> uiState.annotations.size
-            }
             FilterChip(
                 selected = uiState.filter == filter,
                 onClick = { onFilterChange(filter) },
-                label = { Text(filter.label(count)) },
+                label = { Text(filter.label(uiState)) },
             )
         }
     }
 }
 
 @Composable
-private fun SearchFilter.label(count: Int): String = when (this) {
-    SearchFilter.ALL -> stringResource(R.string.search_filter_all, count)
-    SearchFilter.BOOKS -> stringResource(R.string.search_filter_books, count)
-    SearchFilter.NOTES -> stringResource(R.string.search_filter_notes, count)
+private fun SearchFilter.label(state: GlobalSearchUiState): String = when (this) {
+    SearchFilter.ALL -> stringResource(R.string.search_filter_all, state.totalMatches)
+    SearchFilter.BOOKS -> stringResource(R.string.search_filter_books, state.books.size)
+    SearchFilter.NOTES -> stringResource(R.string.search_filter_notes, state.annotations.size)
 }
 
 /** [text] with the word prefixes that matched the search emphasised. */
@@ -567,8 +562,7 @@ private enum class SearchContentState { EmptyQuery, NoMatches, Results }
 
 private fun GlobalSearchUiState.contentState(): SearchContentState = when {
     !hasQuery -> SearchContentState.EmptyQuery
-    hasMatches -> SearchContentState.Results
-    isSearching -> SearchContentState.Results
+    hasMatches || isSearching -> SearchContentState.Results
     else -> SearchContentState.NoMatches
 }
 

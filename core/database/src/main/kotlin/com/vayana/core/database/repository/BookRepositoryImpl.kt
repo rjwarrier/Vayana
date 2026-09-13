@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
+import com.vayana.core.database.model.normalizedBookTagsCsv
 
 class BookRepositoryImpl @Inject constructor(
     private val database: VayanaDatabase,
@@ -312,20 +313,15 @@ class BookRepositoryImpl @Inject constructor(
         return bookDao.observeSearchIds(match, limit)
     }
 
-    override fun observeReadNextQueue(): Flow<List<Book>> =
-        bookDao.observeReadNextQueue().map { entities -> entities.map { it.toDomain() } }
-
     override suspend fun setReadNext(id: Long, queued: Boolean): List<Book> =
         database.withTransaction {
             val timestamp = System.currentTimeMillis()
             bookDao.setReadNext(id, if (queued) timestamp else null, timestamp)
             if (!queued) return@withTransaction emptyList()
-            bookDao.getReadNextQueueIdsNewestFirst()
-                .drop(MaxReadNextQueueBooks)
-                .mapNotNull { overflowId ->
-                    bookDao.setReadNext(overflowId, null, timestamp)
-                    bookDao.getById(overflowId)?.toDomain()
-                }
+            overflowReadNextIds().mapNotNull { overflowId ->
+                bookDao.setReadNext(overflowId, null, timestamp)
+                bookDao.getById(overflowId)?.toDomain()
+            }
         }
 
     override suspend fun attachDownloadedFile(
@@ -411,16 +407,21 @@ class BookRepositoryImpl @Inject constructor(
         }
         return database.withTransaction {
             mergeCloudBookLocked(record).also { result ->
-                if (result != CloudBookMergeResult.SKIPPED) trimReadNextQueueKeepingUpdatedAt()
+                // A merge can only grow the queue when the record itself is queued.
+                if (result != CloudBookMergeResult.SKIPPED && record.readNextAddedAt != null) trimReadNextQueueKeepingUpdatedAt()
             }
         }
     }
 
     // Only setReadNext enforces the cap locally; a merged cloud record can queue more books than that.
     private suspend fun trimReadNextQueueKeepingUpdatedAt() {
-        val overflowIds = bookDao.getReadNextQueueIdsNewestFirst().drop(MaxReadNextQueueBooks)
+        val overflowIds = overflowReadNextIds()
         if (overflowIds.isNotEmpty()) bookDao.clearReadNextKeepingUpdatedAt(overflowIds)
     }
+
+    /** Queued books beyond the cap, oldest additions first to go. */
+    private suspend fun overflowReadNextIds(): List<Long> =
+        bookDao.getReadNextQueueIdsNewestFirst().drop(MaxReadNextQueueBooks)
 
     private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
@@ -647,17 +648,6 @@ private fun CloudBookRecord.hasCoverAsset(): Boolean =
         coverAssetSizeBytes != null &&
         coverAssetUploadedAt != null
 
-private fun String?.normalizedBookTagsCsv(): String? =
-    this?.split(",")
-        ?.map { it.normalizedBookTag() }
-        ?.filter { it.isNotEmpty() }
-        ?.distinctBy { it.lowercase() }
-        ?.take(MaxBookTags)
-        ?.joinToString(", ")
-        ?.take(MaxBookTagsCsvChars)
-        ?.trimEnd(',', ' ')
-        ?.ifBlank { null }
-
 private fun <T> T?.mergeRemoteOptional(remote: T?, remoteIsNewer: Boolean): T? =
     when {
         remote == null -> this
@@ -665,16 +655,5 @@ private fun <T> T?.mergeRemoteOptional(remote: T?, remoteIsNewer: Boolean): T? =
         else -> this
     }
 
-private fun String.normalizedBookTag(): String =
-    map { if (Character.isISOControl(it)) ' ' else it }
-        .joinToString("")
-        .trim()
-        .replace(Regex("\\s+"), " ")
-        .take(MaxBookTagChars)
-        .trim()
-
-private const val MaxBookTags = 32
-private const val MaxBookTagChars = 40
-private const val MaxBookTagsCsvChars = 1_024
 private const val MaxReadNextQueueBooks = 2
 private const val RemoteProgressEventBufferCapacity = 32

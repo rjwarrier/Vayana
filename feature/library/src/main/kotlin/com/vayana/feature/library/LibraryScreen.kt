@@ -116,9 +116,10 @@ import java.io.File
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.vayana.core.database.model.MaxBookTags
+import com.vayana.core.database.model.normalizedBookTag
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -249,13 +250,10 @@ private fun LibraryScreen(
     val initialSyncConfirm = stringResource(R.string.library_sync_initial_confirm_yes)
     val initialSyncCancel = stringResource(R.string.library_sync_initial_confirm_no)
     val activeDownloadBookId = cloudBookDownloadProgress?.takeIf { it.isRunning }?.bookId
-    val showReadNextQueue = readNextQueue.isNotEmpty() &&
-        uiState.controls.query.isBlank() &&
-        uiState.controls.filter == LibraryFilter.ALL
-    val showReadNextSuggestions = readNextQueue.isEmpty() &&
-        uiState.controls.query.isBlank() &&
-        uiState.controls.filter == LibraryFilter.ALL
-    val activeReadNextQueue = readNextQueue.takeIf { showReadNextQueue }.orEmpty()
+    // Read Next only shows on the unfiltered library.
+    val readNextShelfShown = uiState.controls.query.isBlank() && uiState.controls.filter == LibraryFilter.ALL
+    val activeReadNextQueue = readNextQueue.takeIf { readNextShelfShown }.orEmpty()
+    val showReadNextSuggestions = readNextShelfShown && readNextQueue.isEmpty()
 
     fun handleBookClick(book: Book) {
         if (activeDownloadBookId != null) return
@@ -1008,11 +1006,7 @@ private fun LibraryGrid(
     onViewAllReadNext: () -> Unit,
 ) {
     val displayBooks = rememberLibraryDisplayBooks(books)
-    val suggestedReadNext = if (showReadNextSuggestions) {
-        rememberSuggestedReadNext(books = books, currentBook = displayBooks.hero)
-    } else {
-        emptyList()
-    }
+    val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
     val placementSpec = rememberLazyItemPlacementSpec()
 
@@ -1041,7 +1035,6 @@ private fun LibraryGrid(
             }
         }
 
-        val readNextBooks = readNextQueue.ifEmpty { suggestedReadNext }
         if (readNextBooks.isNotEmpty()) {
             item(key = if (readNextQueue.isNotEmpty()) "read-next" else "read-next-suggestions", span = { GridItemSpan(maxLineSpan) }) {
                 ReadNextShelf(
@@ -1109,11 +1102,7 @@ private fun LibraryList(
     onViewAllReadNext: () -> Unit,
 ) {
     val displayBooks = rememberLibraryDisplayBooks(books)
-    val suggestedReadNext = if (showReadNextSuggestions) {
-        rememberSuggestedReadNext(books = books, currentBook = displayBooks.hero)
-    } else {
-        emptyList()
-    }
+    val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
     val placementSpec = rememberLazyItemPlacementSpec()
 
@@ -1140,7 +1129,6 @@ private fun LibraryList(
             }
         }
 
-        val readNextBooks = readNextQueue.ifEmpty { suggestedReadNext }
         if (readNextBooks.isNotEmpty()) {
             item(key = if (readNextQueue.isNotEmpty()) "read-next" else "read-next-suggestions") {
                 ReadNextShelf(
@@ -1594,14 +1582,13 @@ private fun BookCoverCell(
  */
 @Composable
 private fun BookFinishedBadge(book: Book, onMarkFinished: () -> Unit, modifier: Modifier = Modifier) {
-    val isFinished = book.finishedReadingAt != null || book.readingPercent >= 1f
-    if (isFinished) {
+    if (book.isFinished()) {
         // A word, not a tick: unfinished books already show a tick as their "mark as finished" button.
         val finishedDescription = stringResource(R.string.library_book_finished)
         Surface(
             modifier = modifier
                 .padding(Spacing.xs)
-                .semantics { contentDescription = finishedDescription },
+                .clearAndSetSemantics { contentDescription = finishedDescription },
             shape = RoundedCornerShape(Radii.full),
             color = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1611,9 +1598,7 @@ private fun BookFinishedBadge(book: Book, onMarkFinished: () -> Unit, modifier: 
                 text = stringResource(R.string.library_book_read_badge),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
-                modifier = Modifier
-                    .clearAndSetSemantics { }
-                    .padding(horizontal = Paddings.badgeHorizontal, vertical = Paddings.badgeVertical),
+                modifier = Modifier.padding(horizontal = Paddings.badgeHorizontal, vertical = Paddings.badgeVertical),
             )
         }
     } else {
@@ -1773,10 +1758,10 @@ internal fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.M
 internal fun Book.hasStartedReading(): Boolean =
     startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
 
+internal fun Book.isFinished(): Boolean = finishedReadingAt != null || readingPercent >= 1f
+
 internal const val MetadataSuggestionLimit = 5
 internal const val TagSuggestionLimit = 6
-internal const val MaxReadNextPreviewBooks = 2
-private const val MaxBookTags = 32
 internal const val MaxBookTagsInputChars = 1_024
 internal const val MaxSharedBookFileSegmentChars = 80
 internal const val MaxSharedBookFileExtensionChars = 8

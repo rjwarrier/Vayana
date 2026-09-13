@@ -33,7 +33,7 @@ import com.vayana.core.resources.R
 internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val startedAt = book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
-    val isFinished = book.finishedReadingAt != null || book.readingPercent >= 1.0f
+    val isFinished = book.isFinished()
     val daysTaken = remember(startedAt, book.finishedReadingAt) {
         calculateDaysTaken(startedAt = startedAt, finishedAt = book.finishedReadingAt)
     }

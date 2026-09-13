@@ -39,7 +39,7 @@ are historical: useful context, not a current status.
 :core:designsystem      Tokens, theme (light/dark, softer/true-black, E-Ink profile, motion), dialogs, share cards
 :core:resources         All user-facing strings
 :core:common            DispatcherProvider, @ApplicationScope, hashing, quote parsing
-:core:database          Room (DB v18): books, annotations, sessions, shelves, vocabulary, sync identity
+:core:database          Room (DB v19): books, annotations, sessions, shelves, vocabulary, sync identity
                         (aliases, tombstones), FTS search tables; repositories
 :core:datastore         Settings registry + DataStore (settings, onboarding flag, recent searches)
 :core:filesystem        StorageRoots, SAF import copy-in, ResolvedBooks (shared absolute-path book flow)
@@ -71,8 +71,10 @@ Goodreads import and the dictionary download — PROMPT2's original "no network"
 - **Sync merges are last-write-wins on `books.updatedAt` for metadata, but reading progress also bumps
   `updatedAt`.** A field that can change independently of reading (e.g. Read Next) needs its own version
   column; see `readNextUpdatedAt` and `docs/FEATURES.md`.
-- **FTS migrations must copy Room's generated SQL exactly** (tables and `room_fts_content_sync_*` triggers) from the
-  schema JSON, then `'rebuild'`. The triggers re-index a book on every update, including position saves.
+- **FTS table SQL in migrations must match Room's generated `createSql`** in the schema JSON. `annotations_fts` uses
+  Room's content-sync triggers; `books_fts` is standalone, with its own triggers in `search/BookSearchIndex.kt`
+  (created by `MIGRATION_18_19` and, on a fresh install, `BookSearchIndexCallback`). Update both if the searchable
+  book columns change.
 - **Big files:** `LibraryViewModel.kt` (~2.7k lines, one class) and `ReaderScreen.kt` (~2.4k) are the remaining
   giants. `LibraryScreen.kt` and `SettingsScreen.kt` were split by feature on 2026-09-13.
 - **Hilt + KSP + Room** run through convention plugins in `build-logic`. `ProjectExtensions.kt` there must keep its
@@ -82,7 +84,7 @@ Goodreads import and the dictionary download — PROMPT2's original "no network"
 
 ## Unverified on a device (as of 2026-09-13)
 
-- DB migrations 16→17 (`readNextUpdatedAt`) and 17→18 (FTS tables + rebuild) on the user's phone.
+- DB migrations 16→17 (`readNextUpdatedAt`), 17→18 (FTS tables + rebuild) and 18→19 (standalone `books_fts`) on the user's phone.
 - Read Next sync between two devices (queue on A, read the book on B, sync both).
 - Search with a Malayalam title; highlight rendering on E-Ink.
 - Share-app image: the WebP promo is re-encoded to JPEG when shared.

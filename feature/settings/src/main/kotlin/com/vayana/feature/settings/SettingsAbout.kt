@@ -71,6 +71,10 @@ import com.vayana.core.resources.R
 import java.io.File
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val SettingsAboutBadgeSize = Sizes.badgeLarge
 private enum class SharePromoTheme(@param:DrawableRes val imageRes: Int) {
@@ -187,6 +191,7 @@ internal fun HelpAndAboutDetail(
 private fun SettingsAboutSection() {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
     var showShareDialog by rememberSaveable { mutableStateOf(false) }
     val packageInfo = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0)
@@ -303,7 +308,7 @@ private fun SettingsAboutSection() {
             chooserTitle = shareTitle,
             onDismissRequest = { showShareDialog = false },
             onShare = { message, imageRes ->
-                context.shareApp(shareTitle, message, imageRes)
+                coroutineScope.launch { context.shareApp(shareTitle, message, imageRes) }
             },
         )
     }
@@ -440,7 +445,7 @@ private fun ShareVayanaDialog(
     }
 }
 
-private fun android.content.Context.shareApp(
+private suspend fun android.content.Context.shareApp(
     chooserTitle: String,
     message: String,
     @DrawableRes imageRes: Int?,
@@ -453,7 +458,7 @@ private fun android.content.Context.shareApp(
         }
         append(VAYANA_RELEASES_URL)
     }
-    val imageUri = imageRes?.let { stageSharePromoImage(it) }
+    val imageUri = imageRes?.let { withContext(Dispatchers.IO) { stageSharePromoImage(it) } }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = if (imageUri != null) "image/jpeg" else "text/plain"
         putExtra(Intent.EXTRA_TEXT, body)
@@ -465,15 +470,22 @@ private fun android.content.Context.shareApp(
     startActivity(Intent.createChooser(intent, chooserTitle))
 }
 
+/** Runs on IO. Bundled as WebP to keep the APK small; shared as JPEG, which every share target accepts. */
 private fun android.content.Context.stageSharePromoImage(@DrawableRes imageRes: Int): Uri? = runCatching {
     val dir = File(cacheDir, "shared_images").apply { mkdirs() }
-    val imageFile = File(dir, "vayana_share.jpg")
-    // Bundled as WebP to keep the APK small; shared as JPEG, which every share target accepts.
-    val bitmap = BitmapFactory.decodeResource(resources, imageRes) ?: return@runCatching null
-    try {
-        imageFile.outputStream().use { output -> bitmap.compress(Bitmap.CompressFormat.JPEG, SharePromoJpegQuality, output) }
-    } finally {
-        bitmap.recycle()
+    // Encoded once per image per install or update, then reused.
+    val prefix = "vayana_share_${resources.getResourceEntryName(imageRes)}_"
+    val imageFile = File(dir, "$prefix${packageManager.getPackageInfo(packageName, 0).lastUpdateTime}.jpg")
+    if (imageFile.length() == 0L) {
+        dir.listFiles { file -> file.name.startsWith(prefix) }?.forEach(File::delete)
+        val bitmap = BitmapFactory.decodeResource(resources, imageRes) ?: return@runCatching null
+        val partial = File(dir, "${imageFile.name}.partial")
+        try {
+            partial.outputStream().use { output -> bitmap.compress(Bitmap.CompressFormat.JPEG, SharePromoJpegQuality, output) }
+        } finally {
+            bitmap.recycle()
+        }
+        if (!partial.renameTo(imageFile)) return@runCatching null
     }
     FileProvider.getUriForFile(this, "$packageName.fileprovider", imageFile)
 }.getOrNull()

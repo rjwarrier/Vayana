@@ -150,8 +150,7 @@ fun BookDetailRoute(
         onCreateShelf = viewModel::createShelf,
         onAddToShelf = { shelfId -> viewModel.addBookToShelf(bookId, shelfId) },
         onRemoveFromShelf = { shelfId -> viewModel.removeBookFromShelf(bookId, shelfId) },
-        onSetReadNext = { queued -> viewModel.setReadNext(bookId, queued) },
-        onSetBookReadNext = viewModel::setReadNext,
+        onSetReadNext = viewModel::setReadNext,
         readNextBumped = viewModel.readNextBumped,
         onBack = onBack,
         onContinueReading = onContinueReading,
@@ -239,8 +238,7 @@ private fun BookDetailScreen(
     onCreateShelf: (String) -> Unit,
     onAddToShelf: (Long) -> Unit,
     onRemoveFromShelf: (Long) -> Unit,
-    onSetReadNext: (Boolean) -> Unit,
-    onSetBookReadNext: (Long, Boolean) -> Unit,
+    onSetReadNext: (bookId: Long, queued: Boolean) -> Unit,
     readNextBumped: Flow<List<Book>>,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
@@ -743,11 +741,11 @@ private fun BookDetailScreen(
                             ElevatedButton(
                                 onClick = {
                                     if (isQueued) {
-                                        onSetReadNext(false)
+                                        onSetReadNext(book.id, false)
                                     } else {
                                         val warning = libraryBooks.readNextSeriesBreakWarningFor(book)
                                         if (warning == null) {
-                                            onSetReadNext(true)
+                                            onSetReadNext(book.id, true)
                                         } else {
                                             readNextSeriesBreakWarning = warning
                                         }
@@ -802,11 +800,11 @@ private fun BookDetailScreen(
             onDismissRequest = { readNextSeriesBreakWarning = null },
             onFollowCurrentSeries = {
                 readNextSeriesBreakWarning = null
-                onSetBookReadNext(warning.nextBook.id, true)
+                onSetReadNext(warning.nextBook.id, true)
             },
             onConfirm = {
                 readNextSeriesBreakWarning = null
-                onSetReadNext(true)
+                onSetReadNext(warning.queuedBook.id, true)
             },
         )
     }

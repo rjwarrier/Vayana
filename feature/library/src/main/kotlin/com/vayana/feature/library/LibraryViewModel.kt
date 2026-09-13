@@ -457,11 +457,9 @@ class LibraryViewModel @Inject constructor(
 
     private val controls = MutableStateFlow(LibraryControls())
 
-    /** [Book.coverPath] and [Book.filePath] come back root-relative; resolve both before UI use. */
-    private val allBooks: Flow<List<Book>> = resolvedBooks.all
-
+    /** Active books with absolute paths, shared app-wide through [ResolvedBooks]. */
     val libraryBooks: StateFlow<List<Book>> =
-        allBooks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        resolvedBooks.all.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val githubSyncReady: Flow<Boolean> = settingsRepository.snapshot
         .map { it.isGitHubSyncReady() }
@@ -593,8 +591,10 @@ class LibraryViewModel @Inject constructor(
         .map { it.landscapeTwoColumnLayout }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
-    val readNextQueue: StateFlow<List<Book>> = bookRepository.observeReadNextQueue()
-        .withAbsolutePaths()
+    /** Queued books in queue order (earliest added = next up), taken from the library already in memory. */
+    val readNextQueue: StateFlow<List<Book>> = libraryBooks
+        .map { books -> books.filter { it.readNextAddedAt != null }.sortedBy { it.readNextAddedAt } }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun observeBooksForShelf(shelfId: Long): StateFlow<List<Book>> = shelfRepository.observeBooksForShelf(shelfId)
@@ -658,7 +658,7 @@ class LibraryViewModel @Inject constructor(
                 series = series.trim().ifBlank { null },
                 seriesNumber = seriesNumber.trim().ifBlank { null },
                 description = description.trim().ifBlank { null },
-                tagsCsv = tagsCsv.normalizedTagsCsv(),
+                tagsCsv = tagsCsv,
             )
             _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
         }
@@ -2661,17 +2661,6 @@ private fun List<Book>.filterByQuery(query: String): List<Book> {
     }
 }
 
-private fun String.normalizedTagsCsv(): String? =
-    split(",")
-        .map { it.normalizedBookTag() }
-        .filter { it.isNotEmpty() }
-        .distinctBy { it.lowercase() }
-        .take(MaxBookTags)
-        .joinToString(", ")
-        .take(MaxBookTagsCsvChars)
-        .trimEnd(',', ' ')
-        .ifBlank { null }
-
 private fun LibrarySortDirection.toggled(): LibrarySortDirection = when (this) {
     LibrarySortDirection.ASCENDING -> LibrarySortDirection.DESCENDING
     LibrarySortDirection.DESCENDING -> LibrarySortDirection.ASCENDING
@@ -2713,8 +2702,6 @@ private const val MaxSnapshotMetadataSaveAttempts = 2
 private const val MaxConcurrentCoverDownloads = 4
 private const val GitHubSyncProgressTotalSteps = 5
 private const val CloudBookDownloadProgressTotalSteps = 5
-private const val MaxBookTags = 32
-private const val MaxBookTagsCsvChars = 1_024
 private const val ProgressPromptPercentEpsilon = 0.001f
 
 private val SupportedCoverExtensions = setOf("jpg", "jpeg", "png", "webp")

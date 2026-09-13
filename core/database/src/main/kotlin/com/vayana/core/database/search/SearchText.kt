@@ -11,9 +11,9 @@ fun searchTokens(text: String): List<String> =
 internal fun ftsPrefixMatch(tokens: List<String>): String? =
     tokens.takeIf { it.isNotEmpty() }?.joinToString(" ") { "$it*" }
 
-/** The FTS rule applied to one field, to tell a result which of its fields matched. */
-fun String?.hasWordStartingWith(token: String): Boolean =
-    !isNullOrBlank() && split(NonWordChars).any { it.startsWith(token, ignoreCase = true) }
+/** The FTS rule applied to one field, to tell a result which of its fields matched: some word starts with a token. */
+fun String?.hasWordStartingWithAny(tokens: List<String>): Boolean =
+    !isNullOrBlank() && WordChars.findAll(this).any { word -> tokens.any { word.value.startsWith(it, ignoreCase = true) } }
 
 /** The matched prefix of every word in [text] that starts with one of [tokens], for highlighting. */
 fun wordPrefixMatchRanges(text: String, tokens: List<String>): List<IntRange> {

@@ -71,6 +71,7 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
+import com.vayana.core.database.model.normalizedBookTag
 
 @Composable
 internal fun CoverPreviewDialog(book: Book, onDismiss: () -> Unit) {

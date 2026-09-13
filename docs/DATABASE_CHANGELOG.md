@@ -2,6 +2,14 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 19
+`books_fts` becomes a standalone FTS4 table (no `content=books`). Room's content-sync triggers re-indexed a book on
+every `books` update, including each reading-position save. The new `books_fts_after_insert` / `_update` / `_delete`
+triggers (`search/BookSearchIndex.kt`) re-index only when title, author, series, series number, tags or description
+change. The migration drops the old triggers and table, recreates the table, creates the triggers and backfills it
+from `books`; on a fresh install Room creates the table and `BookSearchIndexCallback` creates the triggers.
+`annotations_fts` is unchanged.
+
 ## Version 18
 Adds full-text search (FTS4, `unicode61` tokenizer) for the global Search screen:
 

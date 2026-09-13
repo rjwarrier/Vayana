@@ -18,6 +18,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.vayana.core.database.search.BookSearchIndexCallback
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -28,6 +29,7 @@ object DatabaseModule {
     fun provideVayanaDatabase(@ApplicationContext context: Context): VayanaDatabase =
         Room.databaseBuilder(context, VayanaDatabase::class.java, "vayana.db")
             .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(BookSearchIndexCallback)
             .build()
 
     @Provides

@@ -3,6 +3,7 @@ package com.vayana.core.database
 import androidx.room.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
+import com.vayana.core.database.search.BookSearchIndex
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(connection: SQLiteConnection) {
@@ -349,8 +350,21 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
     }
 }
 
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(connection: SQLiteConnection) {
+        // books_fts leaves Room's content-sync mode so it is re-indexed only when a book's text changes.
+        listOf("BEFORE_UPDATE", "BEFORE_DELETE", "AFTER_UPDATE", "AFTER_INSERT").forEach { event ->
+            connection.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_books_fts_$event")
+        }
+        connection.execSQL("DROP TABLE IF EXISTS `books_fts`")
+        connection.execSQL(BookSearchIndex.CreateTable)
+        BookSearchIndex.createTriggers(connection)
+        connection.execSQL(BookSearchIndex.Backfill)
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
+    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
 )

@@ -188,9 +188,6 @@ interface BookDao {
     @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt DESC")
     suspend fun getReadNextQueueIdsNewestFirst(): List<Long>
 
-    @Query("SELECT * FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt ASC LIMIT 2")
-    fun observeReadNextQueue(): Flow<List<BookEntity>>
-
     /** Doesn't touch updatedAt: trimming the queue after a sync merge isn't a user edit. */
     @Query("UPDATE books SET readNextAddedAt = NULL WHERE id IN (:ids)")
     suspend fun clearReadNextKeepingUpdatedAt(ids: List<Long>)

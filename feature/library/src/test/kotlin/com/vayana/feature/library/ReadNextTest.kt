@@ -83,7 +83,7 @@ class ReadNextTest {
         val warning = books.readNextSeriesBreakWarningFor(other)
 
         assertEquals(current, warning?.currentBook)
-        assertEquals("2", warning?.currentBookNumber)
+        assertEquals("2", warning?.currentBook?.seriesNumber)
         assertEquals(next, warning?.nextBook)
         assertEquals(other, warning?.queuedBook)
     }

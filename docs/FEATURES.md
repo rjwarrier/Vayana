@@ -27,8 +27,9 @@ reading one file. Keep this in step with the code when any of them changes.
 
 **Matching (SQLite FTS, DB v18):**
 - `books_fts` indexes title, author, series, series number, tags and description; `annotations_fts` indexes
-  highlighted text, note and chapter title. Both are FTS4 external-content tables with the `unicode61`
-  tokenizer, kept current by Room's triggers (see `docs/DATABASE_CHANGELOG.md` v18).
+  highlighted text, note and chapter title (FTS4, `unicode61` tokenizer). `annotations_fts` is Room's
+  external-content table with its sync triggers; `books_fts` is a standalone copy kept current by the triggers in
+  `search/BookSearchIndex.kt`, which fire only when a book's searchable text changes (DB changelog v18–v19).
 - The query is split into at most 8 lower-cased words; punctuation (including FTS syntax) is dropped.
   Combining marks count as letters, so Malayalam and other Indic words stay whole.
 - Every word must appear somewhere in the row, each as the **start of a word**: `tolk` finds "Tolkien";
@@ -60,7 +61,8 @@ cover and file paths, instead of each resolving paths on every library change.
 - A book is queued from its detail page ("Read next" button; hidden for physical books) and removed there, from
   the Library shelf, or from Shelves.
 - The queue holds **2 books** (`MaxReadNextQueueBooks`). Queueing past that drops the books added longest ago;
-  `setReadNext` returns them, and Book Detail shows a snackbar naming the book that left.
+  `setReadNext` returns them, and Book Detail shows a snackbar naming the book that left. The cap lives only in
+  `BookRepositoryImpl` (`MaxReadNextQueueBooks`); Library and Shelves take the queue from the books in memory.
 - Library shows the queue as a shelf above the grid/list; "View all" opens Shelves.
 
 **Suggestions** (shown on the shelf only while the queue is empty) come from the pure function
@@ -80,6 +82,7 @@ queues the chosen one.
 - Merges compare `readNextUpdatedAt` — **not** the book's `updatedAt`, which reading progress also bumps — and
   the newer change wins; ties keep the local state. Records from builds without the field fall back to
   `readNextAddedAt`.
-- After each applied merge the queue is trimmed back to 2 without touching `updatedAt`, since that isn't a user edit.
+- When a merge applies a queued record, the queue is trimmed back to 2 without touching `updatedAt`, since that isn't
+  a user edit. (A record that isn't queued can't grow the queue, so it skips the check.)
 
 **Tests:** `feature/library/.../ReadNextTest.kt`, `core/database/.../repository/ReadNextStateTest.kt`.

@@ -9,7 +9,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
@@ -17,16 +19,12 @@ class AppSettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val bookRepository: BookRepository,
 ) : ViewModel() {
-    /** Null until the first DataStore read. */
-    val settings: StateFlow<SettingsSnapshot?> = settingsRepository.snapshot
-        .map { snapshot ->
-            // Installs from before onboarding existed already have a library; don't walk them through setup.
-            if (!snapshot.onboardingCompleted && bookRepository.hasAnyBooks()) {
-                settingsRepository.updateOnboardingCompleted(true)
-                snapshot.copy(onboardingCompleted = true)
-            } else {
-                snapshot
-            }
+    /** Null until the first DataStore read and the one-off existing-library check are done. */
+    val settings: StateFlow<SettingsSnapshot?> = flow {
+        // Installs from before onboarding existed already have a library; don't walk them through setup.
+        if (!settingsRepository.snapshot.first().onboardingCompleted && bookRepository.hasAnyBooks()) {
+            settingsRepository.updateOnboardingCompleted(true)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        emitAll(settingsRepository.snapshot)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 }

@@ -22,7 +22,8 @@ interface SettingsRepository {
     /** Recent global searches, newest first. Local to this device. */
     val recentSearches: Flow<List<String>>
 
-    suspend fun updateRecentSearches(searches: List<String>)
+    /** Replaces the recent searches with [transform] applied to the current list, atomically. */
+    suspend fun updateRecentSearches(transform: (List<String>) -> List<String>)
 
     suspend fun reset(setting: Setting<out Any>)
 

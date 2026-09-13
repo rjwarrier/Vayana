@@ -36,8 +36,8 @@ class SearchTextTest {
 
     @Test
     fun fieldMatchesOnWordPrefixOnly() {
-        assertTrue("J.R.R. Tolkien".hasWordStartingWith("tolk"))
-        assertFalse("J.R.R. Tolkien".hasWordStartingWith("olkien"))
-        assertFalse(null.hasWordStartingWith("tolk"))
+        assertTrue("J.R.R. Tolkien".hasWordStartingWithAny(listOf("olkien", "tolk")))
+        assertFalse("J.R.R. Tolkien".hasWordStartingWithAny(listOf("olkien")))
+        assertFalse(null.hasWordStartingWithAny(listOf("tolk")))
     }
 }

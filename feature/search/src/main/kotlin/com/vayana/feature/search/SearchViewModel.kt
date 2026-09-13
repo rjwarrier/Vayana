@@ -6,12 +6,11 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
-import com.vayana.core.database.search.hasWordStartingWith
+import com.vayana.core.database.search.hasWordStartingWithAny
 import com.vayana.core.database.search.searchTokens
 import com.vayana.core.filesystem.ResolvedBooks
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,8 +26,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import com.vayana.core.datastore.settings.SettingsRepository
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.vayana.core.common.DispatcherProvider
 
 data class GlobalSearchUiState(
     val query: String = "",
@@ -42,6 +41,7 @@ data class GlobalSearchUiState(
     val recentSearches: List<String> = emptyList(),
 ) {
     val hasQuery: Boolean get() = query.isNotBlank()
+    val totalMatches: Int get() = books.size + annotations.size
     val shownBooks: List<BookSearchResult> get() = if (filter == SearchFilter.NOTES) emptyList() else books
     val shownAnnotations: List<AnnotationSearchResult> get() = if (filter == SearchFilter.BOOKS) emptyList() else annotations
     val hasMatches: Boolean get() = shownBooks.isNotEmpty() || shownAnnotations.isNotEmpty()
@@ -73,6 +73,7 @@ enum class SearchMatchedField {
 
 internal data class SearchResults(
     val query: String = "",
+    val tokens: List<String> = emptyList(),
     val books: List<BookSearchResult> = emptyList(),
     val annotations: List<AnnotationSearchResult> = emptyList(),
 )
@@ -84,6 +85,7 @@ class SearchViewModel @Inject constructor(
     annotationRepository: AnnotationRepository,
     resolvedBooks: ResolvedBooks,
     private val settingsRepository: SettingsRepository,
+    dispatchers: DispatcherProvider,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
     private val filter = MutableStateFlow(SearchFilter.ALL)
@@ -104,7 +106,7 @@ class SearchViewModel @Inject constructor(
                 ) { bookIds, annotations, books -> searchResults(text, bookIds, annotations, books) }
             }
         }
-        .flowOn(Dispatchers.Default)
+        .flowOn(dispatchers.default)
 
     val uiState: StateFlow<GlobalSearchUiState> = combine(
         query,
@@ -118,7 +120,7 @@ class SearchViewModel @Inject constructor(
             annotations = results.annotations,
             isSearching = query.trim() != results.query,
             filter = filter,
-            tokens = searchTokens(results.query),
+            tokens = results.tokens,
             recentSearches = recentSearches,
         )
     }
@@ -134,19 +136,14 @@ class SearchViewModel @Inject constructor(
 
     /** Remembers the current query; called when the user submits it or opens one of its results. */
     fun recordSearch() {
-        val text = query.value.trim()
+        // Stored one per line, so pasted line breaks collapse like any other whitespace.
+        val text = query.value.trim().replace(WhitespaceRun, " ")
         if (searchTokens(text).isEmpty()) return
-        viewModelScope.launch {
-            settingsRepository.updateRecentSearches(settingsRepository.recentSearches.first().withRecentSearch(text))
-        }
-    }
-
-    fun useRecentSearch(value: String) {
-        query.update { value }
+        viewModelScope.launch { settingsRepository.updateRecentSearches { it.withRecentSearch(text) } }
     }
 
     fun clearRecentSearches() {
-        viewModelScope.launch { settingsRepository.updateRecentSearches(emptyList()) }
+        viewModelScope.launch { settingsRepository.updateRecentSearches { emptyList() } }
     }
 }
 
@@ -160,6 +157,7 @@ internal fun searchResults(
     val booksById = books.associateBy { it.id }
     return SearchResults(
         query = text,
+        tokens = tokens,
         books = bookIds.mapNotNull { id ->
             booksById[id]?.let { book -> BookSearchResult(book, book.matchedFields(tokens)) }
         },
@@ -170,24 +168,24 @@ internal fun searchResults(
 }
 
 private fun Book.matchedFields(tokens: List<String>): List<SearchMatchedField> = buildList {
-    if (title.matchesAny(tokens)) add(SearchMatchedField.TITLE)
-    if (author.matchesAny(tokens)) add(SearchMatchedField.AUTHOR)
-    if (series.matchesAny(tokens) || seriesNumber.matchesAny(tokens)) add(SearchMatchedField.SERIES)
-    if (tagsCsv.matchesAny(tokens)) add(SearchMatchedField.TAGS)
-    if (description.matchesAny(tokens)) add(SearchMatchedField.DESCRIPTION)
+    if (title.hasWordStartingWithAny(tokens)) add(SearchMatchedField.TITLE)
+    if (author.hasWordStartingWithAny(tokens)) add(SearchMatchedField.AUTHOR)
+    if (series.hasWordStartingWithAny(tokens) || seriesNumber.hasWordStartingWithAny(tokens)) add(SearchMatchedField.SERIES)
+    if (tagsCsv.hasWordStartingWithAny(tokens)) add(SearchMatchedField.TAGS)
+    if (description.hasWordStartingWithAny(tokens)) add(SearchMatchedField.DESCRIPTION)
 }
 
 private fun Annotation.matchedFields(tokens: List<String>): List<SearchMatchedField> = buildList {
-    if (selectedText.matchesAny(tokens)) add(SearchMatchedField.HIGHLIGHT)
-    if (readerNote.matchesAny(tokens)) add(SearchMatchedField.NOTE)
-    if (chapterTitle.matchesAny(tokens)) add(SearchMatchedField.CHAPTER)
+    if (selectedText.hasWordStartingWithAny(tokens)) add(SearchMatchedField.HIGHLIGHT)
+    if (readerNote.hasWordStartingWithAny(tokens)) add(SearchMatchedField.NOTE)
+    if (chapterTitle.hasWordStartingWithAny(tokens)) add(SearchMatchedField.CHAPTER)
 }
-
-private fun String?.matchesAny(tokens: List<String>): Boolean = tokens.any { hasWordStartingWith(it) }
 
 /** [query] moved to the front, without case-insensitive repeats, capped. */
 internal fun List<String>.withRecentSearch(query: String): List<String> =
     (listOf(query) + filterNot { it.equals(query, ignoreCase = true) }).take(MaxRecentSearches)
+
+private val WhitespaceRun = Regex("""\s+""")
 
 private const val SearchDebounceMillis = 150L
 private const val MaxRecentSearches = 8

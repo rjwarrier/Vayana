@@ -82,12 +82,11 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { preferences -> preferences[OnboardingCompletedKey] = completed }
     }
 
-    override val recentSearches: Flow<List<String>> = dataStore.data.map { preferences ->
-        preferences[RecentSearchesKey]?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
-    }
+    override val recentSearches: Flow<List<String>> = dataStore.data.map { preferences -> preferences.readRecentSearches() }
 
-    override suspend fun updateRecentSearches(searches: List<String>) {
+    override suspend fun updateRecentSearches(transform: (List<String>) -> List<String>) {
         dataStore.edit { preferences ->
+            val searches = transform(preferences.readRecentSearches())
             if (searches.isEmpty()) {
                 preferences.remove(RecentSearchesKey)
             } else {
@@ -279,3 +278,6 @@ private fun LaunchReadingProgressCheckMarker.serialize(): String =
         .put("checkedAt", checkedAt)
         .put("outcome", outcome)
         .toString()
+
+private fun Preferences.readRecentSearches(): List<String> =
+    this[RecentSearchesKey]?.split('\n')?.filter { it.isNotBlank() }.orEmpty()

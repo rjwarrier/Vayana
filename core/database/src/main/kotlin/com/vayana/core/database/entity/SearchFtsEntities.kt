@@ -4,8 +4,11 @@ import androidx.room.Entity
 import androidx.room.Fts4
 import androidx.room.FtsOptions
 
-/** Full-text index over [BookEntity]'s searchable text; Room keeps it in sync with triggers. Row id = book id. */
-@Fts4(contentEntity = BookEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+/**
+ * Full-text index over [BookEntity]'s searchable text; row id = book id. A standalone copy kept current by
+ * [com.vayana.core.database.search.BookSearchIndex]'s triggers, so only text changes re-index a book.
+ */
+@Fts4(tokenizer = FtsOptions.TOKENIZER_UNICODE61)
 @Entity(tableName = "books_fts")
 data class BookFtsEntity(
     val title: String,

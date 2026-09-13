@@ -193,9 +193,6 @@ interface BookRepository {
 
     suspend fun clearReaderPrefs(id: Long)
 
-    /** Books currently queued in "Read next", in queue order (earliest added = next up). */
-    fun observeReadNextQueue(): Flow<List<Book>>
-
     /** Queues or unqueues [id]; returns the books dropped from "Read next" to keep it within its cap. */
     suspend fun setReadNext(id: Long, queued: Boolean): List<Book>
 

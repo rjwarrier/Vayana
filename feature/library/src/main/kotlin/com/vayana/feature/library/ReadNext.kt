@@ -44,14 +44,21 @@ import com.vayana.core.resources.R
 
 internal data class ReadNextSeriesBreakWarning(
     val currentBook: Book,
-    val currentBookNumber: String,
     val nextBook: Book,
     val queuedBook: Book,
 )
 
+/** The Read Next shelf's books: the queue, or suggestions while it is empty and [showSuggestions]. */
 @Composable
-internal fun rememberSuggestedReadNext(books: List<Book>, currentBook: Book?): List<Book> =
-    remember(books, currentBook) { suggestedReadNext(books, currentBook) }
+internal fun rememberReadNextShelfBooks(
+    queue: List<Book>,
+    showSuggestions: Boolean,
+    books: List<Book>,
+    currentBook: Book?,
+): List<Book> {
+    val suggestions = if (showSuggestions) remember(books, currentBook) { suggestedReadNext(books, currentBook) } else emptyList()
+    return queue.ifEmpty { suggestions }
+}
 
 /** The next unread book in the series being read, else the author's next unread book; empty when nothing fits. */
 internal fun suggestedReadNext(books: List<Book>, currentBook: Book?): List<Book> {
@@ -60,15 +67,7 @@ internal fun suggestedReadNext(books: List<Book>, currentBook: Book?): List<Book
         ?: return emptyList()
     val currentSeries = current.series?.metadataKey()?.takeIf { it.isNotBlank() } ?: return emptyList()
     val currentSeriesNumber = current.seriesNumber?.toDoubleOrNull()
-    val nextInSeries = books
-        .asSequence()
-        .filter { it.id != current.id }
-        .filter { it.series?.metadataKey() == currentSeries }
-        .filter { it.isReadNextCandidate() }
-        .mapNotNull { book -> book.seriesNumber?.toDoubleOrNull()?.let { number -> number to book } }
-        .filter { (number, _) -> currentSeriesNumber == null || number > currentSeriesNumber }
-        .minWithOrNull(compareBy<Pair<Double, Book>> { it.first }.thenBy { it.second.title.metadataKey() })
-        ?.second
+    val nextInSeries = books.nextInSeries(current, currentSeries, afterNumber = currentSeriesNumber)
     val fallbackByAuthor = if (nextInSeries == null) {
         val author = current.author?.metadataKey()?.takeIf { it.isNotBlank() }
         books
@@ -124,12 +123,11 @@ internal fun ReadNextShelf(
                 }
             }
         }
-        val previewBooks = books.take(MaxReadNextPreviewBooks)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            previewBooks.forEach { book ->
+            books.forEach { book ->
                 ReadNextBookCard(
                     book = book,
                     isSuggestion = isSuggestion,
@@ -259,7 +257,7 @@ internal fun ReadNextSeriesBreakDialog(
             text = stringResource(
                 R.string.library_read_next_series_break_body,
                 warning.currentBook.title,
-                warning.currentBookNumber,
+                warning.currentBook.seriesNumber.orEmpty(),
                 warning.currentBook.series.orEmpty(),
                 warning.nextBook.title,
                 warning.queuedBook.title,
@@ -303,10 +301,17 @@ internal fun ReadNextSeriesBreakDialog(
     }
 }
 
-private fun Book.isReadNextCandidate(): Boolean =
-    format != BookFormat.PHYSICAL &&
-        finishedReadingAt == null &&
-        readingPercent < 1f
+private fun Book.isReadNextCandidate(): Boolean = format != BookFormat.PHYSICAL && !isFinished()
+
+/** The lowest-numbered unread book of [seriesKey] after [afterNumber] (any number when null), excluding [current]. */
+private fun List<Book>.nextInSeries(current: Book, seriesKey: String, afterNumber: Double?): Book? = asSequence()
+    .filter { it.id != current.id }
+    .filter { it.series?.metadataKey() == seriesKey }
+    .filter { it.isReadNextCandidate() }
+    .mapNotNull { book -> book.seriesNumber?.toDoubleOrNull()?.let { number -> number to book } }
+    .filter { (number, _) -> afterNumber == null || number > afterNumber }
+    .minWithOrNull(compareBy<Pair<Double, Book>> { it.first }.thenBy { it.second.title.metadataKey() })
+    ?.second
 
 internal fun List<Book>.readNextSeriesBreakWarningFor(queuedBook: Book): ReadNextSeriesBreakWarning? {
     val current = asSequence()
@@ -318,18 +323,9 @@ internal fun List<Book>.readNextSeriesBreakWarningFor(queuedBook: Book): ReadNex
     val currentSeriesKey = current.series.orEmpty().metadataKey()
     if (queuedBook.series?.metadataKey() == currentSeriesKey) return null
     val currentNumber = current.seriesNumber?.toDoubleOrNull() ?: return null
-    val nextBook = asSequence()
-        .filter { it.id != current.id }
-        .filter { it.series?.metadataKey() == currentSeriesKey }
-        .filter { it.isReadNextCandidate() }
-        .mapNotNull { book -> book.seriesNumber?.toDoubleOrNull()?.let { number -> number to book } }
-        .filter { (number, _) -> number > currentNumber }
-        .minWithOrNull(compareBy<Pair<Double, Book>> { it.first }.thenBy { it.second.title.metadataKey() })
-        ?.second
-        ?: return null
+    val nextBook = nextInSeries(current, currentSeriesKey, afterNumber = currentNumber) ?: return null
     return ReadNextSeriesBreakWarning(
         currentBook = current,
-        currentBookNumber = current.seriesNumber.orEmpty(),
         nextBook = nextBook,
         queuedBook = queuedBook,
     )
