@@ -191,6 +191,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt ASC LIMIT 2")
     fun observeReadNextQueue(): Flow<List<BookEntity>>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM books WHERE isDeleted = 0)")
+    suspend fun hasAnyBooks(): Boolean
+
     @Query("SELECT * FROM books ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<BookEntity>
 

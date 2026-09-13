@@ -302,6 +302,8 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.clearReaderPrefs(id, System.currentTimeMillis())
     }
 
+    override suspend fun hasAnyBooks(): Boolean = bookDao.hasAnyBooks()
+
     override fun observeReadNextQueue(): Flow<List<Book>> =
         bookDao.observeReadNextQueue().map { entities -> entities.map { it.toDomain() } }
 

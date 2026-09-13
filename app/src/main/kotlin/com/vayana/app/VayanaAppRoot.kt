@@ -10,7 +10,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -27,7 +26,8 @@ import com.vayana.feature.onboarding.OnboardingRoute
 @Composable
 fun VayanaAppRoot() {
     val settingsViewModel: AppSettingsViewModel = hiltViewModel()
-    val settings by settingsViewModel.settings.collectAsState()
+    // Null until DataStore's first read: drawing defaults first would flash onboarding and the wrong theme.
+    val settings = settingsViewModel.settings.collectAsState().value ?: return
 
     VayanaTheme(
         themeMode = settings.themeMode,

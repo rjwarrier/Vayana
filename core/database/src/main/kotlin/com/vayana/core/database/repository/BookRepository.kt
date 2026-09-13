@@ -86,6 +86,8 @@ enum class CloudBookMergeResult {
 interface BookRepository {
     fun observeAll(): Flow<List<Book>>
 
+    suspend fun hasAnyBooks(): Boolean
+
     val remoteReadingProgressApplied: Flow<RemoteReadingProgressApplied>
 
     /** Soft-deleted books, newest deletion first - backs the "Recently deleted" restore screen. */
