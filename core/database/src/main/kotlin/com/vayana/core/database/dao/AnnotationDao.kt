@@ -46,6 +46,16 @@ interface AnnotationDao {
     @Query("DELETE FROM annotations WHERE id = :id AND isDeleted = 1")
     suspend fun purge(id: Long)
 
+    /** Active annotations on active books matching an FTS [match], newest first. */
+    @Query(
+        "SELECT annotations.* FROM annotations " +
+            "JOIN annotations_fts ON annotations.id = annotations_fts.rowid " +
+            "JOIN books ON books.id = annotations.bookId " +
+            "WHERE annotations_fts MATCH :match AND annotations.isDeleted = 0 AND books.isDeleted = 0 " +
+            "ORDER BY annotations.updatedAt DESC LIMIT :limit",
+    )
+    fun observeSearch(match: String, limit: Int): Flow<List<AnnotationEntity>>
+
     @Query("SELECT * FROM annotations ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<AnnotationEntity>
 }

@@ -89,6 +89,9 @@ interface BookRepository {
 
     suspend fun hasAnyBooks(): Boolean
 
+    /** Ids of books whose text matches every word of [text] (as word prefixes), most recently read first. */
+    fun observeSearchIds(text: String, limit: Int): Flow<List<Long>>
+
     val remoteReadingProgressApplied: Flow<RemoteReadingProgressApplied>
 
     /** Soft-deleted books, newest deletion first - backs the "Recently deleted" restore screen. */

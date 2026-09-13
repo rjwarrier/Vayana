@@ -9,11 +9,14 @@ import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.entity.TombstoneEntity
+import com.vayana.core.database.search.ftsPrefixMatch
+import com.vayana.core.database.search.searchTokens
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
@@ -303,6 +306,11 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun hasAnyBooks(): Boolean = bookDao.hasAnyBooks()
+
+    override fun observeSearchIds(text: String, limit: Int): Flow<List<Long>> {
+        val match = ftsPrefixMatch(searchTokens(text)) ?: return flowOf(emptyList())
+        return bookDao.observeSearchIds(match, limit)
+    }
 
     override fun observeReadNextQueue(): Flow<List<Book>> =
         bookDao.observeReadNextQueue().map { entities -> entities.map { it.toDomain() } }

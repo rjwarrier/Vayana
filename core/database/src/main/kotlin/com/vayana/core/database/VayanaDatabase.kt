@@ -11,8 +11,10 @@ import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.dao.VocabularyCardDao
 import com.vayana.core.database.dao.WordLookupStatDao
 import com.vayana.core.database.entity.AnnotationEntity
+import com.vayana.core.database.entity.AnnotationFtsEntity
 import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.BookEntity
+import com.vayana.core.database.entity.BookFtsEntity
 import com.vayana.core.database.entity.BookShelfCrossRefEntity
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.entity.ShelfEntity
@@ -21,13 +23,13 @@ import com.vayana.core.database.entity.VocabularyCardEntity
 import com.vayana.core.database.entity.WordLookupStatEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (PROMPT2appbuild.md §2). */
-const val DATABASE_VERSION = 17
+const val DATABASE_VERSION = 18
 
 @Database(
     entities = [
         BookEntity::class, AnnotationEntity::class, WordLookupStatEntity::class, ReadingSessionEntity::class,
         ShelfEntity::class, BookShelfCrossRefEntity::class, VocabularyCardEntity::class,
-        BookAliasEntity::class, TombstoneEntity::class,
+        BookAliasEntity::class, TombstoneEntity::class, BookFtsEntity::class, AnnotationFtsEntity::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,

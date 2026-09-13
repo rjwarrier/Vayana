@@ -8,10 +8,13 @@ import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.AnnotationEntity
 import com.vayana.core.database.entity.TombstoneEntity
+import com.vayana.core.database.search.ftsPrefixMatch
+import com.vayana.core.database.search.searchTokens
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class AnnotationRepositoryImpl @Inject constructor(
@@ -24,6 +27,11 @@ class AnnotationRepositoryImpl @Inject constructor(
 
     override fun observeAll(): Flow<List<Annotation>> =
         annotationDao.observeAll().map { entities -> entities.map { it.toDomain() } }
+
+    override fun observeSearch(text: String, limit: Int): Flow<List<Annotation>> {
+        val match = ftsPrefixMatch(searchTokens(text)) ?: return flowOf(emptyList())
+        return annotationDao.observeSearch(match, limit).map { entities -> entities.map { it.toDomain() } }
+    }
 
     override fun observeForBook(bookId: Long): Flow<List<Annotation>> =
         annotationDao.observeForBook(bookId).map { entities -> entities.map { it.toDomain() } }

@@ -198,6 +198,14 @@ interface BookDao {
     @Query("SELECT EXISTS(SELECT 1 FROM books WHERE isDeleted = 0)")
     suspend fun hasAnyBooks(): Boolean
 
+    /** Ids of active books matching an FTS [match], most recently read first. */
+    @Query(
+        "SELECT books.id FROM books JOIN books_fts ON books.id = books_fts.rowid " +
+            "WHERE books_fts MATCH :match AND books.isDeleted = 0 " +
+            "ORDER BY COALESCE(books.lastReadAt, books.updatedAt) DESC, books.title COLLATE NOCASE LIMIT :limit",
+    )
+    fun observeSearchIds(match: String, limit: Int): Flow<List<Long>>
+
     @Query("SELECT * FROM books ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<BookEntity>
 

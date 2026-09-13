@@ -447,6 +447,7 @@ private enum class SearchContentState { EmptyQuery, NoMatches, Results }
 private fun GlobalSearchUiState.contentState(): SearchContentState = when {
     !hasQuery -> SearchContentState.EmptyQuery
     hasMatches -> SearchContentState.Results
+    isSearching -> SearchContentState.Results
     else -> SearchContentState.NoMatches
 }
 

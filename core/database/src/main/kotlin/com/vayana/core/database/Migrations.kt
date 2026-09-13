@@ -295,8 +295,62 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
     }
 }
 
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Full-text search. The table and trigger SQL must match what Room generates for BookFtsEntity and
+        // AnnotationFtsEntity (schemas/18.json); 'rebuild' then indexes the rows that already exist.
+        connection.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `books_fts` USING FTS4(`title` TEXT NOT NULL, `author` TEXT, " +
+                "`series` TEXT, `seriesNumber` TEXT, `tagsCsv` TEXT, `description` TEXT, tokenize=unicode61, content=`books`)",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_books_fts_BEFORE_UPDATE BEFORE UPDATE ON `books` " +
+                "BEGIN DELETE FROM `books_fts` WHERE `docid`=OLD.`rowid`; END",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_books_fts_BEFORE_DELETE BEFORE DELETE ON `books` " +
+                "BEGIN DELETE FROM `books_fts` WHERE `docid`=OLD.`rowid`; END",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_books_fts_AFTER_UPDATE AFTER UPDATE ON `books` " +
+                "BEGIN INSERT INTO `books_fts`(`docid`, `title`, `author`, `series`, `seriesNumber`, `tagsCsv`, `description`) " +
+                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`author`, NEW.`series`, NEW.`seriesNumber`, NEW.`tagsCsv`, NEW.`description`); END",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_books_fts_AFTER_INSERT AFTER INSERT ON `books` " +
+                "BEGIN INSERT INTO `books_fts`(`docid`, `title`, `author`, `series`, `seriesNumber`, `tagsCsv`, `description`) " +
+                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`author`, NEW.`series`, NEW.`seriesNumber`, NEW.`tagsCsv`, NEW.`description`); END",
+        )
+        connection.execSQL("INSERT INTO `books_fts`(`books_fts`) VALUES('rebuild')")
+
+        connection.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `annotations_fts` USING FTS4(`selectedText` TEXT NOT NULL, " +
+                "`readerNote` TEXT, `chapterTitle` TEXT, tokenize=unicode61, content=`annotations`)",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_annotations_fts_BEFORE_UPDATE BEFORE UPDATE ON `annotations` " +
+                "BEGIN DELETE FROM `annotations_fts` WHERE `docid`=OLD.`rowid`; END",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_annotations_fts_BEFORE_DELETE BEFORE DELETE ON `annotations` " +
+                "BEGIN DELETE FROM `annotations_fts` WHERE `docid`=OLD.`rowid`; END",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_annotations_fts_AFTER_UPDATE AFTER UPDATE ON `annotations` " +
+                "BEGIN INSERT INTO `annotations_fts`(`docid`, `selectedText`, `readerNote`, `chapterTitle`) " +
+                "VALUES (NEW.`rowid`, NEW.`selectedText`, NEW.`readerNote`, NEW.`chapterTitle`); END",
+        )
+        connection.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_annotations_fts_AFTER_INSERT AFTER INSERT ON `annotations` " +
+                "BEGIN INSERT INTO `annotations_fts`(`docid`, `selectedText`, `readerNote`, `chapterTitle`) " +
+                "VALUES (NEW.`rowid`, NEW.`selectedText`, NEW.`readerNote`, NEW.`chapterTitle`); END",
+        )
+        connection.execSQL("INSERT INTO `annotations_fts`(`annotations_fts`) VALUES('rebuild')")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
 )

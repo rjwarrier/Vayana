@@ -2,6 +2,16 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 18
+Adds full-text search (FTS4, `unicode61` tokenizer) for the global Search screen:
+
+- `books_fts` over `books.title`, `author`, `series`, `seriesNumber`, `tagsCsv`, `description`.
+- `annotations_fts` over `annotations.selectedText`, `readerNote`, `chapterTitle`.
+- Both are external-content tables (`content=books` / `content=annotations`, row id = the source row's id) kept in
+  sync by Room's `room_fts_content_sync_*` triggers. The migration creates the same tables and triggers Room
+  generates, then runs `'rebuild'` to index existing rows.
+- Queries match every typed word as a word prefix (`tolk` finds "Tolkien"; mid-word text like `olkien` doesn't).
+
 ## Version 17
 Adds nullable `books.readNextUpdatedAt` (epoch millis): when the book was last added to or removed from "Read next".
 Sync merges the queue on this instead of `updatedAt`, which reading progress also bumps. Existing queued rows are

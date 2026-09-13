@@ -35,6 +35,8 @@ enum class AnnotationMergeResult {
 
 interface AnnotationRepository {
     fun observeAll(): Flow<List<Annotation>>
+    /** Annotations whose text matches every word of [text] (as word prefixes), newest first. */
+    fun observeSearch(text: String, limit: Int): Flow<List<Annotation>>
     fun observeForBook(bookId: Long): Flow<List<Annotation>>
     suspend fun getById(id: Long): Annotation?
     suspend fun create(
