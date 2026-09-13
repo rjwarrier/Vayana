@@ -122,6 +122,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
@@ -632,8 +635,16 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { shelfRepository.removeBookFromShelf(bookId, shelfId) }
     }
 
+    private val readNextBumpedEvents = MutableSharedFlow<List<Book>>(extraBufferCapacity = 1)
+
+    /** Books that left "Read next" because queueing another went past its cap. */
+    val readNextBumped: SharedFlow<List<Book>> = readNextBumpedEvents.asSharedFlow()
+
     fun setReadNext(bookId: Long, queued: Boolean) {
-        viewModelScope.launch { bookRepository.setReadNext(bookId, queued) }
+        viewModelScope.launch {
+            val bumped = bookRepository.setReadNext(bookId, queued)
+            if (bumped.isNotEmpty()) readNextBumpedEvents.emit(bumped)
+        }
     }
 
     fun updateMetadata(bookId: Long, title: String, author: String, series: String, seriesNumber: String, description: String, tagsCsv: String) {

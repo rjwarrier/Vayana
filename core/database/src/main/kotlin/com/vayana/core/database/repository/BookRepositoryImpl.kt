@@ -315,17 +315,18 @@ class BookRepositoryImpl @Inject constructor(
     override fun observeReadNextQueue(): Flow<List<Book>> =
         bookDao.observeReadNextQueue().map { entities -> entities.map { it.toDomain() } }
 
-    override suspend fun setReadNext(id: Long, queued: Boolean) {
+    override suspend fun setReadNext(id: Long, queued: Boolean): List<Book> =
         database.withTransaction {
             val timestamp = System.currentTimeMillis()
             bookDao.setReadNext(id, if (queued) timestamp else null, timestamp)
-            if (queued) {
-                bookDao.getReadNextQueueIdsNewestFirst()
-                    .drop(MaxReadNextQueueBooks)
-                    .forEach { overflowId -> bookDao.setReadNext(overflowId, null, timestamp) }
-            }
+            if (!queued) return@withTransaction emptyList()
+            bookDao.getReadNextQueueIdsNewestFirst()
+                .drop(MaxReadNextQueueBooks)
+                .mapNotNull { overflowId ->
+                    bookDao.setReadNext(overflowId, null, timestamp)
+                    bookDao.getById(overflowId)?.toDomain()
+                }
         }
-    }
 
     override suspend fun attachDownloadedFile(
         id: Long,

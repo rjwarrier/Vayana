@@ -101,6 +101,7 @@ import com.vayana.core.common.ParsedQuote
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 
 @Composable
 fun BookDetailRoute(
@@ -151,6 +152,7 @@ fun BookDetailRoute(
         onRemoveFromShelf = { shelfId -> viewModel.removeBookFromShelf(bookId, shelfId) },
         onSetReadNext = { queued -> viewModel.setReadNext(bookId, queued) },
         onSetBookReadNext = viewModel::setReadNext,
+        readNextBumped = viewModel.readNextBumped,
         onBack = onBack,
         onContinueReading = onContinueReading,
         onUpdateMetadata = { title, author, series, seriesNumber, description, tagsCsv ->
@@ -239,6 +241,7 @@ private fun BookDetailScreen(
     onRemoveFromShelf: (Long) -> Unit,
     onSetReadNext: (Boolean) -> Unit,
     onSetBookReadNext: (Long, Boolean) -> Unit,
+    readNextBumped: Flow<List<Book>>,
     onBack: () -> Unit,
     onContinueReading: (Long) -> Unit,
     onUpdateMetadata: (String, String, String, String, String, String) -> Unit,
@@ -297,6 +300,16 @@ private fun BookDetailScreen(
         val message = detailMessageText ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         onDetailMessageShown()
+    }
+
+    val readNextBumpedOneMessage = stringResource(R.string.library_read_next_bumped_one)
+    val readNextBumpedManyMessage = stringResource(R.string.library_read_next_bumped_many)
+    LaunchedEffect(readNextBumped) {
+        readNextBumped.collect { bumped ->
+            val message = bumped.singleOrNull()?.let { readNextBumpedOneMessage.format(it.title) }
+                ?: readNextBumpedManyMessage.format(bumped.size)
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     val cleanedDescription = remember(book?.description) { book?.description?.cleanHtml() }
