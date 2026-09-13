@@ -43,6 +43,24 @@ object Sizes {
     val shareCardQuoteMarkHeight = 40.dp
     val shareCardAccentBarWidth = 2.dp
 
+    val iconMedium = 22.dp
+    val badge = 42.dp
+    val badgeLarge = 64.dp
+    val chipMinWidth = 132.dp
+    val syncDot = 8.dp
+
+    /** Larger on E-Ink: the sync dot's ring and centre need the extra pixels to read apart. */
+    val syncDotEink = 11.dp
+    val heatmapCell = 11.dp
+    val heatmapMonthLabelHeight = 16.dp
+    val settingsContentMaxWidth = 840.dp
+
+    /** Width at which Settings lays its categories out in two columns. */
+    val twoColumnBreakpoint = 680.dp
+
+    /** Below this width, side-by-side choice buttons stack vertically. */
+    val compactChoiceBreakpoint = 360.dp
+
     /** Exported share-image side length in pixels — square, high enough res for social posts. */
     const val shareCardExportPx = 1600
 }

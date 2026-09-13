@@ -163,6 +163,7 @@ import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.PartOfSpeech
@@ -1491,7 +1492,7 @@ private fun ReaderChrome(
                         color = chromeTopBorderColor,
                         start = Offset.Zero,
                         end = Offset(size.width, 0f),
-                        strokeWidth = 1.dp.toPx(),
+                        strokeWidth = Strokes.hairline.toPx(),
                     )
                 }
             } else {
@@ -2330,10 +2331,9 @@ private const val MaxDisplayedDictionarySenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
 private const val VolumeKeyLongPressMillis = 500L
-private val ReaderSyncDotSize = 8.dp
+private val ReaderSyncDotSize = Sizes.syncDot
 
-/** Larger on E-Ink: the ring and centre dot that carry the state there need the extra pixels to read apart. */
-private val ReaderSyncDotEinkSize = 11.dp
+private val ReaderSyncDotEinkSize = Sizes.syncDotEink
 private const val ReaderSyncDotStrokeFraction = 0.22f
 private const val ReaderSyncDotCoreFraction = 0.34f
 

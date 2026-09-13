@@ -35,4 +35,6 @@ object Strokes {
     val hairline = 1.dp
     val hairlineEink = 1.5.dp
     val outline = 1.dp
+    val emphasis = 1.5.dp
+    val none = 0.dp
 }

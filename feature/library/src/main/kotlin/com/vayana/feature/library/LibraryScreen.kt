@@ -170,6 +170,7 @@ import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.resources.R
 import java.io.File
@@ -647,7 +648,7 @@ private fun LibraryScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(Radii.medium),
                     color = MaterialTheme.colorScheme.surfaceContainer,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                    border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                 ) {
                     Text(
                         text = initialSyncConfirmationDetail.format(message),
@@ -901,7 +902,7 @@ private fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismiss
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Radii.large),
                 color = MaterialTheme.colorScheme.surfaceContainer,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
             ) {
                 Text(
                     text = stringResource(
@@ -4047,7 +4048,7 @@ private fun EditCoverDialog(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             shape = RoundedCornerShape(Radii.large),
             color = MaterialTheme.colorScheme.surfaceContainer,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+            border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         ) {
             BookCover(
                 book = book,
@@ -4353,7 +4354,7 @@ private fun ReadingProgressSyncDialog(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         )
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val stackChoices = maxWidth < 360.dp
+            val stackChoices = maxWidth < Sizes.compactChoiceBreakpoint
             if (stackChoices) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     ProgressChoiceCard(
@@ -4407,7 +4408,7 @@ private fun ProgressChoiceCard(label: String, percent: Int, timestamp: Long, mod
         modifier = modifier,
         shape = Radii.cardShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
         tonalElevation = Elevations.level1,
     ) {
         Column(
@@ -4698,7 +4699,7 @@ private fun GoodreadsPreviewRow(
             .clickable { onSelectedChange(!selected) },
         shape = Radii.cardShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         tonalElevation = Elevations.level1,
     ) {
         Row(
@@ -5017,7 +5018,7 @@ private fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
 @Composable
 private fun ReadingStatPill(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.widthIn(min = 132.dp),
+        modifier = modifier.widthIn(min = Sizes.chipMinWidth),
         shape = RoundedCornerShape(Radii.large),
         color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.72f),
         contentColor = MaterialTheme.colorScheme.onSurface,

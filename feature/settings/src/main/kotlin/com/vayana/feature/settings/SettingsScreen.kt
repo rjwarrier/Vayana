@@ -132,6 +132,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.io.File
 import java.text.SimpleDateFormat
@@ -139,11 +140,11 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val SettingsPagePadding = 20.dp
-private val SettingsContentMaxWidth = 840.dp
-private val SettingsTwoColumnBreakpoint = 680.dp
-private val SettingsCategoryBadgeSize = 42.dp
-private val SettingsAboutBadgeSize = 64.dp
+private val SettingsPagePadding = Paddings.page
+private val SettingsContentMaxWidth = Sizes.settingsContentMaxWidth
+private val SettingsTwoColumnBreakpoint = Sizes.twoColumnBreakpoint
+private val SettingsCategoryBadgeSize = Sizes.badge
+private val SettingsAboutBadgeSize = Sizes.badgeLarge
 private val SettingsCategoryEntries: List<Pair<SettingsGroup, Int>> by lazy {
     SettingsGroup.entries.mapNotNull { group ->
         val settingCount = SettingsRegistry.all.count { it.group == group }
@@ -800,7 +801,7 @@ private fun HelpAndAboutHubCard(onClick: () -> Unit) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
                         contentDescription = null,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(Sizes.iconMedium),
                     )
                 }
             }
@@ -890,7 +891,7 @@ private fun SettingsNavigationCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         tonalElevation = Elevations.none,
     ) {
         Row(
@@ -1588,7 +1589,7 @@ private fun SettingsGroupHeader(group: SettingsGroup, settingCount: Int) {
                 Icon(
                     imageVector = group.icon(),
                     contentDescription = null,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(Sizes.iconMedium),
                 )
             }
         }
@@ -1759,7 +1760,7 @@ private fun SyncWarningCallout(message: String, onDismiss: () -> Unit) {
         shape = RoundedCornerShape(Radii.extraLarge),
         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.72f),
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.34f)),
+        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.error.copy(alpha = 0.34f)),
         tonalElevation = Elevations.shadowSmall,
     ) {
         Row(
@@ -1859,7 +1860,7 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
                     Icon(
                         imageVector = group.icon(),
                         contentDescription = null,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(Sizes.iconMedium),
                     )
                 }
             }
@@ -2250,8 +2251,8 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
                     selected = selected,
                     borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                     selectedBorderColor = MaterialTheme.colorScheme.primary,
-                    borderWidth = 1.dp,
-                    selectedBorderWidth = 0.dp,
+                    borderWidth = Strokes.outline,
+                    selectedBorderWidth = Strokes.none,
                 ),
             )
         }

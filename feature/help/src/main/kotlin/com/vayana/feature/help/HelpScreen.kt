@@ -48,8 +48,8 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 
-private val HelpPagePadding = 20.dp
-private val HelpIconBadgeSize = 42.dp
+private val HelpPagePadding = Paddings.page
+private val HelpIconBadgeSize = Sizes.badge
 
 data class HelpSection(
     @param:StringRes val title: Int,

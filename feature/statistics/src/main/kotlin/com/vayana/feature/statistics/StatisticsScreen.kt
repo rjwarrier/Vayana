@@ -61,6 +61,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -824,10 +825,10 @@ private fun activityLevel(minutes: Int): Int = when {
 }
 
 private val HeatmapLevelAlphas = listOf(0f, 0.3f, 0.5f, 0.75f, 1f)
-private val HeatmapCellSize = 11.dp
-private val HeatmapCellGap = 3.dp
-private val HeatmapMonthLabelHeight = 16.dp
-private val HeatmapTodayBorderWidth = 1.5.dp
+private val HeatmapCellSize = Sizes.heatmapCell
+private val HeatmapCellGap = Paddings.heatmapCellGap
+private val HeatmapMonthLabelHeight = Sizes.heatmapMonthLabelHeight
+private val HeatmapTodayBorderWidth = Strokes.emphasis
 
 @Composable
 private fun ReadingPaceCard(pace: ReadingPaceEstimate) {
