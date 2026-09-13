@@ -69,6 +69,8 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.io.File
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
 private val SettingsAboutBadgeSize = Sizes.badgeLarge
 private enum class SharePromoTheme(@param:DrawableRes val imageRes: Int) {
@@ -466,8 +468,14 @@ private fun android.content.Context.shareApp(
 private fun android.content.Context.stageSharePromoImage(@DrawableRes imageRes: Int): Uri? = runCatching {
     val dir = File(cacheDir, "shared_images").apply { mkdirs() }
     val imageFile = File(dir, "vayana_share.jpg")
-    resources.openRawResource(imageRes).use { input ->
-        imageFile.outputStream().use { output -> input.copyTo(output) }
+    // Bundled as WebP to keep the APK small; shared as JPEG, which every share target accepts.
+    val bitmap = BitmapFactory.decodeResource(resources, imageRes) ?: return@runCatching null
+    try {
+        imageFile.outputStream().use { output -> bitmap.compress(Bitmap.CompressFormat.JPEG, SharePromoJpegQuality, output) }
+    } finally {
+        bitmap.recycle()
     }
     FileProvider.getUriForFile(this, "$packageName.fileprovider", imageFile)
 }.getOrNull()
+
+private const val SharePromoJpegQuality = 92
