@@ -26,6 +26,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import com.vayana.core.datastore.settings.SettingsRepository
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 data class GlobalSearchUiState(
     val query: String = "",
@@ -33,10 +36,18 @@ data class GlobalSearchUiState(
     val annotations: List<AnnotationSearchResult> = emptyList(),
     /** The results shown are for an older query; the debounced search for [query] hasn't landed yet. */
     val isSearching: Boolean = false,
+    val filter: SearchFilter = SearchFilter.ALL,
+    /** Words of the query the results were found for, to highlight in them. */
+    val tokens: List<String> = emptyList(),
+    val recentSearches: List<String> = emptyList(),
 ) {
     val hasQuery: Boolean get() = query.isNotBlank()
-    val hasMatches: Boolean get() = books.isNotEmpty() || annotations.isNotEmpty()
+    val shownBooks: List<BookSearchResult> get() = if (filter == SearchFilter.NOTES) emptyList() else books
+    val shownAnnotations: List<AnnotationSearchResult> get() = if (filter == SearchFilter.BOOKS) emptyList() else annotations
+    val hasMatches: Boolean get() = shownBooks.isNotEmpty() || shownAnnotations.isNotEmpty()
 }
+
+enum class SearchFilter { ALL, BOOKS, NOTES }
 
 data class BookSearchResult(
     val book: Book,
@@ -72,8 +83,10 @@ class SearchViewModel @Inject constructor(
     bookRepository: BookRepository,
     annotationRepository: AnnotationRepository,
     resolvedBooks: ResolvedBooks,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
+    private val filter = MutableStateFlow(SearchFilter.ALL)
 
     // Matching runs in SQLite FTS; only the capped result rows are joined with books and checked here.
     private val results = query
@@ -93,18 +106,47 @@ class SearchViewModel @Inject constructor(
         }
         .flowOn(Dispatchers.Default)
 
-    val uiState: StateFlow<GlobalSearchUiState> = combine(query, results) { query, results ->
+    val uiState: StateFlow<GlobalSearchUiState> = combine(
+        query,
+        results,
+        filter,
+        settingsRepository.recentSearches,
+    ) { query, results, filter, recentSearches ->
         GlobalSearchUiState(
             query = query,
             books = results.books,
             annotations = results.annotations,
             isSearching = query.trim() != results.query,
+            filter = filter,
+            tokens = searchTokens(results.query),
+            recentSearches = recentSearches,
         )
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GlobalSearchUiState())
 
     fun updateQuery(value: String) {
         query.update { value }
+    }
+
+    fun updateFilter(value: SearchFilter) {
+        filter.update { value }
+    }
+
+    /** Remembers the current query; called when the user submits it or opens one of its results. */
+    fun recordSearch() {
+        val text = query.value.trim()
+        if (searchTokens(text).isEmpty()) return
+        viewModelScope.launch {
+            settingsRepository.updateRecentSearches(settingsRepository.recentSearches.first().withRecentSearch(text))
+        }
+    }
+
+    fun useRecentSearch(value: String) {
+        query.update { value }
+    }
+
+    fun clearRecentSearches() {
+        viewModelScope.launch { settingsRepository.updateRecentSearches(emptyList()) }
     }
 }
 
@@ -143,6 +185,11 @@ private fun Annotation.matchedFields(tokens: List<String>): List<SearchMatchedFi
 
 private fun String?.matchesAny(tokens: List<String>): Boolean = tokens.any { hasWordStartingWith(it) }
 
+/** [query] moved to the front, without case-insensitive repeats, capped. */
+internal fun List<String>.withRecentSearch(query: String): List<String> =
+    (listOf(query) + filterNot { it.equals(query, ignoreCase = true) }).take(MaxRecentSearches)
+
 private const val SearchDebounceMillis = 150L
+private const val MaxRecentSearches = 8
 private const val MaxBookResults = 30
 private const val MaxAnnotationResults = 80

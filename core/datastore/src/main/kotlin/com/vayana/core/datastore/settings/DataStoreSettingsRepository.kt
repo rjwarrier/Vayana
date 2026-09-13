@@ -31,6 +31,7 @@ private val ReaderImportedFontsKey = stringPreferencesKey("reader.imported_fonts
 private val ReaderCustomFontIdKey = stringPreferencesKey("reader.custom_font_id")
 private val LaunchReadingProgressCheckMarkerKey = stringPreferencesKey("sync.launch_reading_progress_check_marker")
 private val OnboardingCompletedKey = booleanPreferencesKey("onboarding.completed")
+private val RecentSearchesKey = stringPreferencesKey("search.recent")
 
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
@@ -79,6 +80,20 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun updateOnboardingCompleted(completed: Boolean) {
         dataStore.edit { preferences -> preferences[OnboardingCompletedKey] = completed }
+    }
+
+    override val recentSearches: Flow<List<String>> = dataStore.data.map { preferences ->
+        preferences[RecentSearchesKey]?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+    }
+
+    override suspend fun updateRecentSearches(searches: List<String>) {
+        dataStore.edit { preferences ->
+            if (searches.isEmpty()) {
+                preferences.remove(RecentSearchesKey)
+            } else {
+                preferences[RecentSearchesKey] = searches.joinToString("\n")
+            }
+        }
     }
 
     override suspend fun reset(setting: Setting<out Any>) {

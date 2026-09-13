@@ -46,6 +46,28 @@ class SearchResultsTest {
         assertEquals(listOf(SearchMatchedField.SERIES, SearchMatchedField.TAGS), results.books.single().matchedFields)
     }
 
+    @Test
+    fun recentSearchesPutTheLatestFirstWithoutRepeatsAndCap() {
+        val recent = listOf("dune", "Tolkien", "expanse")
+
+        assertEquals(listOf("tolkien", "dune", "expanse"), recent.withRecentSearch("tolkien"))
+        assertEquals(8, (1..20).map { "query $it" }.withRecentSearch("latest").size)
+        assertEquals("latest", (1..20).map { "query $it" }.withRecentSearch("latest").first())
+    }
+
+    @Test
+    fun filterHidesTheOtherKindOfResult() {
+        val rings = BookSearchResult(book(1, "The Lord of the Rings"), listOf(SearchMatchedField.TITLE))
+        val note = AnnotationSearchResult(annotation(10, 1, "Ring"), rings.book, listOf(SearchMatchedField.HIGHLIGHT))
+        val state = GlobalSearchUiState(query = "ring", books = listOf(rings), annotations = listOf(note))
+
+        assertEquals(listOf(rings), state.copy(filter = SearchFilter.BOOKS).shownBooks)
+        assertEquals(emptyList(), state.copy(filter = SearchFilter.BOOKS).shownAnnotations)
+        assertEquals(emptyList(), state.copy(filter = SearchFilter.NOTES).shownBooks)
+        assertEquals(listOf(note), state.copy(filter = SearchFilter.NOTES).shownAnnotations)
+        assertEquals(false, GlobalSearchUiState(query = "ring", books = listOf(rings), filter = SearchFilter.NOTES).hasMatches)
+    }
+
     private fun book(
         id: Long,
         title: String,

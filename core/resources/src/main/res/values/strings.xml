@@ -41,6 +41,11 @@
     <string name="search_match_highlight">Highlight</string>
     <string name="search_match_note">Note</string>
     <string name="search_match_chapter">Chapter</string>
+    <string name="search_filter_all">All (%1$d)</string>
+    <string name="search_filter_books">Books (%1$d)</string>
+    <string name="search_filter_notes">Notes (%1$d)</string>
+    <string name="search_recent_title">Recent searches</string>
+    <string name="search_recent_clear">Clear</string>
 
     <string name="onboarding_welcome_title">Read, undisturbed</string>
     <string name="onboarding_welcome_body">Vayana keeps your books, notes, highlights, vocabulary, and reading progress together on this device.</string>

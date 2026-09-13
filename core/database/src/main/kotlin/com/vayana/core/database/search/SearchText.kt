@@ -15,7 +15,19 @@ internal fun ftsPrefixMatch(tokens: List<String>): String? =
 fun String?.hasWordStartingWith(token: String): Boolean =
     !isNullOrBlank() && split(NonWordChars).any { it.startsWith(token, ignoreCase = true) }
 
+/** The matched prefix of every word in [text] that starts with one of [tokens], for highlighting. */
+fun wordPrefixMatchRanges(text: String, tokens: List<String>): List<IntRange> {
+    if (tokens.isEmpty()) return emptyList()
+    return WordChars.findAll(text).mapNotNull { word ->
+        val matched = tokens.filter { word.value.startsWith(it, ignoreCase = true) }.maxOfOrNull { it.length }
+            ?: return@mapNotNull null
+        word.range.first until word.range.first + minOf(matched, word.value.length)
+    }.toList()
+}
+
 // Marks (\p{M}) are part of words: Malayalam and other Indic vowel signs are combining marks, and the FTS
 // unicode61 tokenizer keeps them in tokens too.
+private val WordChars = Regex("""[\p{L}\p{M}\p{N}]+""")
+
 private val NonWordChars = Regex("""[^\p{L}\p{M}\p{N}]+""")
 private const val MaxSearchTokens = 8

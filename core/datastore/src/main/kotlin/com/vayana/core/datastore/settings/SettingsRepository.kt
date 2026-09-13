@@ -19,6 +19,11 @@ interface SettingsRepository {
 
     suspend fun updateOnboardingCompleted(completed: Boolean)
 
+    /** Recent global searches, newest first. Local to this device. */
+    val recentSearches: Flow<List<String>>
+
+    suspend fun updateRecentSearches(searches: List<String>)
+
     suspend fun reset(setting: Setting<out Any>)
 
     suspend fun resetAll()

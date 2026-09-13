@@ -62,6 +62,15 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import com.vayana.core.database.search.wordPrefixMatchRanges
 
 @Composable
 fun SearchRoute(
@@ -77,9 +86,19 @@ fun SearchRoute(
         modifier = modifier,
         uiState = uiState,
         onQueryChange = viewModel::updateQuery,
+        onFilterChange = viewModel::updateFilter,
+        onSubmitSearch = viewModel::recordSearch,
+        onUseRecentSearch = viewModel::useRecentSearch,
+        onClearRecentSearches = viewModel::clearRecentSearches,
         onBack = onBack,
-        onOpenBook = onOpenBook,
-        onOpenReader = onOpenReader,
+        onOpenBook = { bookId ->
+            viewModel.recordSearch()
+            onOpenBook(bookId)
+        },
+        onOpenReader = { bookId, locator ->
+            viewModel.recordSearch()
+            onOpenReader(bookId, locator)
+        },
     )
 }
 
@@ -90,6 +109,10 @@ private fun SearchScreen(
     onBack: () -> Unit,
     onOpenBook: (Long) -> Unit,
     onOpenReader: (Long, String?) -> Unit,
+    onFilterChange: (SearchFilter) -> Unit,
+    onSubmitSearch: () -> Unit,
+    onUseRecentSearch: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusRequester = androidx.compose.runtime.remember { FocusRequester() }
@@ -155,8 +178,11 @@ private fun SearchScreen(
                         },
                         placeholder = { Text(stringResource(R.string.search_placeholder)) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions.Default,
+                        keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
                     )
+                    if (uiState.hasQuery && (uiState.books.isNotEmpty() || uiState.annotations.isNotEmpty())) {
+                        SearchFilterChips(uiState = uiState, onFilterChange = onFilterChange)
+                    }
                 }
             }
         },
@@ -167,12 +193,18 @@ private fun SearchScreen(
             label = "GlobalSearchContent",
         ) { state ->
             when (state) {
-                SearchContentState.EmptyQuery -> SearchEmptyState(innerPadding)
+                SearchContentState.EmptyQuery -> SearchEmptyState(
+                    contentPadding = innerPadding,
+                    recentSearches = uiState.recentSearches,
+                    onUseRecentSearch = onUseRecentSearch,
+                    onClearRecentSearches = onClearRecentSearches,
+                )
                 SearchContentState.NoMatches -> SearchNoMatchesState(innerPadding)
                 SearchContentState.Results -> SearchResultsList(
                     contentPadding = innerPadding,
-                    books = uiState.books,
-                    annotations = uiState.annotations,
+                    books = uiState.shownBooks,
+                    annotations = uiState.shownAnnotations,
+                    tokens = uiState.tokens,
                     onOpenBook = onOpenBook,
                     onOpenReader = onOpenReader,
                 )
@@ -185,6 +217,7 @@ private fun SearchScreen(
 private fun SearchResultsList(
     books: List<BookSearchResult>,
     annotations: List<AnnotationSearchResult>,
+    tokens: List<String>,
     onOpenBook: (Long) -> Unit,
     onOpenReader: (Long, String?) -> Unit,
     contentPadding: PaddingValues,
@@ -202,7 +235,7 @@ private fun SearchResultsList(
         if (books.isNotEmpty()) {
             item { SearchSectionHeader(stringResource(R.string.search_books_header, books.size)) }
             items(books, key = { "book-${it.book.id}" }) { result ->
-                BookResultRow(result = result, onClick = { onOpenBook(result.book.id) })
+                BookResultRow(result = result, tokens = tokens, onClick = { onOpenBook(result.book.id) })
             }
         }
         if (books.isNotEmpty() && annotations.isNotEmpty()) {
@@ -213,6 +246,7 @@ private fun SearchResultsList(
             items(annotations, key = { "annotation-${it.annotation.id}" }) { result ->
                 AnnotationResultRow(
                     result = result,
+                    tokens = tokens,
                     onClick = {
                         if (result.book.format != BookFormat.PHYSICAL) {
                             onOpenReader(result.book.id, result.annotation.locator.ifBlank { "text:${result.annotation.id}" })
@@ -237,7 +271,7 @@ private fun SearchSectionHeader(text: String) {
 }
 
 @Composable
-private fun BookResultRow(result: BookSearchResult, onClick: () -> Unit) {
+private fun BookResultRow(result: BookSearchResult, tokens: List<String>, onClick: () -> Unit) {
     SearchResultSurface(onClick = onClick) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -250,14 +284,14 @@ private fun BookResultRow(result: BookSearchResult, onClick: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 Text(
-                    text = result.book.title,
+                    text = highlightMatches(result.book.title, tokens),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 result.book.author?.takeIf { it.isNotBlank() }?.let { author ->
                     Text(
-                        text = author,
+                        text = highlightMatches(author, tokens),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -272,7 +306,7 @@ private fun BookResultRow(result: BookSearchResult, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AnnotationResultRow(result: AnnotationSearchResult, onClick: () -> Unit) {
+private fun AnnotationResultRow(result: AnnotationSearchResult, tokens: List<String>, onClick: () -> Unit) {
     SearchResultSurface(onClick = onClick) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Row(
@@ -297,7 +331,7 @@ private fun AnnotationResultRow(result: AnnotationSearchResult, onClick: () -> U
             }
             if (result.annotation.selectedText.isNotBlank()) {
                 Text(
-                    text = result.annotation.selectedText,
+                    text = highlightMatches(result.annotation.selectedText, tokens),
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -305,7 +339,7 @@ private fun AnnotationResultRow(result: AnnotationSearchResult, onClick: () -> U
             }
             result.annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
                 Text(
-                    text = note,
+                    text = highlightMatches(note, tokens),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
@@ -381,13 +415,100 @@ private fun BookCover(book: Book) {
 }
 
 @Composable
-private fun SearchEmptyState(contentPadding: PaddingValues) {
-    SearchState(
-        contentPadding = contentPadding,
-        icon = Icons.Outlined.Search,
-        title = stringResource(R.string.search_empty_title),
-        body = stringResource(R.string.search_empty_body),
-    )
+private fun SearchEmptyState(
+    contentPadding: PaddingValues,
+    recentSearches: List<String>,
+    onUseRecentSearch: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
+) {
+    if (recentSearches.isEmpty()) {
+        SearchState(
+            contentPadding = contentPadding,
+            icon = Icons.Outlined.Search,
+            title = stringResource(R.string.search_empty_title),
+            body = stringResource(R.string.search_empty_body),
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = Paddings.screenHorizontal,
+            top = contentPadding.calculateTopPadding() + Spacing.md,
+            end = Paddings.screenHorizontal,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+        ),
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SearchSectionHeader(stringResource(R.string.search_recent_title))
+                TextButton(onClick = onClearRecentSearches) {
+                    Text(stringResource(R.string.search_recent_clear))
+                }
+            }
+        }
+        items(recentSearches, key = { it }) { recent ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radii.medium))
+                    .clickable { onUseRecentSearch(recent) }
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = recent,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchFilterChips(uiState: GlobalSearchUiState, onFilterChange: (SearchFilter) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        SearchFilter.entries.forEach { filter ->
+            val count = when (filter) {
+                SearchFilter.ALL -> uiState.books.size + uiState.annotations.size
+                SearchFilter.BOOKS -> uiState.books.size
+                SearchFilter.NOTES -> uiState.annotations.size
+            }
+            FilterChip(
+                selected = uiState.filter == filter,
+                onClick = { onFilterChange(filter) },
+                label = { Text(filter.label(count)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchFilter.label(count: Int): String = when (this) {
+    SearchFilter.ALL -> stringResource(R.string.search_filter_all, count)
+    SearchFilter.BOOKS -> stringResource(R.string.search_filter_books, count)
+    SearchFilter.NOTES -> stringResource(R.string.search_filter_notes, count)
+}
+
+/** [text] with the word prefixes that matched the search emphasised. */
+@Composable
+private fun highlightMatches(text: String, tokens: List<String>): AnnotatedString {
+    val highlight = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+    return remember(text, tokens, highlight) {
+        buildAnnotatedString {
+            append(text)
+            wordPrefixMatchRanges(text, tokens).forEach { range -> addStyle(highlight, range.first, range.last + 1) }
+        }
+    }
 }
 
 @Composable

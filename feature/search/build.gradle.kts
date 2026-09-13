@@ -8,6 +8,7 @@ android {
 
 dependencies {
     implementation(project(":core:database"))
+    implementation(project(":core:datastore"))
     implementation(project(":core:filesystem"))
     implementation(libs.coil.compose)
     implementation(libs.coil.core)

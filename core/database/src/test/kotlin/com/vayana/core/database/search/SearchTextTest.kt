@@ -28,6 +28,13 @@ class SearchTextTest {
     }
 
     @Test
+    fun highlightRangesCoverTheMatchedPrefixOfEachWord() {
+        assertEquals(listOf(7..10, 17..20), wordPrefixMatchRanges("J.R.R. Tolkien's Rings", listOf("tolk", "ring")))
+        assertEquals(listOf(0..6), wordPrefixMatchRanges("Tolkien", listOf("t", "tolkien", "tolkienish")))
+        assertEquals(emptyList<IntRange>(), wordPrefixMatchRanges("The Hobbit", emptyList()))
+    }
+
+    @Test
     fun fieldMatchesOnWordPrefixOnly() {
         assertTrue("J.R.R. Tolkien".hasWordStartingWith("tolk"))
         assertFalse("J.R.R. Tolkien".hasWordStartingWith("olkien"))
