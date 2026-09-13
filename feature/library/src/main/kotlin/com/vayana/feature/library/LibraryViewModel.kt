@@ -94,6 +94,7 @@ import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
 import com.vayana.core.sync.snapshot.pushPortableReadingProgress
 import com.vayana.core.sync.snapshot.putPortableSnapshotDocuments
 import com.vayana.core.filesystem.BookFileImporter
+import com.vayana.core.filesystem.ResolvedBooks
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.format.epub.EpubParser
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -437,6 +438,7 @@ class LibraryViewModel @Inject constructor(
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
+    private val resolvedBooks: ResolvedBooks,
     private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
@@ -453,7 +455,7 @@ class LibraryViewModel @Inject constructor(
     private val controls = MutableStateFlow(LibraryControls())
 
     /** [Book.coverPath] and [Book.filePath] come back root-relative; resolve both before UI use. */
-    private val allBooks: Flow<List<Book>> = bookRepository.observeAll().withAbsolutePaths()
+    private val allBooks: Flow<List<Book>> = resolvedBooks.all
 
     val libraryBooks: StateFlow<List<Book>> =
         allBooks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -2268,18 +2270,9 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    private fun Book.withAbsolutePaths(): Book = copy(
-        coverPath = coverPath?.let { storageRoots.resolve(it).absolutePath },
-        filePath = filePath.takeIf { it.isNotBlank() }?.let { storageRoots.resolve(it).absolutePath }.orEmpty(),
-        // An alternate whose file has gone (e.g. replaced along with the source file) drops out, so the UI
-        // never offers a cover it can't show.
-        customCoverPath = customCoverPath?.let { storageRoots.resolve(it) }?.takeIf { it.isFile }?.absolutePath,
-        goodreadsCoverPath = goodreadsCoverPath?.let { storageRoots.resolve(it) }?.takeIf { it.isFile }?.absolutePath,
-    )
+    private fun Book.withAbsolutePaths(): Book = resolvedBooks.resolve(this)
 
-    /** Runs on the IO dispatcher: resolving alternates stats two cover files per book on every emission. */
-    private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> =
-        map { books -> books.map { it.withAbsolutePaths() } }.flowOn(dispatchers.io)
+    private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> = resolvedBooks.resolveAll(this)
 
     private fun saveCover(bytes: ByteArray): File {
         val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.jpg")
