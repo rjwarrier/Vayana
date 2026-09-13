@@ -316,6 +316,8 @@
     <string name="library_shelves_add_to_shelf">Add to shelf</string>
     <string name="library_shelves_none_yet">This book isn\'t on any shelf yet.</string>
     <string name="library_read_next_title">Read next</string>
+    <string name="library_read_next_subtitle">A quick queue for the books you want close at hand.</string>
+    <string name="library_read_next_view_all">View all</string>
     <string name="library_read_next_add">Add to Read next</string>
     <string name="library_read_next_remove">Remove from Read next</string>
     <string name="library_read_next_added">Added to Read next</string>

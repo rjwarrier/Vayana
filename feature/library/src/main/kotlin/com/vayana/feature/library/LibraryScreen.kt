@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -149,6 +151,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.PopupProperties
@@ -161,6 +164,7 @@ import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
+import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
@@ -193,10 +197,12 @@ fun LibraryRoute(
     val importProgress by viewModel.importProgress.collectAsState()
     val syncProgress by viewModel.syncProgress.collectAsState()
     val cloudBookDownloadProgress by viewModel.cloudBookDownloadProgress.collectAsState()
+    val readNextQueue by viewModel.readNextQueue.collectAsState()
 
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
+        readNextQueue = readNextQueue,
         importSummary = importSummary,
         importProgress = importProgress,
         syncProgress = syncProgress,
@@ -209,6 +215,7 @@ fun LibraryRoute(
         onImportFolder = viewModel::importFolder,
         onBookClick = onBookClick,
         onMarkFinished = { bookId -> viewModel.markFinished(bookId, announce = false) },
+        onSetReadNext = viewModel::setReadNext,
         onDownloadCloudBook = viewModel::downloadCloudBook,
         onSyncNow = viewModel::syncNow,
         onSettingsClick = onSettingsClick,
@@ -330,6 +337,7 @@ fun BookDetailRoute(
 private fun LibraryScreen(
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
+    readNextQueue: List<Book>,
     importSummary: ImportSummary?,
     importProgress: ImportProgressState?,
     syncProgress: GitHubSyncProgressState?,
@@ -342,6 +350,7 @@ private fun LibraryScreen(
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     onBookClick: (Long) -> Unit,
     onMarkFinished: (Long) -> Unit,
+    onSetReadNext: (Long, Boolean) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
     onSyncNow: suspend (Boolean, GitHubSyncMode) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
@@ -404,6 +413,9 @@ private fun LibraryScreen(
     val initialSyncConfirm = stringResource(R.string.library_sync_initial_confirm_yes)
     val initialSyncCancel = stringResource(R.string.library_sync_initial_confirm_no)
     val activeDownloadBookId = cloudBookDownloadProgress?.takeIf { it.isRunning }?.bookId
+    val showReadNextQueue = readNextQueue.isNotEmpty() &&
+        uiState.controls.query.isBlank() &&
+        uiState.controls.filter == LibraryFilter.ALL
 
     fun handleBookClick(book: Book) {
         if (activeDownloadBookId != null) return
@@ -552,21 +564,27 @@ private fun LibraryScreen(
             when (uiState.controls.viewMode) {
                 LibraryViewMode.THUMBNAILS -> LibraryGrid(
                     books = uiState.books,
+                    readNextQueue = readNextQueue.takeIf { showReadNextQueue }.orEmpty(),
                     groupBy = uiState.controls.groupBy,
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
                     downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
                     onBookClick = ::handleBookClick,
                     onMarkFinished = { book -> pendingFinishBook = book },
+                    onRemoveFromReadNext = { book -> onSetReadNext(book.id, false) },
+                    onViewAllReadNext = onShelvesClick,
                 )
                 LibraryViewMode.LIST -> LibraryList(
                     books = uiState.books,
+                    readNextQueue = readNextQueue.takeIf { showReadNextQueue }.orEmpty(),
                     groupBy = uiState.controls.groupBy,
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
                     downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
                     onBookClick = ::handleBookClick,
                     onMarkFinished = { book -> pendingFinishBook = book },
+                    onRemoveFromReadNext = { book -> onSetReadNext(book.id, false) },
+                    onViewAllReadNext = onShelvesClick,
                 )
             }
         }
@@ -1446,15 +1464,19 @@ private data class LibraryGroupSection(val label: String, val books: List<Book>)
 @Composable
 private fun LibraryGrid(
     books: List<Book>,
+    readNextQueue: List<Book>,
     groupBy: LibraryGroupBy,
     contentPadding: PaddingValues,
     downloadingBookId: Long?,
     downloadProgress: Float?,
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
+    onRemoveFromReadNext: (Book) -> Unit,
+    onViewAllReadNext: () -> Unit,
 ) {
     val displayBooks = rememberLibraryDisplayBooks(books)
     val sections = displayBooks.rows.toGroupSections(groupBy)
+    val placementSpec = rememberLazyItemPlacementSpec()
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
@@ -1468,6 +1490,20 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
+        if (readNextQueue.isNotEmpty()) {
+            item(key = "read-next", span = { GridItemSpan(maxLineSpan) }) {
+                ReadNextShelf(
+                    books = readNextQueue,
+                    downloadingBookId = downloadingBookId,
+                    downloadProgress = downloadProgress,
+                    onBookClick = onBookClick,
+                    onRemove = onRemoveFromReadNext,
+                    onViewAll = onViewAllReadNext,
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
+                )
+            }
+        }
+
         displayBooks.hero?.let { heroBook ->
             item(key = "hero:${heroBook.id}", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
@@ -1476,7 +1512,7 @@ private fun LibraryGrid(
                     downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(heroBook) },
                     onMarkFinished = { onMarkFinished(heroBook) },
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
             }
         }
@@ -1488,7 +1524,7 @@ private fun LibraryGrid(
                     isDownloading = book.id == downloadingBookId,
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onMarkFinished = { onMarkFinished(book) },
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
                     onClick = { onBookClick(book) },
                 )
             }
@@ -1500,7 +1536,7 @@ private fun LibraryGrid(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
                             .padding(top = Spacing.sm, bottom = Spacing.xs)
-                            .animateItem(),
+                            .animateItem(placementSpec = placementSpec),
                     )
                 }
                 gridItems(section.books, key = { it.id }) { book ->
@@ -1509,7 +1545,7 @@ private fun LibraryGrid(
                         isDownloading = book.id == downloadingBookId,
                         downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                         onMarkFinished = { onMarkFinished(book) },
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier.animateItem(placementSpec = placementSpec),
                         onClick = { onBookClick(book) },
                     )
                 }
@@ -1521,15 +1557,19 @@ private fun LibraryGrid(
 @Composable
 private fun LibraryList(
     books: List<Book>,
+    readNextQueue: List<Book>,
     groupBy: LibraryGroupBy,
     contentPadding: PaddingValues,
     downloadingBookId: Long?,
     downloadProgress: Float?,
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
+    onRemoveFromReadNext: (Book) -> Unit,
+    onViewAllReadNext: () -> Unit,
 ) {
     val displayBooks = rememberLibraryDisplayBooks(books)
     val sections = displayBooks.rows.toGroupSections(groupBy)
+    val placementSpec = rememberLazyItemPlacementSpec()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1541,6 +1581,20 @@ private fun LibraryList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        if (readNextQueue.isNotEmpty()) {
+            item(key = "read-next") {
+                ReadNextShelf(
+                    books = readNextQueue,
+                    downloadingBookId = downloadingBookId,
+                    downloadProgress = downloadProgress,
+                    onBookClick = onBookClick,
+                    onRemove = onRemoveFromReadNext,
+                    onViewAll = onViewAllReadNext,
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
+                )
+            }
+        }
+
         displayBooks.hero?.let { heroBook ->
             item(key = "hero:${heroBook.id}") {
                 LibraryHeroCard(
@@ -1549,7 +1603,7 @@ private fun LibraryList(
                     downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(heroBook) },
                     onMarkFinished = { onMarkFinished(heroBook) },
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
             }
         }
@@ -1562,7 +1616,7 @@ private fun LibraryList(
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(book) },
                     onMarkFinished = { onMarkFinished(book) },
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
             }
         } else {
@@ -1573,7 +1627,7 @@ private fun LibraryList(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
                             .padding(top = Spacing.sm, bottom = Spacing.xs)
-                            .animateItem(),
+                            .animateItem(placementSpec = placementSpec),
                     )
                 }
                 items(section.books, key = { it.id }) { book ->
@@ -1583,7 +1637,7 @@ private fun LibraryList(
                         downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                         onClick = { onBookClick(book) },
                         onMarkFinished = { onMarkFinished(book) },
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier.animateItem(placementSpec = placementSpec),
                     )
                 }
             }
@@ -1601,6 +1655,139 @@ private fun rememberLibraryDisplayBooks(books: List<Book>): LibraryDisplayBooks 
             rows = if (hero == null) books else books.filter { it.id != hero.id },
         )
     }
+
+@Composable
+private fun rememberLazyItemPlacementSpec() = vayanaSpring<IntOffset>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMedium,
+)
+
+@Composable
+private fun ReadNextShelf(
+    books: List<Book>,
+    downloadingBookId: Long?,
+    downloadProgress: Float?,
+    onBookClick: (Book) -> Unit,
+    onRemove: (Book) -> Unit,
+    onViewAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.library_read_next_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.library_read_next_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TextButton(onClick = onViewAll) {
+                Text(stringResource(R.string.library_read_next_view_all))
+            }
+        }
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            contentPadding = PaddingValues(end = Spacing.sm),
+        ) {
+            items(books.take(MaxReadNextPreviewBooks), key = { it.id }) { book ->
+                ReadNextBookCard(
+                    book = book,
+                    isDownloading = book.id == downloadingBookId,
+                    downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                    onClick = { onBookClick(book) },
+                    onRemove = { onRemove(book) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadNextBookCard(
+    book: Book,
+    isDownloading: Boolean,
+    downloadProgress: Float?,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .width(156.dp)
+            .clickable(enabled = !isDownloading, onClick = onClick),
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = Elevations.shadowSmall,
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Box {
+                BookCover(
+                    book = book,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(Sizes.coverAspectRatio)
+                        .clip(RoundedCornerShape(Radii.small)),
+                )
+                Surface(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = Elevations.shadowSmall,
+                ) {
+                    IconButton(
+                        onClick = onRemove,
+                        modifier = Modifier.size(Sizes.touchTarget),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.library_read_next_remove),
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                    }
+                }
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        progress = { downloadProgress ?: 0f },
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(Sizes.iconLarge),
+                        strokeWidth = Spacing.xs,
+                    )
+                }
+            }
+            Text(
+                text = book.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = book.author.orEmpty().ifBlank { stringResource(R.string.library_group_unknown_author) },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
 
 @Composable
 private fun LibraryListRow(
@@ -1673,6 +1860,8 @@ private fun LibraryListRow(
 
 @Composable
 private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadProgress: Float?) {
+    val importedDate = remember(book.createdAt) { book.createdAt.formatDate() }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -1723,7 +1912,7 @@ private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadPro
             }
             else -> {
                 Text(
-                    text = stringResource(R.string.library_imported_on, book.createdAt.formatDate()),
+                    text = stringResource(R.string.library_imported_on, importedDate),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
@@ -4686,6 +4875,7 @@ private fun Book.hasStartedReading(): Boolean =
 
 private const val MetadataSuggestionLimit = 5
 private const val TagSuggestionLimit = 6
+private const val MaxReadNextPreviewBooks = 12
 private const val MaxBookTags = 32
 private const val MaxBookTagChars = 40
 private const val MaxBookTagsInputChars = 1_024
