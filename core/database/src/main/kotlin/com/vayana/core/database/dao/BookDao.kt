@@ -182,7 +182,7 @@ interface BookDao {
     )
     suspend fun clearReaderPrefs(id: Long, updatedAt: Long)
 
-    @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, updatedAt = :updatedAt WHERE id = :id")
+    @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :updatedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun setReadNext(id: Long, readNextAddedAt: Long?, updatedAt: Long)
 
     @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt DESC")

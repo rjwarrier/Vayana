@@ -71,6 +71,7 @@ data class CloudBookRecord(
     val customFontFamily: String?,
     val customSideMarginPercent: Int?,
     val readNextAddedAt: Long?,
+    val readNextUpdatedAt: Long?,
     val goodreadsUrl: String?,
     val goodreadsRating: Float?,
     val goodreadsRatingsCount: Int?,

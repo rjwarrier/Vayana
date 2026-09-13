@@ -2413,6 +2413,7 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         customFontFamily = customFontFamily,
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
+        readNextUpdatedAt = readNextUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating,
         goodreadsRatingsCount = goodreadsRatingsCount,

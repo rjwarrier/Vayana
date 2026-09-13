@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 17
+Adds nullable `books.readNextUpdatedAt` (epoch millis): when the book was last added to or removed from "Read next".
+Sync merges the queue on this instead of `updatedAt`, which reading progress also bumps. Existing queued rows are
+backfilled from `readNextAddedAt`. Exported in the snapshot as optional `readNextUpdatedAt`; records without it fall
+back to `readNextAddedAt`.
+
 ## Version 16
 Data repair only, no schema change. Android's `org.json` returns the text `"null"` from `optString` for an
 explicit JSON null, so cloud sync had stored `"null"` as a real value in synced text columns. The migration

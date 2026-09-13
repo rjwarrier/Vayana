@@ -435,6 +435,7 @@ class BookRepositoryImpl @Inject constructor(
                 existing.fileAvailability == BookFileAvailability.UPLOAD_PENDING.name
             ) {
                 val shouldApplyRemoteMetadata = record.updatedAt > existing.updatedAt
+                val readNext = existing.readNextState().mergedWith(record.readNextState())
                 val merged = existing.copy(
                     title = if (shouldApplyRemoteMetadata) record.title else existing.title,
                     author = if (shouldApplyRemoteMetadata) record.author else existing.author,
@@ -455,6 +456,8 @@ class BookRepositoryImpl @Inject constructor(
                     goodreadsRating = existing.goodreadsRating.mergeRemoteOptional(record.goodreadsRating, shouldApplyRemoteMetadata),
                     goodreadsRatingsCount = existing.goodreadsRatingsCount.mergeRemoteOptional(record.goodreadsRatingsCount, shouldApplyRemoteMetadata),
                     originalPublicationYear = existing.originalPublicationYear.mergeRemoteOptional(record.originalPublicationYear, shouldApplyRemoteMetadata),
+                    readNextAddedAt = readNext.addedAt,
+                    readNextUpdatedAt = readNext.updatedAt,
                     updatedAt = maxOf(existing.updatedAt, record.updatedAt),
                 )
                 if (merged != existing) {
@@ -469,6 +472,7 @@ class BookRepositoryImpl @Inject constructor(
                 record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath)
                     .withCoverAlternatesFrom(existing)
                     .withMergedGoodreadsFieldsFrom(existing)
+                    .withMergedReadNextFrom(existing)
                     .keepingResetProgress(existing, progressResetAt),
             )
             return CloudBookMergeResult.UPDATED
@@ -559,6 +563,27 @@ private fun BookEntity.keepingResetProgress(existing: BookEntity, resetAt: Long?
     )
 }
 
+/**
+ * "Read next" merges on its own version, not [BookEntity.updatedAt]: reading a book bumps updatedAt, and that
+ * mustn't undo a queue change made on another device.
+ */
+internal data class ReadNextState(val addedAt: Long?, val updatedAt: Long?) {
+    // Rows from before readNextUpdatedAt existed only know when they were queued.
+    val version: Long get() = updatedAt ?: addedAt ?: 0L
+}
+
+internal fun ReadNextState.mergedWith(remote: ReadNextState): ReadNextState =
+    if (remote.version > version) remote else this
+
+private fun BookEntity.readNextState(): ReadNextState = ReadNextState(readNextAddedAt, readNextUpdatedAt)
+
+private fun CloudBookRecord.readNextState(): ReadNextState = ReadNextState(readNextAddedAt, readNextUpdatedAt)
+
+private fun BookEntity.withMergedReadNextFrom(existing: BookEntity): BookEntity {
+    val readNext = existing.readNextState().mergedWith(readNextState())
+    return copy(readNextAddedAt = readNext.addedAt, readNextUpdatedAt = readNext.updatedAt)
+}
+
 private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): BookEntity =
     BookEntity(
         id = id,
@@ -600,6 +625,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         customFontFamily = customFontFamily,
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
+        readNextUpdatedAt = readNextUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating?.coerceIn(0f, 5f),
         goodreadsRatingsCount = goodreadsRatingsCount,

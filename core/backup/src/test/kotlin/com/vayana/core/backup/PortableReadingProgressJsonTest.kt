@@ -99,6 +99,8 @@ class PortableReadingProgressJsonTest {
                   "lastLocator": "epubcfi(/6/2)",
                   "readingPercent": 0.35,
                   "rating": 4.5,
+                  "readNextAddedAt": 1500,
+                  "readNextUpdatedAt": 1600,
                   "goodreadsUrl": "https://www.goodreads.com/book/show/16046748",
                   "goodreadsRating": 4.1,
                   "goodreadsRatingsCount": 12345,
@@ -124,6 +126,8 @@ class PortableReadingProgressJsonTest {
         assertEquals(4.1f, books.single().goodreadsRating)
         assertEquals(12345, books.single().goodreadsRatingsCount)
         assertEquals(2012, books.single().originalPublicationYear)
+        assertEquals(1500L, books.single().readNextAddedAt)
+        assertEquals(1600L, books.single().readNextUpdatedAt)
     }
 
     @Test

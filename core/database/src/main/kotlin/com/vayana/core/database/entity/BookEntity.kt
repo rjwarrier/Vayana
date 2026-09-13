@@ -56,6 +56,8 @@ data class BookEntity(
     val customSideMarginPercent: Int? = null,
     /** Non-null while queued in "Read next", ordered ascending (earliest add = next up). */
     val readNextAddedAt: Long? = null,
+    /** When the queue entry was last added or removed; syncs "Read next" separately from [updatedAt], which reading also bumps. */
+    val readNextUpdatedAt: Long? = null,
     /** Goodreads import extras synced as optional portable metadata. */
     val goodreadsUrl: String? = null,
     val goodreadsRating: Float? = null,
