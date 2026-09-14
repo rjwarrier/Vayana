@@ -39,7 +39,7 @@ are historical: useful context, not a current status.
 :core:designsystem      Tokens, theme (light/dark, softer/true-black, E-Ink profile, motion), dialogs, share cards
 :core:resources         All user-facing strings
 :core:common            DispatcherProvider, @ApplicationScope, hashing, quote parsing
-:core:database          Room (DB v20): books, annotations, sessions, shelves, vocabulary, sync identity
+:core:database          Room (DB v21): books, annotations, sessions, shelves, vocabulary, sync identity
                         (aliases, tombstones), FTS search tables; repositories
 :core:datastore         Settings registry + DataStore (settings, onboarding flag, recent searches)
 :core:filesystem        StorageRoots, SAF import copy-in, ResolvedBooks (shared absolute-path book flow)
@@ -75,6 +75,9 @@ Goodreads import and the dictionary download — PROMPT2's original "no network"
   Room's content-sync triggers; `books_fts` is standalone, with its own triggers in `search/BookSearchIndex.kt`
   (created by `MIGRATION_18_19` and, on a fresh install, `BookSearchIndexCallback`). Update both if the searchable
   book columns change.
+- **Book deletes use their own version.** `books.deletionUpdatedAt` (DB v21) decides synced deletes and restores;
+  never compare deletions against `updatedAt`, which reading bumps. Book deletions are pushed and applied by the
+  lightweight reading-progress sync and the launch check, not only by a full sync.
 - **Permanent deletion is tombstone-driven.** `book_purge` tombstones (`purge:<syncId>`) beat newer edits and block
   that sync id in book merges forever; cloud files are deleted only after a full sync has published the tombstones.
   Never garbage-collect tombstones. See `docs/FEATURES.md` → Deleting books.
@@ -89,6 +92,9 @@ Goodreads import and the dictionary download — PROMPT2's original "no network"
 
 - DB migrations 16→17 (`readNextUpdatedAt`), 17→18 (FTS tables + rebuild) and 18→19 (standalone `books_fts`) on the user's phone.
 - Read Next sync between two devices (queue on A, read the book on B, sync both).
+- DB migration 20→21 (`deletionUpdatedAt`) and automatic delete sync: delete on A, then only open the app / read on B —
+  the book should leave B's library with a notice; read the book on B before it syncs and it should still go;
+  restore on B, full-sync both, and it should come back on A.
 - DB migration 19→20 (`pending_cloud_deletions`) and permanent deletion across two devices: book, files and cloud
   assets gone on both; an offline device's unsynced highlight for the book isn't republished; re-importing the
   same EPUB syncs as a new book.

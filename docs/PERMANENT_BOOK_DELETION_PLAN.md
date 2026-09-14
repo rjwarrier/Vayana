@@ -185,14 +185,15 @@ two devices before the button appears.
 
 Implemented as planned, with these differences and gaps:
 
-- **Only full sync publishes purges and deletes cloud files.** Progress-only sync still pushes just reading-session
-  and reading-reset tombstones, so a purge reaches other devices — and its cloud files are removed — on the next
-  full sync (`LibraryViewModel.runSyncNow` → `deletePendingCloudAssets` after `saveMetadataSnapshotWithRebase`).
+- **Deletions sync automatically (added later on 2026-09-14).** Both kinds of delete are pushed by the lightweight
+  reading-progress sync right after deleting and applied by it and by the silent launch check; cloud files are
+  deleted after either a full or a lightweight push. See `docs/FEATURES.md` → Deleting books.
 - **No export guard for children of purged books.** Not needed in practice: a device's purge deletes the rows
   (annotations, sessions, shelf links cascade) before it exports, and book merges skip purged sync ids, so orphaned
   children from other devices never find a book to attach to.
-- **No "deleted on another device" line in the sync summary**; synced purges are counted only in
-  `GenericSyncMergeSummary.appliedDeletes`.
+- **"Deleted on another device"** is a one-time library snackbar (`RemoteBookDeletionNotices`), not part of the sync
+  summary text.
+- **Restores** spread only on the next full sync.
 - **In-flight work isn't cancelled:** an active cloud download or an open reader for the book isn't stopped. Book
   detail closes as soon as the user confirms; Recently deleted removes the row immediately.
 - **Settings shows how many cloud files are queued**, not the last error (errors go to Diagnostics).

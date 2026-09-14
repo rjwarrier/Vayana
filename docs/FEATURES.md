@@ -116,6 +116,22 @@ queues the chosen one.
 it later. Book merges skip any record with a purge tombstone, so nothing can bring it back; importing the same file
 again creates a new book with a new sync id. Older encrypted copies remain in the GitHub repository's history.
 
+**How deletions reach other devices (both kinds):**
+- **Sent right away.** Deleting a book runs the lightweight sync immediately (`ReadingProgressOnlySyncer`, skipping
+  its 20-second minimum interval). That sync — and the one the reader runs as you read — now also publishes `book` and
+  `book_purge` tombstones (`isSyncedWithReadingProgress`), then deletes queued cloud files once they're published.
+- **Applied automatically.** The reader's lightweight sync and the silent launch check apply book deletions
+  (`TombstoneMergeScope.BOOK_DELETIONS`); other deletions — notes, shelves, vocabulary — still wait for a full sync.
+  A full sync applies everything.
+- **Reported.** Every applied book deletion is posted to `RemoteBookDeletionNotices`; the library shows
+  "“Title” was deleted on another device" (or a count) once.
+- **Deletion version (DB v21).** `books.deletionUpdatedAt` is set whenever a book is deleted or restored and travels in
+  the book record. A synced delete applies unless the book was deleted or restored here *later*; reading doesn't count
+  (it bumps `updatedAt`, which deletions no longer look at). A stale record never brings a deleted book back or
+  duplicates it; a record restored after the delete clears the tombstone and restores the book.
+- **Restores spread on the next full sync**, not the lightweight one: the lightweight push patches reading data and
+  tombstones, not book records.
+
 **Tests:** `feature/library/.../PermanentBookDeletionTest.kt` (Robolectric + Room),
 `core/sync/.../CloudAssetDeletionProcessorTest.kt`, `GitHubContentsAssetStoreTest` (delete cases),
 `core/filesystem/.../BookFileCleanerTest.kt`, `core/database/.../BookPurgeTombstoneIdTest.kt`.
