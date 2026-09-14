@@ -50,6 +50,9 @@ object Palette {
     val ReaderSkyText = Color(0xFF142133)
     val ReaderRoseBackground = Color(0xFFF7E8EA)
     val ReaderRoseText = Color(0xFF2B181D)
+
+    /** Amber laid over the page for the reader's warm light; the setting controls its alpha. */
+    val WarmLight = Color(0xFFFF8F1F)
     val ReaderDarkBackground = DarkReaderSurface
     val ReaderDarkText = Color(0xFFF8F4EC)
 

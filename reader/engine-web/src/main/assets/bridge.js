@@ -215,6 +215,7 @@ async function open(bookUrl, lastLocatorCfi) {
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
             wireSelection(doc, index)
+            wireDoubleTapLookup(doc)
             post('pageLoaded', {})
             markFirstRender('load')
             if (hasOpened) queueDocumentEnhancements(doc, index)
@@ -276,6 +277,13 @@ async function open(bookUrl, lastLocatorCfi) {
                     return g
                 })
             }
+        })
+        // Note references open as a popup instead of jumping away from the page being read.
+        view.addEventListener('link', e => {
+            const { a, href } = e.detail
+            if (!isFootnoteLink(a)) return
+            e.preventDefault()
+            showFootnote(href)
         })
 
         post('log', { step: 'view.open' })
@@ -491,14 +499,201 @@ function postSelection(doc, index) {
     const range = selection.getRangeAt(0).cloneRange()
     const rect = range.getBoundingClientRect()
     const viewportHeight = Math.max(doc.documentElement?.clientHeight ?? 0, doc.defaultView?.innerHeight ?? 0)
+    const wordLookup = wordLookupSelection
+    wordLookupSelection = false
     post('selection', {
         cfi: view.getCFI(index, range),
         selectedText,
+        wordLookup,
         tocLabel: view.getProgressOf(index, range)?.tocItem?.label?.trim?.() ?? null,
         verticalPosition: viewportHeight > 0
             ? Math.max(0, Math.min(1, (rect.top + rect.bottom) / 2 / viewportHeight))
             : null,
     })
+}
+
+const EpubOpsNamespace = 'http://www.idpf.org/2007/ops'
+const MaxFootnoteChars = 2000
+
+// A link to a note: marked as one by the book, or a short superscript/bracketed marker such as "12", "[3]" or "*".
+function isFootnoteLink(a) {
+    const types = `${a.getAttributeNS(EpubOpsNamespace, 'type') ?? ''} ${a.getAttribute('epub:type') ?? ''} ${a.getAttribute('role') ?? ''}`
+    if (/\bnoteref\b|doc-noteref/.test(types)) return true
+    const label = a.textContent.trim()
+    if (!/^[\[(]?(\d{1,3}|[*†‡§])[\])]?$/.test(label)) return false
+    return a.closest('sup') != null || a.querySelector('sup') != null || /^[\[(]/.test(label)
+}
+
+async function showFootnote(href) {
+    try {
+        const resolved = view.resolveNavigation(href)
+        if (!resolved) throw new Error(`Unresolved note ${href}`)
+        const doc = await view.book.sections[resolved.index].createDocument()
+        const target = resolved.anchor?.(doc)
+        const node = target instanceof Range ? target.startContainer : target
+        const element = node?.nodeType === 1 ? node : node?.parentElement
+        const block = element?.closest('aside, li, dd, p, div') ?? element
+        const text = (block?.textContent ?? '').replace(/\s+/g, ' ').trim()
+        if (!text) throw new Error(`Empty note ${href}`)
+        post('footnote', { text: text.slice(0, MaxFootnoteChars), href })
+    } catch (error) {
+        // Not a note we can show in place: follow the link as the book intended.
+        post('log', { step: 'footnote', message: String(error) })
+        view.goTo(href)
+    }
+}
+
+const DoubleTapWindowMillis = 350
+const DoubleTapSlopPx = 24
+const doubleTapState = new WeakMap()
+let wordLookupSelection = false
+
+// Two quick taps on a word in the middle of the page select it, which opens the dictionary like a long-press.
+// The sides of the page turn pages on a single tap, so double taps there are left alone.
+function wireDoubleTapLookup(doc) {
+    doc.addEventListener('click', e => {
+        if (e.target?.closest?.('a[href]')) return
+        const width = (doc.defaultView?.top ?? window).innerWidth || 1
+        const horizontal = e.screenX / width
+        if (horizontal < 1 / 3 || horizontal > 2 / 3) return
+        const last = doubleTapState.get(doc)
+        doubleTapState.set(doc, { time: e.timeStamp, x: e.clientX, y: e.clientY })
+        if (!last || e.timeStamp - last.time > DoubleTapWindowMillis) return
+        if (Math.hypot(e.clientX - last.x, e.clientY - last.y) > DoubleTapSlopPx) return
+        doubleTapState.delete(doc)
+        selectWordAt(doc, e.clientX, e.clientY)
+    })
+}
+
+function selectWordAt(doc, x, y) {
+    const caret = doc.caretRangeFromPoint?.(x, y)
+    const node = caret?.startContainer
+    if (!node || node.nodeType !== 3) return
+    const range = doc.createRange()
+    const bionicWord = node.parentElement?.closest(`.${BionicWordClass}`)
+    if (bionicWord) {
+        range.selectNodeContents(bionicWord)
+    } else {
+        const segmenter = new Intl.Segmenter(doc.documentElement.lang || undefined, { granularity: 'word' })
+        const word = [...segmenter.segment(node.data)]
+            .find(({ segment, index }) => caret.startOffset >= index && caret.startOffset < index + segment.length)
+        if (!word?.isWordLike) return
+        range.setStart(node, word.index)
+        range.setEnd(node, word.index + word.segment.length)
+    }
+    wordLookupSelection = true
+    const selection = doc.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+}
+
+const SpeechHighlightColor = '#5B8DEF'
+const speech = { index: -1, sentences: new Map(), marked: null }
+
+// The chapter's sentences in reading order, from the first one not before [fromRange] (the page on screen).
+function speechSentencesFor(doc, index, fromRange) {
+    speech.index = index
+    speech.sentences.clear()
+    if (!doc.body) return []
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+    const pieces = []
+    let text = ''
+    let lastBlock = null
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement
+        if (!node.data.trim() || parent?.closest('script, style, rt')) continue
+        // Separate blocks so a paragraph without closing punctuation doesn't run into the next one.
+        const block = parent?.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, dd, dt, td, figcaption, div, section')
+        if (lastBlock && block !== lastBlock) text += '\n\n'
+        lastBlock = block
+        pieces.push({ node, start: text.length })
+        text += node.data
+    }
+    const pointAt = offset => {
+        let low = 0
+        let high = pieces.length - 1
+        while (low < high) {
+            const mid = (low + high + 1) >> 1
+            if (pieces[mid].start <= offset) low = mid
+            else high = mid - 1
+        }
+        const { node, start } = pieces[low]
+        return [node, Math.max(0, Math.min(node.data.length, offset - start))]
+    }
+    const segmenter = new Intl.Segmenter(doc.documentElement.lang || undefined, { granularity: 'sentence' })
+    const sentences = []
+    for (const { segment, index: segmentStart } of segmenter.segment(text)) {
+        const sentenceText = segment.replace(/\s+/g, ' ').trim()
+        if (!/[\p{L}\p{N}]/u.test(sentenceText)) continue
+        const start = segmentStart + (segment.length - segment.trimStart().length)
+        const end = segmentStart + segment.trimEnd().length
+        const range = doc.createRange()
+        range.setStart(...pointAt(start))
+        range.setEnd(...pointAt(end))
+        if (fromRange && fromRange.comparePoint(range.endContainer, range.endOffset) < 0) continue
+        const id = `${index}:${sentences.length}`
+        speech.sentences.set(id, range)
+        sentences.push({ id, text: sentenceText })
+    }
+    return sentences
+}
+
+function startSpeech(requestId) {
+    const contents = view?.renderer?.getContents() ?? []
+    const content = contents.find(c => c.index === view.lastLocation?.section?.current) ?? contents[0]
+    if (!content?.doc) {
+        post('speech', { requestId, sentences: [], endOfBook: true })
+        return
+    }
+    const visible = view.lastLocation?.range
+    const fromRange = visible?.startContainer?.ownerDocument === content.doc ? visible : null
+    post('speech', { requestId, sentences: speechSentencesFor(content.doc, content.index, fromRange), endOfBook: false })
+}
+
+async function nextSpeechChunk(requestId) {
+    clearSpeechMark()
+    const sections = view?.book?.sections ?? []
+    let next = speech.index + 1
+    while (next < sections.length && sections[next].linear === 'no') next++
+    if (next >= sections.length) {
+        post('speech', { requestId, sentences: [], endOfBook: true })
+        return
+    }
+    try {
+        await view.goTo(next)
+        const content = view.renderer.getContents().find(c => c.index === next)
+        const sentences = content?.doc ? speechSentencesFor(content.doc, next, null) : []
+        speech.index = next
+        post('speech', { requestId, sentences, endOfBook: false })
+    } catch (error) {
+        post('log', { step: 'nextSpeechChunk', message: String(error) })
+        post('speech', { requestId, sentences: [], endOfBook: true })
+    }
+}
+
+async function markSpeech(id) {
+    const range = speech.sentences.get(id)
+    if (!range || !view) return
+    clearSpeechMark()
+    speech.marked = { value: view.getCFI(speech.index, range), color: SpeechHighlightColor }
+    view.addAnnotation(speech.marked)
+    // Turn the page once speech reaches text past the end of the page on screen.
+    const visible = view.lastLocation?.range
+    if (visible?.startContainer?.ownerDocument === range.startContainer.ownerDocument &&
+        visible.comparePoint(range.startContainer, range.startOffset) > 0) {
+        await view.next()
+    }
+}
+
+function clearSpeechMark() {
+    if (speech.marked) view?.addAnnotation(speech.marked, true)
+    speech.marked = null
+}
+
+function stopSpeech() {
+    clearSpeechMark()
+    speech.sentences.clear()
+    speech.index = -1
 }
 
 function clearSelection() {
@@ -986,6 +1181,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

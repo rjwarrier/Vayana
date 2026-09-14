@@ -23,6 +23,7 @@ object PortableSettings {
         SettingsRegistry.FinishedPercent.key,
         SettingsRegistry.RecentlyDeletedRetention.key,
         SettingsRegistry.WeekStart.key,
+        SettingsRegistry.ReadAloudRate.key,
         // SettingsRegistry.DateFormat's key; its value type lives in :core:designsystem, which this module can't see.
         "appearance.date_format",
     )

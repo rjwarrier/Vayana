@@ -22,5 +22,17 @@ interface BookEngine {
     suspend fun search(query: String)
     suspend fun clearSearch()
     fun events(): Flow<EngineEvent>
+
+    /** Sentences from the first one on the current page to the end of its chapter, for read-aloud. */
+    suspend fun startSpeech(): SpeechChunk
+
+    /** Moves to the next chapter and returns all of its sentences. */
+    suspend fun nextSpeechChunk(): SpeechChunk
+
+    /** Highlights sentence [id] and turns the page once it is past the one on screen. */
+    suspend fun markSpeech(id: String)
+
+    suspend fun stopSpeech()
+
     fun close()
 }

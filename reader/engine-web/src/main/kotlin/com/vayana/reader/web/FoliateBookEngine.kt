@@ -16,7 +16,11 @@ import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.BookSource
 import com.vayana.reader.api.BookStyle
 import com.vayana.reader.api.EngineEvent
+import com.vayana.reader.api.Footnote
+import com.vayana.reader.api.FootnoteOpened
 import com.vayana.reader.api.Locator
+import com.vayana.reader.api.SpeechChunk
+import com.vayana.reader.api.SpeechSentence
 import com.vayana.reader.api.NavTarget
 import com.vayana.reader.api.OpenBook
 import com.vayana.reader.api.ReadTheme
@@ -326,6 +330,31 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override fun events(): Flow<EngineEvent> = _events
 
+    private val speechRequests = ConcurrentHashMap<Long, CompletableDeferred<SpeechChunk>>()
+    private val nextSpeechRequestId = AtomicLong()
+
+    override suspend fun startSpeech(): SpeechChunk = requestSpeech("startSpeech")
+
+    override suspend fun nextSpeechChunk(): SpeechChunk = requestSpeech("nextSpeechChunk")
+
+    override suspend fun markSpeech(id: String) {
+        webView.evaluateJavascript("window.VayanaReader.markSpeech(${JSONObject.quote(id)})", null)
+    }
+
+    override suspend fun stopSpeech() {
+        webView.evaluateJavascript("window.VayanaReader.stopSpeech()", null)
+    }
+
+    /** Asks the bridge for sentences and waits for its "speech" reply; a missing reply ends reading. */
+    private suspend fun requestSpeech(function: String): SpeechChunk {
+        val id = nextSpeechRequestId.incrementAndGet()
+        val deferred = CompletableDeferred<SpeechChunk>()
+        speechRequests[id] = deferred
+        webView.evaluateJavascript("window.VayanaReader.$function($id)", null)
+        return withTimeoutOrNull(SpeechRequestTimeoutMillis) { deferred.await() }
+            ?: SpeechChunk(emptyList(), endOfBook = true).also { speechRequests.remove(id) }
+    }
+
     private var closed = false
 
     override fun close() {
@@ -337,6 +366,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         openResult?.complete(Result.failure(IllegalStateException("Reader closed before the book opened")))
         openResult = null
         pendingOpen = null
+        speechRequests.values.forEach { it.complete(SpeechChunk(emptyList(), endOfBook = true)) }
+        speechRequests.clear()
         resources.clear()
         entryResources.clear()
         closeBookZip()
@@ -444,6 +475,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val results = payload.optJSONArray("results")?.toSearchResults() ?: emptyList()
                 _events.tryEmit(EngineEvent.SearchCompleted(query, results))
             }
+            "footnote" -> {
+                val text = payload.optStringOrNull("text")?.takeIf { it.isNotBlank() } ?: return
+                _events.tryEmit(FootnoteOpened(Footnote(text = text, href = payload.optString("href"))))
+            }
+            "speech" -> speechRequests.remove(payload.optLong("requestId"))?.complete(payload.toSpeechChunk())
             "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")
@@ -525,8 +561,23 @@ private fun JSONObject.toSelectionOrNull(): ReaderSelection? {
         selectedText = selectedText,
         chapterTitle = optStringOrNull("tocLabel"),
         verticalPosition = optDoubleOrNull("verticalPosition")?.toFloat()?.coerceIn(0f, 1f),
+        isWordLookup = optBoolean("wordLookup"),
     )
 }
+
+private fun JSONObject.toSpeechChunk(): SpeechChunk {
+    val array = optJSONArray("sentences") ?: JSONArray()
+    val sentences = buildList {
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            val text = obj.optString("text").trim()
+            if (text.isNotEmpty()) add(SpeechSentence(id = obj.getString("id"), text = text))
+        }
+    }
+    return SpeechChunk(sentences, endOfBook = optBoolean("endOfBook"))
+}
+
+private const val SpeechRequestTimeoutMillis = 15_000L
 
 private fun JSONObject.optDoubleOrNull(name: String): Double? =
     if (has(name) && !isNull(name)) optDouble(name).takeIf(Double::isFinite) else null

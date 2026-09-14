@@ -40,6 +40,10 @@ import com.vayana.reader.api.ReadTheme
 import com.vayana.reader.api.ReaderAnnotation
 import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.ReaderSelection
+import com.vayana.reader.api.Footnote
+import com.vayana.reader.api.FootnoteOpened
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -94,6 +98,9 @@ sealed interface ReaderUiState {
     data class Failed(val message: String) : ReaderUiState
 }
 
+/** Shown when a book is reopened after a while: how long since it was last read, and the reader's latest highlight in it. */
+data class ReaderRecap(val awayMillis: Long, val highlight: String?)
+
 sealed interface DictionaryLookupState {
     data object Hidden : DictionaryLookupState
     data class PackRequired(val word: String) : DictionaryLookupState
@@ -118,6 +125,7 @@ class ReaderViewModel @Inject constructor(
     private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
     private val dispatchers: DispatcherProvider,
     @ApplicationScope private val applicationScope: CoroutineScope,
+    @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
@@ -175,6 +183,21 @@ class ReaderViewModel @Inject constructor(
     private var autoProgressSyncRequested = false
     private val _syncStatus = MutableStateFlow<ReaderSyncStatus>(ReaderSyncStatus.Idle)
     val syncStatus: StateFlow<ReaderSyncStatus> = _syncStatus
+
+    private val _footnote = MutableStateFlow<Footnote?>(null)
+    val footnote: StateFlow<Footnote?> = _footnote
+
+    private val _returnRecap = MutableStateFlow<ReaderRecap?>(null)
+    val returnRecap: StateFlow<ReaderRecap?> = _returnRecap
+
+    private val readAloudPlayer = ReadAloudPlayer(
+        output = AndroidSpeechOutput(appContext),
+        scope = viewModelScope,
+        engine = { boundEngine?.takeIf { bookOpen } },
+        // Listening counts as reading time, just as turning pages does.
+        onSpeaking = ::onReaderInteraction,
+    )
+    val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
     private var lastReaderWrittenLocator: String? = null
     private var locatorPersistJob: Job? = null
 
@@ -204,6 +227,8 @@ class ReaderViewModel @Inject constructor(
                 return@launch
             }
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
+            // Read before recordBookOpened below replaces it; a jump to a note or search hit isn't a "return".
+            val previousReadAt = book.lastReadAt.takeIf { targetLocator.isNullOrBlank() && book.readingPercent > 0f }
             if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
                 _uiState.value = ReaderUiState.Failed("This book is in your cloud library. Download support is being wired next.")
                 return@launch
@@ -239,6 +264,7 @@ class ReaderViewModel @Inject constructor(
                         currentLocator = resumeLocator,
                     )
                     observeAnnotations(engine)
+                    showReturnRecap(previousReadAt)
                     if (!targetLocator.isNullOrBlank()) {
                         engine.goTo(NavTarget.ToLocator(Locator(cfi = targetLocator, href = null, progression = 0f, chapterTitle = null)))
                     } else if (savedLocator != null && book.readingPercent > 0.001f) {
@@ -299,6 +325,7 @@ class ReaderViewModel @Inject constructor(
                     is com.vayana.reader.api.EngineEvent.SearchCompleted -> {
                         if (event.query == lastSearchQuery) _searchResults.value = event.results
                     }
+                    is FootnoteOpened -> _footnote.value = event.footnote
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
                     -> Unit
@@ -315,6 +342,7 @@ class ReaderViewModel @Inject constructor(
 
     fun releaseEngine(engine: BookEngine) {
         if (boundEngine === engine) {
+            readAloudPlayer.stop()
             cancelEngineJobs()
             boundEngine = null
             bookOpen = false
@@ -509,9 +537,54 @@ class ReaderViewModel @Inject constructor(
             autoMarkedSelectionCfi = null
             return
         }
-        if (!settings.value.readerAutoMarkSelection || selection.cfi == autoMarkedSelectionCfi) return
+        // A double-tapped word is being looked up, not marked.
+        if (!settings.value.readerAutoMarkSelection || selection.isWordLookup || selection.cfi == autoMarkedSelectionCfi) return
         autoMarkedSelectionCfi = selection.cfi
         createHighlight(lastUsedHighlightColor)
+    }
+
+    fun dismissFootnote() {
+        _footnote.value = null
+    }
+
+    /** Leaves the footnote popup for the note itself, with "back to where I was" ready. */
+    fun openFootnoteTarget() {
+        val href = _footnote.value?.href?.takeIf { it.isNotBlank() } ?: return
+        _footnote.value = null
+        pushReturnLocator()
+        dispatch(NavTarget.ToHref(href))
+    }
+
+    fun dismissReturnRecap() {
+        _returnRecap.value = null
+    }
+
+    fun startReadAloud() {
+        _returnRecap.value = null
+        readAloudPlayer.start(settings.value.readAloudRate)
+    }
+
+    fun toggleReadAloud() = readAloudPlayer.togglePlayback()
+
+    fun stopReadAloud() = readAloudPlayer.stop()
+
+    fun cycleReadAloudSleepTimer() = readAloudPlayer.cycleSleepTimer()
+
+    fun dismissReadAloudVoiceMissing() = readAloudPlayer.dismissVoiceMissing()
+
+    fun cycleReadAloudRate() {
+        val current = readAloudPlayer.state.value.rate
+        val next = ReadAloudRates.firstOrNull { it > current + 0.01f } ?: ReadAloudRates.first()
+        readAloudPlayer.setRate(next)
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReadAloudRate, next) }
+    }
+
+    fun updateBrightness(percent: Int) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderBrightness, percent) }
+    }
+
+    fun updateWarmLight(percent: Int) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderWarmLight, percent) }
     }
 
     /** Re-runs a dictionary lookup for an arbitrary word (e.g. tapping a synonym), independent of any live selection. */
@@ -740,6 +813,8 @@ class ReaderViewModel @Inject constructor(
 
     fun onPause() {
         readerResumed = false
+        // The page can't follow speech while the reader is in the background.
+        readAloudPlayer.pause()
         persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
         trackingJob?.cancel()
         trackingJob = null
@@ -891,6 +966,18 @@ class ReaderViewModel @Inject constructor(
         dictionaryInstallJob?.cancel()
         autoProgressSyncJob?.cancel()
         autoProgressSyncJob = null
+        readAloudPlayer.release()
+    }
+
+    private fun showReturnRecap(previousReadAt: Long?) {
+        val awayMillis = System.currentTimeMillis() - (previousReadAt ?: return)
+        if (awayMillis < ReturnRecapMinAwayMillis) return
+        viewModelScope.launch {
+            val highlight = annotationRepository.observeForBook(bookId).first()
+                .firstOrNull { it.type != AnnotationType.BOOKMARK && it.selectedText.isNotBlank() }
+                ?.selectedText
+            _returnRecap.value = ReaderRecap(awayMillis = awayMillis, highlight = highlight)
+        }
     }
 
     private fun cancelEngineJobs() {
@@ -1048,6 +1135,11 @@ private fun String.toDictionaryWord(): String? {
     val candidate = trim().trim('“', '”', '‘', '’', '\'', '"', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']')
     return candidate.takeIf { DictionarySelectionWordRegex.matches(it) }
 }
+
+private val ReadAloudRates = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+
+/** Reopening a book within this long of last reading it is just carrying on, not a return worth a recap. */
+private const val ReturnRecapMinAwayMillis = 12 * 60 * 60 * 1000L
 
 private const val DefaultAnnotationColor = "yellow"
 private const val DefaultBookmarkColor = "bookmark"

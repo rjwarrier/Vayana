@@ -133,6 +133,11 @@ data class SettingsSnapshot(
     val startScreen: StartScreen = StartScreen.LIBRARY,
     val recentlyDeletedRetention: RecentlyDeletedRetention = RecentlyDeletedRetention.FOREVER,
     val weekStart: WeekStart = WeekStart.SUNDAY,
+    val readAloudRate: Float = 1f,
+    /** 0 follows the system brightness. */
+    val readerBrightnessPercent: Int = 0,
+    val readerWarmLightPercent: Int = 0,
+    val readerEdgeSwipeLight: Boolean = true,
 ) {
     /** Reading progress (0..1) from which a book counts as finished. */
     val finishedFraction: Float get() = finishedPercent / 100f
@@ -383,6 +388,40 @@ object SettingsRegistry {
         step = 1,
     )
 
+    val ReadAloudRate: FloatSetting = FloatSetting(
+        key = "reader.read_aloud_rate",
+        defaultValue = 1f,
+        titleRes = R.string.settings_read_aloud_rate_title,
+        subtitleRes = R.string.settings_read_aloud_rate_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+        range = 0.5f..2f,
+        step = 0.25f,
+    )
+    val ReaderBrightness: IntSetting = IntSetting(
+        key = "reader.brightness_percent",
+        defaultValue = 0,
+        titleRes = R.string.settings_reader_brightness_title,
+        subtitleRes = R.string.settings_reader_brightness_subtitle,
+        group = SettingsGroup.READER_PAGE,
+        range = 0..100,
+        step = 5,
+    )
+    val ReaderWarmLight: IntSetting = IntSetting(
+        key = "reader.warm_light_percent",
+        defaultValue = 0,
+        titleRes = R.string.settings_reader_warm_light_title,
+        subtitleRes = R.string.settings_reader_warm_light_subtitle,
+        group = SettingsGroup.READER_PAGE,
+        range = 0..60,
+        step = 5,
+    )
+    val ReaderEdgeSwipeLight: BooleanSetting = BooleanSetting(
+        key = "reader.edge_swipe_light",
+        defaultValue = true,
+        titleRes = R.string.settings_reader_edge_swipe_light_title,
+        subtitleRes = R.string.settings_reader_edge_swipe_light_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+    )
     val DynamicColor: BooleanSetting = BooleanSetting(
         key = "appearance.dynamic_color",
         defaultValue = false,
@@ -560,6 +599,8 @@ object SettingsRegistry {
         ReaderPublisherStyles,
         ReaderBionicReading,
         ReaderTheme,
+        ReaderBrightness,
+        ReaderWarmLight,
         ReaderFullScreen,
         ReaderSideMargin,
         ReaderShowHeaders,
@@ -569,6 +610,8 @@ object SettingsRegistry {
         ReaderTapZoneMode,
         ReaderPageTurnAnimation,
         ReaderVolumeKeys,
+        ReaderEdgeSwipeLight,
+        ReadAloudRate,
         ReaderAutoMarkSelection,
         ReaderKeepAwake,
         DailyReadingGoalMinutes,

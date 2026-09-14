@@ -1131,6 +1131,10 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.StartScreen -> startScreen
     SettingsRegistry.RecentlyDeletedRetention -> recentlyDeletedRetention
     SettingsRegistry.WeekStart -> weekStart
+    SettingsRegistry.ReadAloudRate -> readAloudRate
+    SettingsRegistry.ReaderBrightness -> readerBrightnessPercent
+    SettingsRegistry.ReaderWarmLight -> readerWarmLightPercent
+    SettingsRegistry.ReaderEdgeSwipeLight -> readerEdgeSwipeLight
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     SettingsRegistry.DefaultCoverSource -> defaultCoverSource
@@ -1184,6 +1188,10 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.StartScreen -> "open on start screen startup launch continue last book resume tab"
         SettingsRegistry.RecentlyDeletedRetention -> "recently deleted trash empty auto purge retention days"
         SettingsRegistry.WeekStart -> "week start first day sunday monday calendar heatmap"
+        SettingsRegistry.ReadAloudRate -> "read aloud tts text to speech voice speed rate listen"
+        SettingsRegistry.ReaderBrightness -> "brightness light screen dim night"
+        SettingsRegistry.ReaderWarmLight -> "warm light night amber blue filter"
+        SettingsRegistry.ReaderEdgeSwipeLight -> "swipe edge brightness warm light gesture"
         SettingsRegistry.DefaultCoverSource -> "default cover source goodreads yours custom book covers library import"
         SettingsRegistry.LandscapeTwoColumnLayout -> "landscape two column layout wide screen tablet foldable"
         SettingsRegistry.KindleDeviceName -> "device name label phone tablet sync history conflicts"

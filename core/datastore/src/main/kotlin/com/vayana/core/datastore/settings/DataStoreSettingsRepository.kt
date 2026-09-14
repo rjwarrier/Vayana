@@ -174,6 +174,10 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         startScreen = read(SettingsRegistry.StartScreen),
         recentlyDeletedRetention = read(SettingsRegistry.RecentlyDeletedRetention),
         weekStart = read(SettingsRegistry.WeekStart),
+        readAloudRate = read(SettingsRegistry.ReadAloudRate),
+        readerBrightnessPercent = read(SettingsRegistry.ReaderBrightness),
+        readerWarmLightPercent = read(SettingsRegistry.ReaderWarmLight),
+        readerEdgeSwipeLight = read(SettingsRegistry.ReaderEdgeSwipeLight),
     )
 }
 

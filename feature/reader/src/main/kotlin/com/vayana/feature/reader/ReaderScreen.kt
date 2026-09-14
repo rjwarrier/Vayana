@@ -174,6 +174,12 @@ import com.vayana.reader.web.FoliateBookEngine
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import android.view.WindowManager
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.runtime.rememberCoroutineScope
+import com.vayana.reader.api.Footnote
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 @Composable
 fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -206,6 +212,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     // Routine auto-sync fires every few page turns; a snackbar per run interrupts reading (and on E-Ink
     // costs a full-screen refresh), so the outcome shows as a standing dot beside the clock instead.
     val syncStatus by viewModel.syncStatus.collectAsState()
+    val footnote by viewModel.footnote.collectAsState()
+    val readAloud by viewModel.readAloud.collectAsState()
+    val returnRecap by viewModel.returnRecap.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
     if (showNotesSidePanel) {
@@ -268,6 +277,20 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onBionicReadingChange = viewModel::updateBionicReading,
                 onPause = viewModel::onPause,
                 onResume = viewModel::onResume,
+                footnote = footnote,
+                onDismissFootnote = viewModel::dismissFootnote,
+                onOpenFootnote = viewModel::openFootnoteTarget,
+                readAloud = readAloud,
+                onStartReadAloud = viewModel::startReadAloud,
+                onToggleReadAloud = viewModel::toggleReadAloud,
+                onStopReadAloud = viewModel::stopReadAloud,
+                onCycleReadAloudRate = viewModel::cycleReadAloudRate,
+                onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
+                onDismissReadAloudVoiceMissing = viewModel::dismissReadAloudVoiceMissing,
+                returnRecap = returnRecap,
+                onDismissReturnRecap = viewModel::dismissReturnRecap,
+                onBrightnessChange = viewModel::updateBrightness,
+                onWarmLightChange = viewModel::updateWarmLight,
                 onBack = onBack,
             )
             if (notesSidePanelVisible) {
@@ -354,6 +377,20 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onBionicReadingChange = viewModel::updateBionicReading,
         onPause = viewModel::onPause,
         onResume = viewModel::onResume,
+        footnote = footnote,
+        onDismissFootnote = viewModel::dismissFootnote,
+        onOpenFootnote = viewModel::openFootnoteTarget,
+        readAloud = readAloud,
+        onStartReadAloud = viewModel::startReadAloud,
+        onToggleReadAloud = viewModel::toggleReadAloud,
+        onStopReadAloud = viewModel::stopReadAloud,
+        onCycleReadAloudRate = viewModel::cycleReadAloudRate,
+        onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
+        onDismissReadAloudVoiceMissing = viewModel::dismissReadAloudVoiceMissing,
+        returnRecap = returnRecap,
+        onDismissReturnRecap = viewModel::dismissReturnRecap,
+        onBrightnessChange = viewModel::updateBrightness,
+        onWarmLightChange = viewModel::updateWarmLight,
         onBack = onBack,
     )
     }
@@ -419,6 +456,20 @@ private fun ReaderScreen(
     onBionicReadingChange: (Boolean) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
+    footnote: Footnote?,
+    onDismissFootnote: () -> Unit,
+    onOpenFootnote: () -> Unit,
+    readAloud: ReadAloudState,
+    onStartReadAloud: () -> Unit,
+    onToggleReadAloud: () -> Unit,
+    onStopReadAloud: () -> Unit,
+    onCycleReadAloudRate: () -> Unit,
+    onCycleReadAloudSleepTimer: () -> Unit,
+    onDismissReadAloudVoiceMissing: () -> Unit,
+    returnRecap: ReaderRecap?,
+    onDismissReturnRecap: () -> Unit,
+    onBrightnessChange: (Int) -> Unit,
+    onWarmLightChange: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
     var chromeVisible by remember { mutableStateOf(false) }
@@ -437,6 +488,8 @@ private fun ReaderScreen(
     val focusRequester = remember { FocusRequester() }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var volumeKeyDownAt by remember { mutableStateOf(0L) }
+    val tapScope = rememberCoroutineScope()
+    var pendingMiddleTap by remember { mutableStateOf<Job?>(null) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
         val menuStart = width / 3f
         val menuEnd = menuStart * 2f
@@ -445,8 +498,17 @@ private fun ReaderScreen(
             x < menuStart -> onTapPrevious()
             x > menuEnd -> onTapNext()
             else -> {
-                selectedPanel = ReaderPanel.STYLE
-                chromeVisible = true
+                // Wait out a possible second tap: a double tap here looks up the word instead of opening the menu.
+                val pending = pendingMiddleTap
+                if (pending?.isActive == true) {
+                    pending.cancel()
+                } else {
+                    pendingMiddleTap = tapScope.launch {
+                        delay(ViewConfiguration.getDoubleTapTimeout().toLong())
+                        selectedPanel = ReaderPanel.STYLE
+                        chromeVisible = true
+                    }
+                }
             }
         }
     }
@@ -500,11 +562,54 @@ private fun ReaderScreen(
         }
     }
 
-    DisposableEffect(settings.readerKeepAwake) {
+    DisposableEffect(settings.readerKeepAwake, readAloud.playing) {
         val previous = rootView.keepScreenOn
-        rootView.keepScreenOn = settings.readerKeepAwake
+        // Reading aloud is paused if the screen turns off, so keep it on while speaking.
+        rootView.keepScreenOn = settings.readerKeepAwake || readAloud.playing
         onDispose { rootView.keepScreenOn = previous }
     }
+
+    // Live levels while an edge swipe is under way; saved to settings when the finger lifts.
+    var liveBrightness by remember { mutableStateOf<Int?>(null) }
+    var liveWarmLight by remember { mutableStateOf<Int?>(null) }
+    var activeLightEdge by remember { mutableStateOf<ReaderEdge?>(null) }
+    val brightnessPercent = liveBrightness ?: settings.readerBrightnessPercent
+    val warmLightPercent = liveWarmLight ?: settings.readerWarmLightPercent
+    LaunchedEffect(settings.readerBrightnessPercent) { if (activeLightEdge == null) liveBrightness = null }
+    LaunchedEffect(settings.readerWarmLightPercent) { if (activeLightEdge == null) liveWarmLight = null }
+    DisposableEffect(brightnessPercent) {
+        val window = (rootView.context as? Activity)?.window
+        if (window != null) {
+            window.attributes = window.attributes.apply {
+                screenBrightness = if (brightnessPercent > 0) brightnessPercent / 100f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+        }
+        onDispose {
+            val disposeWindow = (rootView.context as? Activity)?.window ?: return@onDispose
+            disposeWindow.attributes = disposeWindow.attributes.apply {
+                screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+        }
+    }
+    val onEdgeSwipeState = rememberUpdatedState<(ReaderEdge, Float, Boolean) -> Unit> { edge, upFraction, finished ->
+        activeLightEdge = if (finished) null else edge
+        when (edge) {
+            ReaderEdge.LEFT -> {
+                val start = settings.readerBrightnessPercent.takeIf { it > 0 } ?: EdgeSwipeBrightnessStart
+                val value = (start + upFraction * 100).roundToInt()
+                    .coerceIn(EdgeSwipeMinBrightness, SettingsRegistry.ReaderBrightness.range.last)
+                liveBrightness = value
+                if (finished) onBrightnessChange(value)
+            }
+            ReaderEdge.RIGHT -> {
+                val value = (settings.readerWarmLightPercent + upFraction * 100).roundToInt()
+                    .coerceIn(0, SettingsRegistry.ReaderWarmLight.range.last)
+                liveWarmLight = value
+                if (finished) onWarmLightChange(value)
+            }
+        }
+    }
+    val edgeSwipeEnabledState = rememberUpdatedState(settings.readerEdgeSwipeLight && !chromeVisible)
 
     // Immersive reading: status bar hides with the rest of the chrome, comes back on tap.
     // Full screen hides the navigation bar too.
@@ -618,18 +723,50 @@ private fun ReaderScreen(
                     setOnKeyListener { _, keyCode, event ->
                         onHardwarePageKeyState.value(keyCode, event.action, event.eventTime - event.downTime)
                     }
+                    var swipeEdge: ReaderEdge? = null
+                    var swiping = false
                     setOnTouchListener { view, event ->
                         when (event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> {
                                 downX = event.x
                                 downY = event.y
                                 downTime = event.eventTime
+                                swiping = false
+                                swipeEdge = when {
+                                    !edgeSwipeEnabledState.value -> null
+                                    event.x < view.width * EdgeSwipeZoneFraction -> ReaderEdge.LEFT
+                                    event.x > view.width * (1 - EdgeSwipeZoneFraction) -> ReaderEdge.RIGHT
+                                    else -> null
+                                }
                             }
-                            MotionEvent.ACTION_UP -> {
-                                onReaderInteractionState.value()
-                                val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
-                                if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
-                                    onReaderTapState.value(event.x, view.width)
+                            MotionEvent.ACTION_MOVE -> {
+                                val edge = swipeEdge
+                                val dy = downY - event.y
+                                if (edge != null && !swiping && abs(dy) > touchSlop * 2 && abs(dy) > abs(event.x - downX) * 2) {
+                                    swiping = true
+                                    // The page mustn't also turn this gesture into a long-press selection.
+                                    val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+                                    view.onTouchEvent(cancel)
+                                    cancel.recycle()
+                                }
+                                if (swiping && edge != null) {
+                                    onEdgeSwipeState.value(edge, dy / view.height.coerceAtLeast(1), false)
+                                    return@setOnTouchListener true
+                                }
+                            }
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                val edge = swipeEdge
+                                if (swiping && edge != null) {
+                                    swiping = false
+                                    onEdgeSwipeState.value(edge, (downY - event.y) / view.height.coerceAtLeast(1), true)
+                                    return@setOnTouchListener true
+                                }
+                                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                                    onReaderInteractionState.value()
+                                    val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
+                                    if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
+                                        onReaderTapState.value(event.x, view.width)
+                                    }
                                 }
                             }
                         }
@@ -656,6 +793,11 @@ private fun ReaderScreen(
                 container.removeAllViews()
             },
         )
+
+        // Tints the page only; no pointer input, so taps and swipes still reach the book underneath.
+        if (warmLightPercent > 0 && settings.displayProfile != DisplayProfile.E_INK) {
+            Box(modifier = Modifier.fillMaxSize().background(Palette.WarmLight.copy(alpha = warmLightPercent / 100f)))
+        }
 
         // The header gap is tuned to clear a portrait top cutout; landscape has none there, so cap it
         // to keep the chips in the page's top margin instead of pushing them down over the text.
@@ -764,6 +906,55 @@ private fun ReaderScreen(
                     onSearchResultClick(it)
                 },
                 onClearSearch = onClearSearch,
+                onStartReadAloud = {
+                    chromeVisible = false
+                    onStartReadAloud()
+                },
+            )
+        }
+
+        activeLightEdge?.let { edge ->
+            LightLevelIndicator(
+                modifier = Modifier.align(Alignment.Center),
+                text = when (edge) {
+                    ReaderEdge.LEFT -> if (brightnessPercent > 0) {
+                        stringResource(R.string.reader_light_brightness, brightnessPercent)
+                    } else {
+                        stringResource(R.string.reader_light_brightness_system)
+                    }
+                    ReaderEdge.RIGHT -> stringResource(R.string.reader_light_warmth, warmLightPercent)
+                },
+            )
+        }
+
+        val recapState = uiState as? ReaderUiState.Loaded
+        if (returnRecap != null && recapState != null && !chromeVisible) {
+            LaunchedEffect(returnRecap) {
+                delay(ReturnRecapVisibleMillis)
+                onDismissReturnRecap()
+            }
+            ReturnRecapCard(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = headerGap),
+                recap = returnRecap,
+                chapterTitle = recapState.currentLocator?.chapterTitle,
+                onDismiss = onDismissReturnRecap,
+            )
+        }
+
+        if (readAloud.active && !chromeVisible) {
+            ReadAloudBar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = settings.readerFooterGapDp.dp),
+                state = readAloud,
+                onTogglePlayback = onToggleReadAloud,
+                onCycleRate = onCycleReadAloudRate,
+                onCycleSleepTimer = onCycleReadAloudSleepTimer,
+                onStop = onStopReadAloud,
             )
         }
 
@@ -841,6 +1032,20 @@ private fun ReaderScreen(
             prompt = readingPositionPrompt,
             onGoToRecentLocation = onAcceptReadingPositionPrompt,
             onStayHere = onDismissReadingPositionPrompt,
+        )
+    }
+
+    footnote?.let {
+        FootnoteDialog(footnote = it, onDismiss = onDismissFootnote, onGoToNote = onOpenFootnote)
+    }
+
+    if (readAloud.voiceMissing) {
+        ReadAloudVoiceMissingDialog(
+            onDismiss = onDismissReadAloudVoiceMissing,
+            onOpenSettings = {
+                onDismissReadAloudVoiceMissing()
+                runCatching { context.startActivity(Intent(TtsSettingsAction).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            },
         )
     }
 }
@@ -1483,6 +1688,7 @@ private fun ReaderChrome(
     onSearchQueryChange: (String) -> Unit,
     onSearchResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
     onClearSearch: () -> Unit,
+    onStartReadAloud: () -> Unit,
 ) {
     val chromeSurfaceColor = readerChromeSurfaceColor()
     val chromeTopBorderColor = readerChromeTopBorderColor(settings, chromeSurfaceColor)
@@ -1558,6 +1764,12 @@ private fun ReaderChrome(
                                 contentDescription = stringResource(R.string.reader_refresh_screen_content_description),
                             )
                         }
+                    }
+                    IconButton(onClick = onStartReadAloud) {
+                        Icon(
+                            imageVector = Icons.Outlined.Headphones,
+                            contentDescription = stringResource(R.string.reader_read_aloud_content_description),
+                        )
                     }
                     IconButton(onClick = onCreateBookmark) {
                         Icon(
@@ -2335,6 +2547,15 @@ private const val MaxDisplayedDictionarySenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
 private const val VolumeKeyLongPressMillis = 500L
+
+/** How much of the page width, at each edge, starts a brightness (left) or warm-light (right) swipe. */
+private const val EdgeSwipeZoneFraction = 0.12f
+
+/** Brightness a swipe starts from while the reader still follows the system brightness. */
+private const val EdgeSwipeBrightnessStart = 50
+private const val EdgeSwipeMinBrightness = 5
+private const val ReturnRecapVisibleMillis = 10_000L
+private const val TtsSettingsAction = "com.android.settings.TTS_SETTINGS"
 private val ReaderSyncDotSize = Sizes.syncDot
 
 private val ReaderSyncDotEinkSize = Sizes.syncDotEink

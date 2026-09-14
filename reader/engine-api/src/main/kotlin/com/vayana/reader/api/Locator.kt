@@ -77,4 +77,6 @@ data class ReaderSelection(
     val chapterTitle: String?,
     /** Vertical center of the selection in its rendered page, from 0 (top) to 1 (bottom). */
     val verticalPosition: Float? = null,
+    /** The word was selected by a double tap to look it up, not by the reader marking text. */
+    val isWordLookup: Boolean = false,
 )
