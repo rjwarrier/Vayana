@@ -411,6 +411,11 @@ function setBionicReading(enabled) {
     }
 }
 
+// paginator.js slides between pages only while its renderer carries the `animated` attribute.
+function setPageTurnAnimation(enabled) {
+    view?.renderer?.toggleAttribute('animated', Boolean(enabled))
+}
+
 function applyBionicReadingToDoc(doc) {
     if (!doc || !doc.body) return
     if (bionicReadingEnabled) {
@@ -981,6 +986,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, renderAnnotations, clearSelection, search, clearSearch }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

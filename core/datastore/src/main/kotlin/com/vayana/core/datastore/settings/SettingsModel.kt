@@ -110,9 +110,13 @@ data class SettingsSnapshot(
     val readerShowFooter: Boolean = true,
     val readerAutoMarkSelection: Boolean = false,
     val readerBionicReading: Boolean = false,
+    val readerFullScreen: Boolean = false,
+    val readerPageTurnAnimation: Boolean = false,
+    val einkRefreshEveryPages: Int = 6,
     val dailyReadingGoalMinutes: Int = 20,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
+    val finishedPercent: Int = 98,
     val landscapeTwoColumnLayout: Boolean = true,
     val kindleDeviceName: String = "My Vayana",
     val githubSyncEnabled: Boolean = false,
@@ -121,7 +125,11 @@ data class SettingsSnapshot(
     val githubBranch: String = "main",
     val githubToken: String = "",
     val githubSyncPassphrase: String = "",
-)
+    val readingAutoSyncEveryPages: Int = 3,
+) {
+    /** Reading progress (0..1) from which a book counts as finished. */
+    val finishedFraction: Float get() = finishedPercent / 100f
+}
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
 
@@ -318,6 +326,48 @@ object SettingsRegistry {
         group = SettingsGroup.READER_TEXT,
     )
 
+    val ReaderFullScreen: BooleanSetting = BooleanSetting(
+        key = "reader.full_screen",
+        defaultValue = false,
+        titleRes = R.string.settings_reader_full_screen_title,
+        subtitleRes = R.string.settings_reader_full_screen_subtitle,
+        group = SettingsGroup.READER_PAGE,
+    )
+    val ReaderPageTurnAnimation: BooleanSetting = BooleanSetting(
+        key = "reader.page_turn_animation",
+        defaultValue = false,
+        titleRes = R.string.settings_reader_page_turn_animation_title,
+        subtitleRes = R.string.settings_reader_page_turn_animation_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+    )
+    val EinkRefreshEveryPages: IntSetting = IntSetting(
+        key = "appearance.eink_refresh_pages",
+        defaultValue = 6,
+        titleRes = R.string.settings_eink_refresh_pages_title,
+        subtitleRes = R.string.settings_eink_refresh_pages_subtitle,
+        group = SettingsGroup.APPEARANCE,
+        range = 0..20,
+        step = 1,
+    )
+    val FinishedPercent: IntSetting = IntSetting(
+        key = "library.finished_percent",
+        defaultValue = 98,
+        titleRes = R.string.settings_finished_percent_title,
+        subtitleRes = R.string.settings_finished_percent_subtitle,
+        group = SettingsGroup.LIBRARY,
+        range = 90..100,
+        step = 1,
+    )
+    val ReadingAutoSyncEveryPages: IntSetting = IntSetting(
+        key = "sync.reading_auto_sync_pages",
+        defaultValue = 3,
+        titleRes = R.string.settings_reading_auto_sync_pages_title,
+        subtitleRes = R.string.settings_reading_auto_sync_pages_subtitle,
+        group = SettingsGroup.SYNC,
+        range = 0..30,
+        step = 1,
+    )
+
     val DailyReadingGoalMinutes: IntSetting = IntSetting(
         key = "goals.daily_reading_minutes",
         defaultValue = 20,
@@ -420,20 +470,24 @@ object SettingsRegistry {
         DarkVariant,
         DisplayProfile,
         Motion,
+        EinkRefreshEveryPages,
         DefaultCoverSource,
         LandscapeTwoColumnLayout,
+        FinishedPercent,
         ReaderFontFamily,
         ReaderFontSize,
         ReaderLineHeight,
         ReaderPublisherStyles,
         ReaderBionicReading,
         ReaderTheme,
+        ReaderFullScreen,
         ReaderSideMargin,
         ReaderShowHeaders,
         ReaderHeaderGap,
         ReaderShowFooter,
         ReaderFooterGap,
         ReaderTapZoneMode,
+        ReaderPageTurnAnimation,
         ReaderVolumeKeys,
         ReaderAutoMarkSelection,
         ReaderKeepAwake,
@@ -446,5 +500,6 @@ object SettingsRegistry {
         GithubBranch,
         GithubToken,
         GithubSyncPassphrase,
+        ReadingAutoSyncEveryPages,
     )
 }

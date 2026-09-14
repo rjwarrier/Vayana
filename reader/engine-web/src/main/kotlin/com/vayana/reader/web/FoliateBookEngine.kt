@@ -300,6 +300,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         }
         webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin)", null)
         webView.evaluateJavascript("window.VayanaReader.setBionicReading(${style.bionicReading})", null)
+        webView.evaluateJavascript("window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation})", null)
     }
 
     override suspend fun renderAnnotations(annotations: List<ReaderAnnotation>) {

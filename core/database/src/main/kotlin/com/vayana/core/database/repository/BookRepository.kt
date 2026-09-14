@@ -103,7 +103,8 @@ interface BookRepository {
 
     suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book?
 
-    suspend fun updateLocator(id: Long, locator: String, readingPercent: Float)
+    /** Saves the reading position; the first time [readingPercent] reaches [finishedThreshold], stamps the finish date. */
+    suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, finishedThreshold: Float)
 
     suspend fun applySyncedReadingProgress(
         syncId: String,

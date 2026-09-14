@@ -480,10 +480,19 @@ class LibraryViewModel @Inject constructor(
         .map { it.isGitHubSyncReady() }
         .distinctUntilChanged()
 
-    val uiState: StateFlow<LibraryUiState> = combine(libraryBooks, controls, githubSyncReady) { books, controls, syncReady ->
+    private val finishedThreshold: Flow<Float> = settingsRepository.snapshot
+        .map { it.finishedFraction }
+        .distinctUntilChanged()
+
+    val uiState: StateFlow<LibraryUiState> = combine(
+        libraryBooks,
+        controls,
+        githubSyncReady,
+        finishedThreshold,
+    ) { books, controls, syncReady, finishedThreshold ->
         LibraryUiState(
             books = books
-                .filterBy(controls.filter)
+                .filterBy(controls.filter, finishedThreshold)
                 .filterByQuery(controls.query)
                 .sortedBy(controls.sort, controls.sortDirection),
             controls = controls,
@@ -1047,7 +1056,9 @@ class LibraryViewModel @Inject constructor(
     /** Reverts to a specific book's pre-sync position - the "stay" side of the prompt above. */
     fun revertReadingProgress(bookId: Long, locator: String?, percent: Float) {
         val cfi = locator?.takeIf { it.isNotBlank() } ?: return
-        viewModelScope.launch { bookRepository.updateLocator(bookId, cfi, percent) }
+        viewModelScope.launch {
+            bookRepository.updateLocator(bookId, cfi, percent, settingsRepository.snapshot.first().finishedFraction)
+        }
     }
 
     private suspend fun runSyncNow(
@@ -2685,10 +2696,10 @@ private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(
     failed = count { it.status == ImportRowStatus.FAILED },
 )
 
-private fun List<Book>.filterBy(filter: LibraryFilter): List<Book> = when (filter) {
+private fun List<Book>.filterBy(filter: LibraryFilter, finishedThreshold: Float): List<Book> = when (filter) {
     LibraryFilter.ALL -> this
-    LibraryFilter.READING -> filter { it.readingPercent > 0f && it.readingPercent < FinishedThreshold }
-    LibraryFilter.FINISHED -> filter { it.readingPercent >= FinishedThreshold }
+    LibraryFilter.READING -> filter { it.readingPercent > 0f && it.readingPercent < finishedThreshold }
+    LibraryFilter.FINISHED -> filter { it.readingPercent >= finishedThreshold }
     LibraryFilter.NOT_STARTED -> filter { it.readingPercent <= 0f }
 }
 
@@ -2756,6 +2767,7 @@ private fun List<Book>.sortedBy(sort: LibrarySort, direction: LibrarySortDirecti
     }
 }
 
+/** Only for spotting a synced status change worth a prompt; library filters use the user's finished percent. */
 private const val FinishedThreshold = 0.98f
 private const val MaxSyncFailureBodyChars = 400
 private const val MaxSyncFailureMessageChars = 600

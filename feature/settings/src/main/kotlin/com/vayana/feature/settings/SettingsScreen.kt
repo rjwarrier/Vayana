@@ -1121,6 +1121,11 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderShowFooter -> readerShowFooter
     SettingsRegistry.ReaderAutoMarkSelection -> readerAutoMarkSelection
     SettingsRegistry.ReaderBionicReading -> readerBionicReading
+    SettingsRegistry.ReaderFullScreen -> readerFullScreen
+    SettingsRegistry.ReaderPageTurnAnimation -> readerPageTurnAnimation
+    SettingsRegistry.EinkRefreshEveryPages -> einkRefreshEveryPages
+    SettingsRegistry.FinishedPercent -> finishedPercent
+    SettingsRegistry.ReadingAutoSyncEveryPages -> readingAutoSyncEveryPages
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     SettingsRegistry.DefaultCoverSource -> defaultCoverSource
@@ -1164,6 +1169,11 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
         SettingsRegistry.ReaderAutoMarkSelection -> "highlight select selection auto mark color"
         SettingsRegistry.ReaderBionicReading -> "bionic bold word lead focus text"
+        SettingsRegistry.ReaderFullScreen -> "full screen immersive hide navigation bar status bar"
+        SettingsRegistry.ReaderPageTurnAnimation -> "page turn animation slide transition swipe"
+        SettingsRegistry.EinkRefreshEveryPages -> "eink e ink refresh flash ghosting pages"
+        SettingsRegistry.FinishedPercent -> "finished read complete percent threshold done"
+        SettingsRegistry.ReadingAutoSyncEveryPages -> "auto sync while reading page turns position progress"
         SettingsRegistry.DefaultCoverSource -> "default cover source goodreads yours custom book covers library import"
         SettingsRegistry.LandscapeTwoColumnLayout -> "landscape two column layout wide screen tablet foldable"
         SettingsRegistry.KindleDeviceName -> "device name label phone tablet sync history conflicts"

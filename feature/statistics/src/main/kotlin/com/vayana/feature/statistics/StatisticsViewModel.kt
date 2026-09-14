@@ -147,6 +147,7 @@ class StatisticsViewModel @Inject constructor(
             vocabularyCards = vocabularyCards,
             dailyGoalMinutes = inputs.settings.dailyReadingGoalMinutes,
             yearlyGoalBooks = inputs.settings.yearlyBooksGoal,
+            finishedThreshold = inputs.settings.finishedFraction,
         )
     }
         // Summarising every book and session re-runs on each change to any of them; keep it off the main thread.
@@ -175,6 +176,7 @@ private fun List<Book>.toSummary(
     vocabularyCards: List<VocabularyCard>,
     dailyGoalMinutes: Int,
     yearlyGoalBooks: Int,
+    finishedThreshold: Float,
 ): StatisticsSummary {
     val average = if (isEmpty()) 0 else (sumOf { (it.readingPercent * 100).toDouble() } / size).toInt()
     val countedSessions = sessions.filter { it.durationSeconds >= MinCountedSessionSeconds }
@@ -222,8 +224,8 @@ private fun List<Book>.toSummary(
     }
     return StatisticsSummary(
         totalBooks = size,
-        readingBooks = count { it.readingPercent > 0f && it.readingPercent < FinishedThreshold },
-        finishedBooks = count { it.readingPercent >= FinishedThreshold },
+        readingBooks = count { it.readingPercent > 0f && it.readingPercent < finishedThreshold },
+        finishedBooks = count { it.readingPercent >= finishedThreshold },
         averageProgressPercent = average.coerceIn(0, 100),
         totalAnnotations = annotations.size,
         notesWithText = annotations.count { it.readerNote?.isNotBlank() == true },
@@ -243,12 +245,12 @@ private fun List<Book>.toSummary(
         booksFinishedThisYear = finishedThisYear,
         yearlyGoalBooks = yearlyGoalBooks,
         dailyReadingMinutes = dailyReadingMinutes,
-        readingPace = readingPaceEstimate(secondsByDate, today),
+        readingPace = readingPaceEstimate(secondsByDate, today, finishedThreshold),
         genreStats = genreStats(),
         readingHabits = readingHabits(countedSessions, zone, today),
         uniqueAuthorCount = mapNotNull { it.author?.trim()?.lowercase()?.ifBlank { null } }.distinct().size,
         topAuthor = topAuthor(),
-        topSeries = topSeries(),
+        topSeries = topSeries(finishedThreshold),
         vocabularyGrowth = vocabularyGrowth(vocabularyCards, zone, today),
     )
 }
@@ -260,8 +262,12 @@ private fun List<Book>.toSummary(
  * speed) since it's already exactly what the book's own totalReadingSeconds/readingPercent encode -
  * no word count or reading-speed assumption needed.
  */
-private fun List<Book>.readingPaceEstimate(secondsByDate: Map<LocalDate, Long>, today: LocalDate): ReadingPaceEstimate? {
-    val currentBook = filter { it.readingPercent > 0.01f && it.readingPercent < FinishedThreshold && it.totalReadingSeconds > 0L }
+private fun List<Book>.readingPaceEstimate(
+    secondsByDate: Map<LocalDate, Long>,
+    today: LocalDate,
+    finishedThreshold: Float,
+): ReadingPaceEstimate? {
+    val currentBook = filter { it.readingPercent > 0.01f && it.readingPercent < finishedThreshold && it.totalReadingSeconds > 0L }
         .maxByOrNull { it.lastReadAt ?: 0L }
         ?: return null
     val recentSecondsPerDay = (0 until PaceWindowDays)
@@ -341,10 +347,10 @@ private fun List<Book>.topAuthor(): AuthorStat? {
     return totals.values.maxByOrNull { it.totalSeconds }?.takeIf { it.totalSeconds > 0L }
 }
 
-private fun List<Book>.topSeries(): SeriesProgress? {
+private fun List<Book>.topSeries(finishedThreshold: Float): SeriesProgress? {
     val bySeriesName = filter { !it.series.isNullOrBlank() }.groupBy { it.series!!.trim() }
     return bySeriesName.entries
-        .map { (name, books) -> SeriesProgress(name, books.count { it.readingPercent >= FinishedThreshold }, books.size) }
+        .map { (name, books) -> SeriesProgress(name, books.count { it.readingPercent >= finishedThreshold }, books.size) }
         .filter { it.totalCount > 1 }
         .maxByOrNull { it.totalCount }
 }
@@ -365,8 +371,6 @@ private fun vocabularyGrowth(cards: List<VocabularyCard>, zone: ZoneId, today: L
 }
 
 private const val TopLookedUpWordsLimit = 8
-
-private const val FinishedThreshold = 0.98f
 
 /** Sessions shorter than this are noise (an accidental open) and are dropped from the count/highest stat. */
 private const val MinCountedSessionSeconds = 60L

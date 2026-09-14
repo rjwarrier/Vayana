@@ -170,7 +170,7 @@ class ReaderViewModel @Inject constructor(
     private var dictionaryPickerActive = false
     private var lastUsedHighlightColor: String = DefaultAnnotationColor
     private var autoMarkedSelectionCfi: String? = null
-    private val pageTurnAutoSyncGate = PageTurnAutoSyncGate(AutoSyncEveryPages)
+    private val pageTurnAutoSyncGate = PageTurnAutoSyncGate { settings.value.readingAutoSyncEveryPages }
     private var autoProgressSyncJob: Job? = null
     private var autoProgressSyncRequested = false
     private val _syncStatus = MutableStateFlow<ReaderSyncStatus>(ReaderSyncStatus.Idle)
@@ -277,7 +277,7 @@ class ReaderViewModel @Inject constructor(
                         locatorPersistJob?.cancel()
                         locatorPersistJob = viewModelScope.launch {
                             delay(LocatorPersistDebounceMillis)
-                            bookRepository.updateLocator(bookId, write.cfi, write.progression)
+                            bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
                             if (pendingLocatorWrite === write) pendingLocatorWrite = null
                         }
                     }
@@ -641,6 +641,7 @@ class ReaderViewModel @Inject constructor(
                 customFontFileName = snapshot.selectedImportedFont?.fileName,
                 sideMarginPercent = snapshot.readerSideMarginPercent,
                 bionicReading = snapshot.readerBionicReading,
+                pageTurnAnimation = snapshot.readerPageTurnAnimation,
             ),
             theme = snapshot.readTheme,
         )
@@ -758,7 +759,7 @@ class ReaderViewModel @Inject constructor(
         // applicationScope, not viewModelScope: same reason - a launch on the cancelled viewModelScope from
         // onCleared() would silently never run its body.
         applicationScope.launch {
-            bookRepository.updateLocator(bookId, write.cfi, write.progression)
+            bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
         }
     }
 
@@ -779,7 +780,7 @@ class ReaderViewModel @Inject constructor(
         val currentCfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
         lastReaderWrittenLocator = currentCfi
         viewModelScope.launch {
-            bookRepository.updateLocator(bookId, currentCfi, currentLocator.progression)
+            bookRepository.updateLocator(bookId, currentCfi, currentLocator.progression, settings.value.finishedFraction)
         }
     }
 
@@ -1053,7 +1054,6 @@ private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
 private const val LocatorPersistDebounceMillis = 400L
 private const val RecentLookupsLimit = 5
-private const val AutoSyncEveryPages = 3
 
 /** No page turn for this long ends the current reading session (PROMPT: idle stops a session). */
 private const val IdleSessionTimeoutMs = 5 * 60 * 1000L

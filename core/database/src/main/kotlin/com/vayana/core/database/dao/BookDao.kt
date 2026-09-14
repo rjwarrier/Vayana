@@ -109,10 +109,10 @@ interface BookDao {
     @Query(
         "UPDATE books SET lastLocator = :locator, readingPercent = :readingPercent, " +
             "startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :updatedAt ELSE startedReadingAt END, " +
-            "finishedReadingAt = CASE WHEN :readingPercent >= 0.99 THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
+            "finishedReadingAt = CASE WHEN :readingPercent >= :finishedThreshold THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
             "updatedAt = :updatedAt, lastReadAt = :updatedAt WHERE id = :id",
     )
-    suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, updatedAt: Long)
+    suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, finishedThreshold: Float, updatedAt: Long)
 
     @Query(
         """

@@ -12,6 +12,8 @@ data class BookStyle(
     val customFontFileName: String? = null,
     val sideMarginPercent: Int = 10,
     val bionicReading: Boolean = false,
+    /** Slide pages when turning instead of switching instantly. */
+    val pageTurnAnimation: Boolean = false,
 )
 
 data class ReadTheme(

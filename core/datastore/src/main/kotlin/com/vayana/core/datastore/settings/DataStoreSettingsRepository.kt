@@ -153,9 +153,13 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         readerShowFooter = read(SettingsRegistry.ReaderShowFooter),
         readerAutoMarkSelection = read(SettingsRegistry.ReaderAutoMarkSelection),
         readerBionicReading = read(SettingsRegistry.ReaderBionicReading),
+        readerFullScreen = read(SettingsRegistry.ReaderFullScreen),
+        readerPageTurnAnimation = read(SettingsRegistry.ReaderPageTurnAnimation),
+        einkRefreshEveryPages = read(SettingsRegistry.EinkRefreshEveryPages),
         dailyReadingGoalMinutes = read(SettingsRegistry.DailyReadingGoalMinutes),
         yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
         defaultCoverSource = read(SettingsRegistry.DefaultCoverSource),
+        finishedPercent = read(SettingsRegistry.FinishedPercent),
         landscapeTwoColumnLayout = read(SettingsRegistry.LandscapeTwoColumnLayout),
         kindleDeviceName = read(SettingsRegistry.KindleDeviceName),
         githubSyncEnabled = read(SettingsRegistry.GithubSyncEnabled),
@@ -164,6 +168,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         githubBranch = read(SettingsRegistry.GithubBranch),
         githubToken = read(SettingsRegistry.GithubToken),
         githubSyncPassphrase = read(SettingsRegistry.GithubSyncPassphrase),
+        readingAutoSyncEveryPages = read(SettingsRegistry.ReadingAutoSyncEveryPages),
     )
 }
 

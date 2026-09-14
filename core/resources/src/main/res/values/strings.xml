@@ -698,6 +698,16 @@
     <string name="settings_reader_auto_mark_selection_subtitle">Selecting text immediately highlights it in your last-used color.</string>
     <string name="settings_reader_bionic_reading_title">Bionic reading</string>
     <string name="settings_reader_bionic_reading_subtitle">Bolds the lead of each word to help guide your eyes.</string>
+    <string name="settings_reader_full_screen_title">Full screen</string>
+    <string name="settings_reader_full_screen_subtitle">Also hide the navigation bar while reading. Swipe in from the edge to show it.</string>
+    <string name="settings_reader_page_turn_animation_title">Slide page turns</string>
+    <string name="settings_reader_page_turn_animation_subtitle">Animate pages sliding when you turn them. Best left off on e-ink screens.</string>
+    <string name="settings_eink_refresh_pages_title">E-ink full refresh</string>
+    <string name="settings_eink_refresh_pages_subtitle">With the e-ink profile, flash the screen every N pages to clear ghosting. 0 to turn off.</string>
+    <string name="settings_finished_percent_title">Count as finished at</string>
+    <string name="settings_finished_percent_subtitle">Progress percent at which a book counts as finished in the library and statistics.</string>
+    <string name="settings_reading_auto_sync_pages_title">Sync while reading</string>
+    <string name="settings_reading_auto_sync_pages_subtitle">Sync your reading position every N page turns. 0 to turn off.</string>
 
     <string name="reader_contents">Contents</string>
     <string name="reader_notes">Notes</string>

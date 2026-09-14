@@ -52,8 +52,8 @@ class BookRepositoryImpl @Inject constructor(
     override suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book? =
         (bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash))?.toDomain()
 
-    override suspend fun updateLocator(id: Long, locator: String, readingPercent: Float) {
-        bookDao.updateLocator(id, locator, readingPercent, System.currentTimeMillis())
+    override suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, finishedThreshold: Float) {
+        bookDao.updateLocator(id, locator, readingPercent, finishedThreshold, System.currentTimeMillis())
     }
 
     override suspend fun applySyncedReadingProgress(

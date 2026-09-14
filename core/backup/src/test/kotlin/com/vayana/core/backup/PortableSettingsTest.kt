@@ -12,6 +12,7 @@ class PortableSettingsTest {
         assertTrue(SettingsRegistry.ReaderTheme.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.DailyReadingGoalMinutes.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.DefaultCoverSource.key in PortableSettings.allowlist)
+        assertTrue(SettingsRegistry.FinishedPercent.key in PortableSettings.allowlist)
 
         assertFalse(SettingsRegistry.KindleDeviceName.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.GithubSyncEnabled.key in PortableSettings.allowlist)
@@ -25,5 +26,9 @@ class PortableSettingsTest {
         assertFalse(SettingsRegistry.ReaderVolumeKeys.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.ReaderKeepAwake.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.LandscapeTwoColumnLayout.key in PortableSettings.allowlist)
+        assertFalse(SettingsRegistry.ReaderFullScreen.key in PortableSettings.allowlist)
+        assertFalse(SettingsRegistry.ReaderPageTurnAnimation.key in PortableSettings.allowlist)
+        assertFalse(SettingsRegistry.EinkRefreshEveryPages.key in PortableSettings.allowlist)
+        assertFalse(SettingsRegistry.ReadingAutoSyncEveryPages.key in PortableSettings.allowlist)
     }
 }

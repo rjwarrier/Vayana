@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 class PageTurnAutoSyncGateTest {
     @Test
     fun triggersAfterThreePageTransitions() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 10)))
         assertFalse(gate.onLocator(locator(page = 11)))
@@ -18,7 +18,7 @@ class PageTurnAutoSyncGateTest {
 
     @Test
     fun ignoresDuplicatePageReports() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 1)))
         assertFalse(gate.onLocator(locator(page = 1)))
@@ -30,7 +30,7 @@ class PageTurnAutoSyncGateTest {
 
     @Test
     fun jumpsCanSatisfyThreshold() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 20)))
         assertTrue(gate.onLocator(locator(page = 23)))
@@ -38,7 +38,7 @@ class PageTurnAutoSyncGateTest {
 
     @Test
     fun keepsRemainderFromLongJumps() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 1)))
         assertTrue(gate.onLocator(locator(page = 5)))
@@ -48,7 +48,7 @@ class PageTurnAutoSyncGateTest {
 
     @Test
     fun resetsAfterTrigger() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 1)))
         assertTrue(gate.onLocator(locator(page = 4)))
@@ -59,7 +59,7 @@ class PageTurnAutoSyncGateTest {
 
     @Test
     fun skipsLocationsWithoutPageNumbers() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 1)))
         assertFalse(gate.onLocator(locator(page = null)))
@@ -70,7 +70,7 @@ class PageTurnAutoSyncGateTest {
 
     @Test
     fun skipsInvalidPageNumbers() {
-        val gate = PageTurnAutoSyncGate(thresholdPages = 3)
+        val gate = PageTurnAutoSyncGate(thresholdPages = { 3 })
 
         assertFalse(gate.onLocator(locator(page = 1)))
         assertFalse(gate.onLocator(locator(page = 0)))
@@ -78,6 +78,19 @@ class PageTurnAutoSyncGateTest {
         assertFalse(gate.onLocator(locator(page = 2)))
         assertFalse(gate.onLocator(locator(page = 3)))
         assertTrue(gate.onLocator(locator(page = 4)))
+    }
+
+    @Test
+    fun zeroThresholdTurnsSyncOff() {
+        var threshold = 0
+        val gate = PageTurnAutoSyncGate(thresholdPages = { threshold })
+
+        assertFalse(gate.onLocator(locator(page = 1)))
+        assertFalse(gate.onLocator(locator(page = 10)))
+        threshold = 3
+        assertFalse(gate.onLocator(locator(page = 11)))
+        assertFalse(gate.onLocator(locator(page = 12)))
+        assertTrue(gate.onLocator(locator(page = 13)))
     }
 
     private fun locator(page: Int?): Locator =

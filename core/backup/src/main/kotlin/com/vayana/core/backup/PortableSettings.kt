@@ -20,5 +20,6 @@ object PortableSettings {
         SettingsRegistry.DailyReadingGoalMinutes.key,
         SettingsRegistry.YearlyBooksGoal.key,
         SettingsRegistry.DefaultCoverSource.key,
+        SettingsRegistry.FinishedPercent.key,
     )
 }

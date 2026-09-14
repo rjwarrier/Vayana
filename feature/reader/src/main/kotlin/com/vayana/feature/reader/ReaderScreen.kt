@@ -507,20 +507,23 @@ private fun ReaderScreen(
     }
 
     // Immersive reading: status bar hides with the rest of the chrome, comes back on tap.
-    DisposableEffect(chromeVisible) {
+    // Full screen hides the navigation bar too.
+    DisposableEffect(chromeVisible, settings.readerFullScreen) {
         val window = (rootView.context as? Activity)?.window
         if (window != null) {
             val controller = WindowCompat.getInsetsController(window, rootView)
             if (chromeVisible) {
-                controller.show(WindowInsetsCompat.Type.statusBars())
+                controller.show(WindowInsetsCompat.Type.systemBars())
             } else {
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                controller.hide(WindowInsetsCompat.Type.statusBars())
+                controller.hide(
+                    if (settings.readerFullScreen) WindowInsetsCompat.Type.systemBars() else WindowInsetsCompat.Type.statusBars(),
+                )
             }
         }
         onDispose {
             val disposeWindow = (rootView.context as? Activity)?.window ?: return@onDispose
-            WindowCompat.getInsetsController(disposeWindow, rootView).show(WindowInsetsCompat.Type.statusBars())
+            WindowCompat.getInsetsController(disposeWindow, rootView).show(WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -543,9 +546,10 @@ private fun ReaderScreen(
     var einkFlashVisible by remember { mutableStateOf(false) }
     val currentLocatorCfi = (uiState as? ReaderUiState.Loaded)?.currentLocator?.cfi
     LaunchedEffect(currentLocatorCfi) {
-        if (currentLocatorCfi != null && settings.displayProfile == DisplayProfile.E_INK) {
+        val refreshEveryPages = settings.einkRefreshEveryPages
+        if (currentLocatorCfi != null && settings.displayProfile == DisplayProfile.E_INK && refreshEveryPages > 0) {
             einkPageTurnCount++
-            if (einkPageTurnCount % EinkFullRefreshEveryPages == 0) {
+            if (einkPageTurnCount % refreshEveryPages == 0) {
                 einkFlashTrigger++
             }
         }
@@ -2337,7 +2341,6 @@ private val ReaderSyncDotEinkSize = Sizes.syncDotEink
 private const val ReaderSyncDotStrokeFraction = 0.22f
 private const val ReaderSyncDotCoreFraction = 0.34f
 
-private const val EinkFullRefreshEveryPages = 6
 private const val EinkFlashDurationMillis = 120L
 
 /** Entries kept above the current chapter when the contents list opens scrolled to it. */
