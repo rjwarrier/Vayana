@@ -12,12 +12,15 @@ enum class SettingsGroup(
     @param:StringRes val subtitleRes: Int,
 ) {
     APPEARANCE(R.string.settings_group_appearance, R.string.settings_group_appearance_subtitle),
-    READER_TYPOGRAPHY(R.string.settings_group_reader_typography, R.string.settings_group_reader_typography_subtitle),
-    READER_LAYOUT(R.string.settings_group_reader_layout, R.string.settings_group_reader_layout_subtitle),
-    READER_BEHAVIOR(R.string.settings_group_reader_behavior, R.string.settings_group_reader_behavior_subtitle),
+    LIBRARY(R.string.settings_group_library, R.string.settings_group_library_subtitle),
+    READER_TEXT(R.string.settings_group_reader_text, R.string.settings_group_reader_text_subtitle),
+    READER_PAGE(R.string.settings_group_reader_page, R.string.settings_group_reader_page_subtitle),
+    READER_CONTROLS(R.string.settings_group_reader_controls, R.string.settings_group_reader_controls_subtitle),
     GOALS(R.string.settings_group_goals, R.string.settings_group_goals_subtitle),
     SYNC(R.string.settings_group_sync, R.string.settings_group_sync_subtitle),
-    MAINTENANCE(R.string.settings_group_maintenance, R.string.settings_group_maintenance_subtitle),
+
+    /** Holds no registry settings; its page is the backup & restore card. */
+    BACKUP(R.string.settings_group_backup, R.string.settings_group_backup_subtitle),
 }
 
 sealed class Setting<T : Any>(
@@ -185,7 +188,7 @@ object SettingsRegistry {
         defaultValue = 100,
         titleRes = R.string.settings_reader_font_size_title,
         subtitleRes = R.string.settings_reader_font_size_subtitle,
-        group = SettingsGroup.READER_TYPOGRAPHY,
+        group = SettingsGroup.READER_TEXT,
         range = 80..250,
         step = 5,
     )
@@ -194,7 +197,7 @@ object SettingsRegistry {
         defaultValue = 1.5f,
         titleRes = R.string.settings_reader_line_height_title,
         subtitleRes = R.string.settings_reader_line_height_subtitle,
-        group = SettingsGroup.READER_TYPOGRAPHY,
+        group = SettingsGroup.READER_TEXT,
         range = 1.2f..4.0f,
         step = 0.1f,
     )
@@ -204,7 +207,7 @@ object SettingsRegistry {
         defaultValue = com.vayana.core.datastore.settings.ReaderFontFamily.SERIF,
         titleRes = R.string.settings_reader_font_family_title,
         subtitleRes = R.string.settings_reader_font_family_subtitle,
-        group = SettingsGroup.READER_TYPOGRAPHY,
+        group = SettingsGroup.READER_TEXT,
         options = listOf<ChoiceOption<com.vayana.core.datastore.settings.ReaderFontFamily>>(
             ChoiceOption(com.vayana.core.datastore.settings.ReaderFontFamily.SERIF, R.string.settings_reader_font_family_serif),
             ChoiceOption(com.vayana.core.datastore.settings.ReaderFontFamily.SANS, R.string.settings_reader_font_family_sans),
@@ -217,7 +220,7 @@ object SettingsRegistry {
         defaultValue = com.vayana.core.datastore.settings.ReaderTheme.SYSTEM,
         titleRes = R.string.settings_reader_theme_title,
         subtitleRes = R.string.settings_reader_theme_subtitle,
-        group = SettingsGroup.READER_TYPOGRAPHY,
+        group = SettingsGroup.READER_PAGE,
         options = listOf<ChoiceOption<com.vayana.core.datastore.settings.ReaderTheme>>(
             ChoiceOption(com.vayana.core.datastore.settings.ReaderTheme.SYSTEM, R.string.settings_reader_theme_system),
             ChoiceOption(com.vayana.core.datastore.settings.ReaderTheme.LIGHT, R.string.settings_reader_theme_light),
@@ -235,7 +238,7 @@ object SettingsRegistry {
         defaultValue = 10,
         titleRes = R.string.settings_reader_side_margin_title,
         subtitleRes = R.string.settings_reader_side_margin_subtitle,
-        group = SettingsGroup.READER_LAYOUT,
+        group = SettingsGroup.READER_PAGE,
         range = 0..24,
         step = 2,
     )
@@ -244,7 +247,7 @@ object SettingsRegistry {
         defaultValue = 60,
         titleRes = R.string.settings_reader_header_gap_title,
         subtitleRes = R.string.settings_reader_header_gap_subtitle,
-        group = SettingsGroup.READER_LAYOUT,
+        group = SettingsGroup.READER_PAGE,
         range = 0..120,
         step = 4,
     )
@@ -253,7 +256,7 @@ object SettingsRegistry {
         defaultValue = 8,
         titleRes = R.string.settings_reader_footer_gap_title,
         subtitleRes = R.string.settings_reader_footer_gap_subtitle,
-        group = SettingsGroup.READER_LAYOUT,
+        group = SettingsGroup.READER_PAGE,
         range = 0..80,
         step = 4,
     )
@@ -262,14 +265,14 @@ object SettingsRegistry {
         defaultValue = true,
         titleRes = R.string.settings_reader_publisher_styles_title,
         subtitleRes = R.string.settings_reader_publisher_styles_subtitle,
-        group = SettingsGroup.READER_LAYOUT,
+        group = SettingsGroup.READER_TEXT,
     )
     val ReaderTapZoneMode: ChoiceSetting<TapZoneMode> = ChoiceSetting<TapZoneMode>(
         key = "reader.tap_zone_mode",
         defaultValue = TapZoneMode.THREE_ZONE,
         titleRes = R.string.settings_reader_tap_zone_title,
         subtitleRes = R.string.settings_reader_tap_zone_subtitle,
-        group = SettingsGroup.READER_BEHAVIOR,
+        group = SettingsGroup.READER_CONTROLS,
         options = listOf<ChoiceOption<TapZoneMode>>(ChoiceOption(TapZoneMode.THREE_ZONE, R.string.settings_reader_tap_zone_three_zone)),
     )
     val ReaderVolumeKeys: BooleanSetting = BooleanSetting(
@@ -277,42 +280,42 @@ object SettingsRegistry {
         defaultValue = false,
         titleRes = R.string.settings_reader_volume_keys_title,
         subtitleRes = R.string.settings_reader_volume_keys_subtitle,
-        group = SettingsGroup.READER_BEHAVIOR,
+        group = SettingsGroup.READER_CONTROLS,
     )
     val ReaderKeepAwake: BooleanSetting = BooleanSetting(
         key = "reader.keep_awake",
         defaultValue = false,
         titleRes = R.string.settings_reader_keep_awake_title,
         subtitleRes = R.string.settings_reader_keep_awake_subtitle,
-        group = SettingsGroup.READER_BEHAVIOR,
+        group = SettingsGroup.READER_CONTROLS,
     )
     val ReaderShowHeaders: BooleanSetting = BooleanSetting(
         key = "reader.show_headers",
         defaultValue = true,
         titleRes = R.string.settings_reader_show_headers_title,
         subtitleRes = R.string.settings_reader_show_headers_subtitle,
-        group = SettingsGroup.READER_LAYOUT,
+        group = SettingsGroup.READER_PAGE,
     )
     val ReaderShowFooter: BooleanSetting = BooleanSetting(
         key = "reader.show_footer",
         defaultValue = true,
         titleRes = R.string.settings_reader_show_footer_title,
         subtitleRes = R.string.settings_reader_show_footer_subtitle,
-        group = SettingsGroup.READER_LAYOUT,
+        group = SettingsGroup.READER_PAGE,
     )
     val ReaderAutoMarkSelection: BooleanSetting = BooleanSetting(
         key = "reader.auto_mark_selection",
         defaultValue = false,
         titleRes = R.string.settings_reader_auto_mark_selection_title,
         subtitleRes = R.string.settings_reader_auto_mark_selection_subtitle,
-        group = SettingsGroup.READER_BEHAVIOR,
+        group = SettingsGroup.READER_CONTROLS,
     )
     val ReaderBionicReading: BooleanSetting = BooleanSetting(
         key = "reader.bionic_reading",
         defaultValue = false,
         titleRes = R.string.settings_reader_bionic_reading_title,
         subtitleRes = R.string.settings_reader_bionic_reading_subtitle,
-        group = SettingsGroup.READER_TYPOGRAPHY,
+        group = SettingsGroup.READER_TEXT,
     )
 
     val DailyReadingGoalMinutes: IntSetting = IntSetting(
@@ -339,7 +342,7 @@ object SettingsRegistry {
         defaultValue = com.vayana.core.datastore.settings.DefaultCoverSource.YOURS,
         titleRes = R.string.settings_default_cover_source_title,
         subtitleRes = R.string.settings_default_cover_source_subtitle,
-        group = SettingsGroup.APPEARANCE,
+        group = SettingsGroup.LIBRARY,
         options = listOf<ChoiceOption<com.vayana.core.datastore.settings.DefaultCoverSource>>(
             ChoiceOption(com.vayana.core.datastore.settings.DefaultCoverSource.YOURS, R.string.settings_default_cover_source_yours),
             ChoiceOption(com.vayana.core.datastore.settings.DefaultCoverSource.GOODREADS, R.string.settings_default_cover_source_goodreads),
@@ -350,7 +353,7 @@ object SettingsRegistry {
         defaultValue = true,
         titleRes = R.string.settings_landscape_two_column_title,
         subtitleRes = R.string.settings_landscape_two_column_subtitle,
-        group = SettingsGroup.APPEARANCE,
+        group = SettingsGroup.LIBRARY,
     )
     val KindleDeviceName: StringSetting = StringSetting(
         key = "sync.kindle_device_name",
@@ -411,30 +414,31 @@ object SettingsRegistry {
         exportable = false,
     )
 
+    /** Also the on-screen order within each [SettingsGroup]. */
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
-        DisplayProfile,
         DarkVariant,
+        DisplayProfile,
         Motion,
-        ReaderFontSize,
-        ReaderLineHeight,
-        ReaderFontFamily,
-        ReaderTheme,
-        ReaderSideMargin,
-        ReaderHeaderGap,
-        ReaderFooterGap,
-        ReaderPublisherStyles,
-        ReaderShowHeaders,
-        ReaderShowFooter,
-        ReaderTapZoneMode,
-        ReaderVolumeKeys,
-        ReaderKeepAwake,
-        ReaderAutoMarkSelection,
-        ReaderBionicReading,
-        DailyReadingGoalMinutes,
-        YearlyBooksGoal,
         DefaultCoverSource,
         LandscapeTwoColumnLayout,
+        ReaderFontFamily,
+        ReaderFontSize,
+        ReaderLineHeight,
+        ReaderPublisherStyles,
+        ReaderBionicReading,
+        ReaderTheme,
+        ReaderSideMargin,
+        ReaderShowHeaders,
+        ReaderHeaderGap,
+        ReaderShowFooter,
+        ReaderFooterGap,
+        ReaderTapZoneMode,
+        ReaderVolumeKeys,
+        ReaderAutoMarkSelection,
+        ReaderKeepAwake,
+        DailyReadingGoalMinutes,
+        YearlyBooksGoal,
         GithubSyncEnabled,
         KindleDeviceName,
         GithubOwner,

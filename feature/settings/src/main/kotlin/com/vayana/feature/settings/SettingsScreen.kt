@@ -31,18 +31,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.LocalLibrary
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -101,7 +103,7 @@ internal val SettingsCategoryBadgeSize = Sizes.badge
 private val SettingsCategoryEntries: List<Pair<SettingsGroup, Int>> by lazy {
     SettingsGroup.entries.mapNotNull { group ->
         val settingCount = SettingsRegistry.all.count { it.group == group }
-        if (settingCount > 0) group to settingCount else null
+        if (settingCount > 0 || group == SettingsGroup.BACKUP) group to settingCount else null
     }
 }
 
@@ -269,7 +271,6 @@ private fun SettingsScreen(
                     query = query,
                     visibleSettings = visibleSettings,
                     settings = settings,
-                    backupState = backupState,
                     onHelpAndAboutClick = { helpAndAboutOpen = true },
                     onQueryChange = { query = it },
                     onGroupSelected = {
@@ -278,9 +279,6 @@ private fun SettingsScreen(
                     },
                     onUpdate = onUpdate,
                     onReset = onReset,
-                    onCreateBackup = onCreateBackup,
-                    onPickRestoreFile = onPickRestoreFile,
-                    onDismissBackupState = onDismissBackupState,
                 )
                 }
                 else -> {
@@ -292,8 +290,12 @@ private fun SettingsScreen(
                     githubConnectionTestState = githubConnectionTestState,
                     pendingCloudDeletions = pendingCloudDeletions,
                     readerFontImportState = readerFontImportState,
+                    backupState = backupState,
                     onUpdate = onUpdate,
                     onReset = onReset,
+                    onCreateBackup = onCreateBackup,
+                    onPickRestoreFile = onPickRestoreFile,
+                    onDismissBackupState = onDismissBackupState,
                     onExportGitHubSyncSettings = onExportGitHubSyncSettings,
                     onImportGitHubSyncSettings = onImportGitHubSyncSettings,
                     onTestGitHubConnection = onTestGitHubConnection,
@@ -507,15 +509,11 @@ private fun SettingsHub(
     query: String,
     visibleSettings: List<Setting<out Any>>,
     settings: SettingsSnapshot,
-    backupState: BackupUiState,
     onHelpAndAboutClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onGroupSelected: (SettingsGroup) -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
-    onCreateBackup: (Uri) -> Unit,
-    onPickRestoreFile: (Uri) -> Unit,
-    onDismissBackupState: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -533,16 +531,6 @@ private fun SettingsHub(
             }
         }
         if (query.isBlank()) {
-            item {
-                SettingsContentContainer {
-                    BackupRestoreCard(
-                        backupState = backupState,
-                        onCreateBackup = onCreateBackup,
-                        onPickRestoreFile = onPickRestoreFile,
-                        onDismissBackupState = onDismissBackupState,
-                    )
-                }
-            }
             item {
                 SettingsContentContainer {
                     SettingsCategoryCards(
@@ -586,8 +574,12 @@ private fun SettingsGroupDetail(
     githubConnectionTestState: GitHubConnectionTestState,
     pendingCloudDeletions: Int,
     readerFontImportState: ReaderFontImportState,
+    backupState: BackupUiState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
+    onCreateBackup: (Uri) -> Unit,
+    onPickRestoreFile: (Uri) -> Unit,
+    onDismissBackupState: () -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
     onImportGitHubSyncSettings: (Uri) -> Unit,
     onTestGitHubConnection: () -> Unit,
@@ -615,17 +607,38 @@ private fun SettingsGroupDetail(
                 }
             }
         }
-        item {
-            SettingsContentContainer {
-                SettingsPanelCard(
-                    settingsList = groupSettings,
-                    settings = settings,
-                    onUpdate = onUpdate,
-                    onReset = onReset,
-                )
+        if (group == SettingsGroup.SYNC) {
+            item {
+                SettingsContentContainer {
+                    GitHubSyncHealthCard(settings = settings, connectionState = githubConnectionTestState, pendingCloudDeletions = pendingCloudDeletions)
+                }
             }
         }
-        if (group == SettingsGroup.READER_TYPOGRAPHY) {
+        if (groupSettings.isNotEmpty()) {
+            item {
+                SettingsContentContainer {
+                    SettingsPanelCard(
+                        settingsList = groupSettings,
+                        settings = settings,
+                        onUpdate = onUpdate,
+                        onReset = onReset,
+                    )
+                }
+            }
+        }
+        if (group == SettingsGroup.BACKUP) {
+            item {
+                SettingsContentContainer {
+                    BackupRestoreCard(
+                        backupState = backupState,
+                        onCreateBackup = onCreateBackup,
+                        onPickRestoreFile = onPickRestoreFile,
+                        onDismissBackupState = onDismissBackupState,
+                    )
+                }
+            }
+        }
+        if (group == SettingsGroup.READER_TEXT) {
             item {
                 SettingsContentContainer {
                     ReaderCustomFontsCard(
@@ -640,11 +653,6 @@ private fun SettingsGroupDetail(
             }
         }
         if (group == SettingsGroup.SYNC) {
-            item {
-                SettingsContentContainer {
-                    GitHubSyncHealthCard(settings = settings, connectionState = githubConnectionTestState, pendingCloudDeletions = pendingCloudDeletions)
-                }
-            }
             item {
                 SettingsContentContainer {
                     GitHubConnectionTestCard(
@@ -885,7 +893,7 @@ private fun SettingsGroupHeader(group: SettingsGroup, settingCount: Int) {
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = group.subtitle(settingCount),
+                text = stringResource(group.subtitleRes),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -970,7 +978,7 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = group.subtitle(settingCount),
+                    text = stringResource(group.subtitleRes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -981,16 +989,18 @@ private fun SettingsGroupCard(group: SettingsGroup, settingCount: Int, onClick: 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Surface(
-                    shape = RoundedCornerShape(Radii.full),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ) {
-                    Text(
-                        text = "$settingCount",
-                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+                if (settingCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(Radii.full),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ) {
+                        Text(
+                            text = "$settingCount",
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
                 }
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -1142,7 +1152,7 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderFontSize -> "reader font size text scale typography"
         SettingsRegistry.ReaderLineHeight -> "reader line height spacing text typography"
         SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono custom imported font typography"
-        SettingsRegistry.ReaderTheme -> "reader page theme light sepia dark book"
+        SettingsRegistry.ReaderTheme -> "reader page theme colors light sepia dark book"
         SettingsRegistry.ReaderSideMargin -> "reader page margin side layout width"
         SettingsRegistry.ReaderHeaderGap -> "reader header gap top edge spacing clock session layout"
         SettingsRegistry.ReaderFooterGap -> "reader footer gap bottom edge spacing page progress layout"
@@ -1152,9 +1162,11 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
         SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"
         SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
+        SettingsRegistry.ReaderAutoMarkSelection -> "highlight select selection auto mark color"
+        SettingsRegistry.ReaderBionicReading -> "bionic bold word lead focus text"
         SettingsRegistry.DefaultCoverSource -> "default cover source goodreads yours custom book covers library import"
         SettingsRegistry.LandscapeTwoColumnLayout -> "landscape two column layout wide screen tablet foldable"
-        SettingsRegistry.KindleDeviceName -> "kindle device name label sync send to kindle backup transfer"
+        SettingsRegistry.KindleDeviceName -> "device name label phone tablet sync history conflicts"
         SettingsRegistry.GithubSyncEnabled -> "github sync cloud enable repository books notes settings"
         SettingsRegistry.GithubOwner -> "github owner username organization account sync repository"
         SettingsRegistry.GithubRepository -> "github repository repo cloud sync books notes settings"
@@ -1169,18 +1181,11 @@ private fun Setting<out Any>.searchTokens(): String {
 @Composable
 internal fun SettingsGroup.icon(): ImageVector = when (this) {
     SettingsGroup.APPEARANCE -> Icons.Outlined.Palette
-    SettingsGroup.READER_TYPOGRAPHY -> Icons.Outlined.FormatSize
-    SettingsGroup.READER_LAYOUT -> Icons.Outlined.Visibility
-    SettingsGroup.READER_BEHAVIOR -> Icons.Outlined.TouchApp
+    SettingsGroup.LIBRARY -> Icons.Outlined.LocalLibrary
+    SettingsGroup.READER_TEXT -> Icons.Outlined.FormatSize
+    SettingsGroup.READER_PAGE -> Icons.Outlined.AutoStories
+    SettingsGroup.READER_CONTROLS -> Icons.Outlined.TouchApp
     SettingsGroup.GOALS -> Icons.Outlined.Flag
-    SettingsGroup.SYNC -> Icons.Outlined.Storage
-    SettingsGroup.MAINTENANCE -> Icons.Outlined.Storage
-}
-
-@Composable
-internal fun SettingsGroup.subtitle(settingCount: Int): String = when (this) {
-    SettingsGroup.GOALS,
-    SettingsGroup.MAINTENANCE,
-    -> stringResource(subtitleRes, settingCount)
-    else -> stringResource(subtitleRes)
+    SettingsGroup.SYNC -> Icons.Outlined.Sync
+    SettingsGroup.BACKUP -> Icons.Outlined.Backup
 }
