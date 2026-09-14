@@ -101,6 +101,7 @@ class PortableReadingProgressJsonTest {
                   "rating": 4.5,
                   "readNextAddedAt": 1500,
                   "readNextUpdatedAt": 1600,
+                  "deletionUpdatedAt": 1700,
                   "goodreadsUrl": "https://www.goodreads.com/book/show/16046748",
                   "goodreadsRating": 4.1,
                   "goodreadsRatingsCount": 12345,
@@ -128,6 +129,7 @@ class PortableReadingProgressJsonTest {
         assertEquals(2012, books.single().originalPublicationYear)
         assertEquals(1500L, books.single().readNextAddedAt)
         assertEquals(1600L, books.single().readNextUpdatedAt)
+        assertEquals(1700L, books.single().deletionUpdatedAt)
     }
 
     @Test

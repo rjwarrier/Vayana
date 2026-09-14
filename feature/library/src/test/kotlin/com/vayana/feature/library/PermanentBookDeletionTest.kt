@@ -130,12 +130,59 @@ class PermanentBookDeletionTest {
     }
 
     @Test
+    fun syncedDeleteAppliesEvenIfTheBookWasReadHereAfterwards() = runBlocking {
+        val bookId = database.bookDao().insert(book(syncId = "book-e", fileHash = "hash-e", updatedAt = 5_000))
+
+        val title = repository.applyBookTombstone("book-e", deletedAt = 1_000)
+
+        assertEquals("Book A", title)
+        val deleted = database.bookDao().getById(bookId)
+        assertEquals(true, deleted?.isDeleted)
+        assertEquals(1_000L, deleted?.deletionUpdatedAt)
+    }
+
+    @Test
+    fun syncedDeleteDoesNotUndoALaterRestore() = runBlocking {
+        val bookId = database.bookDao().insert(book(syncId = "book-f", fileHash = "hash-f", deletionUpdatedAt = 2_000))
+
+        assertNull(repository.applyBookTombstone("book-f", deletedAt = 1_000))
+        assertEquals(false, database.bookDao().getById(bookId)?.isDeleted)
+    }
+
+    @Test
+    fun staleRecordNeitherRestoresNorDuplicatesADeletedBook() = runBlocking {
+        val bookId = database.bookDao().insert(book(syncId = "book-g", fileHash = "hash-g"))
+        repository.softDelete(bookId)
+
+        val result = repository.mergeCloudBook(cloudRecord(syncId = "book-g", fileHash = "hash-g", updatedAt = 9_000_000_000_000))
+
+        assertEquals(CloudBookMergeResult.SKIPPED, result)
+        assertEquals(true, database.bookDao().getById(bookId)?.isDeleted)
+        assertEquals(1, count("SELECT COUNT(*) FROM books"))
+    }
+
+    @Test
+    fun restoreOnAnotherDeviceBringsTheBookBack() = runBlocking {
+        val bookId = database.bookDao().insert(book(syncId = "book-h", fileHash = "hash-h"))
+        repository.softDelete(bookId)
+        val restoredAt = System.currentTimeMillis() + 60_000
+
+        val result = repository.mergeCloudBook(
+            cloudRecord(syncId = "book-h", fileHash = "hash-h", updatedAt = restoredAt, deletionUpdatedAt = restoredAt),
+        )
+
+        assertEquals(CloudBookMergeResult.UPDATED, result)
+        assertEquals(false, database.bookDao().getById(bookId)?.isDeleted)
+        assertNull(database.tombstoneDao().findBySyncId("book-h"))
+    }
+
+    @Test
     fun purgingAMissingBookDoesNothing() = runBlocking {
         assertNull(repository.purgeEverywhere(42))
         assertEquals(0, count("SELECT COUNT(*) FROM tombstones"))
     }
 
-    private fun cloudRecord(syncId: String, fileHash: String, updatedAt: Long) = CloudBookRecord(
+    private fun cloudRecord(syncId: String, fileHash: String, updatedAt: Long, deletionUpdatedAt: Long? = null) = CloudBookRecord(
         syncId = syncId,
         title = "Book A",
         author = null,
@@ -174,6 +221,7 @@ class PermanentBookDeletionTest {
         goodreadsRating = null,
         goodreadsRatingsCount = null,
         originalPublicationYear = null,
+        deletionUpdatedAt = deletionUpdatedAt,
     )
 
     private fun count(sql: String): Int = database.query(sql, null).use { cursor ->
@@ -187,6 +235,7 @@ class PermanentBookDeletionTest {
         updatedAt: Long = 1,
         isDeleted: Boolean = false,
         withAssets: Boolean = true,
+        deletionUpdatedAt: Long? = null,
     ) = BookEntity(
         syncId = syncId,
         title = "Book A",
@@ -212,5 +261,6 @@ class PermanentBookDeletionTest {
         lastReadAt = null,
         customCoverPath = "covers/a-custom.jpg",
         goodreadsCoverPath = "covers/a.jpg",
+        deletionUpdatedAt = deletionUpdatedAt,
     )
 }

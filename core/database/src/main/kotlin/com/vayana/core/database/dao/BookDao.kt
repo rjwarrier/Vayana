@@ -34,14 +34,22 @@ interface BookDao {
     @Update
     suspend fun update(book: BookEntity)
 
-    @Query("UPDATE books SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
+    @Query("UPDATE books SET isDeleted = 1, deletionUpdatedAt = :updatedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long)
 
-    @Query("UPDATE books SET isDeleted = 1, updatedAt = :updatedAt WHERE syncId = :syncId AND isDeleted = 0 AND updatedAt <= :updatedAt")
-    suspend fun softDeleteBySyncId(syncId: String, updatedAt: Long): Int
+    /** A delete synced from another device; skipped when the book was deleted or restored here after [deletedAt]. */
+    @Query(
+        "UPDATE books SET isDeleted = 1, deletionUpdatedAt = :deletedAt " +
+            "WHERE syncId = :syncId AND isDeleted = 0 AND COALESCE(deletionUpdatedAt, 0) < :deletedAt",
+    )
+    suspend fun applySyncedDeletion(syncId: String, deletedAt: Long): Int
 
-    @Query("UPDATE books SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
+    @Query("UPDATE books SET isDeleted = 0, deletionUpdatedAt = :updatedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun restore(id: Long, updatedAt: Long)
+
+    /** A restore synced from another device, which restored the book at [deletionUpdatedAt]. */
+    @Query("UPDATE books SET isDeleted = 0, deletionUpdatedAt = :deletionUpdatedAt WHERE id = :id")
+    suspend fun restoreFromSync(id: Long, deletionUpdatedAt: Long)
 
     /** Deletes a book row in any state; annotations, reading sessions and shelf links cascade. */
     @Query("DELETE FROM books WHERE id = :id")

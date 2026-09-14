@@ -116,6 +116,7 @@ class SnapshotExporter @Inject constructor(
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
         readNextUpdatedAt = readNextUpdatedAt,
+        deletionUpdatedAt = deletionUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating,
         goodreadsRatingsCount = goodreadsRatingsCount,

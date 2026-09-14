@@ -76,6 +76,8 @@ data class CloudBookRecord(
     val goodreadsRating: Float?,
     val goodreadsRatingsCount: Int?,
     val originalPublicationYear: Int?,
+    /** When the book was last deleted or restored on the device that exported it; null from older app versions. */
+    val deletionUpdatedAt: Long? = null,
 )
 
 enum class CloudBookMergeResult {
@@ -180,6 +182,12 @@ interface BookRepository {
 
     /** Applies a synced [TombstoneEntityType.BOOK_PURGE] for [bookSyncId]; on this device, the same as [purgeEverywhere]. */
     suspend fun applyPurgeTombstone(bookSyncId: String, deletedAt: Long): PurgedBook?
+
+    /**
+     * Applies a book delete synced from another device: moves the book to Recently deleted unless it was deleted or
+     * restored here after [deletedAt]. Reading doesn't count. Returns the book's title when it was moved, else null.
+     */
+    suspend fun applyBookTombstone(bookSyncId: String, deletedAt: Long): String?
 
     suspend fun markFinished(id: Long)
 

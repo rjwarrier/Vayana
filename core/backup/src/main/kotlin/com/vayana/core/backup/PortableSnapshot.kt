@@ -51,6 +51,7 @@ data class PortableBook(
     val customSideMarginPercent: Int?,
     val readNextAddedAt: Long?,
     val readNextUpdatedAt: Long? = null,
+    val deletionUpdatedAt: Long? = null,
     val goodreadsUrl: String? = null,
     val goodreadsRating: Float? = null,
     val goodreadsRatingsCount: Int? = null,

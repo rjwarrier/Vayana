@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 21
+Adds nullable `books.deletionUpdatedAt` (epoch millis): when the book was last deleted or restored. Synced deletes and
+restores compare it instead of `updatedAt`, which reading also bumps, so reading a book on one device no longer
+cancels a delete made on another, and a restore made after a delete brings the book back. Existing deleted rows are
+backfilled from `updatedAt`. Exported in the snapshot as optional `deletionUpdatedAt`.
+
 ## Version 20
 Adds `pending_cloud_deletions` for permanent book deletion (docs/PERMANENT_BOOK_DELETION_PLAN.md):
 `assetId` (primary key), `kind` (`book_file` / `cover`), `queuedAt`, `attempts`, `lastError`. One row per encrypted

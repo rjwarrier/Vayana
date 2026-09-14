@@ -25,7 +25,7 @@ import com.vayana.core.database.dao.PendingCloudDeletionDao
 import com.vayana.core.database.entity.PendingCloudDeletionEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (PROMPT2appbuild.md §2). */
-const val DATABASE_VERSION = 20
+const val DATABASE_VERSION = 21
 
 @Database(
     entities = [

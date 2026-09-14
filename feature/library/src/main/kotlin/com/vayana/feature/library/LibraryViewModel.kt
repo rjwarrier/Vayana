@@ -1511,14 +1511,8 @@ class LibraryViewModel @Inject constructor(
         val type = TombstoneEntityType.fromValue(tombstone.entityType) ?: return 0
         val entity = TombstoneEntity(syncId = tombstone.syncId, entityType = tombstone.entityType, deletedAt = tombstone.deletedAt)
         return when (type) {
-            TombstoneEntityType.BOOK -> {
-                val book = bookDao.findAnyBySyncId(tombstone.syncId)
-                if (book != null && !tombstoneDao.appliesOver(entity, book.updatedAt)) {
-                    0
-                } else {
-                    bookDao.softDeleteBySyncId(tombstone.syncId, tombstone.deletedAt)
-                }
-            }
+            // Moves the book to Recently deleted unless it was restored here after the delete; reading doesn't count.
+            TombstoneEntityType.BOOK -> if (bookRepository.applyBookTombstone(tombstone.syncId, tombstone.deletedAt) != null) 1 else 0
             TombstoneEntityType.ANNOTATION -> {
                 val annotation = annotationDao.findBySyncId(tombstone.syncId)
                 if (annotation != null && !tombstoneDao.appliesOver(entity, annotation.updatedAt)) {
@@ -2471,6 +2465,7 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
         readNextUpdatedAt = readNextUpdatedAt,
+        deletionUpdatedAt = deletionUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating,
         goodreadsRatingsCount = goodreadsRatingsCount,

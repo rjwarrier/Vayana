@@ -275,6 +275,11 @@ class BookRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun applyBookTombstone(bookSyncId: String, deletedAt: Long): String? = database.withTransaction {
+        val book = bookDao.findBySyncId(bookSyncId) ?: return@withTransaction null
+        book.title.takeIf { bookDao.applySyncedDeletion(bookSyncId, deletedAt) > 0 }
+    }
+
     private suspend fun purgeLocked(book: BookEntity, deletedAt: Long): PurgedBook {
         upsertPurgeTombstone(book.syncId, deletedAt)
         // A copy of the same file imported on another device and folded in under its own sync id mustn't bring it back.
@@ -474,11 +479,24 @@ class BookRepositoryImpl @Inject constructor(
         // A permanently deleted book never comes back through sync, however new the record (e.g. from a device on an
         // app version that only soft-deleted it). A re-imported copy has a new sync id and syncs normally.
         if (tombstoneDao.findBySyncId(bookPurgeTombstoneId(record.syncId)) != null) return CloudBookMergeResult.SKIPPED
+        // Deletes and restores compare deletion versions, not updatedAt: reading bumps updatedAt everywhere.
+        val recordDeletionVersion = record.deletionUpdatedAt ?: 0L
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
-        val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
-        if (tombstone != null && tombstoneDao.supersedes(tombstone, record.updatedAt, existing?.updatedAt)) {
-            return CloudBookMergeResult.SKIPPED
+        if (tombstone != null) {
+            if (recordDeletionVersion <= tombstone.deletedAt) {
+                // Deleted after this record's last restore: the record is stale and the book stays deleted.
+                bookDao.applySyncedDeletion(record.syncId, tombstone.deletedAt)
+                return CloudBookMergeResult.SKIPPED
+            }
+            // Restored on another device after it was deleted.
+            tombstoneDao.deleteBySyncId(record.syncId)
         }
+        val deletedHere = bookDao.findAnyBySyncId(record.syncId)?.takeIf { it.isDeleted }
+        if (deletedHere != null) {
+            if (recordDeletionVersion <= (deletedHere.deletionUpdatedAt ?: 0L)) return CloudBookMergeResult.SKIPPED
+            bookDao.restoreFromSync(deletedHere.id, recordDeletionVersion)
+        }
+        val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
         if (existing != null) {
             if (existing.syncId != record.syncId) {
                 bookAliasDao.upsert(BookAliasEntity(syncId = record.syncId, fileHash = record.fileHash, createdAt = minOf(existing.createdAt, record.createdAt)))
@@ -686,6 +704,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
         readNextUpdatedAt = readNextUpdatedAt,
+        deletionUpdatedAt = deletionUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating?.coerceIn(0f, 5f),
         goodreadsRatingsCount = goodreadsRatingsCount,

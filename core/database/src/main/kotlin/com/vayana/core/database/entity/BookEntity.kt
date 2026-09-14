@@ -58,6 +58,8 @@ data class BookEntity(
     val readNextAddedAt: Long? = null,
     /** When the queue entry was last added or removed; syncs "Read next" separately from [updatedAt], which reading also bumps. */
     val readNextUpdatedAt: Long? = null,
+    /** When the book was last deleted or restored; synced deletes and restores compare this, which reading never bumps. */
+    val deletionUpdatedAt: Long? = null,
     /** Goodreads import extras synced as optional portable metadata. */
     val goodreadsUrl: String? = null,
     val goodreadsRating: Float? = null,

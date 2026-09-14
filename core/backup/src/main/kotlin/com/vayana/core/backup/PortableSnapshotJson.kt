@@ -460,6 +460,7 @@ private fun PortableBook.toJson(): JSONObject =
         .putOptional("customSideMarginPercent", customSideMarginPercent)
         .putOptional("readNextAddedAt", readNextAddedAt)
         .putOptional("readNextUpdatedAt", readNextUpdatedAt)
+        .putOptional("deletionUpdatedAt", deletionUpdatedAt)
         .putOptional("goodreadsUrl", goodreadsUrl)
         .putOptional("goodreadsRating", goodreadsRating?.toDouble())
         .putOptional("goodreadsRatingsCount", goodreadsRatingsCount)
