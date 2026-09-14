@@ -481,6 +481,9 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.getReadNextQueueIdsNewestFirst().drop(MaxReadNextQueueBooks)
 
     private suspend fun mergeCloudBookLocked(record: CloudBookRecord): CloudBookMergeResult {
+        // A permanently deleted book never comes back through sync, however new the record (e.g. from a device on an
+        // app version that only soft-deleted it). A re-imported copy has a new sync id and syncs normally.
+        if (tombstoneDao.findBySyncId(bookPurgeTombstoneId(record.syncId)) != null) return CloudBookMergeResult.SKIPPED
         val tombstone = tombstoneDao.findBySyncId(record.syncId)
         val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
         if (tombstone != null && tombstoneDao.supersedes(tombstone, record.updatedAt, existing?.updatedAt)) {

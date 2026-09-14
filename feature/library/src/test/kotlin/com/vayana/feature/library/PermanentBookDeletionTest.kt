@@ -20,6 +20,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.repository.CloudBookMergeResult
+import com.vayana.core.database.repository.CloudBookRecord
 
 /** Repository-level permanent deletion against a real (in-memory) Room database. */
 @RunWith(RobolectricTestRunner::class)
@@ -106,10 +109,72 @@ class PermanentBookDeletionTest {
     }
 
     @Test
+    fun syncCannotBringBackAPermanentlyDeletedBook() = runBlocking {
+        val bookId = database.bookDao().insert(book(syncId = "book-c", fileHash = "hash-c"))
+        repository.purgeEverywhere(bookId)
+
+        val result = repository.mergeCloudBook(cloudRecord(syncId = "book-c", fileHash = "hash-c", updatedAt = 9_000_000_000_000))
+
+        assertEquals(CloudBookMergeResult.SKIPPED, result)
+        assertNull(database.bookDao().findAnyBySyncId("book-c"))
+    }
+
+    @Test
+    fun aReimportedCopyOfAPurgedFileSyncsAsANewBook() = runBlocking {
+        val bookId = database.bookDao().insert(book(syncId = "book-d", fileHash = "hash-d"))
+        repository.purgeEverywhere(bookId)
+
+        val result = repository.mergeCloudBook(cloudRecord(syncId = "book-d-reimported", fileHash = "hash-d", updatedAt = 10))
+
+        assertEquals(CloudBookMergeResult.CREATED, result)
+    }
+
+    @Test
     fun purgingAMissingBookDoesNothing() = runBlocking {
         assertNull(repository.purgeEverywhere(42))
         assertEquals(0, count("SELECT COUNT(*) FROM tombstones"))
     }
+
+    private fun cloudRecord(syncId: String, fileHash: String, updatedAt: Long) = CloudBookRecord(
+        syncId = syncId,
+        title = "Book A",
+        author = null,
+        series = null,
+        seriesNumber = null,
+        description = null,
+        tagsCsv = null,
+        format = BookFormat.EPUB,
+        fileHash = fileHash,
+        assetId = "fileasset00000009",
+        assetSha256 = "0".repeat(64),
+        assetSizeBytes = 10,
+        assetUploadedAt = 1,
+        coverAssetId = null,
+        coverAssetSha256 = null,
+        coverAssetSizeBytes = null,
+        coverAssetUploadedAt = null,
+        lastLocator = null,
+        readingPercent = 0f,
+        rating = 0f,
+        wordCount = null,
+        pageEstimate = null,
+        createdAt = 1,
+        updatedAt = updatedAt,
+        lastReadAt = null,
+        startedReadingAt = null,
+        finishedReadingAt = null,
+        totalReadingSeconds = 0,
+        customFontSizePercent = null,
+        customLineHeight = null,
+        customFontFamily = null,
+        customSideMarginPercent = null,
+        readNextAddedAt = null,
+        readNextUpdatedAt = null,
+        goodreadsUrl = null,
+        goodreadsRating = null,
+        goodreadsRatingsCount = null,
+        originalPublicationYear = null,
+    )
 
     private fun count(sql: String): Int = database.query(sql, null).use { cursor ->
         cursor.moveToFirst()

@@ -126,6 +126,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
+import com.vayana.core.database.repository.bookSyncIdOfPurge
+import com.vayana.core.filesystem.BookFileCleaner
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
@@ -443,6 +445,7 @@ class LibraryViewModel @Inject constructor(
     private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
+    private val bookFileCleaner: BookFileCleaner,
     private val resolvedBooks: ResolvedBooks,
     private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
     private val dispatchers: DispatcherProvider,
@@ -1522,8 +1525,13 @@ class LibraryViewModel @Inject constructor(
                 val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return 0
                 bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
             }
-            // Applied once the permanent-deletion sync rules land (docs/PERMANENT_BOOK_DELETION_PLAN.md, stage 3).
-            TombstoneEntityType.BOOK_PURGE -> 0
+            // Deleted permanently on another device: applies over any local changes, including the book's files.
+            TombstoneEntityType.BOOK_PURGE -> {
+                val bookSyncId = bookSyncIdOfPurge(tombstone.syncId) ?: return 0
+                val purged = bookRepository.applyPurgeTombstone(bookSyncId, deletedAt = tombstone.deletedAt) ?: return 0
+                bookFileCleaner.delete(purged.localFilePaths)
+                1
+            }
         }
     }
 
