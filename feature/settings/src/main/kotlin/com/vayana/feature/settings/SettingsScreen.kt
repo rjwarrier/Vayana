@@ -1126,6 +1126,11 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.EinkRefreshEveryPages -> einkRefreshEveryPages
     SettingsRegistry.FinishedPercent -> finishedPercent
     SettingsRegistry.ReadingAutoSyncEveryPages -> readingAutoSyncEveryPages
+    SettingsRegistry.DynamicColor -> dynamicColor
+    SettingsRegistry.DateFormat -> dateFormatStyle
+    SettingsRegistry.StartScreen -> startScreen
+    SettingsRegistry.RecentlyDeletedRetention -> recentlyDeletedRetention
+    SettingsRegistry.WeekStart -> weekStart
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     SettingsRegistry.DefaultCoverSource -> defaultCoverSource
@@ -1174,6 +1179,11 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.EinkRefreshEveryPages -> "eink e ink refresh flash ghosting pages"
         SettingsRegistry.FinishedPercent -> "finished read complete percent threshold done"
         SettingsRegistry.ReadingAutoSyncEveryPages -> "auto sync while reading page turns position progress"
+        SettingsRegistry.DynamicColor -> "dynamic color material you wallpaper accent palette"
+        SettingsRegistry.DateFormat -> "date format day month iso calendar"
+        SettingsRegistry.StartScreen -> "open on start screen startup launch continue last book resume tab"
+        SettingsRegistry.RecentlyDeletedRetention -> "recently deleted trash empty auto purge retention days"
+        SettingsRegistry.WeekStart -> "week start first day sunday monday calendar heatmap"
         SettingsRegistry.DefaultCoverSource -> "default cover source goodreads yours custom book covers library import"
         SettingsRegistry.LandscapeTwoColumnLayout -> "landscape two column layout wide screen tablet foldable"
         SettingsRegistry.KindleDeviceName -> "device name label phone tablet sync history conflicts"

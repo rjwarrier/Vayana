@@ -21,5 +21,9 @@ object PortableSettings {
         SettingsRegistry.YearlyBooksGoal.key,
         SettingsRegistry.DefaultCoverSource.key,
         SettingsRegistry.FinishedPercent.key,
+        SettingsRegistry.RecentlyDeletedRetention.key,
+        SettingsRegistry.WeekStart.key,
+        // SettingsRegistry.DateFormat's key; its value type lives in :core:designsystem, which this module can't see.
+        "appearance.date_format",
     )
 }

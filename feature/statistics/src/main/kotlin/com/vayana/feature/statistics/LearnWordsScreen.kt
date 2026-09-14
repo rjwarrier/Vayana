@@ -38,6 +38,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.core.designsystem.theme.asAppDate
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -218,5 +219,6 @@ private fun LearnWordsEmptyState(contentPadding: PaddingValues) {
     }
 }
 
-private fun Long.asLookupDate(): String = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())
-    .format(Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()))
+@androidx.compose.runtime.Composable
+@androidx.compose.runtime.ReadOnlyComposable
+private fun Long.asLookupDate(): String = asAppDate()

@@ -1,5 +1,6 @@
 package com.vayana.core.designsystem.theme
 
+import android.os.Build
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollFactory
@@ -13,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.platform.LocalContext
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.VayanaTypography
 
@@ -49,6 +51,8 @@ fun VayanaTheme(
     displayProfile: DisplayProfile = LocalDisplayProfile.current,
     darkVariant: DarkVariant = LocalDarkVariant.current,
     motionSetting: MotionSetting = LocalMotionSetting.current,
+    dynamicColor: Boolean = LocalDynamicColor.current,
+    dateFormatStyle: DateFormatStyle = LocalDateFormatStyle.current,
     content: @Composable () -> Unit,
 ) {
     val isDark = when (themeMode) {
@@ -56,13 +60,20 @@ fun VayanaTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val colorScheme = ColorSchemes.forProfile(displayProfile, isDark, darkVariant)
+    // Wallpaper colors would undo the E-Ink profile's monochrome chrome, so that profile always wins.
+    val colorScheme = if (dynamicColor && displayProfile != DisplayProfile.E_INK && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        ColorSchemes.dynamic(LocalContext.current, isDark, darkVariant)
+    } else {
+        ColorSchemes.forProfile(displayProfile, isDark, darkVariant)
+    }
     val motionScheme = motionSchemeFor(displayProfile, motionSetting)
 
     CompositionLocalProvider(
         LocalDisplayProfile provides displayProfile,
         LocalDarkVariant provides darkVariant,
         LocalMotionSetting provides motionSetting,
+        LocalDynamicColor provides dynamicColor,
+        LocalDateFormatStyle provides dateFormatStyle,
         // Ripple fade and stretch/glow overscroll both animate a repaint - deadly for E-Ink ghosting.
         LocalIndication provides if (displayProfile == DisplayProfile.E_INK) NoIndication else LocalIndication.current,
         LocalOverscrollFactory provides if (displayProfile == DisplayProfile.E_INK) null else LocalOverscrollFactory.current,

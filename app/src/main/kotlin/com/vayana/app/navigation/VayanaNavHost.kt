@@ -29,13 +29,14 @@ import com.vayana.feature.statistics.VocabularyReviewRoute as VocabularyReviewSc
 fun VayanaNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    startDestination: TopLevelRoute = TopLevelRoute.Library,
 ) {
     val displayProfile = LocalDisplayProfile.current
     val motionSetting = LocalMotionSetting.current
 
     NavHost(
         navController = navController,
-        startDestination = TopLevelRoute.Library,
+        startDestination = startDestination,
         modifier = modifier,
         enterTransition = { vayanaNavEnter(displayProfile, motionSetting) },
         exitTransition = { vayanaNavExit(displayProfile, motionSetting) },

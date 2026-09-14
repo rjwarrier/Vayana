@@ -2,10 +2,12 @@ package com.vayana.core.datastore.settings
 
 import androidx.annotation.StringRes
 import com.vayana.core.designsystem.theme.DarkVariant
+import com.vayana.core.designsystem.theme.DateFormatStyle
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.MotionSetting
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.resources.R
+import java.time.DayOfWeek
 
 enum class SettingsGroup(
     @param:StringRes val titleRes: Int,
@@ -126,6 +128,11 @@ data class SettingsSnapshot(
     val githubToken: String = "",
     val githubSyncPassphrase: String = "",
     val readingAutoSyncEveryPages: Int = 3,
+    val dynamicColor: Boolean = false,
+    val dateFormatStyle: DateFormatStyle = DateFormatStyle.SYSTEM,
+    val startScreen: StartScreen = StartScreen.LIBRARY,
+    val recentlyDeletedRetention: RecentlyDeletedRetention = RecentlyDeletedRetention.FOREVER,
+    val weekStart: WeekStart = WeekStart.SUNDAY,
 ) {
     /** Reading progress (0..1) from which a book counts as finished. */
     val finishedFraction: Float get() = finishedPercent / 100f
@@ -138,6 +145,14 @@ enum class ReaderTheme { SYSTEM, LIGHT, PAPER, SEPIA, MINT, SKY, ROSE, DARK, OLE
 enum class TapZoneMode { THREE_ZONE }
 
 enum class DefaultCoverSource { YOURS, GOODREADS }
+
+/** Where the app opens. [LAST_BOOK] opens the library with the most recently read book on top of it. */
+enum class StartScreen { LIBRARY, NOTES, STATISTICS, LAST_BOOK }
+
+/** How long books stay in Recently deleted before they're deleted permanently; [FOREVER] is 0 days. */
+enum class RecentlyDeletedRetention(val days: Int) { FOREVER(0), DAYS_7(7), DAYS_30(30), DAYS_90(90) }
+
+enum class WeekStart(val day: DayOfWeek) { SUNDAY(DayOfWeek.SUNDAY), MONDAY(DayOfWeek.MONDAY) }
 
 object SettingsRegistry {
     val ThemeMode: ChoiceSetting<com.vayana.core.designsystem.theme.ThemeMode> =
@@ -368,6 +383,67 @@ object SettingsRegistry {
         step = 1,
     )
 
+    val DynamicColor: BooleanSetting = BooleanSetting(
+        key = "appearance.dynamic_color",
+        defaultValue = false,
+        titleRes = R.string.settings_dynamic_color_title,
+        subtitleRes = R.string.settings_dynamic_color_subtitle,
+        group = SettingsGroup.APPEARANCE,
+    )
+    val DateFormat: ChoiceSetting<DateFormatStyle> = ChoiceSetting<DateFormatStyle>(
+        key = "appearance.date_format",
+        defaultValue = DateFormatStyle.SYSTEM,
+        titleRes = R.string.settings_date_format_title,
+        subtitleRes = R.string.settings_date_format_subtitle,
+        group = SettingsGroup.APPEARANCE,
+        options = listOf<ChoiceOption<DateFormatStyle>>(
+            ChoiceOption(DateFormatStyle.SYSTEM, R.string.settings_date_format_system),
+            ChoiceOption(DateFormatStyle.DAY_FIRST, R.string.settings_date_format_day_first),
+            ChoiceOption(DateFormatStyle.MONTH_FIRST, R.string.settings_date_format_month_first),
+            ChoiceOption(DateFormatStyle.ISO, R.string.settings_date_format_iso),
+        ),
+    )
+    val StartScreen: ChoiceSetting<com.vayana.core.datastore.settings.StartScreen> =
+        ChoiceSetting<com.vayana.core.datastore.settings.StartScreen>(
+        key = "app.start_screen",
+        defaultValue = com.vayana.core.datastore.settings.StartScreen.LIBRARY,
+        titleRes = R.string.settings_start_screen_title,
+        subtitleRes = R.string.settings_start_screen_subtitle,
+        group = SettingsGroup.LIBRARY,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.StartScreen>>(
+            ChoiceOption(com.vayana.core.datastore.settings.StartScreen.LIBRARY, R.string.settings_start_screen_library),
+            ChoiceOption(com.vayana.core.datastore.settings.StartScreen.LAST_BOOK, R.string.settings_start_screen_last_book),
+            ChoiceOption(com.vayana.core.datastore.settings.StartScreen.NOTES, R.string.settings_start_screen_notes),
+            ChoiceOption(com.vayana.core.datastore.settings.StartScreen.STATISTICS, R.string.settings_start_screen_statistics),
+        ),
+    )
+    val RecentlyDeletedRetention: ChoiceSetting<com.vayana.core.datastore.settings.RecentlyDeletedRetention> =
+        ChoiceSetting<com.vayana.core.datastore.settings.RecentlyDeletedRetention>(
+        key = "library.recently_deleted_retention",
+        defaultValue = com.vayana.core.datastore.settings.RecentlyDeletedRetention.FOREVER,
+        titleRes = R.string.settings_recently_deleted_retention_title,
+        subtitleRes = R.string.settings_recently_deleted_retention_subtitle,
+        group = SettingsGroup.LIBRARY,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.RecentlyDeletedRetention>>(
+            ChoiceOption(com.vayana.core.datastore.settings.RecentlyDeletedRetention.FOREVER, R.string.settings_recently_deleted_retention_forever),
+            ChoiceOption(com.vayana.core.datastore.settings.RecentlyDeletedRetention.DAYS_7, R.string.settings_recently_deleted_retention_7),
+            ChoiceOption(com.vayana.core.datastore.settings.RecentlyDeletedRetention.DAYS_30, R.string.settings_recently_deleted_retention_30),
+            ChoiceOption(com.vayana.core.datastore.settings.RecentlyDeletedRetention.DAYS_90, R.string.settings_recently_deleted_retention_90),
+        ),
+    )
+    val WeekStart: ChoiceSetting<com.vayana.core.datastore.settings.WeekStart> =
+        ChoiceSetting<com.vayana.core.datastore.settings.WeekStart>(
+        key = "goals.week_start",
+        defaultValue = com.vayana.core.datastore.settings.WeekStart.SUNDAY,
+        titleRes = R.string.settings_week_start_title,
+        subtitleRes = R.string.settings_week_start_subtitle,
+        group = SettingsGroup.GOALS,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.WeekStart>>(
+            ChoiceOption(com.vayana.core.datastore.settings.WeekStart.SUNDAY, R.string.settings_week_start_sunday),
+            ChoiceOption(com.vayana.core.datastore.settings.WeekStart.MONDAY, R.string.settings_week_start_monday),
+        ),
+    )
+
     val DailyReadingGoalMinutes: IntSetting = IntSetting(
         key = "goals.daily_reading_minutes",
         defaultValue = 20,
@@ -468,12 +544,16 @@ object SettingsRegistry {
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
         DarkVariant,
+        DynamicColor,
         DisplayProfile,
         Motion,
         EinkRefreshEveryPages,
+        DateFormat,
+        StartScreen,
         DefaultCoverSource,
         LandscapeTwoColumnLayout,
         FinishedPercent,
+        RecentlyDeletedRetention,
         ReaderFontFamily,
         ReaderFontSize,
         ReaderLineHeight,
@@ -493,6 +573,7 @@ object SettingsRegistry {
         ReaderKeepAwake,
         DailyReadingGoalMinutes,
         YearlyBooksGoal,
+        WeekStart,
         GithubSyncEnabled,
         KindleDeviceName,
         GithubOwner,

@@ -90,6 +90,7 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.io.File
+import com.vayana.core.designsystem.theme.asAppDate
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
@@ -1140,7 +1141,9 @@ private fun NotesNoMatchesState(contentPadding: PaddingValues) {
     }
 }
 
-private fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(this))
+@androidx.compose.runtime.Composable
+@androidx.compose.runtime.ReadOnlyComposable
+private fun Long.formatDate(): String = asAppDate()
 
 private fun List<BookNotesItem>.filterBooksByQuery(query: String): List<BookNotesItem> {
     val normalizedQuery = query.trim()

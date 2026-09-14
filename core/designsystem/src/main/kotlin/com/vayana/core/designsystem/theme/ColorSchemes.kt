@@ -1,7 +1,12 @@
 package com.vayana.core.designsystem.theme
 
+import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import com.vayana.core.designsystem.tokens.Palette
@@ -134,6 +139,24 @@ object ColorSchemes {
         errorContainer = Palette.EinkContainerHigh,
         onErrorContainer = Palette.EinkForeground,
     )
+
+    /** Material You colors from the wallpaper (Android 12+), keeping true black when that dark variant is chosen. */
+    @RequiresApi(Build.VERSION_CODES.S)
+    fun dynamic(context: Context, isDark: Boolean, darkVariant: DarkVariant): ColorScheme {
+        if (!isDark) return dynamicLightColorScheme(context)
+        val scheme = dynamicDarkColorScheme(context)
+        return if (darkVariant == DarkVariant.TRUE_BLACK) {
+            scheme.copy(
+                background = Palette.Amoled,
+                surface = Palette.Amoled,
+                surfaceContainerLowest = Palette.Amoled,
+                surfaceContainerLow = Palette.Amoled,
+                surfaceContainer = Palette.NearBlack,
+            )
+        } else {
+            scheme
+        }
+    }
 
     fun forProfile(profile: DisplayProfile, isDark: Boolean, darkVariant: DarkVariant): ColorScheme = when {
         profile == DisplayProfile.E_INK -> eInk

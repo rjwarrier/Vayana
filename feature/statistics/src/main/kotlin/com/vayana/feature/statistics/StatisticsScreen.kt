@@ -64,6 +64,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.time.LocalDate
+import com.vayana.core.designsystem.theme.asAppDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -658,7 +659,6 @@ private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentW
     }
     val scrollState = rememberLazyListState()
     var selectedDay by remember { mutableStateOf<DailyReadingMinutes?>(null) }
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM d, yyyy") }
     LaunchedEffect(weeks.size) {
         if (weeks.isNotEmpty()) scrollState.scrollToItem(weeks.lastIndex)
     }
@@ -680,7 +680,7 @@ private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentW
                     Text(text = stringResource(R.string.statistics_activity_title), style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = selectedDay?.let { day ->
-                            stringResource(R.string.statistics_activity_day_detail, day.date.format(dateFormatter), day.minutes)
+                            stringResource(R.string.statistics_activity_day_detail, day.date.asAppDate(), day.minutes)
                         } ?: stringResource(R.string.statistics_activity_support, recentWeekMinutes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -706,7 +706,7 @@ private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentW
                 }
             }
             Row(modifier = Modifier.padding(top = Spacing.lg)) {
-                DayOfWeekLabels()
+                DayOfWeekLabels(days = weeks.firstOrNull()?.map { it.date.dayOfWeek }.orEmpty())
                 LazyRow(
                     state = scrollState,
                     modifier = Modifier.padding(start = Spacing.xs),
@@ -729,14 +729,18 @@ private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentW
 }
 
 @Composable
-private fun DayOfWeekLabels() {
+private fun DayOfWeekLabels(days: List<java.time.DayOfWeek>) {
     Column(verticalArrangement = Arrangement.spacedBy(HeatmapCellGap)) {
         Spacer(modifier = Modifier.height(HeatmapMonthLabelHeight))
-        // GitHub shows every other label (Mon/Wed/Fri) so they don't crowd the small row height.
-        listOf(null, "Mon", null, "Wed", null, "Fri", null).forEach { label ->
+        // GitHub labels every other row so the labels don't crowd the small row height; [days] follows the week start.
+        days.forEachIndexed { index, day ->
             Box(modifier = Modifier.height(HeatmapCellSize), contentAlignment = Alignment.CenterStart) {
-                label?.let {
-                    Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (index % 2 == 1) {
+                    Text(
+                        text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

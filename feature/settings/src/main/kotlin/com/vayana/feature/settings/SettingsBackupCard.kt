@@ -33,14 +33,14 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.core.designsystem.theme.asAppDateTime
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-internal fun Long.formatBackupDate(): String {
-    if (this <= 0L) return ""
-    return SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()).format(Date(this))
-}
+@androidx.compose.runtime.Composable
+@androidx.compose.runtime.ReadOnlyComposable
+internal fun Long.formatBackupDate(): String = if (this <= 0L) "" else asAppDateTime()
 
 internal fun Long.formatByteSize(): String {
     if (this < 1024) return "$this B"

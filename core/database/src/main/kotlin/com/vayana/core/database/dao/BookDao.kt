@@ -16,6 +16,10 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE isDeleted = 1 ORDER BY updatedAt DESC")
     fun observeDeleted(): Flow<List<BookEntity>>
 
+    /** Books moved to Recently deleted before [cutoff] and not restored since. */
+    @Query("SELECT id FROM books WHERE isDeleted = 1 AND COALESCE(deletionUpdatedAt, updatedAt) < :cutoff")
+    suspend fun deletedIdsBefore(cutoff: Long): List<Long>
+
     @Query("SELECT * FROM books WHERE id = :id")
     suspend fun getById(id: Long): BookEntity?
 

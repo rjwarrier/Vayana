@@ -47,6 +47,8 @@ class BookRepositoryImpl @Inject constructor(
     override fun observeDeleted(): Flow<List<Book>> =
         bookDao.observeDeleted().map { entities -> entities.map { it.toDomain() } }
 
+    override suspend fun deletedBookIdsBefore(cutoff: Long): List<Long> = bookDao.deletedIdsBefore(cutoff)
+
     override suspend fun getById(id: Long): Book? = bookDao.getById(id)?.toDomain()
 
     override suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book? =

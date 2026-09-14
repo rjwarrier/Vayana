@@ -113,6 +113,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.io.File
+import com.vayana.core.designsystem.theme.asAppDate
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
@@ -1281,7 +1282,7 @@ private fun LibraryListRow(
 
 @Composable
 private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadProgress: Float?) {
-    val importedDate = remember(book.createdAt) { book.createdAt.formatDate() }
+    val importedDate = book.createdAt.formatDate()
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1765,7 +1766,9 @@ internal fun Book.seriesDisplay(): String = listOfNotNull(
     seriesNumber?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.library_series_number_value, it) },
 ).joinToString(" · ")
 
-internal fun Long.formatDate(): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(this))
+@Composable
+@androidx.compose.runtime.ReadOnlyComposable
+internal fun Long.formatDate(): String = asAppDate()
 
 internal fun Book.hasStartedReading(): Boolean =
     startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L

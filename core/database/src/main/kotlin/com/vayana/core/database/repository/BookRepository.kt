@@ -99,6 +99,9 @@ interface BookRepository {
     /** Soft-deleted books, newest deletion first - backs the "Recently deleted" restore screen. */
     fun observeDeleted(): Flow<List<Book>>
 
+    /** Ids of books that were moved to Recently deleted before [cutoff] (epoch millis). */
+    suspend fun deletedBookIdsBefore(cutoff: Long): List<Long>
+
     suspend fun getById(id: Long): Book?
 
     suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book?

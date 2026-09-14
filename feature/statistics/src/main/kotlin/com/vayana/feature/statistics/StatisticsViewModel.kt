@@ -100,7 +100,7 @@ data class StatisticsSummary(
     val dailyGoalMinutes: Int = 0,
     val booksFinishedThisYear: Int = 0,
     val yearlyGoalBooks: Int = 0,
-    /** Sunday-aligned weeks ending this week, oldest first, sized to a whole number of 7-day
+    /** Weeks (starting on the user's first day of the week) ending this week, oldest first, sized to a whole number of 7-day
      *  columns so the UI can chunk it directly with no partial-week special-casing - a
      *  GitHub-style contribution grid. Between [MinActivityGridWeeks] and [ActivityGridWeeks]
      *  weeks wide depending on how long there's been any activity to show. */
@@ -148,6 +148,7 @@ class StatisticsViewModel @Inject constructor(
             dailyGoalMinutes = inputs.settings.dailyReadingGoalMinutes,
             yearlyGoalBooks = inputs.settings.yearlyBooksGoal,
             finishedThreshold = inputs.settings.finishedFraction,
+            firstDayOfWeek = inputs.settings.weekStart.day,
         )
     }
         // Summarising every book and session re-runs on each change to any of them; keep it off the main thread.
@@ -177,6 +178,7 @@ private fun List<Book>.toSummary(
     dailyGoalMinutes: Int,
     yearlyGoalBooks: Int,
     finishedThreshold: Float,
+    firstDayOfWeek: DayOfWeek,
 ): StatisticsSummary {
     val average = if (isEmpty()) 0 else (sumOf { (it.readingPercent * 100).toDouble() } / size).toInt()
     val countedSessions = sessions.filter { it.durationSeconds >= MinCountedSessionSeconds }
@@ -197,11 +199,10 @@ private fun List<Book>.toSummary(
         streak++
         probe = probe.minusDays(1)
     }
-    // Sunday-start week columns, GitHub-style: the grid always ends on this week's Saturday
+    // Week columns starting on [firstDayOfWeek], GitHub-style: the grid always ends on this week's last day
     // regardless of what day "today" is, so the column count and shape never change day to day -
     // only how many trailing cells in the last column are still in the future.
-    val daysSinceSunday = today.dayOfWeek.value % 7
-    val currentWeekStart = today.minusDays(daysSinceSunday.toLong())
+    val currentWeekStart = today.startOfWeek(firstDayOfWeek)
     val maxLookbackStart = currentWeekStart.minusWeeks((ActivityGridWeeks - 1).toLong())
     val minLookbackStart = currentWeekStart.minusWeeks((MinActivityGridWeeks - 1).toLong())
     // A brand-new library has no reason to drag in 53 weeks of empty squares before the first
@@ -210,7 +211,7 @@ private fun List<Book>.toSummary(
     // most ActivityGridWeeks (so a long-lived library still gets the familiar year view).
     val earliestActivityDate = (sessions.minOfOrNull { it.startedAt } ?: minOfOrNull { it.createdAt })
         ?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
-    val earliestWeekStart = earliestActivityDate?.let { date -> date.minusDays((date.dayOfWeek.value % 7).toLong()) }
+    val earliestWeekStart = earliestActivityDate?.startOfWeek(firstDayOfWeek)
     val gridStart = (earliestWeekStart ?: minLookbackStart).coerceIn(maxLookbackStart, minLookbackStart)
     val totalWeeks = ((currentWeekStart.toEpochDay() - gridStart.toEpochDay()) / 7 + 1).toInt()
     val dailyReadingMinutes = (0 until totalWeeks * 7).map { offset ->
@@ -251,7 +252,7 @@ private fun List<Book>.toSummary(
         uniqueAuthorCount = mapNotNull { it.author?.trim()?.lowercase()?.ifBlank { null } }.distinct().size,
         topAuthor = topAuthor(),
         topSeries = topSeries(finishedThreshold),
-        vocabularyGrowth = vocabularyGrowth(vocabularyCards, zone, today),
+        vocabularyGrowth = vocabularyGrowth(vocabularyCards, zone, today, firstDayOfWeek),
     )
 }
 
@@ -355,10 +356,15 @@ private fun List<Book>.topSeries(finishedThreshold: Float): SeriesProgress? {
         .maxByOrNull { it.totalCount }
 }
 
-private fun vocabularyGrowth(cards: List<VocabularyCard>, zone: ZoneId, today: LocalDate): VocabularyGrowth? {
+private fun vocabularyGrowth(
+    cards: List<VocabularyCard>,
+    zone: ZoneId,
+    today: LocalDate,
+    firstDayOfWeek: DayOfWeek,
+): VocabularyGrowth? {
     if (cards.isEmpty()) return null
     val masteredFraction = cards.count { it.known }.toFloat() / cards.size
-    val currentWeekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
+    val currentWeekStart = today.startOfWeek(firstDayOfWeek)
     val weeklyNewCards = (VocabularyGrowthWeeks - 1 downTo 0).map { weeksAgo ->
         val weekStart = currentWeekStart.minusWeeks(weeksAgo.toLong())
         val weekEndExclusive = weekStart.plusWeeks(1)
@@ -370,12 +376,16 @@ private fun vocabularyGrowth(cards: List<VocabularyCard>, zone: ZoneId, today: L
     return VocabularyGrowth(masteredFraction = masteredFraction, weeklyNewCards = weeklyNewCards)
 }
 
+/** The first day of the week containing this date, for weeks that begin on [firstDayOfWeek]. */
+private fun LocalDate.startOfWeek(firstDayOfWeek: DayOfWeek): LocalDate =
+    minusDays(((dayOfWeek.value - firstDayOfWeek.value + 7) % 7).toLong())
+
 private const val TopLookedUpWordsLimit = 8
 
 /** Sessions shorter than this are noise (an accidental open) and are dropped from the count/highest stat. */
 private const val MinCountedSessionSeconds = 60L
 
-/** Widest the reading-activity contribution grid ever grows, in Sunday-start weeks (~1 year). */
+/** Widest the reading-activity contribution grid ever grows, in weeks (~1 year). */
 const val ActivityGridWeeks = 53
 
 /** Narrowest the grid ever shrinks to, even for a library with only a day or two of history. */

@@ -169,6 +169,11 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         githubToken = read(SettingsRegistry.GithubToken),
         githubSyncPassphrase = read(SettingsRegistry.GithubSyncPassphrase),
         readingAutoSyncEveryPages = read(SettingsRegistry.ReadingAutoSyncEveryPages),
+        dynamicColor = read(SettingsRegistry.DynamicColor),
+        dateFormatStyle = read(SettingsRegistry.DateFormat),
+        startScreen = read(SettingsRegistry.StartScreen),
+        recentlyDeletedRetention = read(SettingsRegistry.RecentlyDeletedRetention),
+        weekStart = read(SettingsRegistry.WeekStart),
     )
 }
 
