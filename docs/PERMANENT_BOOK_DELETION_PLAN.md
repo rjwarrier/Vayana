@@ -3,7 +3,8 @@
 **Goal:** one action that removes a book for good — from this device, from every synced device, and from the
 GitHub sync repository — including its file, covers, highlights/notes and reading history.
 
-Status: proposal, 2026-09-13. Nothing here is implemented yet.
+Status: **implemented 2026-09-14** in stages 1–4 (data layer, cloud file deletion, sync rules, UI). The decisions
+in §6 were taken as recommended. §8 lists where the build differs from this plan. Not yet verified on a device.
 
 ---
 
@@ -179,3 +180,23 @@ two devices before the button appears.
   than a grace period so another device's not-yet-published upload is never removed.
 - Bulk selection and deletion in the Library.
 - Auto-purging Recently deleted after N days.
+
+## 8. As built (2026-09-14)
+
+Implemented as planned, with these differences and gaps:
+
+- **Only full sync publishes purges and deletes cloud files.** Progress-only sync still pushes just reading-session
+  and reading-reset tombstones, so a purge reaches other devices — and its cloud files are removed — on the next
+  full sync (`LibraryViewModel.runSyncNow` → `deletePendingCloudAssets` after `saveMetadataSnapshotWithRebase`).
+- **No export guard for children of purged books.** Not needed in practice: a device's purge deletes the rows
+  (annotations, sessions, shelf links cascade) before it exports, and book merges skip purged sync ids, so orphaned
+  children from other devices never find a book to attach to.
+- **No "deleted on another device" line in the sync summary**; synced purges are counted only in
+  `GenericSyncMergeSummary.appliedDeletes`.
+- **In-flight work isn't cancelled:** an active cloud download or an open reader for the book isn't stopped. Book
+  detail closes as soon as the user confirms; Recently deleted removes the row immediately.
+- **Settings shows how many cloud files are queued**, not the last error (errors go to Diagnostics).
+- **One commit per deleted asset** (Contents API); no Git Data API batching yet.
+- **Robolectric Room tests live in `feature/library`** (`PermanentBookDeletionTest`), which already runs JUnit 4;
+  `core/database` runs JUnit 5, which Robolectric doesn't support without an extra engine.
+- Removed: the old local-only `BookRepository.purge` / `BookDao.purge` and their dialog strings.

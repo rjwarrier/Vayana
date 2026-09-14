@@ -1,4 +1,4 @@
-# Features: onboarding, search, Read Next
+# Features: onboarding, search, Read Next, deleting books
 
 How three recently added features behave, where their code lives, and the rules that aren't obvious from
 reading one file. Keep this in step with the code when any of them changes.
@@ -86,3 +86,36 @@ queues the chosen one.
   a user edit. (A record that isn't queued can't grow the queue, so it skips the check.)
 
 **Tests:** `feature/library/.../ReadNextTest.kt`, `core/database/.../repository/ReadNextStateTest.kt`.
+
+## Deleting books
+
+**Code:** `feature/library/BookDeletionDialogs.kt`, `PermanentDeletionNotices.kt`, `LibraryViewModel.deleteBook` /
+`deletePermanently`, `BookRepositoryImpl.purgeEverywhere` / `applyPurgeTombstone`, `core/filesystem/BookFileCleaner.kt`,
+`core/sync/asset/CloudAssetDeletionProcessor.kt`. Design: `docs/PERMANENT_BOOK_DELETION_PLAN.md`.
+
+**Two ways to delete** (Book Detail ⋮ → Delete…):
+- **Move to Recently deleted** — soft delete (`isDeleted = 1` + a `book` tombstone). Other devices move it to their
+  Recently deleted too; it can be restored.
+- **Delete permanently everywhere** — also Recently deleted → "Delete forever". A confirmation lists what goes (file
+  and covers, cloud copy, highlights and notes, reading history, shelf and Read Next entries) and needs an explicit
+  "I understand" tick. Vocabulary words are kept, detached from the book.
+
+**What a permanent delete does:**
+1. One transaction: a `book` tombstone (older app versions soft-delete on it), a `book_purge` tombstone
+   (`purge:<syncId>`, plus one for any alias sync id of the same file), queue the book and cover assets in
+   `pending_cloud_deletions`, detach vocabulary cards, drop aliases, delete the row (highlights, notes, reading
+   sessions and shelf links cascade). Runs in `NonCancellable` so closing the screen can't cut it short.
+2. `BookFileCleaner` deletes the book file and covers, only inside the app's storage root.
+3. A one-time snackbar on the Library or Recently deleted screen: deleted everywhere, or "cloud copy will be removed
+   on the next sync" when assets were queued.
+4. Next full sync: the snapshot with the tombstones is published first, then `CloudAssetDeletionProcessor` deletes
+   up to 20 queued assets per sync (404 counts as done; failures stay queued; 401/403/429 stop the batch). Settings →
+   sync health shows "Cloud files waiting to be deleted" while any remain.
+
+**Other devices:** a synced `book_purge` purges the book and its files there too, even if that device changed or read
+it later. Book merges skip any record with a purge tombstone, so nothing can bring it back; importing the same file
+again creates a new book with a new sync id. Older encrypted copies remain in the GitHub repository's history.
+
+**Tests:** `feature/library/.../PermanentBookDeletionTest.kt` (Robolectric + Room),
+`core/sync/.../CloudAssetDeletionProcessorTest.kt`, `GitHubContentsAssetStoreTest` (delete cases),
+`core/filesystem/.../BookFileCleanerTest.kt`, `core/database/.../BookPurgeTombstoneIdTest.kt`.

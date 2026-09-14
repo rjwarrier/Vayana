@@ -12,7 +12,7 @@ newer; this file describes structure and rules, not every change.
    `android.newDsl=false` flags in `gradle.properties` are load-bearing; the reasons are recorded there.
 4. **`docs/DATABASE_CHANGELOG.md`** — Room schema history. Every `DATABASE_VERSION` bump needs a real migration,
    a changelog entry and the generated `core/database/schemas/.../<n>.json` committed.
-5. **`docs/FEATURES.md`** — behaviour and non-obvious rules for onboarding, global search and Read Next.
+5. **`docs/FEATURES.md`** — behaviour and non-obvious rules for onboarding, global search, Read Next and deleting books.
 6. **`docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md`** — design of the GitHub snapshot sync.
 
 `docs/IMPLEMENTATION_PLAN.md`, `docs/FEATURE_VALUE_RECOMMENDATIONS.md` and `docs/SESSION_HANDOFF_2026-09-10.md`
@@ -39,7 +39,7 @@ are historical: useful context, not a current status.
 :core:designsystem      Tokens, theme (light/dark, softer/true-black, E-Ink profile, motion), dialogs, share cards
 :core:resources         All user-facing strings
 :core:common            DispatcherProvider, @ApplicationScope, hashing, quote parsing
-:core:database          Room (DB v19): books, annotations, sessions, shelves, vocabulary, sync identity
+:core:database          Room (DB v20): books, annotations, sessions, shelves, vocabulary, sync identity
                         (aliases, tombstones), FTS search tables; repositories
 :core:datastore         Settings registry + DataStore (settings, onboarding flag, recent searches)
 :core:filesystem        StorageRoots, SAF import copy-in, ResolvedBooks (shared absolute-path book flow)
@@ -47,7 +47,7 @@ are historical: useful context, not a current status.
 :core:sync              GitHub snapshot sync: sliced snapshots, encrypted book/cover assets, progress-only sync
 :core:diagnostics       Crash reporter and diagnostics log
 :feature:library        Library grid/list, book detail, metadata/cover dialogs, Goodreads import, shelves,
-                        Read Next, recently deleted, sync/import progress, launch progress check
+                        Read Next, recently deleted + permanent deletion, sync/import progress, launch progress check
 :feature:reader         WebView reader chrome: contents, bookmarks, progress, notes, in-book search, style,
                         dictionary lookup, reading-time tracking, reading-position prompts
 :feature:notes          Global notes & highlights
@@ -75,6 +75,9 @@ Goodreads import and the dictionary download — PROMPT2's original "no network"
   Room's content-sync triggers; `books_fts` is standalone, with its own triggers in `search/BookSearchIndex.kt`
   (created by `MIGRATION_18_19` and, on a fresh install, `BookSearchIndexCallback`). Update both if the searchable
   book columns change.
+- **Permanent deletion is tombstone-driven.** `book_purge` tombstones (`purge:<syncId>`) beat newer edits and block
+  that sync id in book merges forever; cloud files are deleted only after a full sync has published the tombstones.
+  Never garbage-collect tombstones. See `docs/FEATURES.md` → Deleting books.
 - **Big files:** `LibraryViewModel.kt` (~2.7k lines, one class) and `ReaderScreen.kt` (~2.4k) are the remaining
   giants. `LibraryScreen.kt` and `SettingsScreen.kt` were split by feature on 2026-09-13.
 - **Hilt + KSP + Room** run through convention plugins in `build-logic`. `ProjectExtensions.kt` there must keep its
@@ -86,5 +89,8 @@ Goodreads import and the dictionary download — PROMPT2's original "no network"
 
 - DB migrations 16→17 (`readNextUpdatedAt`), 17→18 (FTS tables + rebuild) and 18→19 (standalone `books_fts`) on the user's phone.
 - Read Next sync between two devices (queue on A, read the book on B, sync both).
+- DB migration 19→20 (`pending_cloud_deletions`) and permanent deletion across two devices: book, files and cloud
+  assets gone on both; an offline device's unsynced highlight for the book isn't republished; re-importing the
+  same EPUB syncs as a new book.
 - Search with a Malayalam title; highlight rendering on E-Ink.
 - Share-app image: the WebP promo is re-encoded to JPEG when shared.
