@@ -1519,6 +1519,8 @@ class LibraryViewModel @Inject constructor(
                 val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return 0
                 bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
             }
+            // Applied once the permanent-deletion sync rules land (docs/PERMANENT_BOOK_DELETION_PLAN.md, stage 3).
+            TombstoneEntityType.BOOK_PURGE -> 0
         }
     }
 

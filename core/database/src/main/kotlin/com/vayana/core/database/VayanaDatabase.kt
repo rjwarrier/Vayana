@@ -21,15 +21,18 @@ import com.vayana.core.database.entity.ShelfEntity
 import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.entity.VocabularyCardEntity
 import com.vayana.core.database.entity.WordLookupStatEntity
+import com.vayana.core.database.dao.PendingCloudDeletionDao
+import com.vayana.core.database.entity.PendingCloudDeletionEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (PROMPT2appbuild.md §2). */
-const val DATABASE_VERSION = 19
+const val DATABASE_VERSION = 20
 
 @Database(
     entities = [
         BookEntity::class, AnnotationEntity::class, WordLookupStatEntity::class, ReadingSessionEntity::class,
         ShelfEntity::class, BookShelfCrossRefEntity::class, VocabularyCardEntity::class,
         BookAliasEntity::class, TombstoneEntity::class, BookFtsEntity::class, AnnotationFtsEntity::class,
+        PendingCloudDeletionEntity::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -43,4 +46,5 @@ abstract class VayanaDatabase : RoomDatabase() {
     abstract fun vocabularyCardDao(): VocabularyCardDao
     abstract fun bookAliasDao(): BookAliasDao
     abstract fun tombstoneDao(): TombstoneDao
+    abstract fun pendingCloudDeletionDao(): PendingCloudDeletionDao
 }

@@ -47,6 +47,10 @@ interface BookDao {
     @Query("DELETE FROM books WHERE id = :id AND isDeleted = 1")
     suspend fun purge(id: Long)
 
+    /** Deletes a book row in any state; annotations, reading sessions and shelf links cascade. */
+    @Query("DELETE FROM books WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("UPDATE books SET title = :title, author = :author, series = :series, seriesNumber = :seriesNumber, description = :description, tagsCsv = :tagsCsv, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?, updatedAt: Long)
 

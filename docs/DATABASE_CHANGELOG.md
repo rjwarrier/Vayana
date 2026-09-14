@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 20
+Adds `pending_cloud_deletions` for permanent book deletion (docs/PERMANENT_BOOK_DELETION_PLAN.md):
+`assetId` (primary key), `kind` (`book_file` / `cover`), `queuedAt`, `attempts`, `lastError`. One row per encrypted
+cloud asset of a permanently deleted book that still has to be removed from the sync repository. Local to the device,
+never exported. Permanent deletion also introduces the `book_purge` tombstone type (syncId `purge:<bookSyncId>`),
+stored in the existing `tombstones` table.
+
 ## Version 19
 `books_fts` becomes a standalone FTS4 table (no `content=books`). Room's content-sync triggers re-indexed a book on
 every `books` update, including each reading-position save. The new `books_fts_after_insert` / `_update` / `_delete`

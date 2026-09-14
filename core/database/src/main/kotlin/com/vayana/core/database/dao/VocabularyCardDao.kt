@@ -40,6 +40,10 @@ interface VocabularyCardDao {
     @Query("DELETE FROM vocabulary_cards WHERE syncId = :syncId")
     suspend fun deleteBySyncId(syncId: String): Int
 
+    /** A permanently deleted book's words stay; they just stop pointing at it. */
+    @Query("UPDATE vocabulary_cards SET bookId = NULL WHERE bookId = :bookId")
+    suspend fun detachBook(bookId: Long)
+
     @Query("SELECT * FROM vocabulary_cards ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<VocabularyCardEntity>
 }

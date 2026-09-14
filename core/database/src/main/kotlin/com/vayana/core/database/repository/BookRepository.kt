@@ -173,6 +173,17 @@ interface BookRepository {
     /** Permanently removes an already soft-deleted book row - never call this on a live book. */
     suspend fun purge(id: Long)
 
+    /**
+     * Deletes a book permanently, everywhere: writes a `book` tombstone (older app versions soft-delete it) and a
+     * [TombstoneEntityType.BOOK_PURGE] one, queues its cloud assets for deletion, detaches its vocabulary words and
+     * removes the row with its highlights, notes, reading sessions and shelf links. Deleting the local files in
+     * [PurgedBook.localFilePaths] is the caller's job once this returns. Null when there is no such book.
+     */
+    suspend fun purgeEverywhere(id: Long): PurgedBook?
+
+    /** Applies a synced [TombstoneEntityType.BOOK_PURGE] for [bookSyncId]; on this device, the same as [purgeEverywhere]. */
+    suspend fun applyPurgeTombstone(bookSyncId: String, deletedAt: Long): PurgedBook?
+
     suspend fun markFinished(id: Long)
 
     /**

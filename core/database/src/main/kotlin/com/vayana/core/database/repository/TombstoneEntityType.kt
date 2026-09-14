@@ -13,6 +13,12 @@ enum class TombstoneEntityType(val value: String) {
     READING_SESSION("reading_session"),
 
     /**
+     * A book deleted permanently, on every device, keyed by [bookPurgeTombstoneId]. Unlike [BOOK] (moved to Recently
+     * deleted), it applies even over newer local edits, and each device also removes the book's cloud files.
+     */
+    BOOK_PURGE("book_purge"),
+
+    /**
      * Not a deletion: marks when a book's reading stats were reset, keyed by [readingProgressResetTombstoneId].
      * Progress merges treat it as local progress at that moment, so older synced progress can't restore the stats.
      */
@@ -32,4 +38,14 @@ fun readingProgressResetTombstoneId(bookSyncId: String): String = "$ReadingProgr
 fun bookSyncIdOfReadingProgressReset(tombstoneSyncId: String): String? =
     tombstoneSyncId.takeIf { it.startsWith(ReadingProgressResetPrefix) }
         ?.removePrefix(ReadingProgressResetPrefix)
+        ?.takeIf { it.isNotBlank() }
+
+private const val BookPurgePrefix = "purge:"
+
+fun bookPurgeTombstoneId(bookSyncId: String): String = "$BookPurgePrefix$bookSyncId"
+
+/** The book a [TombstoneEntityType.BOOK_PURGE] tombstone is about, or null if [tombstoneSyncId] isn't one. */
+fun bookSyncIdOfPurge(tombstoneSyncId: String): String? =
+    tombstoneSyncId.takeIf { it.startsWith(BookPurgePrefix) }
+        ?.removePrefix(BookPurgePrefix)
         ?.takeIf { it.isNotBlank() }

@@ -21,4 +21,6 @@ dependencies {
     implementation(libs.coil.core)
     testImplementation(kotlin("test"))
     testImplementation(libs.org.json)
+    testImplementation(libs.room.runtime)
+    testImplementation("org.robolectric:robolectric:4.13")
 }

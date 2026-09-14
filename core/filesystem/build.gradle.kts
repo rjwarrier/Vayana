@@ -12,4 +12,6 @@ dependencies {
     implementation(project(":core:database"))
     implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(kotlin("test"))
 }

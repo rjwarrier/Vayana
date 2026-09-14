@@ -19,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import com.vayana.core.database.search.BookSearchIndexCallback
+import com.vayana.core.database.dao.PendingCloudDeletionDao
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -55,4 +56,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTombstoneDao(database: VayanaDatabase): TombstoneDao = database.tombstoneDao()
+
+    @Provides
+    fun providePendingCloudDeletionDao(database: VayanaDatabase): PendingCloudDeletionDao = database.pendingCloudDeletionDao()
 }

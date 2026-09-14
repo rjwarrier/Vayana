@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import com.vayana.core.database.model.normalizedBookTagsCsv
+import com.vayana.core.database.dao.PendingCloudDeletionDao
+import com.vayana.core.database.dao.VocabularyCardDao
+import com.vayana.core.database.entity.PendingCloudDeletionEntity
 
 class BookRepositoryImpl @Inject constructor(
     private val database: VayanaDatabase,
@@ -28,6 +31,8 @@ class BookRepositoryImpl @Inject constructor(
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
     private val readingSessionDao: ReadingSessionDao,
+    private val vocabularyCardDao: VocabularyCardDao,
+    private val pendingCloudDeletionDao: PendingCloudDeletionDao,
 ) : BookRepository {
     private val _remoteReadingProgressApplied = MutableSharedFlow<RemoteReadingProgressApplied>(
         extraBufferCapacity = RemoteProgressEventBufferCapacity,
@@ -260,6 +265,58 @@ class BookRepositoryImpl @Inject constructor(
             }
             bookDao.purge(id)
         }
+    }
+
+    override suspend fun purgeEverywhere(id: Long): PurgedBook? = database.withTransaction {
+        val book = bookDao.getById(id) ?: return@withTransaction null
+        val now = System.currentTimeMillis()
+        // App versions that don't know book_purge still move the book to Recently deleted on this tombstone.
+        tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK.value, deletedAt = now))
+        purgeLocked(book, deletedAt = now)
+    }
+
+    override suspend fun applyPurgeTombstone(bookSyncId: String, deletedAt: Long): PurgedBook? = database.withTransaction {
+        val book = bookDao.findAnyBySyncId(bookSyncId)
+        if (book == null) {
+            upsertPurgeTombstone(bookSyncId, deletedAt)
+            null
+        } else {
+            purgeLocked(book, deletedAt)
+        }
+    }
+
+    private suspend fun purgeLocked(book: BookEntity, deletedAt: Long): PurgedBook {
+        upsertPurgeTombstone(book.syncId, deletedAt)
+        // A copy of the same file imported on another device and folded in under its own sync id mustn't bring it back.
+        bookAliasDao.findByFileHash(book.fileHash)?.let { alias -> upsertPurgeTombstone(alias.syncId, deletedAt) }
+        val assets = listOfNotNull(
+            book.fileAssetId?.takeIf { it.isNotBlank() }?.let { it to CloudAssetKind.BOOK_FILE },
+            book.coverAssetId?.takeIf { it.isNotBlank() }?.let { it to CloudAssetKind.COVER },
+        ).distinctBy { (assetId, _) -> assetId }
+        pendingCloudDeletionDao.insertAll(
+            assets.map { (assetId, kind) -> PendingCloudDeletionEntity(assetId = assetId, kind = kind.value, queuedAt = deletedAt) },
+        )
+        vocabularyCardDao.detachBook(book.id)
+        bookAliasDao.deleteForBook(book.syncId, book.fileHash)
+        bookDao.deleteById(book.id)
+        return PurgedBook(
+            syncId = book.syncId,
+            title = book.title,
+            localFilePaths = listOfNotNull(book.filePath, book.coverPath, book.customCoverPath, book.goodreadsCoverPath)
+                .filter { it.isNotBlank() }
+                .distinct(),
+            queuedCloudAssetIds = assets.map { (assetId, _) -> assetId },
+        )
+    }
+
+    private suspend fun upsertPurgeTombstone(bookSyncId: String, deletedAt: Long) {
+        tombstoneDao.upsert(
+            TombstoneEntity(
+                syncId = bookPurgeTombstoneId(bookSyncId),
+                entityType = TombstoneEntityType.BOOK_PURGE.value,
+                deletedAt = deletedAt,
+            ),
+        )
     }
 
     override suspend fun markFinished(id: Long) {

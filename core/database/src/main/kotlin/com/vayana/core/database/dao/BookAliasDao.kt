@@ -19,4 +19,7 @@ interface BookAliasDao {
 
     @Query("SELECT * FROM book_aliases")
     suspend fun getAll(): List<BookAliasEntity>
+
+    @Query("DELETE FROM book_aliases WHERE syncId = :syncId OR fileHash = :fileHash")
+    suspend fun deleteForBook(syncId: String, fileHash: String)
 }
