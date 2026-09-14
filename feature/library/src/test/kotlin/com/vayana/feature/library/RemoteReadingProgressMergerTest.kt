@@ -13,6 +13,7 @@ class RemoteReadingProgressMergerTest {
     private val repositoryCalls = mutableListOf<String>()
     private val appliedSyncIds = mutableListOf<String>()
     private var tombstoneMerges = 0
+    private val tombstoneScopes = mutableListOf<TombstoneMergeScope>()
 
     /** Any BookRepository call other than applySyncedReadingProgress fails the test. */
     private val bookRepository = Proxy.newProxyInstance(
@@ -29,17 +30,18 @@ class RemoteReadingProgressMergerTest {
     private val merger = RemoteReadingProgressMerger(
         bookRepository = bookRepository,
         localDeviceLabel = { "Phone" },
-        mergeTombstones = {
+        mergeTombstones = { _, scope ->
+            tombstoneScopes += scope
             tombstoneMerges += 1
             GenericSyncMergeSummary(appliedDeletes = 1)
         },
     )
 
     @Test
-    fun silentMergeAppliesOnlyReadingProgressAndSkipsTombstones() = runBlocking {
-        val summary = merger.merge(document(), applyTombstones = false)
+    fun silentMergeAppliesOnlyBookDeletionsAndReadingProgress() = runBlocking {
+        val summary = merger.merge(document(), tombstones = TombstoneMergeScope.BOOK_DELETIONS)
 
-        assertEquals(0, tombstoneMerges)
+        assertEquals(listOf(TombstoneMergeScope.BOOK_DELETIONS), tombstoneScopes)
         assertTrue(repositoryCalls.all { it == "applySyncedReadingProgress" })
         assertEquals(listOf("fresh", "stale"), appliedSyncIds)
         assertEquals(1, summary.applied)
@@ -50,7 +52,7 @@ class RemoteReadingProgressMergerTest {
 
     @Test
     fun fullMergeStillAppliesTombstones() = runBlocking {
-        merger.merge(document(), applyTombstones = true)
+        merger.merge(document(), tombstones = TombstoneMergeScope.ALL)
 
         assertEquals(1, tombstoneMerges)
         assertTrue(repositoryCalls.all { it == "applySyncedReadingProgress" })
@@ -61,10 +63,10 @@ class RemoteReadingProgressMergerTest {
         val failing = RemoteReadingProgressMerger(
             bookRepository = bookRepository,
             localDeviceLabel = { "Phone" },
-            mergeTombstones = { GenericSyncMergeSummary(failed = true, failureMessage = "bad tombstones") },
+            mergeTombstones = { _, _ -> GenericSyncMergeSummary(failed = true, failureMessage = "bad tombstones") },
         )
 
-        val summary = failing.merge(document(), applyTombstones = true)
+        val summary = failing.merge(document(), tombstones = TombstoneMergeScope.ALL)
 
         assertTrue(summary.failed)
         assertEquals("bad tombstones", summary.failureMessage)

@@ -9,22 +9,27 @@ import com.vayana.core.database.repository.ReadingProgressVersion
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotSlice
 
+/** Which remote deletions a pull applies. */
+internal enum class TombstoneMergeScope {
+    /** Every kind: a user-started sync. */
+    ALL,
+
+    /** Only whole-book deletions: the silent launch check, which otherwise only moves reading positions. */
+    BOOK_DELETIONS,
+}
+
 /**
- * Applies a pulled remote snapshot's reading positions (and, unless told otherwise, its deletion
- * tombstones) to the local library. The only library write it makes itself is
+ * Applies a pulled remote snapshot's reading positions and deletion tombstones (those in the given
+ * [TombstoneMergeScope]) to the local library. The only library write it makes itself is
  * [BookRepository.applySyncedReadingProgress]; tombstones go through [mergeTombstones].
  */
 internal class RemoteReadingProgressMerger(
     private val bookRepository: BookRepository,
     private val localDeviceLabel: suspend () -> String,
-    private val mergeTombstones: suspend (tombstonesJson: String) -> GenericSyncMergeSummary,
+    private val mergeTombstones: suspend (tombstonesJson: String, scope: TombstoneMergeScope) -> GenericSyncMergeSummary,
 ) {
-    suspend fun merge(document: RemotePortableSnapshotDocument, applyTombstones: Boolean): ReadingProgressMergeSummary {
-        val tombstoneMerge = if (applyTombstones) {
-            mergeTombstones(document.jsonFor(RemotePortableSnapshotSlice.Tombstones))
-        } else {
-            GenericSyncMergeSummary()
-        }
+    suspend fun merge(document: RemotePortableSnapshotDocument, tombstones: TombstoneMergeScope): ReadingProgressMergeSummary {
+        val tombstoneMerge = mergeTombstones(document.jsonFor(RemotePortableSnapshotSlice.Tombstones), tombstones)
         if (tombstoneMerge.failed) {
             return ReadingProgressMergeSummary(
                 failed = true,

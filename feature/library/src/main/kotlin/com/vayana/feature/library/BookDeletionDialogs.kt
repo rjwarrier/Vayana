@@ -178,6 +178,25 @@ internal fun PermanentDeletionNoticeEffect(
     }
 }
 
+/** Tells the user once that sync removed books deleted on another device. */
+@Composable
+internal fun RemoteBookDeletionNoticeEffect(
+    titles: List<String>,
+    snackbarHostState: SnackbarHostState,
+    onShown: (List<String>) -> Unit,
+) {
+    val message = when (titles.size) {
+        0 -> null
+        1 -> stringResource(R.string.library_deleted_on_other_device_one, titles.single())
+        else -> stringResource(R.string.library_deleted_on_other_device_many, titles.size)
+    }
+    LaunchedEffect(titles) {
+        if (message == null) return@LaunchedEffect
+        onShown(titles)
+        snackbarHostState.showSnackbar(message)
+    }
+}
+
 @Composable
 private fun DeleteChoiceCard(
     icon: ImageVector,

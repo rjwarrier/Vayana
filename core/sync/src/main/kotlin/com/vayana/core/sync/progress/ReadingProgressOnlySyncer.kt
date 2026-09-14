@@ -39,6 +39,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import com.vayana.core.database.repository.bookSyncIdOfPurge
+import com.vayana.core.database.repository.isSyncedWithReadingProgress
+import com.vayana.core.filesystem.BookFileCleaner
+import com.vayana.core.sync.RemoteBookDeletionNotices
+import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
+import com.vayana.core.sync.asset.CloudAssetStore
 
 enum class ReadingProgressSyncStatus {
     /** Neither side had anything new; no network write was made. */
@@ -79,6 +85,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
     private val tombstoneDao: TombstoneDao,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
+    private val bookFileCleaner: BookFileCleaner,
+    private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
+    private val remoteBookDeletionNotices: RemoteBookDeletionNotices,
 ) {
     private val lastSyncedAtMillis = AtomicLong(0L)
     private val lastAppliedRemoteSha = AtomicReference<String?>(null)
@@ -86,8 +95,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
     /** Local state (positions, sessions, counters, tombstones) as of the last run that found nothing to push. */
     private val lastSettledLocalFingerprint = AtomicReference<Int?>(null)
 
-    suspend fun syncReadingProgress(): ReadingProgressSyncResult {
-        val result = runSync()
+    /** [force] skips the minimum interval between runs, e.g. to send a book deletion straight away. */
+    suspend fun syncReadingProgress(force: Boolean = false): ReadingProgressSyncResult {
+        val result = runSync(force)
         if (result.status.isIssue) {
             diagnosticsLogStore.record(
                 category = DiagnosticCategory.SYNC,
@@ -98,10 +108,10 @@ class ReadingProgressOnlySyncer @Inject constructor(
         return result
     }
 
-    private suspend fun runSync(): ReadingProgressSyncResult = withContext(dispatchers.io) {
+    private suspend fun runSync(force: Boolean): ReadingProgressSyncResult = withContext(dispatchers.io) {
         val now = System.currentTimeMillis()
         val previousSync = lastSyncedAtMillis.get()
-        if (now - previousSync < MinSyncIntervalMillis || !lastSyncedAtMillis.compareAndSet(previousSync, now)) {
+        if ((!force && now - previousSync < MinSyncIntervalMillis) || !lastSyncedAtMillis.compareAndSet(previousSync, now)) {
             return@withContext ReadingProgressSyncResult(ReadingProgressSyncStatus.THROTTLED)
         }
         val settings = settingsRepository.snapshot.first()
@@ -134,10 +144,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
             .mapNotNull { it.toPortable(bookSyncIdsByLocalId) }
         val wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() }
         val tombstones = tombstoneDao.getAll()
-            .filter { tombstone ->
-                tombstone.entityType == TombstoneEntityType.READING_SESSION.value ||
-                    tombstone.entityType == TombstoneEntityType.READING_PROGRESS_RESET.value
-            }
+            .filter { tombstone -> isSyncedWithReadingProgress(tombstone.entityType) }
             .map { it.toPortable() }
         val localFingerprint = listOf(patches, readingSessions, wordLookupCounters, tombstones).hashCode()
 
@@ -217,7 +224,11 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     )
                 }
             }
-            attempt.onSuccess { result -> return@withContext result }
+            attempt.onSuccess { result ->
+                // Local tombstones, including permanent book deletes, are on the remote now, so their cloud files can go.
+                deletePendingCloudAssets(store)
+                return@withContext result
+            }
             val throwable = attempt.exceptionOrNull()
             lastFailure = throwable
             if (throwable?.isGitHubConflict() != true) {
@@ -231,6 +242,16 @@ class ReadingProgressOnlySyncer @Inject constructor(
         ReadingProgressSyncResult(
             status = ReadingProgressSyncStatus.FAILED,
             failureMessage = lastFailure?.syncFailureMessage(),
+        )
+    }
+
+    private suspend fun deletePendingCloudAssets(store: CloudAssetStore) {
+        val summary = runCatchingCancellable { cloudAssetDeletionProcessor.deletePending(store) }.getOrNull() ?: return
+        if (summary.failed == 0) return
+        diagnosticsLogStore.record(
+            category = DiagnosticCategory.SYNC,
+            source = "ReadingProgressOnlySyncer.deletePendingCloudAssets",
+            message = "Could not delete ${summary.failed} cloud file(s); ${summary.remaining} still queued: ${summary.failureMessage}",
         )
     }
 
@@ -299,6 +320,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 )
                 return 0
             }
+        val deletedBookTitles = mutableListOf<String>()
         for (tombstone in tombstones) {
             val attempt = runCatchingCancellable {
                 if (!upsertRemoteTombstoneIfNewer(tombstone)) return@runCatchingCancellable 0
@@ -309,6 +331,20 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     TombstoneEntityType.READING_PROGRESS_RESET.value -> {
                         val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return@runCatchingCancellable 0
                         bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
+                    }
+                    TombstoneEntityType.BOOK.value -> {
+                        val title = bookRepository.applyBookTombstone(tombstone.syncId, tombstone.deletedAt)
+                            ?: return@runCatchingCancellable 0
+                        deletedBookTitles += title
+                        1
+                    }
+                    TombstoneEntityType.BOOK_PURGE.value -> {
+                        val bookSyncId = bookSyncIdOfPurge(tombstone.syncId) ?: return@runCatchingCancellable 0
+                        val purged = bookRepository.applyPurgeTombstone(bookSyncId, tombstone.deletedAt)
+                            ?: return@runCatchingCancellable 0
+                        bookFileCleaner.delete(purged.localFilePaths)
+                        deletedBookTitles += purged.title
+                        1
                     }
                     else -> 0
                 }
@@ -322,6 +358,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 )
             }
         }
+        remoteBookDeletionNotices.post(deletedBookTitles)
         return applied
     }
 

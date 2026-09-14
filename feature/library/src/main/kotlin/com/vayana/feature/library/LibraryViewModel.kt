@@ -129,6 +129,10 @@ import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
 import com.vayana.core.database.repository.bookSyncIdOfPurge
 import com.vayana.core.filesystem.BookFileCleaner
 import kotlinx.coroutines.NonCancellable
+import com.vayana.core.database.repository.isBookDeletion
+import com.vayana.core.database.repository.isSyncedWithReadingProgress
+import com.vayana.core.sync.RemoteBookDeletionNotices
+import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
@@ -448,6 +452,8 @@ class LibraryViewModel @Inject constructor(
     private val storageRoots: StorageRoots,
     private val bookFileCleaner: BookFileCleaner,
     private val permanentDeletionNotices: PermanentDeletionNotices,
+    private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
+    private val remoteBookDeletionNotices: RemoteBookDeletionNotices,
     private val resolvedBooks: ResolvedBooks,
     private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
     private val dispatchers: DispatcherProvider,
@@ -512,7 +518,7 @@ class LibraryViewModel @Inject constructor(
     private val remoteReadingProgressMerger = RemoteReadingProgressMerger(
         bookRepository = bookRepository,
         localDeviceLabel = { settingsRepository.snapshot.first().deviceLabelForSync() },
-        mergeTombstones = { tombstonesJson -> mergeCloudTombstones(tombstonesJson) },
+        mergeTombstones = { tombstonesJson, scope -> mergeCloudTombstones(tombstonesJson, scope) },
     )
 
     private val launchReadingProgressPull = LaunchReadingProgressPull(
@@ -577,7 +583,18 @@ class LibraryViewModel @Inject constructor(
 
     /** Moves a book to Recently deleted. Finishes even when the calling screen closes straight away. */
     fun deleteBook(bookId: Long) {
-        viewModelScope.launch { withContext(NonCancellable) { bookRepository.softDelete(bookId) } }
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                bookRepository.softDelete(bookId)
+                publishDeletion()
+            }
+        }
+    }
+
+    val remoteBookDeletions: StateFlow<List<String>> = remoteBookDeletionNotices.titles
+
+    fun consumeRemoteBookDeletions(titles: List<String>) {
+        remoteBookDeletionNotices.consume(titles)
     }
 
     val permanentDeletionNotice: StateFlow<PermanentDeletionNotice?> = permanentDeletionNotices.notice
@@ -598,8 +615,14 @@ class LibraryViewModel @Inject constructor(
                 permanentDeletionNotices.post(
                     PermanentDeletionNotice(title = purged.title, cloudCopyPending = purged.queuedCloudAssetIds.isNotEmpty()),
                 )
+                publishDeletion()
             }
         }
+    }
+
+    /** Sends a book deletion to other devices straight away through the lightweight sync, when sync is set up. */
+    private suspend fun publishDeletion() {
+        readingProgressOnlySyncer.syncReadingProgress(force = true)
     }
 
     fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeForBook(bookId).map { it.size }
@@ -1053,8 +1076,9 @@ class LibraryViewModel @Inject constructor(
                 bookId = launchReadingProgressBookId,
                 syncTarget = syncConfig.launchReadingProgressSyncTarget(),
             ) { skipRemoteSnapshotSha ->
-                // Silent launch check only moves reading positions; deletions wait for a user-started sync.
-                pullReadingProgress(store, skipRemoteSnapshotSha, applyTombstones = false)
+                // Silent launch check moves reading positions and applies books deleted on other devices; other deletions
+                // (notes, shelves, words) wait for a user-started sync.
+                pullReadingProgress(store, skipRemoteSnapshotSha, tombstones = TombstoneMergeScope.BOOK_DELETIONS)
             }
             if (result.pullFailed) {
                 finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
@@ -1106,6 +1130,7 @@ class LibraryViewModel @Inject constructor(
                 progressUpdated = progressMerge.applied,
             )
             val progressPush = pushReadingProgressOnly(remoteSnapshot = progressMerge.remoteSnapshot, store = store)
+            if (!progressPush.failed) deletePendingCloudAssets(store)
             finishSyncProgress(
                 showProgress = showProgress,
                 step = if (progressPush.failed) GitHubSyncProgressStep.FAILED else GitHubSyncProgressStep.COMPLETE,
@@ -1347,7 +1372,7 @@ class LibraryViewModel @Inject constructor(
     private suspend fun pullReadingProgress(
         store: GitHubContentsAssetStore,
         skipRemoteSnapshotSha: String? = null,
-        applyTombstones: Boolean = true,
+        tombstones: TombstoneMergeScope = TombstoneMergeScope.ALL,
     ): ReadingProgressMergeSummary =
         runCatchingCancellable {
             val remoteDocument = store.getLatestPortableSnapshotDocumentUnlessSha(skipSha = skipRemoteSnapshotSha)
@@ -1355,7 +1380,7 @@ class LibraryViewModel @Inject constructor(
                     remoteSnapshotSha = skipRemoteSnapshotSha,
                     skippedAlreadyChecked = true,
                 )
-            remoteReadingProgressMerger.merge(remoteDocument, applyTombstones)
+            remoteReadingProgressMerger.merge(remoteDocument, tombstones)
         }.getOrElse { throwable ->
             if (throwable.isMissingRemoteSnapshot()) {
                 ReadingProgressMergeSummary(
@@ -1477,12 +1502,17 @@ class LibraryViewModel @Inject constructor(
             GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
 
-    private suspend fun mergeCloudTombstones(snapshotJson: String): GenericSyncMergeSummary =
+    private suspend fun mergeCloudTombstones(
+        snapshotJson: String,
+        scope: TombstoneMergeScope = TombstoneMergeScope.ALL,
+    ): GenericSyncMergeSummary =
         runCatchingCancellable {
             var created = 0
             var appliedDeletes = 0
             var skipped = 0
+            val deletedBookTitles = mutableListOf<String>()
             for (remote in parsePortableTombstones(snapshotJson)) {
+                if (scope == TombstoneMergeScope.BOOK_DELETIONS && !isBookDeletion(remote.entityType)) continue
                 if (remote.syncId.isBlank() || remote.entityType.isBlank() || remote.deletedAt <= 0L) {
                     skipped += 1
                     continue
@@ -1496,14 +1526,15 @@ class LibraryViewModel @Inject constructor(
                     tombstoneDao.upsert(TombstoneEntity(syncId = remote.syncId, entityType = remote.entityType, deletedAt = remote.deletedAt))
                     created += 1
                 }
-                appliedDeletes += applyCloudTombstone(remote)
+                appliedDeletes += applyCloudTombstone(remote, deletedBookTitles)
             }
+            remoteBookDeletionNotices.post(deletedBookTitles)
             GenericSyncMergeSummary(created = created, skipped = skipped, appliedDeletes = appliedDeletes)
         }.getOrElse { throwable ->
             GenericSyncMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
 
-    private suspend fun applyCloudTombstone(tombstone: PortableTombstone): Int {
+    private suspend fun applyCloudTombstone(tombstone: PortableTombstone, deletedBookTitles: MutableList<String>): Int {
         // Unrecognized entityType (e.g. a newer app version's tombstone kind synced down): leave it stored for
         // when this device updates, apply nothing now. TombstoneEntityType.fromValue's null return, plus the
         // exhaustive `when` below with no `else`, means a *known* type added later fails to compile here until
@@ -1512,7 +1543,11 @@ class LibraryViewModel @Inject constructor(
         val entity = TombstoneEntity(syncId = tombstone.syncId, entityType = tombstone.entityType, deletedAt = tombstone.deletedAt)
         return when (type) {
             // Moves the book to Recently deleted unless it was restored here after the delete; reading doesn't count.
-            TombstoneEntityType.BOOK -> if (bookRepository.applyBookTombstone(tombstone.syncId, tombstone.deletedAt) != null) 1 else 0
+            TombstoneEntityType.BOOK -> {
+                val title = bookRepository.applyBookTombstone(tombstone.syncId, tombstone.deletedAt) ?: return 0
+                deletedBookTitles += title
+                1
+            }
             TombstoneEntityType.ANNOTATION -> {
                 val annotation = annotationDao.findBySyncId(tombstone.syncId)
                 if (annotation != null && !tombstoneDao.appliesOver(entity, annotation.updatedAt)) {
@@ -1547,6 +1582,7 @@ class LibraryViewModel @Inject constructor(
                 val bookSyncId = bookSyncIdOfPurge(tombstone.syncId) ?: return 0
                 val purged = bookRepository.applyPurgeTombstone(bookSyncId, deletedAt = tombstone.deletedAt) ?: return 0
                 bookFileCleaner.delete(purged.localFilePaths)
+                deletedBookTitles += purged.title
                 1
             }
         }
@@ -1737,7 +1773,7 @@ class LibraryViewModel @Inject constructor(
                 val localBooks = bookRepository.observeAll().first()
                 val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
                 val progressTombstones = tombstoneDao.getAll()
-                    .filter { it.isReadingProgressOnlyTombstone() }
+                    .filter { isSyncedWithReadingProgress(it.entityType) }
                     .map { it.toPortable() }
                 val result = store.pushPortableReadingProgress(
                     remote = remote,
@@ -2540,10 +2576,6 @@ private fun PortableShelfMembership.toRecord(): CloudShelfMembershipRecord = Clo
     shelfSyncId = shelfSyncId,
     createdAt = createdAt,
 )
-
-private fun TombstoneEntity.isReadingProgressOnlyTombstone(): Boolean =
-    entityType == TombstoneEntityType.READING_SESSION.value ||
-        entityType == TombstoneEntityType.READING_PROGRESS_RESET.value
 
 private fun TombstoneEntity.toPortable(): PortableTombstone = PortableTombstone(
     syncId = syncId,
