@@ -46,6 +46,42 @@ class GitHubContentsAssetStore(
         putContents(path, bytes, "Sync Vayana asset $path", replaceExisting = false)
     }
 
+    /**
+     * Deletes an asset with a new commit. Its blob SHA comes from the parent folder listing, which never embeds file
+     * content (a metadata request for a large asset would). Older commits still contain the encrypted blob.
+     */
+    override suspend fun delete(path: String): Unit = withContext(dispatcher) {
+        validateAssetPath(path)
+        val listing = client.execute(
+            GitHubHttpRequest(
+                method = "GET",
+                url = contentsUrl(path.substringBeforeLast('/'), includeRef = true),
+                headers = jsonHeaders(),
+                maxResponseBytes = MaxSyncDocumentJsonBytes,
+            ),
+        )
+        val fileName = path.substringAfterLast('/')
+        val sha = when (listing.statusCode) {
+            HttpURLConnection.HTTP_OK -> parseContentEntries(listing.bodyText())
+                .firstOrNull { it.name == fileName && it.type == "file" }
+                ?.sha
+                ?: return@withContext
+            HttpURLConnection.HTTP_NOT_FOUND -> return@withContext
+            else -> throw GitHubAssetStoreException("GitHub asset folder lookup failed", listing.statusCode, listing.safeBodyText())
+        }
+        val response = client.execute(
+            GitHubHttpRequest(
+                method = "DELETE",
+                url = contentsUrl(path),
+                headers = jsonHeaders(),
+                body = buildDeleteBody("Delete Vayana asset $path", sha).toByteArray(Charsets.UTF_8),
+            ),
+        )
+        if (response.statusCode !in AssetDeleteDoneStatusCodes) {
+            throw GitHubAssetStoreException("GitHub asset delete failed", response.statusCode, response.safeBodyText())
+        }
+    }
+
     /** Identifies this repository and branch for process-wide caches shared across store instances. */
     val cacheScope: String = "${repository.apiBaseUrl.trimEnd('/')}|${repository.owner}/${repository.name}@${repository.branch}"
 
@@ -469,6 +505,14 @@ private class UrlConnectionGitHubHttpClient : GitHubHttpClient {
         }
     }
 }
+
+/** A deleted asset, or one another device deleted first (404). */
+private val AssetDeleteDoneStatusCodes = setOf(
+    HttpURLConnection.HTTP_OK,
+    HttpURLConnection.HTTP_ACCEPTED,
+    HttpURLConnection.HTTP_NO_CONTENT,
+    HttpURLConnection.HTTP_NOT_FOUND,
+)
 
 private fun validateAssetPath(path: String) {
     require(path.startsWith("vayana/assets/")) { "Invalid cloud asset path" }

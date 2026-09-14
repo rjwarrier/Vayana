@@ -647,6 +647,49 @@ class GitHubContentsAssetStoreTest {
         assertTrue(client.requests.isEmpty())
     }
 
+    @Test
+    fun deleteRemovesAnAssetUsingTheShaFromItsFolderListing() = runBlocking {
+        val path = CloudAssetLayout.pathFor(AssetId)
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(
+                200,
+                """
+                    [
+                      {"name":"other.bin","path":"vayana/assets/ab/cd/other.bin","type":"file","sha":"fedcba9876543210fedcba9876543210fedcba98"},
+                      {"name":"$AssetId.bin","path":"$path","type":"file","sha":"$ExistingSha"}
+                    ]
+                """.trimIndent().toByteArray(),
+            ),
+            GitHubHttpResponse(200, """{"commit":{"sha":"new-sha"}}""".toByteArray()),
+        )
+
+        testStore(client).delete(path)
+
+        assertEquals(listOf("GET", "DELETE"), client.requests.map { it.method })
+        assertEquals("https://api.github.test/repos/owner/repo/contents/vayana/assets/ab/cd?ref=main", client.requests[0].url)
+        assertEquals("https://api.github.test/repos/owner/repo/contents/$path", client.requests[1].url)
+        assertTrue(client.requests[1].bodyText().contains(""""sha":"$ExistingSha""""))
+    }
+
+    @Test
+    fun deletingAnAssetThatIsAlreadyGoneSendsNoDelete() = runBlocking {
+        val missingFolder = RecordingGitHubHttpClient(GitHubHttpResponse(404, """{"message":"Not Found"}""".toByteArray()))
+        testStore(missingFolder).delete(CloudAssetLayout.pathFor(AssetId))
+        assertEquals(listOf("GET"), missingFolder.requests.map { it.method })
+
+        val folderWithoutIt = RecordingGitHubHttpClient(GitHubHttpResponse(200, "[]".toByteArray()))
+        testStore(folderWithoutIt).delete(CloudAssetLayout.pathFor(AssetId))
+        assertEquals(listOf("GET"), folderWithoutIt.requests.map { it.method })
+    }
+
+    @Test
+    fun deleteOnlyAcceptsAssetPaths() = runBlocking {
+        assertFailsWith<IllegalArgumentException> {
+            testStore(RecordingGitHubHttpClient()).delete("vayana/snapshot-latest.json")
+        }
+        Unit
+    }
+
     private fun testStore(client: RecordingGitHubHttpClient): GitHubContentsAssetStore =
         GitHubContentsAssetStore(
             repository = GitHubRepository(

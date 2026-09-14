@@ -19,6 +19,9 @@ interface PendingCloudDeletionDao {
     @Query("SELECT COUNT(*) FROM pending_cloud_deletions")
     fun observeCount(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM pending_cloud_deletions")
+    suspend fun count(): Int
+
     @Query("DELETE FROM pending_cloud_deletions WHERE assetId = :assetId")
     suspend fun delete(assetId: String)
 

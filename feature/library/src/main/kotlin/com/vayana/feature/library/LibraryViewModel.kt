@@ -125,6 +125,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
@@ -439,6 +440,7 @@ class LibraryViewModel @Inject constructor(
     private val vocabularyCardRepository: VocabularyCardRepository,
     private val settingsRepository: SettingsRepository,
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
+    private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
     private val resolvedBooks: ResolvedBooks,
@@ -1275,6 +1277,7 @@ class LibraryViewModel @Inject constructor(
             conflicts = progressMerge.conflicts,
             onSnapshotProgress = snapshotProgress,
         )
+        if (metadataSave.synced) deletePendingCloudAssets(store)
         // A rebase (409-conflict retry) may have pulled and merged additional remote data into the local DB after
         // the counts above were computed; fold its deltas in so the reported summary reflects what actually synced.
         val entityMerges = listOf(
@@ -1577,6 +1580,23 @@ class LibraryViewModel @Inject constructor(
         }.getOrElse { throwable ->
             AnnotationMergeSummary(failed = true, failureMessage = throwable.syncFailureMessage())
         }
+
+    /** Removes permanently deleted books' cloud files, now that the snapshot carrying their purge tombstones is published. */
+    private suspend fun deletePendingCloudAssets(store: GitHubContentsAssetStore) {
+        val summary = cloudAssetDeletionProcessor.deletePending(store)
+        if (summary.failed == 0) return
+        withContext(dispatchers.io) {
+            diagnosticsLogStore.record(
+                category = DiagnosticCategory.SYNC,
+                source = "LibraryViewModel.deletePendingCloudAssets",
+                message = buildString {
+                    append("Could not delete ").append(summary.failed).append(" cloud file(s); ")
+                    append(summary.remaining).append(" still queued")
+                    summary.failureMessage?.let { append(": ").append(it) }
+                },
+            )
+        }
+    }
 
     private suspend fun saveMetadataSnapshotWithRebase(
         store: GitHubContentsAssetStore,
