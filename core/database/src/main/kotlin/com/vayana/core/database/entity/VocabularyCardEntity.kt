@@ -1,5 +1,6 @@
 package com.vayana.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -22,4 +23,9 @@ data class VocabularyCardEntity(
     val createdAt: Long,
     val lastReviewedAt: Long?,
     val known: Boolean,
+    /** When the card is next due for review; null for a new card, which is due straight away. */
+    val dueAt: Long? = null,
+    @ColumnInfo(defaultValue = "0") val intervalDays: Int = 0,
+    @ColumnInfo(defaultValue = "2.5") val easeFactor: Float = 2.5f,
+    @ColumnInfo(defaultValue = "0") val repetitions: Int = 0,
 )

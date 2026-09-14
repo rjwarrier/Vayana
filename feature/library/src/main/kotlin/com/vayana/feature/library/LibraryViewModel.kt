@@ -2586,6 +2586,10 @@ private fun PortableVocabularyCard.toRecord(): CloudVocabularyCardRecord = Cloud
     createdAt = createdAt,
     lastReviewedAt = lastReviewedAt,
     known = known,
+    dueAt = dueAt,
+    intervalDays = intervalDays,
+    easeFactor = easeFactor,
+    repetitions = repetitions,
 )
 
 private data class GitHubSyncConfig(

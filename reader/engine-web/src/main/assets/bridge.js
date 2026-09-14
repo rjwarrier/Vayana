@@ -696,6 +696,30 @@ function stopSpeech() {
     speech.index = -1
 }
 
+const MaxChapterWordKinds = 20000
+
+// How often each word (as written) appears in the chapter on screen, for the reader's chapter word list.
+function chapterWordCounts(requestId) {
+    const contents = view?.renderer?.getContents() ?? []
+    const content = contents.find(c => c.index === view.lastLocation?.section?.current) ?? contents[0]
+    const counts = Object.create(null)
+    const doc = content?.doc
+    if (doc?.body) {
+        const segmenter = new Intl.Segmenter(doc.documentElement.lang || undefined, { granularity: 'word' })
+        let kinds = 0
+        for (const { segment, isWordLike } of segmenter.segment(doc.body.textContent ?? '')) {
+            if (!isWordLike) continue
+            if (counts[segment] === undefined) {
+                if (kinds >= MaxChapterWordKinds) continue
+                kinds++
+                counts[segment] = 0
+            }
+            counts[segment]++
+        }
+    }
+    post('chapterWords', { requestId, counts })
+}
+
 function clearSelection() {
     if (!view) return
     for (const { doc } of view.renderer.getContents()) doc.getSelection()?.removeAllRanges()
@@ -1181,6 +1205,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

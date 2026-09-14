@@ -182,6 +182,10 @@ class SnapshotExporter @Inject constructor(
         createdAt = createdAt,
         lastReviewedAt = lastReviewedAt,
         known = known,
+        dueAt = dueAt,
+        intervalDays = intervalDays,
+        easeFactor = easeFactor,
+        repetitions = repetitions,
     )
 
     private fun WordLookupStatEntity.toPortable(): PortableWordLookupCounter = PortableWordLookupCounter(

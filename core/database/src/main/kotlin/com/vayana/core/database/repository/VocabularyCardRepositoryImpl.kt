@@ -24,27 +24,53 @@ class VocabularyCardRepositoryImpl @Inject constructor(
     override fun observeAll(): Flow<List<VocabularyCard>> =
         vocabularyCardDao.observeAll().map { entities -> entities.map { it.toDomain() } }
 
-    override suspend fun save(word: String, definition: String, sentence: String?, bookId: Long?, bookTitle: String?) {
-        vocabularyCardDao.insert(
-            VocabularyCardEntity(
-                word = word,
-                definition = definition,
-                sentence = sentence,
-                bookId = bookId,
-                bookTitle = bookTitle,
-                createdAt = System.currentTimeMillis(),
-                lastReviewedAt = null,
-                known = false,
-            ),
+    override suspend fun save(word: String, definition: String, sentence: String?, bookId: Long?, bookTitle: String?): Boolean =
+        database.withTransaction {
+            if (vocabularyCardDao.findByWord(word) != null) return@withTransaction false
+            vocabularyCardDao.insert(
+                VocabularyCardEntity(
+                    word = word,
+                    definition = definition,
+                    sentence = sentence,
+                    bookId = bookId,
+                    bookTitle = bookTitle,
+                    createdAt = System.currentTimeMillis(),
+                    lastReviewedAt = null,
+                    known = false,
+                ),
+            )
+            true
+        }
+
+    override suspend fun getForReview(limit: Int): List<VocabularyCard> =
+        vocabularyCardDao.getForReview(System.currentTimeMillis(), limit).map { it.toDomain() }
+
+    override suspend fun review(id: Long, grade: ReviewGrade) {
+        val card = vocabularyCardDao.getById(id) ?: return
+        val now = System.currentTimeMillis()
+        val next = VocabularySchedule.next(card.repetitions, card.intervalDays, card.easeFactor, grade, now)
+        vocabularyCardDao.updateSchedule(
+            id = id,
+            reviewedAt = now,
+            known = next.known,
+            dueAt = next.dueAt,
+            intervalDays = next.intervalDays,
+            easeFactor = next.easeFactor,
+            repetitions = next.repetitions,
         )
     }
 
-    override suspend fun getForReview(limit: Int): List<VocabularyCard> =
-        vocabularyCardDao.getForReview(limit).map { it.toDomain() }
-
-    override suspend fun markReviewed(id: Long, known: Boolean) {
-        vocabularyCardDao.markReviewed(id, System.currentTimeMillis(), known)
+    override suspend fun markKnown(id: Long) {
+        vocabularyCardDao.markReviewed(id, System.currentTimeMillis(), known = true)
     }
+
+    override fun observeDueCount(now: Long): Flow<Int> = vocabularyCardDao.observeDueCount(now)
+
+    override suspend fun countDue(now: Long): Int = vocabularyCardDao.countDue(now)
+
+    override suspend fun findByWord(word: String): VocabularyCard? = vocabularyCardDao.findByWord(word)?.toDomain()
+
+    override fun observeKnownWords(): Flow<List<String>> = vocabularyCardDao.observeKnownWords()
 
     override suspend fun delete(id: Long) {
         database.withTransaction {
@@ -79,6 +105,10 @@ class VocabularyCardRepositoryImpl @Inject constructor(
                     createdAt = record.createdAt,
                     lastReviewedAt = record.lastReviewedAt,
                     known = record.known,
+                    dueAt = record.dueAt,
+                    intervalDays = record.intervalDays,
+                    easeFactor = record.easeFactor,
+                    repetitions = record.repetitions,
                 ),
             )
             return@withTransaction VocabularyCardMergeResult.CREATED
@@ -94,6 +124,10 @@ class VocabularyCardRepositoryImpl @Inject constructor(
                 bookTitle = record.bookTitle ?: existing.bookTitle,
                 lastReviewedAt = record.lastReviewedAt,
                 known = record.known,
+                dueAt = record.dueAt,
+                intervalDays = record.intervalDays,
+                easeFactor = record.easeFactor,
+                repetitions = record.repetitions,
             ),
         )
         VocabularyCardMergeResult.UPDATED
@@ -110,4 +144,8 @@ private fun VocabularyCardEntity.toDomain(): VocabularyCard = VocabularyCard(
     createdAt = createdAt,
     lastReviewedAt = lastReviewedAt,
     known = known,
+    dueAt = dueAt,
+    intervalDays = intervalDays,
+    easeFactor = easeFactor,
+    repetitions = repetitions,
 )

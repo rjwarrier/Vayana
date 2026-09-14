@@ -147,6 +147,8 @@ class ReadAloudPlayerTest {
 
         override suspend fun clearSearch() = Unit
 
+        override suspend fun chapterWordCounts(): Map<String, Int> = emptyMap()
+
         override fun events(): Flow<EngineEvent> = emptyFlow()
 
         override fun close() = Unit

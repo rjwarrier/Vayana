@@ -160,6 +160,11 @@ class StatisticsViewModel @Inject constructor(
         .map { it.size }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** Saved words due for review, counted from when the screen starts watching. */
+    val vocabularyDueCount: StateFlow<Int> = vocabularyCardRepository.observeDueCount()
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }
 
 private data class CoreInputs(

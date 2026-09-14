@@ -176,13 +176,15 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import android.view.WindowManager
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.runtime.rememberCoroutineScope
 import com.vayana.reader.api.Footnote
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
-fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocabulary: () -> Unit = {}) {
     val viewModel: ReaderViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.effectiveSettings.collectAsState()
@@ -215,6 +217,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val footnote by viewModel.footnote.collectAsState()
     val readAloud by viewModel.readAloud.collectAsState()
     val returnRecap by viewModel.returnRecap.collectAsState()
+    val chapterWords by viewModel.chapterWords.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
     if (showNotesSidePanel) {
@@ -291,6 +294,10 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onDismissReturnRecap = viewModel::dismissReturnRecap,
                 onBrightnessChange = viewModel::updateBrightness,
                 onWarmLightChange = viewModel::updateWarmLight,
+                chapterWords = chapterWords,
+                onLoadChapterWords = viewModel::loadChapterWords,
+                onSaveChapterWord = viewModel::saveChapterWord,
+                onReviewVocabulary = onReviewVocabulary,
                 onBack = onBack,
             )
             if (notesSidePanelVisible) {
@@ -391,13 +398,17 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onDismissReturnRecap = viewModel::dismissReturnRecap,
         onBrightnessChange = viewModel::updateBrightness,
         onWarmLightChange = viewModel::updateWarmLight,
+        chapterWords = chapterWords,
+        onLoadChapterWords = viewModel::loadChapterWords,
+        onSaveChapterWord = viewModel::saveChapterWord,
+        onReviewVocabulary = onReviewVocabulary,
         onBack = onBack,
     )
     }
     }
 }
 
-private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, SEARCH }
+private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, SEARCH, WORDS }
 
 private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
     YELLOW("yellow", R.string.reader_selection_highlight_yellow, Color(0xFFF6C453)),
@@ -470,6 +481,10 @@ private fun ReaderScreen(
     onDismissReturnRecap: () -> Unit,
     onBrightnessChange: (Int) -> Unit,
     onWarmLightChange: (Int) -> Unit,
+    chapterWords: ChapterWordsState,
+    onLoadChapterWords: () -> Unit,
+    onSaveChapterWord: (ChapterWord) -> Unit,
+    onReviewVocabulary: () -> Unit,
     onBack: () -> Unit,
 ) {
     var chromeVisible by remember { mutableStateOf(false) }
@@ -910,6 +925,10 @@ private fun ReaderScreen(
                     chromeVisible = false
                     onStartReadAloud()
                 },
+                chapterWords = chapterWords,
+                onLoadChapterWords = onLoadChapterWords,
+                onChapterWordClick = onLookupWord,
+                onSaveChapterWord = onSaveChapterWord,
             )
         }
 
@@ -941,6 +960,10 @@ private fun ReaderScreen(
                 recap = returnRecap,
                 chapterTitle = recapState.currentLocator?.chapterTitle,
                 onDismiss = onDismissReturnRecap,
+                onReviewWords = {
+                    onDismissReturnRecap()
+                    onReviewVocabulary()
+                },
             )
         }
 
@@ -1542,11 +1565,25 @@ private fun DictionaryLookupContent(
                         modifier = Modifier.size(Sizes.iconSmall),
                     )
                 }
-                IconButton(onClick = { onSaveLookupAsVocabulary(state.entry) }) {
-                    Icon(
-                        imageVector = Icons.Outlined.Style,
-                        contentDescription = stringResource(R.string.reader_dictionary_add_to_vocabulary),
-                        modifier = Modifier.size(Sizes.iconSmall),
+                when (state.savedStatus) {
+                    SavedWordStatus.NOT_SAVED -> IconButton(onClick = { onSaveLookupAsVocabulary(state.entry) }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Style,
+                            contentDescription = stringResource(R.string.reader_dictionary_add_to_vocabulary),
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                    }
+                    SavedWordStatus.SAVED -> Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = stringResource(R.string.reader_dictionary_saved_to_vocabulary),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = Spacing.md).size(Sizes.iconSmall),
+                    )
+                    SavedWordStatus.KNOWN -> Text(
+                        text = stringResource(R.string.reader_dictionary_known_word),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = Spacing.md),
                     )
                 }
             }
@@ -1689,6 +1726,10 @@ private fun ReaderChrome(
     onSearchResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
     onClearSearch: () -> Unit,
     onStartReadAloud: () -> Unit,
+    chapterWords: ChapterWordsState,
+    onLoadChapterWords: () -> Unit,
+    onChapterWordClick: (String) -> Unit,
+    onSaveChapterWord: (ChapterWord) -> Unit,
 ) {
     val chromeSurfaceColor = readerChromeSurfaceColor()
     val chromeTopBorderColor = readerChromeTopBorderColor(settings, chromeSurfaceColor)
@@ -1765,6 +1806,12 @@ private fun ReaderChrome(
                             )
                         }
                     }
+                    IconButton(onClick = { onPanelSelected(ReaderPanel.WORDS) }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Translate,
+                            contentDescription = stringResource(R.string.reader_words_content_description),
+                        )
+                    }
                     IconButton(onClick = onStartReadAloud) {
                         Icon(
                             imageVector = Icons.Outlined.Headphones,
@@ -1837,6 +1884,12 @@ private fun ReaderChrome(
                         onQueryChange = onSearchQueryChange,
                         onResultClick = onSearchResultClick,
                         onClear = onClearSearch,
+                    )
+                    ReaderPanel.WORDS -> WordsPanel(
+                        state = chapterWords,
+                        onLoad = onLoadChapterWords,
+                        onWordClick = onChapterWordClick,
+                        onSaveWord = onSaveChapterWord,
                     )
                 }
             }

@@ -6,7 +6,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.runtime.LaunchedEffect
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -138,6 +145,7 @@ internal fun ReturnRecapCard(
     recap: ReaderRecap,
     chapterTitle: String?,
     onDismiss: () -> Unit,
+    onReviewWords: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -172,6 +180,90 @@ internal fun ReturnRecapCard(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            if (recap.dueWords > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.reader_return_recap_due_words, recap.dueWords),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onReviewWords) {
+                        Text(stringResource(R.string.reader_return_recap_review))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Unusual words in the chapter on screen, to learn before reading it. Loads when the panel opens. */
+@Composable
+internal fun WordsPanel(
+    state: ChapterWordsState,
+    onLoad: () -> Unit,
+    onWordClick: (String) -> Unit,
+    onSaveWord: (ChapterWord) -> Unit,
+) {
+    LaunchedEffect(Unit) { onLoad() }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(text = stringResource(R.string.reader_words_title), style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = stringResource(R.string.reader_words_support),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when (state) {
+            ChapterWordsState.Idle, ChapterWordsState.Loading ->
+                VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+            ChapterWordsState.DictionaryRequired -> Text(
+                text = stringResource(R.string.reader_words_dictionary_required),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            is ChapterWordsState.Ready -> if (state.words.isEmpty()) {
+                Text(text = stringResource(R.string.reader_words_empty), style = MaterialTheme.typography.bodyMedium)
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
+                    items(state.words, key = { it.word }) { word ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onWordClick(word.word) }
+                                    .padding(vertical = Spacing.xs),
+                            ) {
+                                Text(text = word.word, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    text = word.definition,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (word.saved) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = stringResource(R.string.reader_dictionary_saved_to_vocabulary),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(Spacing.md),
+                                )
+                            } else {
+                                IconButton(onClick = { onSaveWord(word) }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Style,
+                                        contentDescription = stringResource(R.string.reader_dictionary_add_to_vocabulary),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

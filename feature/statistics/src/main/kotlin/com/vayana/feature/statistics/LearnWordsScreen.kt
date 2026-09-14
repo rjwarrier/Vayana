@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -66,16 +67,16 @@ fun LearnWordsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             )
         },
     ) { innerPadding ->
-        if (summary.words.isEmpty()) {
+        if (summary.uniqueWords == 0) {
             LearnWordsEmptyState(contentPadding = innerPadding)
         } else {
-            LearnWordsList(contentPadding = innerPadding, summary = summary)
+            LearnWordsList(contentPadding = innerPadding, summary = summary, onHideKnownChange = viewModel::setHideKnown)
         }
     }
 }
 
 @Composable
-private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSummary) {
+private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSummary, onHideKnownChange: (Boolean) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -87,7 +88,7 @@ private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSum
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item {
-            LearnWordsHeader(summary = summary)
+            LearnWordsHeader(summary = summary, onHideKnownChange = onHideKnownChange)
         }
         items(summary.words, key = { it.word }) { word ->
             WordLookupRow(word = word)
@@ -96,7 +97,7 @@ private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSum
 }
 
 @Composable
-private fun LearnWordsHeader(summary: LearnWordsSummary) {
+private fun LearnWordsHeader(summary: LearnWordsSummary, onHideKnownChange: (Boolean) -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.extraLarge),
@@ -134,6 +135,11 @@ private fun LearnWordsHeader(summary: LearnWordsSummary) {
                     modifier = Modifier.weight(1f),
                 )
             }
+            FilterChip(
+                selected = summary.hideKnown,
+                onClick = { onHideKnownChange(!summary.hideKnown) },
+                label = { Text(stringResource(R.string.learn_words_hide_known, summary.hiddenKnownCount)) },
+            )
         }
     }
 }

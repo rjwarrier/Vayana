@@ -119,7 +119,10 @@ fun VayanaNavHost(
             )
         }
         composable<ReaderRoute> {
-            ReaderScreenRoute(onBack = { navController.popBackStack() })
+            ReaderScreenRoute(
+                onBack = { navController.popBackStack() },
+                onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) },
+            )
         }
     }
 }

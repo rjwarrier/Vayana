@@ -151,6 +151,11 @@ fun parsePortableVocabularyCards(jsonText: String): List<PortableVocabularyCard>
                     createdAt = createdAt,
                     lastReviewedAt = obj.optLong("lastReviewedAt", 0L).takeIf { it > 0L },
                     known = obj.optBoolean("known", false),
+                    dueAt = obj.optLong("dueAt", 0L).takeIf { it > 0L },
+                    // Bounded so a damaged snapshot can't schedule a card centuries out or with a broken ease.
+                    intervalDays = obj.optInt("intervalDays", 0).coerceIn(0, 36_500),
+                    easeFactor = obj.optDouble("easeFactor", 2.5).toFloat().takeIf { it.isFinite() }?.coerceIn(1.3f, 5f) ?: 2.5f,
+                    repetitions = obj.optInt("repetitions", 0).coerceAtLeast(0),
                 ),
             )
         }
@@ -520,6 +525,10 @@ private fun PortableVocabularyCard.toJson(): JSONObject =
         .put("createdAt", createdAt)
         .putOptional("lastReviewedAt", lastReviewedAt)
         .put("known", known)
+        .putOptional("dueAt", dueAt)
+        .put("intervalDays", intervalDays)
+        .put("easeFactor", easeFactor.toDouble())
+        .put("repetitions", repetitions)
 
 private fun PortableWordLookupCounter.toJson(): JSONObject =
     JSONObject()

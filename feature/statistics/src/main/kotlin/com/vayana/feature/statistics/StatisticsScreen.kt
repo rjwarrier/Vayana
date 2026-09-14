@@ -79,11 +79,13 @@ fun StatisticsRoute(
     val viewModel: StatisticsViewModel = hiltViewModel()
     val summary by viewModel.summary.collectAsState()
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsState()
+    val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsState()
 
     StatisticsScreen(
         modifier = modifier,
         summary = summary,
         vocabularyCardCount = vocabularyCardCount,
+        vocabularyDueCount = vocabularyDueCount,
         onReviewVocabulary = onReviewVocabulary,
         onOpenLearnWords = onOpenLearnWords,
     )
@@ -94,6 +96,7 @@ private fun StatisticsScreen(
     modifier: Modifier = Modifier,
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
+    vocabularyDueCount: Int,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
 ) {
@@ -114,6 +117,7 @@ private fun StatisticsScreen(
                 contentPadding = innerPadding,
                 summary = summary,
                 vocabularyCardCount = vocabularyCardCount,
+                vocabularyDueCount = vocabularyDueCount,
                 onReviewVocabulary = onReviewVocabulary,
                 onOpenLearnWords = onOpenLearnWords,
             )
@@ -126,6 +130,7 @@ private fun StatisticsDashboard(
     contentPadding: PaddingValues,
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
+    vocabularyDueCount: Int,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
 ) {
@@ -246,7 +251,11 @@ private fun StatisticsDashboard(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = stringResource(R.string.statistics_review_vocabulary_title), style = MaterialTheme.typography.titleMedium)
                             Text(
-                                text = stringResource(R.string.statistics_review_vocabulary_support, vocabularyCardCount),
+                                text = if (vocabularyDueCount > 0) {
+                                    stringResource(R.string.statistics_review_vocabulary_support, vocabularyDueCount, vocabularyCardCount)
+                                } else {
+                                    stringResource(R.string.statistics_review_vocabulary_caught_up, vocabularyCardCount)
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

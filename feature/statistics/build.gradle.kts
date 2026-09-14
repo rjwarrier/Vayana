@@ -9,4 +9,5 @@ android {
 dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
+    testImplementation(kotlin("test"))
 }

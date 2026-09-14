@@ -15,10 +15,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.vayana.core.common.shareFile
+import com.vayana.core.database.repository.ReviewGrade
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -64,6 +74,29 @@ fun VocabularyReviewRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.notes_back_content_description))
                     }
                 },
+                actions = {
+                    var exportMenuOpen by remember { mutableStateOf(false) }
+                    val context = LocalContext.current
+                    val chooserTitle = stringResource(R.string.vocabulary_review_export)
+                    val markdownTitle = stringResource(R.string.vocabulary_export_markdown_title)
+                    val otherWordsHeading = stringResource(R.string.vocabulary_export_other_words)
+                    IconButton(onClick = { exportMenuOpen = true }) {
+                        Icon(Icons.Outlined.Share, contentDescription = chooserTitle)
+                    }
+                    DropdownMenu(expanded = exportMenuOpen, onDismissRequest = { exportMenuOpen = false }) {
+                        VocabularyExportFormat.entries.forEach { format ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(format.labelRes)) },
+                                onClick = {
+                                    exportMenuOpen = false
+                                    viewModel.export(format, markdownTitle, otherWordsHeading) { content ->
+                                        context.shareFile(content, format.fileName, format.mimeType, chooserTitle)
+                                    }
+                                },
+                            )
+                        }
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -82,8 +115,8 @@ fun VocabularyReviewRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 total = cards.size,
                 flipped = flipped,
                 onFlip = viewModel::flip,
-                onMarkKnown = { viewModel.markCurrent(true) },
-                onMarkStillLearning = { viewModel.markCurrent(false) },
+                onGrade = viewModel::grade,
+                onMarkKnownWord = viewModel::markKnown,
             )
         }
     }
@@ -97,8 +130,8 @@ private fun VocabularyReviewCardScreen(
     total: Int,
     flipped: Boolean,
     onFlip: () -> Unit,
-    onMarkKnown: () -> Unit,
-    onMarkStillLearning: () -> Unit,
+    onGrade: (ReviewGrade) -> Unit,
+    onMarkKnownWord: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -184,23 +217,28 @@ private fun VocabularyReviewCardScreen(
         if (flipped) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                OutlinedButton(onClick = onMarkStillLearning, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Close, contentDescription = null)
-                    Text(text = stringResource(R.string.vocabulary_review_still_learning), modifier = Modifier.padding(start = Spacing.sm))
+                OutlinedButton(onClick = { onGrade(ReviewGrade.AGAIN) }, modifier = Modifier.weight(1f)) {
+                    Text(text = stringResource(R.string.vocabulary_review_again))
+                }
+                FilledTonalButton(onClick = { onGrade(ReviewGrade.GOOD) }, modifier = Modifier.weight(1f)) {
+                    Text(text = stringResource(R.string.vocabulary_review_good))
                 }
                 Button(
-                    onClick = onMarkKnown,
+                    onClick = { onGrade(ReviewGrade.EASY) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
                 ) {
-                    Icon(Icons.Outlined.Check, contentDescription = null)
-                    Text(text = stringResource(R.string.vocabulary_review_know_it), modifier = Modifier.padding(start = Spacing.sm))
+                    Text(text = stringResource(R.string.vocabulary_review_easy))
                 }
+            }
+            TextButton(onClick = onMarkKnownWord, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Icon(Icons.Outlined.Check, contentDescription = null)
+                Text(text = stringResource(R.string.vocabulary_review_know_word), modifier = Modifier.padding(start = Spacing.sm))
             }
         }
     }

@@ -34,5 +34,8 @@ interface BookEngine {
 
     suspend fun stopSpeech()
 
+    /** Every word in the chapter on screen, as written, with how many times it appears. */
+    suspend fun chapterWordCounts(): Map<String, Int>
+
     fun close()
 }

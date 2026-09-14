@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 22
+Spaced repetition for vocabulary cards (`repository/VocabularySchedule.kt`, SM-2 style with Again / Good / Easy):
+`vocabulary_cards.dueAt` (nullable epoch millis; null = a new card, due now), `intervalDays` (default 0),
+`easeFactor` (default 2.5) and `repetitions` (default 0). Existing cards start as new; `known` keeps its meaning and
+is now also set once a card's interval reaches 21 days. Review pulls only due cards. Exported in the snapshot as
+optional `dueAt`, `intervalDays`, `easeFactor`, `repetitions`; records without them read as a new card.
+
 ## Version 21
 Adds nullable `books.deletionUpdatedAt` (epoch millis): when the book was last deleted or restored. Synced deletes and
 restores compare it instead of `updatedAt`, which reading also bumps, so reading a book on one device no longer

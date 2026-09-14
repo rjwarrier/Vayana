@@ -345,6 +345,17 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.evaluateJavascript("window.VayanaReader.stopSpeech()", null)
     }
 
+    private val wordCountRequests = ConcurrentHashMap<Long, CompletableDeferred<Map<String, Int>>>()
+
+    override suspend fun chapterWordCounts(): Map<String, Int> {
+        val id = nextSpeechRequestId.incrementAndGet()
+        val deferred = CompletableDeferred<Map<String, Int>>()
+        wordCountRequests[id] = deferred
+        webView.evaluateJavascript("window.VayanaReader.chapterWordCounts($id)", null)
+        return withTimeoutOrNull(SpeechRequestTimeoutMillis) { deferred.await() }
+            ?: emptyMap<String, Int>().also { wordCountRequests.remove(id) }
+    }
+
     /** Asks the bridge for sentences and waits for its "speech" reply; a missing reply ends reading. */
     private suspend fun requestSpeech(function: String): SpeechChunk {
         val id = nextSpeechRequestId.incrementAndGet()
@@ -368,6 +379,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         pendingOpen = null
         speechRequests.values.forEach { it.complete(SpeechChunk(emptyList(), endOfBook = true)) }
         speechRequests.clear()
+        wordCountRequests.values.forEach { it.complete(emptyMap()) }
+        wordCountRequests.clear()
         resources.clear()
         entryResources.clear()
         closeBookZip()
@@ -480,6 +493,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 _events.tryEmit(FootnoteOpened(Footnote(text = text, href = payload.optString("href"))))
             }
             "speech" -> speechRequests.remove(payload.optLong("requestId"))?.complete(payload.toSpeechChunk())
+            "chapterWords" -> wordCountRequests.remove(payload.optLong("requestId"))
+                ?.complete(payload.optJSONObject("counts")?.toIntMap() ?: emptyMap())
             "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")

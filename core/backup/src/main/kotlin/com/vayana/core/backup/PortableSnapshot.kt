@@ -111,6 +111,11 @@ data class PortableVocabularyCard(
     val createdAt: Long,
     val lastReviewedAt: Long?,
     val known: Boolean,
+    /** Spaced-repetition schedule; absent from snapshots made before it existed, which read as a new card. */
+    val dueAt: Long? = null,
+    val intervalDays: Int = 0,
+    val easeFactor: Float = 2.5f,
+    val repetitions: Int = 0,
 )
 
 data class PortableWordLookupCounter(

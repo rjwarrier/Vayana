@@ -24,12 +24,39 @@ interface VocabularyCardDao {
     @Query("SELECT * FROM vocabulary_cards WHERE syncId = :syncId LIMIT 1")
     suspend fun findBySyncId(syncId: String): VocabularyCardEntity?
 
-    /** Never-reviewed cards first, then the least-recently reviewed - "review five words" pulls from the front. */
+    /** Cards due by [now]: new ones first, then the longest overdue - "review five words" pulls from the front. */
     @Query(
-        "SELECT * FROM vocabulary_cards WHERE known = 0 " +
-            "ORDER BY (lastReviewedAt IS NOT NULL), lastReviewedAt ASC, createdAt ASC LIMIT :limit",
+        "SELECT * FROM vocabulary_cards WHERE known = 0 AND (dueAt IS NULL OR dueAt <= :now) " +
+            "ORDER BY (dueAt IS NOT NULL), dueAt ASC, createdAt ASC LIMIT :limit",
     )
-    suspend fun getForReview(limit: Int): List<VocabularyCardEntity>
+    suspend fun getForReview(now: Long, limit: Int): List<VocabularyCardEntity>
+
+    @Query("SELECT COUNT(*) FROM vocabulary_cards WHERE known = 0 AND (dueAt IS NULL OR dueAt <= :now)")
+    fun observeDueCount(now: Long): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM vocabulary_cards WHERE known = 0 AND (dueAt IS NULL OR dueAt <= :now)")
+    suspend fun countDue(now: Long): Int
+
+    @Query(
+        "UPDATE vocabulary_cards SET lastReviewedAt = :reviewedAt, known = :known, dueAt = :dueAt, " +
+            "intervalDays = :intervalDays, easeFactor = :easeFactor, repetitions = :repetitions WHERE id = :id",
+    )
+    suspend fun updateSchedule(
+        id: Long,
+        reviewedAt: Long,
+        known: Boolean,
+        dueAt: Long,
+        intervalDays: Int,
+        easeFactor: Float,
+        repetitions: Int,
+    )
+
+    /** The card for [word], ignoring case; a known card wins if the word was somehow saved twice. */
+    @Query("SELECT * FROM vocabulary_cards WHERE word = :word COLLATE NOCASE ORDER BY known DESC LIMIT 1")
+    suspend fun findByWord(word: String): VocabularyCardEntity?
+
+    @Query("SELECT word FROM vocabulary_cards WHERE known = 1")
+    fun observeKnownWords(): Flow<List<String>>
 
     @Query("UPDATE vocabulary_cards SET lastReviewedAt = :reviewedAt, known = :known WHERE id = :id")
     suspend fun markReviewed(id: Long, reviewedAt: Long, known: Boolean)

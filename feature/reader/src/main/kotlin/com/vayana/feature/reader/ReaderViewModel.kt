@@ -42,6 +42,8 @@ import com.vayana.reader.api.ReaderAnnotationType
 import com.vayana.reader.api.ReaderSelection
 import com.vayana.reader.api.Footnote
 import com.vayana.reader.api.FootnoteOpened
+import com.vayana.core.common.runCatchingCancellable
+import com.vayana.core.database.model.VocabularyCard
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -99,13 +101,22 @@ sealed interface ReaderUiState {
 }
 
 /** Shown when a book is reopened after a while: how long since it was last read, and the reader's latest highlight in it. */
-data class ReaderRecap(val awayMillis: Long, val highlight: String?)
+data class ReaderRecap(val awayMillis: Long, val highlight: String?, val dueWords: Int = 0)
+
+/** Whether a looked-up word is already a vocabulary card, and whether it has been marked as known. */
+enum class SavedWordStatus { NOT_SAVED, SAVED, KNOWN }
+
+private fun VocabularyCard?.toSavedWordStatus(): SavedWordStatus = when {
+    this == null -> SavedWordStatus.NOT_SAVED
+    known -> SavedWordStatus.KNOWN
+    else -> SavedWordStatus.SAVED
+}
 
 sealed interface DictionaryLookupState {
     data object Hidden : DictionaryLookupState
     data class PackRequired(val word: String) : DictionaryLookupState
     data class LookingUp(val word: String) : DictionaryLookupState
-    data class Found(val entry: DictionaryEntry) : DictionaryLookupState
+    data class Found(val entry: DictionaryEntry, val savedStatus: SavedWordStatus = SavedWordStatus.NOT_SAVED) : DictionaryLookupState
     data class NotFound(val word: String) : DictionaryLookupState
     data class Installing(val word: String) : DictionaryLookupState
     data class Failed(val word: String, val message: String) : DictionaryLookupState
@@ -198,6 +209,10 @@ class ReaderViewModel @Inject constructor(
         onSpeaking = ::onReaderInteraction,
     )
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
+
+    private val _chapterWords = MutableStateFlow<ChapterWordsState>(ChapterWordsState.Idle)
+    val chapterWords: StateFlow<ChapterWordsState> = _chapterWords
+    private var chapterWordsJob: Job? = null
     private var lastReaderWrittenLocator: String? = null
     private var locatorPersistJob: Job? = null
 
@@ -610,6 +625,54 @@ class ReaderViewModel @Inject constructor(
                 bookId = bookId,
                 bookTitle = state?.bookTitle,
             )
+            _dictionaryLookup.update { current ->
+                if (current is DictionaryLookupState.Found && current.entry.headword == entry.headword) {
+                    current.copy(savedStatus = SavedWordStatus.SAVED)
+                } else {
+                    current
+                }
+            }
+        }
+    }
+
+    /**
+     * Finds the likeliest unfamiliar words in the chapter on screen - long, rare in the chapter, in the dictionary and
+     * not marked as known - with their first definitions.
+     */
+    fun loadChapterWords() {
+        val engine = boundEngine?.takeIf { bookOpen } ?: return
+        chapterWordsJob?.cancel()
+        chapterWordsJob = viewModelScope.launch {
+            if (dictionaryRepository.englishPackState.value !is DictionaryPackState.Installed) {
+                _chapterWords.value = ChapterWordsState.DictionaryRequired
+                return@launch
+            }
+            _chapterWords.value = ChapterWordsState.Loading
+            val cardsByWord = vocabularyCardRepository.observeAll().first().associateBy { it.word.lowercase() }
+            val knownWords = cardsByWord.filterValues { it.known }.keys
+            val words = unusualWordCandidates(engine.chapterWordCounts(), knownWords)
+                .mapNotNull { candidate ->
+                    val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(candidate) }.getOrNull()
+                    val definition = entry?.senses?.firstOrNull()?.definition ?: return@mapNotNull null
+                    ChapterWord(word = entry.headword, definition = definition, saved = entry.headword.lowercase() in cardsByWord)
+                }
+                .distinctBy { it.word.lowercase() }
+                .take(MaxChapterWords)
+            _chapterWords.value = ChapterWordsState.Ready(words)
+        }
+    }
+
+    fun saveChapterWord(word: ChapterWord) {
+        val bookTitle = (uiState.value as? ReaderUiState.Loaded)?.bookTitle
+        viewModelScope.launch {
+            vocabularyCardRepository.save(word = word.word, definition = word.definition, sentence = null, bookId = bookId, bookTitle = bookTitle)
+            _chapterWords.update { state ->
+                if (state is ChapterWordsState.Ready) {
+                    state.copy(words = state.words.map { if (it.word == word.word) it.copy(saved = true) else it })
+                } else {
+                    state
+                }
+            }
         }
     }
 
@@ -976,7 +1039,11 @@ class ReaderViewModel @Inject constructor(
             val highlight = annotationRepository.observeForBook(bookId).first()
                 .firstOrNull { it.type != AnnotationType.BOOKMARK && it.selectedText.isNotBlank() }
                 ?.selectedText
-            _returnRecap.value = ReaderRecap(awayMillis = awayMillis, highlight = highlight)
+            _returnRecap.value = ReaderRecap(
+                awayMillis = awayMillis,
+                highlight = highlight,
+                dueWords = vocabularyCardRepository.countDue(),
+            )
         }
     }
 
@@ -1039,7 +1106,7 @@ class ReaderViewModel @Inject constructor(
             _dictionaryLookup.value = if (entry == null) {
                 DictionaryLookupState.NotFound(word)
             } else {
-                DictionaryLookupState.Found(entry)
+                DictionaryLookupState.Found(entry, vocabularyCardRepository.findByWord(entry.headword).toSavedWordStatus())
             }
         }
     }
@@ -1137,6 +1204,7 @@ private fun String.toDictionaryWord(): String? {
 }
 
 private val ReadAloudRates = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+private const val MaxChapterWords = 25
 
 /** Reopening a book within this long of last reading it is just carrying on, not a return worth a recap. */
 private const val ReturnRecapMinAwayMillis = 12 * 60 * 60 * 1000L
