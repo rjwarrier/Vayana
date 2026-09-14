@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.UUID
+import com.vayana.core.database.dao.PendingCloudDeletionDao
 
 sealed interface BackupUiState {
     data object Idle : BackupUiState
@@ -79,6 +80,7 @@ class SettingsViewModel @Inject constructor(
     private val gitHubSyncSettingsTransfer: GitHubSyncSettingsTransfer,
     private val gitHubConnectionTester: GitHubConnectionTester,
     private val storageRoots: StorageRoots,
+    pendingCloudDeletionDao: PendingCloudDeletionDao,
 ) : ViewModel() {
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
@@ -97,6 +99,10 @@ class SettingsViewModel @Inject constructor(
 
     private val _githubConnectionTestState = MutableStateFlow<GitHubConnectionTestState>(GitHubConnectionTestState.Idle)
     val githubConnectionTestState: StateFlow<GitHubConnectionTestState> = _githubConnectionTestState
+
+    /** Cloud files of permanently deleted books that sync hasn't removed yet. */
+    val pendingCloudDeletions: StateFlow<Int> = pendingCloudDeletionDao.observeCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     fun <T : Any> update(setting: Setting<T>, value: T) {
         viewModelScope.launch {

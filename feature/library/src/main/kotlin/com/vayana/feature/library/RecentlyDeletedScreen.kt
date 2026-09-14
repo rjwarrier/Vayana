@@ -52,18 +52,23 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.io.File
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 
 @Composable
 fun RecentlyDeletedRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val deletedBooks by viewModel.recentlyDeletedBooks.collectAsState()
+    val deletionNotice by viewModel.permanentDeletionNotice.collectAsState()
 
     RecentlyDeletedScreen(
         modifier = modifier,
         deletedBooks = deletedBooks,
         onBack = onBack,
         onRestore = viewModel::restoreBook,
-        onPurge = viewModel::purgeBook,
+        onPurge = viewModel::deletePermanently,
+        deletionNotice = deletionNotice,
+        onDeletionNoticeShown = viewModel::consumePermanentDeletionNotice,
     )
 }
 
@@ -75,11 +80,16 @@ private fun RecentlyDeletedScreen(
     onBack: () -> Unit,
     onRestore: (Long) -> Unit,
     onPurge: (Long) -> Unit,
+    deletionNotice: PermanentDeletionNotice?,
+    onDeletionNoticeShown: (PermanentDeletionNotice) -> Unit,
 ) {
     var purgingBook by remember { mutableStateOf<Book?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    PermanentDeletionNoticeEffect(deletionNotice, snackbarHostState, onDeletionNoticeShown)
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_recently_deleted_title)) },
@@ -119,41 +129,13 @@ private fun RecentlyDeletedScreen(
     }
 
     purgingBook?.let { book ->
-        AlertDialog(
+        PermanentDeleteConfirmDialog(
+            book = book,
+            highlightCount = null,
             onDismissRequest = { purgingBook = null },
-            icon = {
-                Surface(
-                    shape = RoundedCornerShape(Radii.large),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.padding(Spacing.md),
-                    )
-                }
-            },
-            title = { Text(stringResource(R.string.library_recently_deleted_purge_title)) },
-            text = { Text(stringResource(R.string.library_recently_deleted_purge_body, book.title)) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onPurge(book.id)
-                        purgingBook = null
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                ) {
-                    Text(stringResource(R.string.library_recently_deleted_purge_confirm))
-                }
-            },
-            dismissButton = {
-                FilledTonalButton(onClick = { purgingBook = null }) {
-                    Text(stringResource(R.string.settings_reset_all_cancel))
-                }
+            onConfirm = {
+                purgingBook = null
+                onPurge(book.id)
             },
         )
     }

@@ -43,10 +43,6 @@ interface BookDao {
     @Query("UPDATE books SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
     suspend fun restore(id: Long, updatedAt: Long)
 
-    /** Permanently purges an already soft-deleted row - never call this directly on a live one. */
-    @Query("DELETE FROM books WHERE id = :id AND isDeleted = 1")
-    suspend fun purge(id: Long)
-
     /** Deletes a book row in any state; annotations, reading sessions and shelf links cascade. */
     @Query("DELETE FROM books WHERE id = :id")
     suspend fun deleteById(id: Long)

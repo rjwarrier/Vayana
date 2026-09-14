@@ -170,9 +170,6 @@ interface BookRepository {
     /** Restores a soft-deleted book (annotations were never touched by [softDelete], so nothing else to restore). */
     suspend fun restore(id: Long)
 
-    /** Permanently removes an already soft-deleted book row - never call this on a live book. */
-    suspend fun purge(id: Long)
-
     /**
      * Deletes a book permanently, everywhere: writes a `book` tombstone (older app versions soft-delete it) and a
      * [TombstoneEntityType.BOOK_PURGE] one, queues its cloud assets for deletion, detaches its vocabulary words and

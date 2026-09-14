@@ -136,7 +136,7 @@ private fun ReadingStatPill(label: String, value: String, modifier: Modifier = M
     }
 }
 
-private fun formatReadingDuration(totalSeconds: Long, context: android.content.Context): String {
+internal fun formatReadingDuration(totalSeconds: Long, context: android.content.Context): String {
     if (totalSeconds < 60L) {
         return context.getString(R.string.reading_time_less_than_minute)
     }

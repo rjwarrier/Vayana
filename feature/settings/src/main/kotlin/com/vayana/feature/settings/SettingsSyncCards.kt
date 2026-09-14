@@ -49,7 +49,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-internal fun GitHubSyncHealthCard(settings: SettingsSnapshot, connectionState: GitHubConnectionTestState) {
+internal fun GitHubSyncHealthCard(settings: SettingsSnapshot, connectionState: GitHubConnectionTestState, pendingCloudDeletions: Int) {
     val enabled = settings.githubSyncEnabled
     val repositoryReady = settings.githubOwner.isNotBlank() && settings.githubRepository.isNotBlank() && settings.githubBranch.isNotBlank()
     val tokenReady = settings.githubToken.isNotBlank()
@@ -113,6 +113,13 @@ internal fun GitHubSyncHealthCard(settings: SettingsSnapshot, connectionState: G
                     value = connectionState.healthLabel(),
                     healthy = connectionState is GitHubConnectionTestState.Connected || connectionState is GitHubConnectionTestState.ReadyForInitialSync,
                 )
+                if (pendingCloudDeletions > 0) {
+                    SyncHealthRow(
+                        label = stringResource(R.string.settings_github_health_pending_deletions),
+                        value = pendingCloudDeletions.toString(),
+                        healthy = false,
+                    )
+                }
             }
         }
     }

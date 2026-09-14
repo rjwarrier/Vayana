@@ -138,11 +138,14 @@ fun LibraryRoute(
     val syncProgress by viewModel.syncProgress.collectAsState()
     val cloudBookDownloadProgress by viewModel.cloudBookDownloadProgress.collectAsState()
     val readNextQueue by viewModel.readNextQueue.collectAsState()
+    val deletionNotice by viewModel.permanentDeletionNotice.collectAsState()
 
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
         readNextQueue = readNextQueue,
+        deletionNotice = deletionNotice,
+        onDeletionNoticeShown = viewModel::consumePermanentDeletionNotice,
         importSummary = importSummary,
         importProgress = importProgress,
         syncProgress = syncProgress,
@@ -175,6 +178,8 @@ private fun LibraryScreen(
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
     readNextQueue: List<Book>,
+    deletionNotice: PermanentDeletionNotice?,
+    onDeletionNoticeShown: (PermanentDeletionNotice) -> Unit,
     importSummary: ImportSummary?,
     importProgress: ImportProgressState?,
     syncProgress: GitHubSyncProgressState?,
@@ -202,6 +207,7 @@ private fun LibraryScreen(
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    PermanentDeletionNoticeEffect(deletionNotice, snackbarHostState, onDeletionNoticeShown)
     val coroutineScope = rememberCoroutineScope()
     val importSummaryMessage = importSummary?.let { summary ->
         stringResource(

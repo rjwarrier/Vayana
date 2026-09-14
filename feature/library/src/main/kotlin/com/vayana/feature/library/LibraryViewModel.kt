@@ -128,6 +128,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
 import com.vayana.core.database.repository.bookSyncIdOfPurge
 import com.vayana.core.filesystem.BookFileCleaner
+import kotlinx.coroutines.NonCancellable
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
@@ -446,6 +447,7 @@ class LibraryViewModel @Inject constructor(
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
     private val bookFileCleaner: BookFileCleaner,
+    private val permanentDeletionNotices: PermanentDeletionNotices,
     private val resolvedBooks: ResolvedBooks,
     private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
     private val dispatchers: DispatcherProvider,
@@ -573,9 +575,34 @@ class LibraryViewModel @Inject constructor(
         controls.update { it.copy(viewMode = viewMode) }
     }
 
+    /** Moves a book to Recently deleted. Finishes even when the calling screen closes straight away. */
     fun deleteBook(bookId: Long) {
-        viewModelScope.launch { bookRepository.softDelete(bookId) }
+        viewModelScope.launch { withContext(NonCancellable) { bookRepository.softDelete(bookId) } }
     }
+
+    val permanentDeletionNotice: StateFlow<PermanentDeletionNotice?> = permanentDeletionNotices.notice
+
+    fun consumePermanentDeletionNotice(notice: PermanentDeletionNotice) {
+        permanentDeletionNotices.consume(notice)
+    }
+
+    /**
+     * Deletes a book permanently, everywhere: the row and its highlights, notes and history now, its local files right
+     * after, and its cloud files on the next sync. Finishes even when the calling screen closes straight away.
+     */
+    fun deletePermanently(bookId: Long) {
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                val purged = bookRepository.purgeEverywhere(bookId) ?: return@withContext
+                bookFileCleaner.delete(purged.localFilePaths)
+                permanentDeletionNotices.post(
+                    PermanentDeletionNotice(title = purged.title, cloudCopyPending = purged.queuedCloudAssetIds.isNotEmpty()),
+                )
+            }
+        }
+    }
+
+    fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeForBook(bookId).map { it.size }
 
     val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
         .withAbsolutePaths()
@@ -583,10 +610,6 @@ class LibraryViewModel @Inject constructor(
 
     fun restoreBook(bookId: Long) {
         viewModelScope.launch { bookRepository.restore(bookId) }
-    }
-
-    fun purgeBook(bookId: Long) {
-        viewModelScope.launch { bookRepository.purge(bookId) }
     }
 
     val shelves: StateFlow<List<Shelf>> = shelfRepository.observeAll()

@@ -126,6 +126,7 @@ fun SettingsRoute(
     val restorePreview by viewModel.restorePreview.collectAsState()
     val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
     val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsState()
+    val pendingCloudDeletions by viewModel.pendingCloudDeletions.collectAsState()
     val readerFontImportState by viewModel.readerFontImportState.collectAsState()
 
     SettingsScreen(
@@ -135,6 +136,7 @@ fun SettingsRoute(
         restorePreview = restorePreview,
         githubSyncSettingsTransferState = githubSyncSettingsTransferState,
         githubConnectionTestState = githubConnectionTestState,
+        pendingCloudDeletions = pendingCloudDeletions,
         readerFontImportState = readerFontImportState,
         onBack = onBack,
         onHelpClick = onHelpClick,
@@ -167,6 +169,7 @@ private fun SettingsScreen(
     restorePreview: RestorePreviewState,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
+    pendingCloudDeletions: Int,
     readerFontImportState: ReaderFontImportState,
     onBack: () -> Unit,
     onHelpClick: () -> Unit,
@@ -287,6 +290,7 @@ private fun SettingsScreen(
                     settings = settings,
                     githubSyncSettingsTransferState = githubSyncSettingsTransferState,
                     githubConnectionTestState = githubConnectionTestState,
+                    pendingCloudDeletions = pendingCloudDeletions,
                     readerFontImportState = readerFontImportState,
                     onUpdate = onUpdate,
                     onReset = onReset,
@@ -580,6 +584,7 @@ private fun SettingsGroupDetail(
     settings: SettingsSnapshot,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
+    pendingCloudDeletions: Int,
     readerFontImportState: ReaderFontImportState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
@@ -637,7 +642,7 @@ private fun SettingsGroupDetail(
         if (group == SettingsGroup.SYNC) {
             item {
                 SettingsContentContainer {
-                    GitHubSyncHealthCard(settings = settings, connectionState = githubConnectionTestState)
+                    GitHubSyncHealthCard(settings = settings, connectionState = githubConnectionTestState, pendingCloudDeletions = pendingCloudDeletions)
                 }
             }
             item {

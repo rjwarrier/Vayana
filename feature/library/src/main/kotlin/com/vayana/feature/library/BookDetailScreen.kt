@@ -120,6 +120,7 @@ fun BookDetailRoute(
     val allShelves by viewModel.shelves.collectAsState()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
     val goodreadsImport by viewModel.goodreadsImport.collectAsState()
+    val highlightCount by remember(bookId) { viewModel.observeAnnotationCount(bookId) }.collectAsState(initial = null)
     val pendingLaunchProgressChange by viewModel.pendingLaunchProgressChange.collectAsState()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
     var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
@@ -204,6 +205,11 @@ fun BookDetailRoute(
             viewModel.deleteBook(bookId)
             onBack()
         },
+        onDeletePermanently = {
+            viewModel.deletePermanently(bookId)
+            onBack()
+        },
+        highlightCount = highlightCount,
     )
 }
 
@@ -254,6 +260,8 @@ private fun BookDetailScreen(
     onDetailMessageShown: () -> Unit,
     onMarkFinished: () -> Unit,
     onDeleteBook: () -> Unit,
+    onDeletePermanently: () -> Unit,
+    highlightCount: Int?,
     goodreadsImport: GoodreadsImportState,
     onImportGoodreads: (String) -> Unit,
     onImportGoodreadsCapture: (GoodreadsBookMetadata, List<ParsedQuote>?) -> Unit,
@@ -266,6 +274,7 @@ private fun BookDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showPermanentDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var showCoverPreview by remember { mutableStateOf(false) }
@@ -779,17 +788,28 @@ private fun BookDetailScreen(
     }
 
     if (showDeleteDialog) {
-        ConfirmActionDialog(
+        DeleteBookChoiceDialog(
+            bookTitle = book?.title.orEmpty(),
             onDismissRequest = { showDeleteDialog = false },
-            icon = Icons.Outlined.Delete,
-            title = stringResource(R.string.library_delete_title),
-            body = stringResource(R.string.library_delete_body),
-            confirmLabel = stringResource(R.string.library_delete_confirm),
-            dismissLabel = stringResource(R.string.settings_reset_all_cancel),
-            destructive = true,
-            onConfirm = {
+            onMoveToRecentlyDeleted = {
                 showDeleteDialog = false
                 onDeleteBook()
+            },
+            onDeletePermanently = {
+                showDeleteDialog = false
+                showPermanentDeleteDialog = true
+            },
+        )
+    }
+
+    if (showPermanentDeleteDialog && book != null) {
+        PermanentDeleteConfirmDialog(
+            book = book,
+            highlightCount = highlightCount,
+            onDismissRequest = { showPermanentDeleteDialog = false },
+            onConfirm = {
+                showPermanentDeleteDialog = false
+                onDeletePermanently()
             },
         )
     }

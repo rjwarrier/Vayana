@@ -257,16 +257,6 @@ class BookRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun purge(id: Long) {
-        val now = System.currentTimeMillis()
-        database.withTransaction {
-            bookDao.getById(id)?.let { book ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = book.syncId, entityType = TombstoneEntityType.BOOK.value, deletedAt = now))
-            }
-            bookDao.purge(id)
-        }
-    }
-
     override suspend fun purgeEverywhere(id: Long): PurgedBook? = database.withTransaction {
         val book = bookDao.getById(id) ?: return@withTransaction null
         val now = System.currentTimeMillis()
