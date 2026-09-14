@@ -213,6 +213,9 @@ fun BookDetailRoute(
     )
 }
 
+/** The two dialogs of deleting a book: pick how, then confirm a permanent delete. */
+private enum class DeleteStep { CHOICE, CONFIRM_PERMANENT }
+
 internal data class BookShareImageOptions(
     val layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
     val theme: ShareCardTheme = ShareCardTheme.LIGHT,
@@ -273,8 +276,7 @@ private fun BookDetailScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showPermanentDeleteDialog by remember { mutableStateOf(false) }
+    var deleteStep by remember { mutableStateOf<DeleteStep?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var showCoverPreview by remember { mutableStateOf(false) }
@@ -447,7 +449,7 @@ private fun BookDetailScreen(
                                 },
                                 onClick = {
                                     actionsExpanded = false
-                                    showDeleteDialog = true
+                                    deleteStep = DeleteStep.CHOICE
                                 },
                             )
                         }
@@ -787,31 +789,28 @@ private fun BookDetailScreen(
         }
     }
 
-    if (showDeleteDialog) {
-        DeleteBookChoiceDialog(
+    when (deleteStep) {
+        DeleteStep.CHOICE -> DeleteBookChoiceDialog(
             bookTitle = book?.title.orEmpty(),
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = { deleteStep = null },
             onMoveToRecentlyDeleted = {
-                showDeleteDialog = false
+                deleteStep = null
                 onDeleteBook()
             },
-            onDeletePermanently = {
-                showDeleteDialog = false
-                showPermanentDeleteDialog = true
-            },
+            onDeletePermanently = { deleteStep = DeleteStep.CONFIRM_PERMANENT },
         )
-    }
-
-    if (showPermanentDeleteDialog && book != null) {
-        PermanentDeleteConfirmDialog(
-            book = book,
-            highlightCount = highlightCount,
-            onDismissRequest = { showPermanentDeleteDialog = false },
-            onConfirm = {
-                showPermanentDeleteDialog = false
-                onDeletePermanently()
-            },
-        )
+        DeleteStep.CONFIRM_PERMANENT -> if (book != null) {
+            PermanentDeleteConfirmDialog(
+                book = book,
+                highlightCount = highlightCount,
+                onDismissRequest = { deleteStep = null },
+                onConfirm = {
+                    deleteStep = null
+                    onDeletePermanently()
+                },
+            )
+        }
+        null -> Unit
     }
 
     readNextSeriesBreakWarning?.let { warning ->

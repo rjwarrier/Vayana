@@ -36,6 +36,8 @@ class AnnotationRepositoryImpl @Inject constructor(
     override fun observeForBook(bookId: Long): Flow<List<Annotation>> =
         annotationDao.observeForBook(bookId).map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeCountForBook(bookId: Long): Flow<Int> = annotationDao.observeCountForBook(bookId)
+
     override suspend fun getById(id: Long): Annotation? = annotationDao.getById(id)?.toDomain()
 
     override suspend fun create(

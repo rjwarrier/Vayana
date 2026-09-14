@@ -29,6 +29,7 @@ internal class RemoteReadingProgressMerger(
     private val mergeTombstones: suspend (tombstonesJson: String, scope: TombstoneMergeScope) -> GenericSyncMergeSummary,
 ) {
     suspend fun merge(document: RemotePortableSnapshotDocument, tombstones: TombstoneMergeScope): ReadingProgressMergeSummary {
+        document.prefetch(listOf(RemotePortableSnapshotSlice.Tombstones, RemotePortableSnapshotSlice.Books))
         val tombstoneMerge = mergeTombstones(document.jsonFor(RemotePortableSnapshotSlice.Tombstones), tombstones)
         if (tombstoneMerge.failed) {
             return ReadingProgressMergeSummary(

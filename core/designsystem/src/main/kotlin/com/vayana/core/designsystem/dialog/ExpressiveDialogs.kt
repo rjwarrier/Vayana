@@ -113,8 +113,12 @@ fun ConfirmActionDialog(
     dismissLabel: String,
     onConfirm: () -> Unit,
     destructive: Boolean = false,
+    confirmEnabled: Boolean = true,
+    scrollable: Boolean = false,
+    /** Extra content between the header and the buttons. */
+    content: @Composable ColumnScope.() -> Unit = {},
 ) {
-    ExpressiveDialogSurface(onDismissRequest = onDismissRequest) {
+    ExpressiveDialogSurface(onDismissRequest = onDismissRequest, scrollable = scrollable) {
         ExpressiveDialogHeader(
             icon = icon,
             title = title,
@@ -122,6 +126,7 @@ fun ConfirmActionDialog(
             containerColor = if (destructive) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
             contentColor = if (destructive) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
         )
+        content()
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
@@ -135,6 +140,7 @@ fun ConfirmActionDialog(
             }
             Button(
                 onClick = onConfirm,
+                enabled = confirmEnabled,
                 shape = Radii.buttonShape,
                 colors = if (destructive) {
                     ButtonDefaults.buttonColors(

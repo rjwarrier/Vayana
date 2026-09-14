@@ -126,12 +126,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
-import com.vayana.core.database.repository.bookSyncIdOfPurge
 import com.vayana.core.filesystem.BookFileCleaner
 import kotlinx.coroutines.NonCancellable
 import com.vayana.core.database.repository.isBookDeletion
 import com.vayana.core.database.repository.isSyncedWithReadingProgress
 import com.vayana.core.sync.RemoteBookDeletionNotices
+import com.vayana.core.sync.SyncedBookDeletionApplier
+import com.vayana.core.sync.asset.deletePendingAndLog
 import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
 
 /** Result of one import batch, still kept for the final Snackbar summary. */
@@ -451,6 +452,7 @@ class LibraryViewModel @Inject constructor(
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
     private val bookFileCleaner: BookFileCleaner,
+    private val syncedBookDeletionApplier: SyncedBookDeletionApplier,
     private val permanentDeletionNotices: PermanentDeletionNotices,
     private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
     private val remoteBookDeletionNotices: RemoteBookDeletionNotices,
@@ -625,7 +627,7 @@ class LibraryViewModel @Inject constructor(
         readingProgressOnlySyncer.syncReadingProgress(force = true)
     }
 
-    fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeForBook(bookId).map { it.size }
+    fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeCountForBook(bookId)
 
     val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
         .withAbsolutePaths()
@@ -1543,9 +1545,9 @@ class LibraryViewModel @Inject constructor(
         val entity = TombstoneEntity(syncId = tombstone.syncId, entityType = tombstone.entityType, deletedAt = tombstone.deletedAt)
         return when (type) {
             // Moves the book to Recently deleted unless it was restored here after the delete; reading doesn't count.
-            TombstoneEntityType.BOOK -> {
-                val title = bookRepository.applyBookTombstone(tombstone.syncId, tombstone.deletedAt) ?: return 0
-                deletedBookTitles += title
+            // Deleted permanently on another device (BOOK_PURGE): applies over any local changes, including the book's files.
+            TombstoneEntityType.BOOK, TombstoneEntityType.BOOK_PURGE -> {
+                deletedBookTitles += syncedBookDeletionApplier.apply(tombstone) ?: return 0
                 1
             }
             TombstoneEntityType.ANNOTATION -> {
@@ -1576,14 +1578,6 @@ class LibraryViewModel @Inject constructor(
             TombstoneEntityType.READING_PROGRESS_RESET -> {
                 val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return 0
                 bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
-            }
-            // Deleted permanently on another device: applies over any local changes, including the book's files.
-            TombstoneEntityType.BOOK_PURGE -> {
-                val bookSyncId = bookSyncIdOfPurge(tombstone.syncId) ?: return 0
-                val purged = bookRepository.applyPurgeTombstone(bookSyncId, deletedAt = tombstone.deletedAt) ?: return 0
-                bookFileCleaner.delete(purged.localFilePaths)
-                deletedBookTitles += purged.title
-                1
             }
         }
     }
@@ -1643,20 +1637,8 @@ class LibraryViewModel @Inject constructor(
         }
 
     /** Removes permanently deleted books' cloud files, now that the snapshot carrying their purge tombstones is published. */
-    private suspend fun deletePendingCloudAssets(store: GitHubContentsAssetStore) {
-        val summary = cloudAssetDeletionProcessor.deletePending(store)
-        if (summary.failed == 0) return
-        withContext(dispatchers.io) {
-            diagnosticsLogStore.record(
-                category = DiagnosticCategory.SYNC,
-                source = "LibraryViewModel.deletePendingCloudAssets",
-                message = buildString {
-                    append("Could not delete ").append(summary.failed).append(" cloud file(s); ")
-                    append(summary.remaining).append(" still queued")
-                    summary.failureMessage?.let { append(": ").append(it) }
-                },
-            )
-        }
+    private suspend fun deletePendingCloudAssets(store: GitHubContentsAssetStore) = withContext(dispatchers.io) {
+        cloudAssetDeletionProcessor.deletePendingAndLog(store, diagnosticsLogStore, source = "LibraryViewModel")
     }
 
     private suspend fun saveMetadataSnapshotWithRebase(

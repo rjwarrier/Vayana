@@ -16,6 +16,9 @@ interface AnnotationDao {
     @Query("SELECT * FROM annotations WHERE bookId = :bookId AND isDeleted = 0 ORDER BY updatedAt DESC")
     fun observeForBook(bookId: Long): Flow<List<AnnotationEntity>>
 
+    @Query("SELECT COUNT(*) FROM annotations WHERE bookId = :bookId AND isDeleted = 0")
+    fun observeCountForBook(bookId: Long): Flow<Int>
+
     @Query("SELECT * FROM annotations WHERE id = :id")
     suspend fun getById(id: Long): AnnotationEntity?
 

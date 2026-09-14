@@ -2,6 +2,8 @@ package com.vayana.core.sync.asset
 
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.dao.PendingCloudDeletionDao
+import com.vayana.core.diagnostics.DiagnosticCategory
+import com.vayana.core.diagnostics.DiagnosticsLogStore
 import javax.inject.Inject
 
 data class CloudAssetDeletionSummary(
@@ -49,6 +51,25 @@ class CloudAssetDeletionProcessor @Inject constructor(
             failureMessage = failureMessage,
         )
     }
+}
+
+/** Runs [CloudAssetDeletionProcessor.deletePending] and records any failed deletions to diagnostics under [source]. */
+suspend fun CloudAssetDeletionProcessor.deletePendingAndLog(
+    store: CloudAssetStore,
+    diagnosticsLogStore: DiagnosticsLogStore,
+    source: String,
+) {
+    val summary = deletePending(store)
+    if (summary.failed == 0) return
+    diagnosticsLogStore.record(
+        category = DiagnosticCategory.SYNC,
+        source = "$source.deletePendingCloudAssets",
+        message = buildString {
+            append("Could not delete ").append(summary.failed).append(" cloud file(s); ")
+            append(summary.remaining).append(" still queued")
+            summary.failureMessage?.let { append(": ").append(it) }
+        },
+    )
 }
 
 private const val MaxDeletionsPerSync = 20

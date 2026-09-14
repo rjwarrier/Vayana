@@ -10,10 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -33,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import com.vayana.core.database.model.Book
+import com.vayana.core.designsystem.dialog.ConfirmActionDialog
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.tokens.Paddings
@@ -89,14 +87,18 @@ internal fun PermanentDeleteConfirmDialog(
 ) {
     var acknowledged by rememberSaveable(book.id) { mutableStateOf(false) }
     val context = LocalContext.current
-    ExpressiveDialogSurface(onDismissRequest = onDismissRequest, scrollable = true) {
-        ExpressiveDialogHeader(
-            icon = Icons.Outlined.DeleteForever,
-            title = stringResource(R.string.library_delete_everywhere_title),
-            supportingText = stringResource(R.string.library_delete_everywhere_intro, book.title),
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        )
+    ConfirmActionDialog(
+        onDismissRequest = onDismissRequest,
+        icon = Icons.Outlined.DeleteForever,
+        title = stringResource(R.string.library_delete_everywhere_title),
+        body = stringResource(R.string.library_delete_everywhere_intro, book.title),
+        confirmLabel = stringResource(R.string.library_delete_everywhere_confirm),
+        dismissLabel = stringResource(R.string.settings_reset_all_cancel),
+        onConfirm = onConfirm,
+        destructive = true,
+        confirmEnabled = acknowledged,
+        scrollable = true,
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             DeletionItem(stringResource(R.string.library_delete_everywhere_files))
             if (book.hasCloudCopy()) DeletionItem(stringResource(R.string.library_delete_everywhere_cloud))
@@ -134,26 +136,6 @@ internal fun PermanentDeleteConfirmDialog(
                 text = stringResource(R.string.library_delete_everywhere_acknowledge),
                 style = MaterialTheme.typography.bodyMedium,
             )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledTonalButton(onClick = onDismissRequest, shape = Radii.buttonShape) {
-                Text(stringResource(R.string.settings_reset_all_cancel))
-            }
-            Button(
-                onClick = onConfirm,
-                enabled = acknowledged,
-                shape = Radii.buttonShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                ),
-            ) {
-                Text(stringResource(R.string.library_delete_everywhere_confirm))
-            }
         }
     }
 }

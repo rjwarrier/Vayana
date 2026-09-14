@@ -55,12 +55,9 @@ fun isSyncedWithReadingProgress(entityType: String): Boolean =
     TombstoneEntityType.fromValue(entityType) in ReadingProgressSyncTombstoneTypes
 
 /** Deletions of whole books (to Recently deleted, or permanent): the only deletions the silent launch sync applies. */
-fun isBookDeletion(entityType: String): Boolean =
-    entityType == TombstoneEntityType.BOOK.value || entityType == TombstoneEntityType.BOOK_PURGE.value
+fun isBookDeletion(entityType: String): Boolean = TombstoneEntityType.fromValue(entityType) in BookDeletionTombstoneTypes
 
-private val ReadingProgressSyncTombstoneTypes = setOf(
-    TombstoneEntityType.READING_SESSION,
-    TombstoneEntityType.READING_PROGRESS_RESET,
-    TombstoneEntityType.BOOK,
-    TombstoneEntityType.BOOK_PURGE,
-)
+private val BookDeletionTombstoneTypes = setOf(TombstoneEntityType.BOOK, TombstoneEntityType.BOOK_PURGE)
+
+private val ReadingProgressSyncTombstoneTypes =
+    setOf(TombstoneEntityType.READING_SESSION, TombstoneEntityType.READING_PROGRESS_RESET) + BookDeletionTombstoneTypes

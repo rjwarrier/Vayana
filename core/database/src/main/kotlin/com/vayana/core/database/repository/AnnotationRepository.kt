@@ -38,6 +38,7 @@ interface AnnotationRepository {
     /** Annotations whose text matches every word of [text] (as word prefixes), newest first. */
     fun observeSearch(text: String, limit: Int): Flow<List<Annotation>>
     fun observeForBook(bookId: Long): Flow<List<Annotation>>
+    fun observeCountForBook(bookId: Long): Flow<Int>
     suspend fun getById(id: Long): Annotation?
     suspend fun create(
         bookId: Long,

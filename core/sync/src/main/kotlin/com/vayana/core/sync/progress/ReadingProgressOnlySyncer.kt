@@ -39,12 +39,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import com.vayana.core.database.repository.bookSyncIdOfPurge
 import com.vayana.core.database.repository.isSyncedWithReadingProgress
-import com.vayana.core.filesystem.BookFileCleaner
 import com.vayana.core.sync.RemoteBookDeletionNotices
+import com.vayana.core.sync.SyncedBookDeletionApplier
 import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
-import com.vayana.core.sync.asset.CloudAssetStore
+import com.vayana.core.sync.asset.deletePendingAndLog
 
 enum class ReadingProgressSyncStatus {
     /** Neither side had anything new; no network write was made. */
@@ -85,7 +84,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
     private val tombstoneDao: TombstoneDao,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
-    private val bookFileCleaner: BookFileCleaner,
+    private val syncedBookDeletionApplier: SyncedBookDeletionApplier,
     private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val remoteBookDeletionNotices: RemoteBookDeletionNotices,
 ) {
@@ -226,7 +225,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
             }
             attempt.onSuccess { result ->
                 // Local tombstones, including permanent book deletes, are on the remote now, so their cloud files can go.
-                deletePendingCloudAssets(store)
+                runCatchingCancellable {
+                    cloudAssetDeletionProcessor.deletePendingAndLog(store, diagnosticsLogStore, source = "ReadingProgressOnlySyncer")
+                }
                 return@withContext result
             }
             val throwable = attempt.exceptionOrNull()
@@ -242,16 +243,6 @@ class ReadingProgressOnlySyncer @Inject constructor(
         ReadingProgressSyncResult(
             status = ReadingProgressSyncStatus.FAILED,
             failureMessage = lastFailure?.syncFailureMessage(),
-        )
-    }
-
-    private suspend fun deletePendingCloudAssets(store: CloudAssetStore) {
-        val summary = runCatchingCancellable { cloudAssetDeletionProcessor.deletePending(store) }.getOrNull() ?: return
-        if (summary.failed == 0) return
-        diagnosticsLogStore.record(
-            category = DiagnosticCategory.SYNC,
-            source = "ReadingProgressOnlySyncer.deletePendingCloudAssets",
-            message = "Could not delete ${summary.failed} cloud file(s); ${summary.remaining} still queued: ${summary.failureMessage}",
         )
     }
 
@@ -332,18 +323,8 @@ class ReadingProgressOnlySyncer @Inject constructor(
                         val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return@runCatchingCancellable 0
                         bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
                     }
-                    TombstoneEntityType.BOOK.value -> {
-                        val title = bookRepository.applyBookTombstone(tombstone.syncId, tombstone.deletedAt)
-                            ?: return@runCatchingCancellable 0
-                        deletedBookTitles += title
-                        1
-                    }
-                    TombstoneEntityType.BOOK_PURGE.value -> {
-                        val bookSyncId = bookSyncIdOfPurge(tombstone.syncId) ?: return@runCatchingCancellable 0
-                        val purged = bookRepository.applyPurgeTombstone(bookSyncId, tombstone.deletedAt)
-                            ?: return@runCatchingCancellable 0
-                        bookFileCleaner.delete(purged.localFilePaths)
-                        deletedBookTitles += purged.title
+                    TombstoneEntityType.BOOK.value, TombstoneEntityType.BOOK_PURGE.value -> {
+                        deletedBookTitles += syncedBookDeletionApplier.apply(tombstone) ?: return@runCatchingCancellable 0
                         1
                     }
                     else -> 0
