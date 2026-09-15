@@ -115,6 +115,7 @@ fun VayanaNavHost(
         composable<SettingsRoute> {
             SettingsScreenRoute(
                 onBack = { navController.popBackStack() },
+                onOpenLibrary = { navController.popBackStack() },
                 onHelpClick = { navController.navigate(HelpRoute) },
                 onDiagnosticsClick = { navController.navigate(DiagnosticsRoute) },
             )

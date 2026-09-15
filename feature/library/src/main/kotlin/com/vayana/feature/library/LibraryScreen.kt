@@ -32,7 +32,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
@@ -44,7 +47,6 @@ import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.CollectionsBookmark
@@ -53,13 +55,12 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -388,6 +389,8 @@ private fun LibraryScreen(
                     syncRunning = syncRunning,
                     syncBadge = syncBadge,
                     onSyncNow = { mode -> handleSyncNow(mode = mode) },
+                    onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
+                    onImportFolder = { folderPicker.launch(null) },
                     onSettingsClick = onSettingsClick,
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
@@ -401,15 +404,14 @@ private fun LibraryScreen(
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            LibraryAddFab(
+    ) { innerPadding ->
+        if (uiState.books.isEmpty()) {
+            LibraryEmptyState(
+                contentPadding = innerPadding,
+                hasControls = uiState.controls != LibraryControls(),
                 onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                 onImportFolder = { folderPicker.launch(null) },
             )
-        },
-    ) { innerPadding ->
-        if (uiState.books.isEmpty()) {
-            LibraryEmptyState(contentPadding = innerPadding, hasControls = uiState.controls != LibraryControls())
         } else {
             when (uiState.controls.viewMode) {
                 LibraryViewMode.THUMBNAILS -> LibraryGrid(
@@ -599,6 +601,8 @@ private fun LibraryTopBar(
     syncRunning: Boolean,
     syncBadge: LibrarySyncBadge?,
     onSyncNow: (GitHubSyncMode) -> Unit,
+    onImportFiles: () -> Unit,
+    onImportFolder: () -> Unit,
     onSettingsClick: () -> Unit,
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
@@ -609,6 +613,7 @@ private fun LibraryTopBar(
     onGroupByChange: (LibraryGroupBy) -> Unit,
     onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
+    var addExpanded by remember { mutableStateOf(false) }
     var filterExpanded by remember { mutableStateOf(false) }
     var moreExpanded by remember { mutableStateOf(false) }
     var syncExpanded by remember { mutableStateOf(false) }
@@ -665,6 +670,36 @@ private fun LibraryTopBar(
                                 },
                             )
                         }
+                    }
+                }
+                Box {
+                    LibraryTopBarIconButton(onClick = { addExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = stringResource(R.string.library_add_content_description),
+                            modifier = Modifier.size(Sizes.icon),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = addExpanded,
+                        onDismissRequest = { addExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_import_files)) },
+                            leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
+                            onClick = {
+                                addExpanded = false
+                                onImportFiles()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_import_folder)) },
+                            leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null) },
+                            onClick = {
+                                addExpanded = false
+                                onImportFolder()
+                            },
+                        )
                     }
                 }
                 LibraryTopBarIconButton(onClick = onSearchClick) {
@@ -930,81 +965,7 @@ private fun LibrarySyncStatusBadge(
     }
 }
 
-@Composable
-private fun LibraryAddFab(
-    onImportFiles: () -> Unit,
-    onImportFolder: () -> Unit,
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
 
-    Column {
-        FloatingActionButton(
-            onClick = { menuExpanded = true },
-            modifier = Modifier
-                .padding(bottom = LocalFloatingNavigationInset.current)
-                .size(Sizes.fab),
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
-                defaultElevation = Elevations.shadowLarge,
-                pressedElevation = Elevations.shadowLarge,
-                focusedElevation = Elevations.shadowMedium,
-                hoveredElevation = Elevations.shadowMedium,
-            ),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.LibraryAdd,
-                contentDescription = stringResource(R.string.library_add_content_description),
-                modifier = Modifier.size(Sizes.iconLarge),
-            )
-        }
-        DropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false },
-            modifier = Modifier.widthIn(min = Sizes.menuMinWidth),
-            shape = RoundedCornerShape(Radii.largeIncreased),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = Elevations.shadowLarge,
-            shadowElevation = Elevations.shadowMedium,
-        ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.library_import_files)) },
-                leadingIcon = { LibraryAddMenuIcon(Icons.Outlined.AutoStories) },
-                modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
-                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
-                onClick = {
-                    menuExpanded = false
-                    onImportFiles()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.library_import_folder)) },
-                leadingIcon = { LibraryAddMenuIcon(Icons.Outlined.CreateNewFolder) },
-                modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
-                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
-                onClick = {
-                    menuExpanded = false
-                    onImportFolder()
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun LibraryAddMenuIcon(icon: ImageVector) {
-    Surface(
-        modifier = Modifier.size(Sizes.touchTarget),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(Sizes.icon))
-        }
-    }
-}
 
 private data class LibraryDisplayBooks(val hero: Book?, val rows: List<Book>)
 private data class LibraryGroupSection(val label: String, val books: List<Book>)
@@ -1687,7 +1648,12 @@ private fun GeneratedCover(title: String, author: String?, modifier: Modifier = 
 }
 
 @Composable
-private fun LibraryEmptyState(contentPadding: PaddingValues, hasControls: Boolean) {
+private fun LibraryEmptyState(
+    contentPadding: PaddingValues,
+    hasControls: Boolean,
+    onImportFiles: () -> Unit,
+    onImportFolder: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1712,6 +1678,34 @@ private fun LibraryEmptyState(contentPadding: PaddingValues, hasControls: Boolea
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = Spacing.sm),
         )
+        if (!hasControls) {
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            Button(
+                onClick = onImportFiles,
+                modifier = Modifier.fillMaxWidth(0.7f),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoStories,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.icon),
+                )
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text(text = stringResource(R.string.library_import_files))
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            OutlinedButton(
+                onClick = onImportFolder,
+                modifier = Modifier.fillMaxWidth(0.7f),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CreateNewFolder,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.icon),
+                )
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text(text = stringResource(R.string.library_import_folder))
+            }
+        }
     }
 }
 

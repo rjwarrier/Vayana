@@ -121,6 +121,7 @@ fun SettingsRoute(
     onBack: () -> Unit,
     onHelpClick: () -> Unit,
     onDiagnosticsClick: () -> Unit,
+    onOpenLibrary: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
@@ -142,6 +143,7 @@ fun SettingsRoute(
         pendingCloudDeletions = pendingCloudDeletions,
         readerFontImportState = readerFontImportState,
         onBack = onBack,
+        onOpenLibrary = onOpenLibrary,
         onHelpClick = onHelpClick,
         onDiagnosticsClick = onDiagnosticsClick,
         onUpdate = viewModel::update,
@@ -175,6 +177,7 @@ private fun SettingsScreen(
     pendingCloudDeletions: Int,
     readerFontImportState: ReaderFontImportState,
     onBack: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onHelpClick: () -> Unit,
     onDiagnosticsClick: () -> Unit,
     onUpdate: (Setting<Any>, Any) -> Unit,
@@ -305,6 +308,7 @@ private fun SettingsScreen(
                     onDismissGitHubSyncSettingsTransferState = onDismissGitHubSyncSettingsTransferState,
                     onDismissGitHubConnectionTestState = onDismissGitHubConnectionTestState,
                     onDismissReaderFontImportState = onDismissReaderFontImportState,
+                    onOpenLibrary = onOpenLibrary,
                 )
                 }
             }
@@ -589,6 +593,7 @@ private fun SettingsGroupDetail(
     onDismissGitHubSyncSettingsTransferState: () -> Unit,
     onDismissGitHubConnectionTestState: () -> Unit,
     onDismissReaderFontImportState: () -> Unit,
+    onOpenLibrary: () -> Unit,
 ) {
     val groupSettings = remember(group) { SettingsRegistry.all.filter { it.group == group } }
     LazyColumn(
@@ -605,6 +610,18 @@ private fun SettingsGroupDetail(
             item {
                 SettingsContentContainer {
                     SettingsGroupHeader(group = group, settingCount = groupSettings.size)
+                }
+            }
+        }
+        if (group == SettingsGroup.LIBRARY) {
+            item {
+                SettingsContentContainer {
+                    SettingsNavigationCard(
+                        title = stringResource(R.string.settings_library_import_title),
+                        subtitle = stringResource(R.string.settings_library_import_subtitle),
+                        icon = Icons.Outlined.AutoStories,
+                        onClick = onOpenLibrary,
+                    )
                 }
             }
         }

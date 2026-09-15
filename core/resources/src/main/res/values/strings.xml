@@ -750,6 +750,9 @@
     <string name="settings_recently_deleted_retention_7">After 7 days</string>
     <string name="settings_recently_deleted_retention_30">After 30 days</string>
     <string name="settings_recently_deleted_retention_90">After 90 days</string>
+    <string name="settings_library_import_title">Import books &amp; folders</string>
+    <string name="settings_library_import_subtitle">Add EPUB books or scan a folder on your device into your library.</string>
+    <string name="settings_library_import_action">Open Library to import</string>
     <string name="settings_week_start_title">Week starts on</string>
     <string name="settings_week_start_subtitle">First day of the week in reading activity and weekly stats.</string>
     <string name="settings_week_start_sunday">Sunday</string>
