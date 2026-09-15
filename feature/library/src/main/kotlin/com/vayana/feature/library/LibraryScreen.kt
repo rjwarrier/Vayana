@@ -989,7 +989,7 @@ private fun LibraryGrid(
     val placementSpec = rememberLazyItemPlacementSpec()
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
+        columns = GridCells.Adaptive(minSize = Sizes.libraryGridCoverWidthMin),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
@@ -1001,7 +1001,7 @@ private fun LibraryGrid(
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
         displayBooks.hero?.let { heroBook ->
-            item(key = "hero:${heroBook.id}", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = "hero:${heroBook.id}", contentType = "hero", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
                     book = heroBook,
                     isDownloading = heroBook.id == downloadingBookId,
@@ -1014,7 +1014,7 @@ private fun LibraryGrid(
         }
 
         if (readNextBooks.isNotEmpty()) {
-            item(key = if (readNextQueue.isNotEmpty()) "read-next" else "read-next-suggestions", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = if (readNextQueue.isNotEmpty()) "read-next" else "read-next-suggestions", contentType = "read-next", span = { GridItemSpan(maxLineSpan) }) {
                 ReadNextShelf(
                     books = readNextBooks,
                     isSuggestion = readNextQueue.isEmpty(),
@@ -1029,7 +1029,7 @@ private fun LibraryGrid(
         }
 
         if (sections == null) {
-            gridItems(displayBooks.rows, key = { it.id }) { book ->
+            gridItems(displayBooks.rows, key = { it.id }, contentType = { "book" }) { book ->
                 BookCoverCell(
                     book = book,
                     isDownloading = book.id == downloadingBookId,
@@ -1041,7 +1041,7 @@ private fun LibraryGrid(
             }
         } else {
             sections.forEach { section ->
-                item(key = "header:${section.label}", span = { GridItemSpan(maxLineSpan) }) {
+                item(key = "header:${section.label}", contentType = "header", span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = section.label,
                         style = MaterialTheme.typography.titleMedium,
@@ -1050,7 +1050,7 @@ private fun LibraryGrid(
                             .animateItem(placementSpec = placementSpec),
                     )
                 }
-                gridItems(section.books, key = { it.id }) { book ->
+                gridItems(section.books, key = { it.id }, contentType = { "book" }) { book ->
                     BookCoverCell(
                         book = book,
                         isDownloading = book.id == downloadingBookId,

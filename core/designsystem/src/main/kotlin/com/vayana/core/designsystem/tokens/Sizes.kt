@@ -31,6 +31,7 @@ object Sizes {
     const val coverAspectRatio = 2f / 3f
 
     val coverWidthMin = 72.dp
+    val libraryGridCoverWidthMin = 96.dp
     val coverWidthMax = 160.dp
 
     /** Cover beside the title block at the top of book details - leaves the text column room to breathe. */
