@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.vayana.core.designsystem.theme
 
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -21,6 +23,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.vayana.core.designsystem.tokens.Durations
@@ -180,43 +183,55 @@ fun <S> vayanaContentTransform(): AnimatedContentTransitionScope<S>.() -> Conten
     }
 }
 
-fun vayanaNavEnter(profile: DisplayProfile, motion: MotionSetting): EnterTransition = when {
+fun vayanaNavTabEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
     profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
-    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = tween(Durations.short, easing = LinearOutSlowInEasing))
-    else -> fadeIn(animationSpec = tween(Durations.medium, easing = FastOutSlowInEasing)) +
-        slideInHorizontally(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-            initialOffsetX = { fullWidth -> fullWidth / 8 },
-        )
+    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.slowEffectsSpec())
 }
 
-fun vayanaNavExit(profile: DisplayProfile, motion: MotionSetting): ExitTransition = when {
+fun vayanaNavTabExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): ExitTransition = when {
     profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
-    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = tween(Durations.short, easing = LinearOutSlowInEasing))
-    else -> fadeOut(animationSpec = tween(Durations.short, easing = FastOutSlowInEasing)) +
-        slideOutHorizontally(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
-            targetOffsetX = { fullWidth -> -fullWidth / 8 },
-        )
+    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.slowEffectsSpec())
 }
 
-fun vayanaNavPopEnter(profile: DisplayProfile, motion: MotionSetting): EnterTransition = when {
+fun vayanaNavEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
     profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
-    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = tween(Durations.short, easing = LinearOutSlowInEasing))
-    else -> fadeIn(animationSpec = tween(Durations.medium, easing = FastOutSlowInEasing)) +
+    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
         slideInHorizontally(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-            initialOffsetX = { fullWidth -> -fullWidth / 8 },
+            animationSpec = scheme.slowSpatialSpec(),
+            initialOffsetX = { fullWidth -> fullWidth / 24 },
         )
 }
 
-fun vayanaNavPopExit(profile: DisplayProfile, motion: MotionSetting): ExitTransition = when {
+fun vayanaNavExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): ExitTransition = when {
     profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
-    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = tween(Durations.short, easing = LinearOutSlowInEasing))
-    else -> fadeOut(animationSpec = tween(Durations.short, easing = FastOutSlowInEasing)) +
+    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
         slideOutHorizontally(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
-            targetOffsetX = { fullWidth -> fullWidth / 8 },
+            animationSpec = scheme.slowSpatialSpec(),
+            targetOffsetX = { fullWidth -> -fullWidth / 24 },
+        )
+}
+
+fun vayanaNavPopEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
+    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
+    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
+        slideInHorizontally(
+            animationSpec = scheme.slowSpatialSpec(),
+            initialOffsetX = { fullWidth -> -fullWidth / 24 },
+        )
+}
+
+fun vayanaNavPopExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): ExitTransition = when {
+    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
+    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
+        slideOutHorizontally(
+            animationSpec = scheme.slowSpatialSpec(),
+            targetOffsetX = { fullWidth -> fullWidth / 24 },
         )
 }
 

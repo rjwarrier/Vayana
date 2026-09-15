@@ -1,9 +1,6 @@
 package com.vayana.app.navigation
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,14 +35,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
-import com.vayana.core.designsystem.theme.LocalMotionSetting
-import com.vayana.core.designsystem.theme.MotionSetting
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Modifier) {
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
     val colors = MaterialTheme.colorScheme
-    val motionSetting = LocalMotionSetting.current
+    val motionScheme = MaterialTheme.motionScheme
 
     BoxWithConstraints(
         modifier = modifier
@@ -69,23 +66,18 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
             ) {
                 TopLevelDestination.entries.forEach { destination ->
                     val selected = currentDestination?.hasRoute(destination.routeClass) == true
-                    val progress by animateFloatAsState(
+                    val spatialProgress by animateFloatAsState(
                         targetValue = if (selected) 1f else 0f,
-                        animationSpec = when (motionSetting) {
-                            MotionSetting.OFF -> snap()
-                            MotionSetting.REDUCED -> spring(
-                                stiffness = Spring.StiffnessMedium,
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                            )
-                            MotionSetting.FULL -> spring(
-                                stiffness = Spring.StiffnessLow,
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                            )
-                        },
-                        label = "floatingNavSelectionProgress",
+                        animationSpec = motionScheme.fastSpatialSpec(),
+                        label = "floatingNavSpatialProgress",
+                    )
+                    val effectsProgress by animateFloatAsState(
+                        targetValue = if (selected) 1f else 0f,
+                        animationSpec = motionScheme.fastEffectsSpec(),
+                        label = "floatingNavEffectsProgress",
                     )
                     val itemWidth = Sizes.floatingNavUnselectedItem +
-                        (Sizes.floatingNavSelectedItem - Sizes.floatingNavUnselectedItem) * progress
+                        (Sizes.floatingNavSelectedItem - Sizes.floatingNavUnselectedItem) * spatialProgress
                     val label = stringResource(destination.labelRes)
 
                     Box(
@@ -93,7 +85,7 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                             .width(itemWidth)
                             .height(Sizes.floatingNavItem - (Spacing.xs * 2))
                             .clip(CircleShape)
-                            .background(colors.primary.copy(alpha = 0.16f * progress))
+                            .background(colors.primary.copy(alpha = 0.16f * effectsProgress.coerceIn(0f, 1f)))
                             .selectable(
                                 selected = selected,
                                 role = Role.Tab,
@@ -119,7 +111,7 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                                 .align(Alignment.CenterStart)
                                 .padding(start = Spacing.lg + Sizes.icon + Spacing.sm)
                                 .graphicsLayer {
-                                    alpha = ((progress - 0.35f) / 0.65f).coerceIn(0f, 1f)
+                                    alpha = ((effectsProgress - 0.35f) / 0.65f).coerceIn(0f, 1f)
                                 }
                                 .then(if (selected) Modifier else Modifier.clearAndSetSemantics { }),
                         )

@@ -1,7 +1,11 @@
 package com.vayana.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -12,6 +16,8 @@ import com.vayana.core.designsystem.theme.vayanaNavEnter
 import com.vayana.core.designsystem.theme.vayanaNavExit
 import com.vayana.core.designsystem.theme.vayanaNavPopEnter
 import com.vayana.core.designsystem.theme.vayanaNavPopExit
+import com.vayana.core.designsystem.theme.vayanaNavTabEnter
+import com.vayana.core.designsystem.theme.vayanaNavTabExit
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
 import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
 import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
@@ -26,6 +32,7 @@ import com.vayana.feature.statistics.LearnWordsRoute as LearnWordsScreenRoute
 import com.vayana.feature.statistics.StatisticsRoute
 import com.vayana.feature.statistics.VocabularyReviewRoute as VocabularyReviewScreenRoute
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun VayanaNavHost(
     navController: NavHostController,
@@ -34,15 +41,40 @@ fun VayanaNavHost(
 ) {
     val displayProfile = LocalDisplayProfile.current
     val motionSetting = LocalMotionSetting.current
+    val motionScheme = MaterialTheme.motionScheme
 
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
-        enterTransition = { vayanaNavEnter(displayProfile, motionSetting) },
-        exitTransition = { vayanaNavExit(displayProfile, motionSetting) },
-        popEnterTransition = { vayanaNavPopEnter(displayProfile, motionSetting) },
-        popExitTransition = { vayanaNavPopExit(displayProfile, motionSetting) },
+        enterTransition = {
+            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
+                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme)
+            } else {
+                vayanaNavEnter(displayProfile, motionSetting, motionScheme)
+            }
+        },
+        exitTransition = {
+            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
+                vayanaNavTabExit(displayProfile, motionSetting, motionScheme)
+            } else {
+                vayanaNavExit(displayProfile, motionSetting, motionScheme)
+            }
+        },
+        popEnterTransition = {
+            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
+                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme)
+            } else {
+                vayanaNavPopEnter(displayProfile, motionSetting, motionScheme)
+            }
+        },
+        popExitTransition = {
+            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
+                vayanaNavTabExit(displayProfile, motionSetting, motionScheme)
+            } else {
+                vayanaNavPopExit(displayProfile, motionSetting, motionScheme)
+            }
+        },
     ) {
         composable<TopLevelRoute.Library> {
             LibraryListDetailRoute(
@@ -134,3 +166,6 @@ fun VayanaNavHost(
         }
     }
 }
+
+private fun NavDestination.isTopLevelTab(): Boolean =
+    TopLevelDestination.entries.any { destination -> hasRoute(destination.routeClass) }
