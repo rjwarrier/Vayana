@@ -49,28 +49,28 @@ fun VayanaNavHost(
         modifier = modifier,
         enterTransition = {
             if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme)
+                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
             } else {
                 vayanaNavEnter(displayProfile, motionSetting, motionScheme)
             }
         },
         exitTransition = {
             if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabExit(displayProfile, motionSetting, motionScheme)
+                vayanaNavTabExit(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
             } else {
                 vayanaNavExit(displayProfile, motionSetting, motionScheme)
             }
         },
         popEnterTransition = {
             if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme)
+                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
             } else {
                 vayanaNavPopEnter(displayProfile, motionSetting, motionScheme)
             }
         },
         popExitTransition = {
             if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabExit(displayProfile, motionSetting, motionScheme)
+                vayanaNavTabExit(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
             } else {
                 vayanaNavPopExit(displayProfile, motionSetting, motionScheme)
             }
@@ -169,3 +169,9 @@ fun VayanaNavHost(
 
 private fun NavDestination.isTopLevelTab(): Boolean =
     TopLevelDestination.entries.any { destination -> hasRoute(destination.routeClass) }
+
+private fun NavDestination.tabDirectionTo(target: NavDestination): Int {
+    val initialIndex = TopLevelDestination.entries.indexOfFirst { hasRoute(it.routeClass) }
+    val targetIndex = TopLevelDestination.entries.indexOfFirst { target.hasRoute(it.routeClass) }
+    return if (targetIndex >= initialIndex) 1 else -1
+}

@@ -13,13 +13,14 @@ object Sizes {
     val touchTargetEink = 56.dp
 
     val fab = 64.dp
+    val floatingNavFab = 72.dp
     val fabLarge = 76.dp
     val menuMinWidth = 232.dp
     val menuItemLargeHeight = 64.dp
     val bottomNavHeight = 80.dp
-    val floatingNavItem = 64.dp
-    val floatingNavUnselectedItem = 56.dp
-    val floatingNavSelectedItem = 120.dp
+    val floatingNavItem = 72.dp
+    val floatingNavUnselectedItem = 64.dp
+    val floatingNavSelectedItem = 132.dp
     val floatingNavFabAlignmentBreakpoint = 400.dp
     val topBarHeight = 56.dp
     val statusBarHeight = 44.dp

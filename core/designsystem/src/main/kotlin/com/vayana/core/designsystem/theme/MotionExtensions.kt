@@ -183,16 +183,24 @@ fun <S> vayanaContentTransform(): AnimatedContentTransitionScope<S>.() -> Conten
     }
 }
 
-fun vayanaNavTabEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
+fun vayanaNavTabEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme, direction: Int): EnterTransition = when {
     profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
     motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeIn(animationSpec = scheme.slowEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
+        slideInHorizontally(
+            animationSpec = scheme.slowSpatialSpec(),
+            initialOffsetX = { fullWidth -> fullWidth / 8 * direction },
+        )
 }
 
-fun vayanaNavTabExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): ExitTransition = when {
+fun vayanaNavTabExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme, direction: Int): ExitTransition = when {
     profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
     motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeOut(animationSpec = scheme.slowEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
+        slideOutHorizontally(
+            animationSpec = scheme.slowSpatialSpec(),
+            targetOffsetX = { fullWidth -> -fullWidth / 8 * direction },
+        )
 }
 
 fun vayanaNavEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
@@ -201,7 +209,7 @@ fun vayanaNavEnter(profile: DisplayProfile, motion: MotionSetting, scheme: Motio
     else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
         slideInHorizontally(
             animationSpec = scheme.slowSpatialSpec(),
-            initialOffsetX = { fullWidth -> fullWidth / 24 },
+            initialOffsetX = { fullWidth -> fullWidth / 6 },
         )
 }
 
@@ -211,7 +219,7 @@ fun vayanaNavExit(profile: DisplayProfile, motion: MotionSetting, scheme: Motion
     else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
         slideOutHorizontally(
             animationSpec = scheme.slowSpatialSpec(),
-            targetOffsetX = { fullWidth -> -fullWidth / 24 },
+            targetOffsetX = { fullWidth -> -fullWidth / 6 },
         )
 }
 
@@ -221,7 +229,7 @@ fun vayanaNavPopEnter(profile: DisplayProfile, motion: MotionSetting, scheme: Mo
     else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
         slideInHorizontally(
             animationSpec = scheme.slowSpatialSpec(),
-            initialOffsetX = { fullWidth -> -fullWidth / 24 },
+            initialOffsetX = { fullWidth -> -fullWidth / 6 },
         )
 }
 
@@ -231,7 +239,7 @@ fun vayanaNavPopExit(profile: DisplayProfile, motion: MotionSetting, scheme: Mot
     else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
         slideOutHorizontally(
             animationSpec = scheme.slowSpatialSpec(),
-            targetOffsetX = { fullWidth -> fullWidth / 24 },
+            targetOffsetX = { fullWidth -> fullWidth / 6 },
         )
 }
 

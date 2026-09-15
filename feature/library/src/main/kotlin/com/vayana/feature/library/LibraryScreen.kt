@@ -940,7 +940,7 @@ private fun LibraryAddFab(
     Column {
         FloatingActionButton(
             onClick = { menuExpanded = true },
-            modifier = Modifier.size(Sizes.fab),
+            modifier = Modifier.size(Sizes.floatingNavFab),
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
