@@ -138,6 +138,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.vayana.core.common.QuoteCitation
+import com.vayana.core.designsystem.sharecard.QuoteShareCard
+import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.datastore.settings.FloatSetting
@@ -408,6 +410,9 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     }
 }
 
+/** A selection captured for the quote card, so the selection itself can be cleared while the card is open. */
+private data class SelectionShare(val text: String, val chapterTitle: String?, val author: String?, val bookTitle: String?)
+
 private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, SEARCH, WORDS }
 
 private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
@@ -490,6 +495,7 @@ private fun ReaderScreen(
     var chromeVisible by remember { mutableStateOf(false) }
     var selectedPanel by remember { mutableStateOf(ReaderPanel.CONTENTS) }
     var noteDialogVisible by remember { mutableStateOf(false) }
+    var sharingSelection by remember { mutableStateOf<SelectionShare?>(null) }
     var footerShowsBookTime by remember { mutableStateOf(false) }
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
@@ -504,7 +510,8 @@ private fun ReaderScreen(
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var volumeKeyDownAt by remember { mutableStateOf(0L) }
     val tapScope = rememberCoroutineScope()
-    var pendingMiddleTap by remember { mutableStateOf<Job?>(null) }
+    // A plain holder, not state: nothing on screen depends on it, so setting it mustn't recompose.
+    val pendingMiddleTap = remember { arrayOfNulls<Job>(1) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
         val menuStart = width / 3f
         val menuEnd = menuStart * 2f
@@ -514,11 +521,11 @@ private fun ReaderScreen(
             x > menuEnd -> onTapNext()
             else -> {
                 // Wait out a possible second tap: a double tap here looks up the word instead of opening the menu.
-                val pending = pendingMiddleTap
+                val pending = pendingMiddleTap[0]
                 if (pending?.isActive == true) {
                     pending.cancel()
                 } else {
-                    pendingMiddleTap = tapScope.launch {
+                    pendingMiddleTap[0] = tapScope.launch {
                         delay(ViewConfiguration.getDoubleTapTimeout().toLong())
                         selectedPanel = ReaderPanel.STYLE
                         chromeVisible = true
@@ -584,43 +591,41 @@ private fun ReaderScreen(
         onDispose { rootView.keepScreenOn = previous }
     }
 
-    // Live levels while an edge swipe is under way; saved to settings when the finger lifts.
-    var liveBrightness by remember { mutableStateOf<Int?>(null) }
-    var liveWarmLight by remember { mutableStateOf<Int?>(null) }
-    var activeLightEdge by remember { mutableStateOf<ReaderEdge?>(null) }
-    val brightnessPercent = liveBrightness ?: settings.readerBrightnessPercent
-    val warmLightPercent = liveWarmLight ?: settings.readerWarmLightPercent
-    LaunchedEffect(settings.readerBrightnessPercent) { if (activeLightEdge == null) liveBrightness = null }
-    LaunchedEffect(settings.readerWarmLightPercent) { if (activeLightEdge == null) liveWarmLight = null }
-    DisposableEffect(brightnessPercent) {
-        val window = (rootView.context as? Activity)?.window
-        if (window != null) {
-            window.attributes = window.attributes.apply {
-                screenBrightness = if (brightnessPercent > 0) brightnessPercent / 100f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            }
+    // The level being dragged on one edge during a light swipe; it stands in for the setting until the saved value arrives.
+    var liveLight by remember { mutableStateOf<Pair<ReaderEdge, Int>?>(null) }
+    var lightSwiping by remember { mutableStateOf(false) }
+    val brightnessPercent = liveLight?.takeIf { it.first == ReaderEdge.LEFT }?.second ?: settings.readerBrightnessPercent
+    val warmLightPercent = liveLight?.takeIf { it.first == ReaderEdge.RIGHT }?.second ?: settings.readerWarmLightPercent
+    LaunchedEffect(settings.readerBrightnessPercent, settings.readerWarmLightPercent) {
+        if (!lightSwiping) liveLight = null
+    }
+    LaunchedEffect(brightnessPercent) {
+        val window = (rootView.context as? Activity)?.window ?: return@LaunchedEffect
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (brightnessPercent > 0) brightnessPercent / 100f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }
+    }
+    DisposableEffect(Unit) {
         onDispose {
-            val disposeWindow = (rootView.context as? Activity)?.window ?: return@onDispose
-            disposeWindow.attributes = disposeWindow.attributes.apply {
-                screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            }
+            val window = (rootView.context as? Activity)?.window ?: return@onDispose
+            window.attributes = window.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
         }
     }
     val onEdgeSwipeState = rememberUpdatedState<(ReaderEdge, Float, Boolean) -> Unit> { edge, upFraction, finished ->
-        activeLightEdge = if (finished) null else edge
-        when (edge) {
-            ReaderEdge.LEFT -> {
-                val start = settings.readerBrightnessPercent.takeIf { it > 0 } ?: EdgeSwipeBrightnessStart
-                val value = (start + upFraction * 100).roundToInt()
-                    .coerceIn(EdgeSwipeMinBrightness, SettingsRegistry.ReaderBrightness.range.last)
-                liveBrightness = value
-                if (finished) onBrightnessChange(value)
-            }
-            ReaderEdge.RIGHT -> {
-                val value = (settings.readerWarmLightPercent + upFraction * 100).roundToInt()
-                    .coerceIn(0, SettingsRegistry.ReaderWarmLight.range.last)
-                liveWarmLight = value
-                if (finished) onWarmLightChange(value)
+        lightSwiping = !finished
+        val value = when (edge) {
+            ReaderEdge.LEFT -> ((settings.readerBrightnessPercent.takeIf { it > 0 } ?: EdgeSwipeBrightnessStart) + upFraction * 100)
+                .roundToInt()
+                .coerceIn(EdgeSwipeMinBrightness, SettingsRegistry.ReaderBrightness.range.last)
+            ReaderEdge.RIGHT -> (settings.readerWarmLightPercent + upFraction * 100)
+                .roundToInt()
+                .coerceIn(0, SettingsRegistry.ReaderWarmLight.range.last)
+        }
+        liveLight = edge to value
+        if (finished) {
+            when (edge) {
+                ReaderEdge.LEFT -> onBrightnessChange(value)
+                ReaderEdge.RIGHT -> onWarmLightChange(value)
             }
         }
     }
@@ -932,7 +937,7 @@ private fun ReaderScreen(
             )
         }
 
-        activeLightEdge?.let { edge ->
+        liveLight?.takeIf { lightSwiping }?.let { (edge, _) ->
             LightLevelIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 text = when (edge) {
@@ -1022,13 +1027,13 @@ private fun ReaderScreen(
                     },
                     onNote = { noteDialogVisible = true },
                     onShare = {
-                        val citation = QuoteCitation.format(
+                        sharingSelection = SelectionShare(
                             text = selection?.selectedText.orEmpty(),
+                            chapterTitle = selection?.chapterTitle,
                             author = loadedState?.bookAuthor,
                             bookTitle = loadedState?.bookTitle,
-                            chapterTitle = selection?.chapterTitle,
                         )
-                        context.shareText(citation)
+                        onClearSelection()
                     },
                     onDownloadDictionary = onDownloadDictionary,
                     onInstallDictionary = onInstallDictionary,
@@ -1048,6 +1053,35 @@ private fun ReaderScreen(
                 onCreateNote(note)
             },
         )
+    }
+
+    sharingSelection?.let { share ->
+        ShareCardDialog(
+            onDismiss = { sharingSelection = null },
+            onShareText = {
+                context.shareText(
+                    QuoteCitation.format(
+                        text = share.text,
+                        author = share.author,
+                        bookTitle = share.bookTitle,
+                        chapterTitle = share.chapterTitle,
+                    ),
+                )
+                sharingSelection = null
+            },
+            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
+            shareTextLabel = stringResource(R.string.share_card_share_text),
+            shareImageLabel = stringResource(R.string.share_card_share_image),
+        ) {
+            QuoteShareCard(
+                text = share.text,
+                author = share.author,
+                bookTitle = share.bookTitle,
+                pageLabel = share.chapterTitle,
+                watermark = stringResource(R.string.share_card_watermark),
+                footerRight = stringResource(R.string.share_card_tagline),
+            )
+        }
     }
 
     if (readingPositionPrompt != null) {

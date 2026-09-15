@@ -362,6 +362,8 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun hasAnyBooks(): Boolean = bookDao.hasAnyBooks()
 
+    override suspend fun lastReadOpenableBookId(): Long? = bookDao.lastReadOpenableBookId()
+
     override fun observeSearchIds(text: String, limit: Int): Flow<List<Long>> {
         val match = ftsPrefixMatch(searchTokens(text)) ?: return flowOf(emptyList())
         return bookDao.observeSearchIds(match, limit)

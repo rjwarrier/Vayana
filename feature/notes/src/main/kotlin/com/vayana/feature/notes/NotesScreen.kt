@@ -1,7 +1,11 @@
 package com.vayana.feature.notes
 
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -33,6 +37,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
@@ -54,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +78,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.common.HighlightTags
 import com.vayana.core.common.QuoteCitation
 import com.vayana.core.common.shareFile
 import com.vayana.core.common.shareText as shareTextWithChooser
@@ -91,8 +98,6 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.io.File
 import com.vayana.core.designsystem.theme.asAppDate
-import java.text.DateFormat
-import java.util.Date
 import kotlinx.coroutines.launch
 
 @Composable
@@ -102,11 +107,16 @@ fun NotesRoute(
 ) {
     val viewModel: NotesViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
+    val kindleImportResult by viewModel.kindleImportResult.collectAsState()
 
     NotesScreen(
         modifier = modifier,
         booksWithNotes = uiState.booksWithNotes,
         allAnnotations = uiState.allAnnotations,
+        tags = uiState.tags,
+        kindleImportResult = kindleImportResult,
+        onImportKindleClippings = viewModel::importKindleClippings,
+        onKindleImportResultShown = viewModel::consumeKindleImportResult,
         onOpenReader = onOpenReader,
         onUpdateNote = viewModel::updateNote,
         onSoftDeleteAnnotation = viewModel::softDeleteAnnotation,
@@ -120,6 +130,10 @@ private fun NotesScreen(
     modifier: Modifier = Modifier,
     booksWithNotes: List<BookNotesItem>,
     allAnnotations: List<Annotation>,
+    tags: List<String>,
+    kindleImportResult: KindleImportResult?,
+    onImportKindleClippings: (ContentResolver, Uri) -> Unit,
+    onKindleImportResultShown: () -> Unit,
     onOpenReader: (Long, String?) -> Unit,
     onUpdateNote: (Annotation, String) -> Unit,
     onSoftDeleteAnnotation: (Long) -> Unit,
@@ -139,9 +153,39 @@ private fun NotesScreen(
     val deleteUndoMessage = stringResource(R.string.notes_delete_undo_message)
     val deleteUndoAction = stringResource(R.string.notes_delete_undo_action)
     val shareContentDescription = stringResource(R.string.notes_share_content_description)
+    var selectedTag by remember { mutableStateOf<String?>(null) }
+    // A tag no note carries any more (its last one was edited or deleted) stops filtering.
+    val activeTag = selectedTag?.takeIf { it in tags }
+    val taggedBooks = remember(booksWithNotes, activeTag) {
+        if (activeTag == null) {
+            booksWithNotes
+        } else {
+            booksWithNotes.mapNotNull { item ->
+                item.annotations.filter { activeTag in HighlightTags.parse(it.readerNote) }
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { item.copy(annotations = it) }
+            }
+        }
+    }
 
-    val activeBookItem = remember(selectedBookId, booksWithNotes) {
-        booksWithNotes.firstOrNull { it.book.id == selectedBookId }
+    val activeBookItem = remember(selectedBookId, taggedBooks) {
+        taggedBooks.firstOrNull { it.book.id == selectedBookId }
+    }
+
+    val kindlePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) onImportKindleClippings(context.contentResolver, uri)
+    }
+    val kindleImportMessage = kindleImportResult?.let { result ->
+        if (result.added == 0 && result.duplicates == 0 && result.unmatchedBooks == 0) {
+            stringResource(R.string.notes_import_kindle_empty)
+        } else {
+            stringResource(R.string.notes_import_kindle_result, result.added, result.duplicates, result.unmatchedBooks)
+        }
+    }
+    LaunchedEffect(kindleImportMessage) {
+        val message = kindleImportMessage ?: return@LaunchedEffect
+        onKindleImportResultShown()
+        snackbarHostState.showSnackbar(message)
     }
 
     Scaffold(
@@ -179,6 +223,13 @@ private fun NotesScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    Row {
+                    IconButton(onClick = { kindlePicker.launch(arrayOf("text/plain")) }) {
+                        Icon(
+                            imageVector = Icons.Outlined.FileOpen,
+                            contentDescription = stringResource(R.string.notes_import_kindle),
+                        )
+                    }
                     val exportNotes = if (activeBookItem != null) activeBookItem.annotations else allAnnotations
                     if (exportNotes.isNotEmpty()) {
                         IconButton(onClick = { context.shareAnnotations(exportNotes) }) {
@@ -195,6 +246,7 @@ private fun NotesScreen(
                                 )
                             }
                         }
+                    }
                     }
                 }
 
@@ -227,6 +279,28 @@ private fun NotesScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                     )
+
+                    if (tags.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            FilterChip(
+                                selected = activeTag == null,
+                                onClick = { selectedTag = null },
+                                label = { Text(stringResource(R.string.notes_tags_all)) },
+                                shape = RoundedCornerShape(Radii.full),
+                            )
+                            tags.forEach { tag ->
+                                FilterChip(
+                                    selected = activeTag == tag,
+                                    onClick = { selectedTag = if (activeTag == tag) null else tag },
+                                    label = { Text(stringResource(R.string.notes_tag_label, tag)) },
+                                    shape = RoundedCornerShape(Radii.full),
+                                )
+                            }
+                        }
+                    }
 
                     if (activeBookItem != null) {
                         Row(
@@ -273,8 +347,8 @@ private fun NotesScreen(
             label = "NotesBookNav",
         ) { bookItem ->
             if (bookItem == null) {
-                val visibleBookItems = remember(booksWithNotes, query) {
-                    booksWithNotes.filterBooksByQuery(query)
+                val visibleBookItems = remember(taggedBooks, query) {
+                    taggedBooks.filterBooksByQuery(query)
                 }
                 if (booksWithNotes.isEmpty()) {
                     NotesEmptyState(contentPadding = innerPadding)
@@ -320,6 +394,7 @@ private fun NotesScreen(
                         onEdit = { editingAnnotation = it },
                         onDelete = { deletingAnnotation = it },
                         onShare = { annotation -> sharingAnnotation = annotation },
+                        onTagClick = { tag -> selectedTag = tag },
                     )
                 }
             }
@@ -329,6 +404,7 @@ private fun NotesScreen(
     editingAnnotation?.let { annotation ->
         EditNoteDialog(
             annotation = annotation,
+            tags = tags,
             onDismiss = { editingAnnotation = null },
             onConfirm = { updatedNote ->
                 editingAnnotation = null
@@ -642,7 +718,7 @@ private fun BookNotesStatsSummary(
             }
             latestDate?.let { date ->
                 Text(
-                    text = stringResource(R.string.notes_stat_last_activity, date.formatDate()),
+                    text = stringResource(R.string.notes_stat_last_activity, date.asAppDate()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -696,6 +772,7 @@ private fun BookNotesDetailList(
     onEdit: (Annotation) -> Unit,
     onDelete: (Annotation) -> Unit,
     onShare: (Annotation) -> Unit,
+    onTagClick: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -727,6 +804,7 @@ private fun BookNotesDetailList(
                     onEdit = { onEdit(annotation) },
                     onDelete = { onDelete(annotation) },
                     onShare = { onShare(annotation) },
+                    onTagClick = onTagClick,
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -746,6 +824,7 @@ private fun BookNotesDetailList(
                     onEdit = { onEdit(annotation) },
                     onDelete = { onDelete(annotation) },
                     onShare = { onShare(annotation) },
+                    onTagClick = onTagClick,
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -816,6 +895,7 @@ private fun AnnotationCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit,
+    onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -914,6 +994,11 @@ private fun AnnotationCard(
                 }
             }
 
+            val tags = remember(annotation.readerNote) { HighlightTags.parse(annotation.readerNote) }
+            if (tags.isNotEmpty()) {
+                TagChips(tags = tags, onClick = onTagClick)
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -922,7 +1007,7 @@ private fun AnnotationCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = annotation.updatedAt.formatDate(),
+                    text = annotation.updatedAt.asAppDate(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -949,6 +1034,29 @@ private fun AnnotationCard(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagChips(tags: List<String>, onClick: (String) -> Unit) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        tags.forEach { tag ->
+            Surface(
+                onClick = { onClick(tag) },
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ) {
+                Text(
+                    text = stringResource(R.string.notes_tag_label, tag),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                )
             }
         }
     }
@@ -983,7 +1091,7 @@ private fun AnnotationType.label(): String = when (this) {
 }
 
 @Composable
-private fun EditNoteDialog(annotation: Annotation, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+private fun EditNoteDialog(annotation: Annotation, tags: List<String>, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var note by remember(annotation.id) { mutableStateOf(annotation.readerNote.orEmpty()) }
 
     AlertDialog(
@@ -1036,6 +1144,16 @@ private fun EditNoteDialog(annotation: Annotation, onDismiss: () -> Unit, onConf
                     ),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
+                val noteTags = HighlightTags.parse(note)
+                val suggestions = tags.filterNot { it in noteTags }
+                Text(
+                    text = stringResource(R.string.notes_edit_tags_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (suggestions.isNotEmpty()) {
+                    TagChips(tags = suggestions, onClick = { tag -> note = HighlightTags.add(note, tag) })
+                }
             }
         },
         confirmButton = {
@@ -1141,9 +1259,6 @@ private fun NotesNoMatchesState(contentPadding: PaddingValues) {
     }
 }
 
-@androidx.compose.runtime.Composable
-@androidx.compose.runtime.ReadOnlyComposable
-private fun Long.formatDate(): String = asAppDate()
 
 private fun List<BookNotesItem>.filterBooksByQuery(query: String): List<BookNotesItem> {
     val normalizedQuery = query.trim()

@@ -91,6 +91,9 @@ interface BookRepository {
 
     suspend fun hasAnyBooks(): Boolean
 
+    /** The most recently read book that can open in the reader on this device, or null. */
+    suspend fun lastReadOpenableBookId(): Long?
+
     /** Ids of books whose text matches every word of [text] (as word prefixes), most recently read first. */
     fun observeSearchIds(text: String, limit: Int): Flow<List<Long>>
 

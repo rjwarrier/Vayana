@@ -34,8 +34,14 @@ interface BookEngine {
 
     suspend fun stopSpeech()
 
-    /** Every word in the chapter on screen, as written, with how many times it appears. */
-    suspend fun chapterWordCounts(): Map<String, Int>
+    /** Each all-letter word of at least [minLength] letters in the chapter on screen, as written, with how often it appears. */
+    suspend fun chapterWordCounts(minLength: Int): Map<String, Int>
+
+    /**
+     * The smallest range covering [cfi] and every one of [others] that overlaps it (directly or through another
+     * overlapping one), with its text. Null when none overlap or the ranges can't be resolved on screen.
+     */
+    suspend fun mergeRanges(cfi: String, others: List<String>): MergedRange?
 
     fun close()
 }

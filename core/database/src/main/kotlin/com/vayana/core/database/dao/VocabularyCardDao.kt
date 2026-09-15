@@ -7,6 +7,9 @@ import androidx.room.Update
 import com.vayana.core.database.entity.VocabularyCardEntity
 import kotlinx.coroutines.flow.Flow
 
+/** When a card counts as due for review: not known, and new or scheduled at or before `:now`. */
+private const val DueByNow = "known = 0 AND (dueAt IS NULL OR dueAt <= :now)"
+
 @Dao
 interface VocabularyCardDao {
     @Query("SELECT * FROM vocabulary_cards ORDER BY createdAt DESC")
@@ -25,17 +28,11 @@ interface VocabularyCardDao {
     suspend fun findBySyncId(syncId: String): VocabularyCardEntity?
 
     /** Cards due by [now]: new ones first, then the longest overdue - "review five words" pulls from the front. */
-    @Query(
-        "SELECT * FROM vocabulary_cards WHERE known = 0 AND (dueAt IS NULL OR dueAt <= :now) " +
-            "ORDER BY (dueAt IS NOT NULL), dueAt ASC, createdAt ASC LIMIT :limit",
-    )
+    @Query("SELECT * FROM vocabulary_cards WHERE $DueByNow ORDER BY (dueAt IS NOT NULL), dueAt ASC, createdAt ASC LIMIT :limit")
     suspend fun getForReview(now: Long, limit: Int): List<VocabularyCardEntity>
 
-    @Query("SELECT COUNT(*) FROM vocabulary_cards WHERE known = 0 AND (dueAt IS NULL OR dueAt <= :now)")
+    @Query("SELECT COUNT(*) FROM vocabulary_cards WHERE $DueByNow")
     fun observeDueCount(now: Long): Flow<Int>
-
-    @Query("SELECT COUNT(*) FROM vocabulary_cards WHERE known = 0 AND (dueAt IS NULL OR dueAt <= :now)")
-    suspend fun countDue(now: Long): Int
 
     @Query(
         "UPDATE vocabulary_cards SET lastReviewedAt = :reviewedAt, known = :known, dueAt = :dueAt, " +
@@ -58,8 +55,8 @@ interface VocabularyCardDao {
     @Query("SELECT word FROM vocabulary_cards WHERE known = 1")
     fun observeKnownWords(): Flow<List<String>>
 
-    @Query("UPDATE vocabulary_cards SET lastReviewedAt = :reviewedAt, known = :known WHERE id = :id")
-    suspend fun markReviewed(id: Long, reviewedAt: Long, known: Boolean)
+    @Query("UPDATE vocabulary_cards SET lastReviewedAt = :reviewedAt, known = 1 WHERE id = :id")
+    suspend fun markKnown(id: Long, reviewedAt: Long)
 
     @Query("DELETE FROM vocabulary_cards WHERE id = :id")
     suspend fun delete(id: Long)

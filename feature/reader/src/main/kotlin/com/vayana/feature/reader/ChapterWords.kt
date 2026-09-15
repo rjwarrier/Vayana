@@ -35,6 +35,6 @@ internal fun unusualWordCandidates(
         .take(limit)
         .map { it.first }
 
-private const val MinUnusualWordLength = 8
+internal const val MinUnusualWordLength = 8
 private const val MaxUnusualWordOccurrences = 2
 private const val MaxUnusualWordCandidates = 60

@@ -205,9 +205,9 @@ class ReaderViewModel @Inject constructor(
         output = AndroidSpeechOutput(appContext),
         scope = viewModelScope,
         engine = { boundEngine?.takeIf { bookOpen } },
-        // Listening counts as reading time, just as turning pages does.
-        onSpeaking = ::onReaderInteraction,
+        onSpeaking = ::onSpeaking,
     )
+    private var lastSpeechInteractionAt = 0L
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
 
     private val _chapterWords = MutableStateFlow<ChapterWordsState>(ChapterWordsState.Idle)
@@ -574,6 +574,17 @@ class ReaderViewModel @Inject constructor(
         _returnRecap.value = null
     }
 
+    /**
+     * Listening counts as reading time, just as turning pages does. Throttled: each interaction can save reading time
+     * and restart the session ticker, which a new sentence every few seconds would do far too often.
+     */
+    private fun onSpeaking() {
+        val now = System.currentTimeMillis()
+        if (now - lastSpeechInteractionAt < SpeechInteractionIntervalMillis) return
+        lastSpeechInteractionAt = now
+        onReaderInteraction()
+    }
+
     fun startReadAloud() {
         _returnRecap.value = null
         readAloudPlayer.start(settings.value.readAloudRate)
@@ -650,14 +661,19 @@ class ReaderViewModel @Inject constructor(
             _chapterWords.value = ChapterWordsState.Loading
             val cardsByWord = vocabularyCardRepository.observeAll().first().associateBy { it.word.lowercase() }
             val knownWords = cardsByWord.filterValues { it.known }.keys
-            val words = unusualWordCandidates(engine.chapterWordCounts(), knownWords)
-                .mapNotNull { candidate ->
-                    val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(candidate) }.getOrNull()
-                    val definition = entry?.senses?.firstOrNull()?.definition ?: return@mapNotNull null
-                    ChapterWord(word = entry.headword, definition = definition, saved = entry.headword.lowercase() in cardsByWord)
+            val candidates = unusualWordCandidates(engine.chapterWordCounts(MinUnusualWordLength), knownWords)
+            // One hop to IO for all lookups, stopping as soon as there are enough words.
+            val words = withContext(dispatchers.io) {
+                buildList<ChapterWord> {
+                    for (candidate in candidates) {
+                        if (size >= MaxChapterWords) break
+                        val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(candidate) }.getOrNull() ?: continue
+                        val definition = entry.senses.firstOrNull()?.definition ?: continue
+                        if (any { it.word.equals(entry.headword, ignoreCase = true) }) continue
+                        add(ChapterWord(word = entry.headword, definition = definition, saved = entry.headword.lowercase() in cardsByWord))
+                    }
                 }
-                .distinctBy { it.word.lowercase() }
-                .take(MaxChapterWords)
+            }
             _chapterWords.value = ChapterWordsState.Ready(words)
         }
     }
@@ -1042,7 +1058,7 @@ class ReaderViewModel @Inject constructor(
             _returnRecap.value = ReaderRecap(
                 awayMillis = awayMillis,
                 highlight = highlight,
-                dueWords = vocabularyCardRepository.countDue(),
+                dueWords = vocabularyCardRepository.observeDueCount().first(),
             )
         }
     }
@@ -1055,17 +1071,40 @@ class ReaderViewModel @Inject constructor(
     private fun createAnnotation(type: AnnotationType, colorKey: String = DefaultAnnotationColor, readerNote: String?) {
         val engine = boundEngine ?: return
         val selection = (uiState.value as? ReaderUiState.Loaded)?.selection ?: return
+        val existing = (uiState.value as? ReaderUiState.Loaded)?.annotations.orEmpty()
         viewModelScope.launch {
-            annotationRepository.create(
-                bookId = bookId,
-                type = type,
-                colorKey = colorKey,
-                locator = selection.cfi,
-                chapterTitle = selection.chapterTitle,
-                chapterHref = null,
-                selectedText = selection.selectedText,
-                readerNote = readerNote?.takeIf { it.isNotBlank() },
-            )
+            // Selecting across a highlight (or underline) of the same kind grows that one instead of stacking a second.
+            val candidates = if (type == AnnotationType.NOTE) {
+                emptyList()
+            } else {
+                existing.filter { it.type == type && it.locator.startsWith(CfiPrefix) && it.locator != selection.cfi }
+            }
+            val union = runCatchingCancellable { engine.mergeRanges(selection.cfi, candidates.map { it.locator }) }.getOrNull()
+            val swallowed = union?.merged?.let { merged -> candidates.filter { it.locator in merged } }.orEmpty()
+            if (union != null && swallowed.isNotEmpty()) {
+                val kept = swallowed.minBy { it.createdAt }
+                val notes = (swallowed.map { it.readerNote } + readerNote).mapNotNull { it?.trim()?.ifEmpty { null } }.distinct()
+                annotationRepository.update(
+                    kept.copy(
+                        locator = union.cfi,
+                        selectedText = union.text.ifBlank { selection.selectedText },
+                        colorKey = colorKey,
+                        readerNote = notes.joinToString("\n\n").ifEmpty { null },
+                    ),
+                )
+                swallowed.filter { it.id != kept.id }.forEach { annotationRepository.softDelete(it.id) }
+            } else {
+                annotationRepository.create(
+                    bookId = bookId,
+                    type = type,
+                    colorKey = colorKey,
+                    locator = selection.cfi,
+                    chapterTitle = selection.chapterTitle,
+                    chapterHref = null,
+                    selectedText = selection.selectedText,
+                    readerNote = readerNote?.takeIf { it.isNotBlank() },
+                )
+            }
             engine.clearSelection()
             dictionaryLookupJob?.cancel()
             pendingDictionaryWord = null
@@ -1203,13 +1242,21 @@ private fun String.toDictionaryWord(): String? {
     return candidate.takeIf { DictionarySelectionWordRegex.matches(it) }
 }
 
-private val ReadAloudRates = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+/** Speeds the read-aloud bar cycles through: every step of the Read aloud speed setting. */
+private val ReadAloudRates: List<Float> = SettingsRegistry.ReadAloudRate.let { setting ->
+    generateSequence(setting.range.start) { rate ->
+        (rate + setting.step).takeIf { it <= setting.range.endInclusive + RateEpsilon }
+    }.toList()
+}
+private const val RateEpsilon = 0.001f
+private const val SpeechInteractionIntervalMillis = 30_000L
 private const val MaxChapterWords = 25
 
 /** Reopening a book within this long of last reading it is just carrying on, not a return worth a recap. */
 private const val ReturnRecapMinAwayMillis = 12 * 60 * 60 * 1000L
 
 private const val DefaultAnnotationColor = "yellow"
+private const val CfiPrefix = "epubcfi("
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
 private const val LocatorPersistDebounceMillis = 400L

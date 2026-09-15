@@ -114,8 +114,6 @@ import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.io.File
 import com.vayana.core.designsystem.theme.asAppDate
-import java.text.DateFormat
-import java.util.Date
 import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics

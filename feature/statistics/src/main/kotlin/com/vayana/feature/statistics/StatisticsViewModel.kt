@@ -90,7 +90,8 @@ data class StatisticsSummary(
     val averageProgressPercent: Int = 0,
     val totalAnnotations: Int = 0,
     val notesWithText: Int = 0,
-    val highlightToRevisit: Annotation? = null,
+    /** Today's rotating set of highlights to resurface; the card shows the first and opens the rest. */
+    val highlightsToRevisit: List<Annotation> = emptyList(),
     val topLookedUpWords: List<WordLookupStat> = emptyList(),
     val sessionCount: Int = 0,
     val longestSessionSeconds: Long = 0L,
@@ -235,12 +236,7 @@ private fun List<Book>.toSummary(
         averageProgressPercent = average.coerceIn(0, 100),
         totalAnnotations = annotations.size,
         notesWithText = annotations.count { it.readerNote?.isNotBlank() == true },
-        // A fixed pick (e.g. always the oldest) would show the same highlight forever. Rotate
-        // through eligible highlights by day so the "revisit" card actually resurfaces different ones.
-        highlightToRevisit = annotations
-            .filter { it.selectedText.isNotBlank() }
-            .sortedBy { it.createdAt }
-            .let { eligible -> eligible.takeIf { it.isNotEmpty() }?.let { it[(today.toEpochDay() % it.size).toInt()] } },
+        highlightsToRevisit = dailyHighlights(annotations, today),
         topLookedUpWords = topWords,
         sessionCount = countedSessions.size,
         longestSessionSeconds = countedSessions.maxOfOrNull { it.durationSeconds } ?: 0L,

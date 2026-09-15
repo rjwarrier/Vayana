@@ -207,6 +207,13 @@ interface BookDao {
     @Query("SELECT EXISTS(SELECT 1 FROM books WHERE isDeleted = 0)")
     suspend fun hasAnyBooks(): Boolean
 
+    /** The most recently read book whose file is on this device, so it can open in the reader. */
+    @Query(
+        "SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt IS NOT NULL AND format != 'PHYSICAL' " +
+            "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
+    )
+    suspend fun lastReadOpenableBookId(): Long?
+
     /** Ids of active books matching an FTS [match], most recently read first. */
     @Query(
         "SELECT books.id FROM books JOIN books_fts ON books.id = books_fts.rowid " +

@@ -34,6 +34,7 @@ import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.common.QuoteParser
+import com.vayana.core.common.quoteMatchKey
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookAliasDao
@@ -126,7 +127,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
-import com.vayana.core.filesystem.BookFileCleaner
 import kotlinx.coroutines.NonCancellable
 import com.vayana.core.database.repository.isBookDeletion
 import com.vayana.core.database.repository.isSyncedWithReadingProgress
@@ -451,7 +451,7 @@ class LibraryViewModel @Inject constructor(
     private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
-    private val bookFileCleaner: BookFileCleaner,
+    private val recentlyDeletedAutoPurge: RecentlyDeletedAutoPurge,
     private val syncedBookDeletionApplier: SyncedBookDeletionApplier,
     private val permanentDeletionNotices: PermanentDeletionNotices,
     private val readingProgressOnlySyncer: ReadingProgressOnlySyncer,
@@ -621,8 +621,7 @@ class LibraryViewModel @Inject constructor(
     fun deletePermanently(bookId: Long) {
         viewModelScope.launch {
             withContext(NonCancellable) {
-                val purged = bookRepository.purgeEverywhere(bookId) ?: return@withContext
-                bookFileCleaner.delete(purged.localFilePaths)
+                val purged = recentlyDeletedAutoPurge.purgeBook(bookId) ?: return@withContext
                 permanentDeletionNotices.post(
                     PermanentDeletionNotice(title = purged.title, cloudCopyPending = purged.queuedCloudAssetIds.isNotEmpty()),
                 )

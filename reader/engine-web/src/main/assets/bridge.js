@@ -512,6 +512,26 @@ function postSelection(doc, index) {
     })
 }
 
+// The loaded section on screen and its document.
+function currentContent() {
+    const contents = view?.renderer?.getContents() ?? []
+    return contents.find(c => c.index === view.lastLocation?.section?.current) ?? contents[0]
+}
+
+const segmenters = new Map()
+
+// One Intl.Segmenter per book language and granularity ('word' or 'sentence').
+function segmenterFor(doc, granularity) {
+    const lang = doc.documentElement.lang || ''
+    const key = `${lang}|${granularity}`
+    let segmenter = segmenters.get(key)
+    if (!segmenter) {
+        segmenter = new Intl.Segmenter(lang || undefined, { granularity })
+        segmenters.set(key, segmenter)
+    }
+    return segmenter
+}
+
 const EpubOpsNamespace = 'http://www.idpf.org/2007/ops'
 const MaxFootnoteChars = 2000
 
@@ -574,8 +594,7 @@ function selectWordAt(doc, x, y) {
     if (bionicWord) {
         range.selectNodeContents(bionicWord)
     } else {
-        const segmenter = new Intl.Segmenter(doc.documentElement.lang || undefined, { granularity: 'word' })
-        const word = [...segmenter.segment(node.data)]
+        const word = [...segmenterFor(doc, 'word').segment(node.data)]
             .find(({ segment, index }) => caret.startOffset >= index && caret.startOffset < index + segment.length)
         if (!word?.isWordLike) return
         range.setStart(node, word.index)
@@ -620,17 +639,17 @@ function speechSentencesFor(doc, index, fromRange) {
         const { node, start } = pieces[low]
         return [node, Math.max(0, Math.min(node.data.length, offset - start))]
     }
-    const segmenter = new Intl.Segmenter(doc.documentElement.lang || undefined, { granularity: 'sentence' })
     const sentences = []
-    for (const { segment, index: segmentStart } of segmenter.segment(text)) {
+    for (const { segment, index: segmentStart } of segmenterFor(doc, 'sentence').segment(text)) {
         const sentenceText = segment.replace(/\s+/g, ' ').trim()
         if (!/[\p{L}\p{N}]/u.test(sentenceText)) continue
         const start = segmentStart + (segment.length - segment.trimStart().length)
-        const end = segmentStart + segment.trimEnd().length
+        const endPoint = pointAt(segmentStart + segment.trimEnd().length)
+        // Skip sentences that end before the page on screen without building a Range for them.
+        if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
         const range = doc.createRange()
         range.setStart(...pointAt(start))
-        range.setEnd(...pointAt(end))
-        if (fromRange && fromRange.comparePoint(range.endContainer, range.endOffset) < 0) continue
+        range.setEnd(...endPoint)
         const id = `${index}:${sentences.length}`
         speech.sentences.set(id, range)
         sentences.push({ id, text: sentenceText })
@@ -639,15 +658,14 @@ function speechSentencesFor(doc, index, fromRange) {
 }
 
 function startSpeech(requestId) {
-    const contents = view?.renderer?.getContents() ?? []
-    const content = contents.find(c => c.index === view.lastLocation?.section?.current) ?? contents[0]
+    const content = currentContent()
     if (!content?.doc) {
-        post('speech', { requestId, sentences: [], endOfBook: true })
+        post('reply', { requestId, sentences: [], endOfBook: true })
         return
     }
     const visible = view.lastLocation?.range
     const fromRange = visible?.startContainer?.ownerDocument === content.doc ? visible : null
-    post('speech', { requestId, sentences: speechSentencesFor(content.doc, content.index, fromRange), endOfBook: false })
+    post('reply', { requestId, sentences: speechSentencesFor(content.doc, content.index, fromRange), endOfBook: false })
 }
 
 async function nextSpeechChunk(requestId) {
@@ -656,7 +674,7 @@ async function nextSpeechChunk(requestId) {
     let next = speech.index + 1
     while (next < sections.length && sections[next].linear === 'no') next++
     if (next >= sections.length) {
-        post('speech', { requestId, sentences: [], endOfBook: true })
+        post('reply', { requestId, sentences: [], endOfBook: true })
         return
     }
     try {
@@ -664,10 +682,10 @@ async function nextSpeechChunk(requestId) {
         const content = view.renderer.getContents().find(c => c.index === next)
         const sentences = content?.doc ? speechSentencesFor(content.doc, next, null) : []
         speech.index = next
-        post('speech', { requestId, sentences, endOfBook: false })
+        post('reply', { requestId, sentences, endOfBook: false })
     } catch (error) {
         post('log', { step: 'nextSpeechChunk', message: String(error) })
-        post('speech', { requestId, sentences: [], endOfBook: true })
+        post('reply', { requestId, sentences: [], endOfBook: true })
     }
 }
 
@@ -698,17 +716,15 @@ function stopSpeech() {
 
 const MaxChapterWordKinds = 20000
 
-// How often each word (as written) appears in the chapter on screen, for the reader's chapter word list.
-function chapterWordCounts(requestId) {
-    const contents = view?.renderer?.getContents() ?? []
-    const content = contents.find(c => c.index === view.lastLocation?.section?.current) ?? contents[0]
+// How often each all-letter word of at least [minLength] letters appears (as written) in the chapter on screen, for
+// the reader's chapter word list. Shorter words are dropped here so they never cross the bridge.
+function chapterWordCounts(requestId, minLength) {
     const counts = Object.create(null)
-    const doc = content?.doc
+    const doc = currentContent()?.doc
     if (doc?.body) {
-        const segmenter = new Intl.Segmenter(doc.documentElement.lang || undefined, { granularity: 'word' })
         let kinds = 0
-        for (const { segment, isWordLike } of segmenter.segment(doc.body.textContent ?? '')) {
-            if (!isWordLike) continue
+        for (const { segment, isWordLike } of segmenterFor(doc, 'word').segment(doc.body.textContent ?? '')) {
+            if (!isWordLike || segment.length < minLength || !/^\p{L}+$/u.test(segment)) continue
             if (counts[segment] === undefined) {
                 if (kinds >= MaxChapterWordKinds) continue
                 kinds++
@@ -717,7 +733,49 @@ function chapterWordCounts(requestId) {
             counts[segment]++
         }
     }
-    post('chapterWords', { requestId, counts })
+    post('reply', { requestId, counts })
+}
+
+// Grows the range of `cfi` over every range in `others` that overlaps it, directly or through another one
+// already merged, and replies with the union's CFI and text. Only ranges in the loaded section count.
+function mergeRanges(requestId, cfi, others) {
+    let reply = { requestId }
+    try {
+        const resolve = value => {
+            const { index, anchor } = view.resolveCFI(value)
+            const doc = view.renderer.getContents().find(c => c.index === index)?.doc
+            const range = doc ? anchor(doc) : null
+            return range ? { index, range } : null
+        }
+        const base = resolve(cfi)
+        if (base) {
+            const union = base.range.cloneRange()
+            const pending = others.map(value => ({ value, resolved: resolve(value) }))
+                .filter(item => item.resolved?.index === base.index)
+            const merged = []
+            let grew = true
+            while (grew) {
+                grew = false
+                for (let i = pending.length - 1; i >= 0; i--) {
+                    const { range } = pending[i].resolved
+                    const overlaps = union.compareBoundaryPoints(Range.START_TO_END, range) <= 0 &&
+                        union.compareBoundaryPoints(Range.END_TO_START, range) >= 0
+                    if (!overlaps) continue
+                    if (union.compareBoundaryPoints(Range.START_TO_START, range) > 0) union.setStart(range.startContainer, range.startOffset)
+                    if (union.compareBoundaryPoints(Range.END_TO_END, range) < 0) union.setEnd(range.endContainer, range.endOffset)
+                    merged.push(pending[i].value)
+                    pending.splice(i, 1)
+                    grew = true
+                }
+            }
+            if (merged.length) {
+                reply = { requestId, cfi: view.getCFI(base.index, union), text: union.toString().trim(), merged }
+            }
+        }
+    } catch (error) {
+        post('log', { step: 'mergeRanges', message: String(error) })
+    }
+    post('reply', reply)
 }
 
 function clearSelection() {
@@ -1205,6 +1263,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

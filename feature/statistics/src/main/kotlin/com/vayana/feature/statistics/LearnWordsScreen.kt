@@ -40,10 +40,6 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import com.vayana.core.designsystem.theme.asAppDate
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -183,7 +179,7 @@ private fun WordLookupRow(word: WordLookupStat) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(R.string.learn_words_last_seen, word.lastLookedUpAt.asLookupDate()),
+                    text = stringResource(R.string.learn_words_last_seen, word.lastLookedUpAt.asAppDate()),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -224,7 +220,3 @@ private fun LearnWordsEmptyState(contentPadding: PaddingValues) {
         }
     }
 }
-
-@androidx.compose.runtime.Composable
-@androidx.compose.runtime.ReadOnlyComposable
-private fun Long.asLookupDate(): String = asAppDate()

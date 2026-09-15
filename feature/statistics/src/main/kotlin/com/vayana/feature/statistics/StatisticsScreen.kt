@@ -65,7 +65,6 @@ import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.time.LocalDate
 import com.vayana.core.designsystem.theme.asAppDate
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -74,6 +73,7 @@ import kotlin.math.roundToInt
 fun StatisticsRoute(
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
+    onReviewHighlights: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: StatisticsViewModel = hiltViewModel()
@@ -88,6 +88,7 @@ fun StatisticsRoute(
         vocabularyDueCount = vocabularyDueCount,
         onReviewVocabulary = onReviewVocabulary,
         onOpenLearnWords = onOpenLearnWords,
+        onReviewHighlights = onReviewHighlights,
     )
 }
 
@@ -99,6 +100,7 @@ private fun StatisticsScreen(
     vocabularyDueCount: Int,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
+    onReviewHighlights: () -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
@@ -120,6 +122,7 @@ private fun StatisticsScreen(
                 vocabularyDueCount = vocabularyDueCount,
                 onReviewVocabulary = onReviewVocabulary,
                 onOpenLearnWords = onOpenLearnWords,
+                onReviewHighlights = onReviewHighlights,
             )
         }
     }
@@ -133,6 +136,7 @@ private fun StatisticsDashboard(
     vocabularyDueCount: Int,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
+    onReviewHighlights: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -263,10 +267,13 @@ private fun StatisticsDashboard(
                 }
             }
         }
-        summary.highlightToRevisit?.let { highlight ->
+        summary.highlightsToRevisit.firstOrNull()?.let { highlight ->
             item {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radii.medium))
+                        .clickable(onClick = onReviewHighlights),
                     shape = RoundedCornerShape(Radii.medium),
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -291,6 +298,11 @@ private fun StatisticsDashboard(
                                 modifier = Modifier.padding(top = Spacing.sm),
                             )
                         }
+                        Text(
+                            text = stringResource(R.string.statistics_highlight_review_action, summary.highlightsToRevisit.size),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(top = Spacing.md),
+                        )
                     }
                 }
             }

@@ -3,6 +3,7 @@ package com.vayana.feature.library
 import android.graphics.BitmapFactory
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.ParsedQuote
+import com.vayana.core.common.quoteMatchKey
 import com.vayana.core.common.runCatchingCancellable
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -245,12 +246,6 @@ internal suspend fun collectGoodreadsQuotes(loadPage: suspend (page: Int) -> Str
     }
     return byId.values.distinctBy { quoteMatchKey(it.quoteText) }
 }
-
-/** Letters and digits only, lower-cased: two quotes differing just in quote marks, dashes or spacing are the same quote. */
-internal fun quoteMatchKey(text: String): String =
-    buildString(text.length) {
-        for (char in text) if (char.isLetterOrDigit()) append(char.lowercaseChar())
-    }
 
 internal fun parseBookPage(html: String, bookId: String, canonicalUrl: String): GoodreadsBookMetadata? {
     val nextData = NextDataRegex.find(html)?.groupValues?.get(1) ?: return null

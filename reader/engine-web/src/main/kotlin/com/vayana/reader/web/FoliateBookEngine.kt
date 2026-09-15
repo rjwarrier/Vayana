@@ -19,6 +19,7 @@ import com.vayana.reader.api.EngineEvent
 import com.vayana.reader.api.Footnote
 import com.vayana.reader.api.FootnoteOpened
 import com.vayana.reader.api.Locator
+import com.vayana.reader.api.MergedRange
 import com.vayana.reader.api.SpeechChunk
 import com.vayana.reader.api.SpeechSentence
 import com.vayana.reader.api.NavTarget
@@ -302,9 +303,13 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 append("}")
             }
         }
-        webView.evaluateJavascript("window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin)", null)
-        webView.evaluateJavascript("window.VayanaReader.setBionicReading(${style.bionicReading})", null)
-        webView.evaluateJavascript("window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation})", null)
+        // One trip across the bridge for the whole style.
+        webView.evaluateJavascript(
+            "window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin);" +
+                "window.VayanaReader.setBionicReading(${style.bionicReading});" +
+                "window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation})",
+            null,
+        )
     }
 
     override suspend fun renderAnnotations(annotations: List<ReaderAnnotation>) {
@@ -330,12 +335,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override fun events(): Flow<EngineEvent> = _events
 
-    private val speechRequests = ConcurrentHashMap<Long, CompletableDeferred<SpeechChunk>>()
-    private val nextSpeechRequestId = AtomicLong()
+    private val bridgeRequests = ConcurrentHashMap<Long, CompletableDeferred<JSONObject?>>()
+    private val nextBridgeRequestId = AtomicLong()
 
-    override suspend fun startSpeech(): SpeechChunk = requestSpeech("startSpeech")
+    override suspend fun startSpeech(): SpeechChunk = requestBridge("startSpeech")?.toSpeechChunk() ?: EndOfBookChunk
 
-    override suspend fun nextSpeechChunk(): SpeechChunk = requestSpeech("nextSpeechChunk")
+    override suspend fun nextSpeechChunk(): SpeechChunk = requestBridge("nextSpeechChunk")?.toSpeechChunk() ?: EndOfBookChunk
 
     override suspend fun markSpeech(id: String) {
         webView.evaluateJavascript("window.VayanaReader.markSpeech(${JSONObject.quote(id)})", null)
@@ -345,25 +350,31 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         webView.evaluateJavascript("window.VayanaReader.stopSpeech()", null)
     }
 
-    private val wordCountRequests = ConcurrentHashMap<Long, CompletableDeferred<Map<String, Int>>>()
+    override suspend fun chapterWordCounts(minLength: Int): Map<String, Int> =
+        requestBridge("chapterWordCounts", minLength.toString())?.optJSONObject("counts")?.toIntMap() ?: emptyMap()
 
-    override suspend fun chapterWordCounts(): Map<String, Int> {
-        val id = nextSpeechRequestId.incrementAndGet()
-        val deferred = CompletableDeferred<Map<String, Int>>()
-        wordCountRequests[id] = deferred
-        webView.evaluateJavascript("window.VayanaReader.chapterWordCounts($id)", null)
-        return withTimeoutOrNull(SpeechRequestTimeoutMillis) { deferred.await() }
-            ?: emptyMap<String, Int>().also { wordCountRequests.remove(id) }
+    override suspend fun mergeRanges(cfi: String, others: List<String>): MergedRange? {
+        if (others.isEmpty()) return null
+        val reply = requestBridge("mergeRanges", JSONObject.quote(cfi), JSONArray(others).toString()) ?: return null
+        val merged = reply.optJSONArray("merged") ?: return null
+        return MergedRange(
+            cfi = reply.optStringOrNull("cfi") ?: return null,
+            text = reply.optString("text"),
+            merged = List(merged.length()) { index -> merged.optString(index) },
+        )
     }
 
-    /** Asks the bridge for sentences and waits for its "speech" reply; a missing reply ends reading. */
-    private suspend fun requestSpeech(function: String): SpeechChunk {
-        val id = nextSpeechRequestId.incrementAndGet()
-        val deferred = CompletableDeferred<SpeechChunk>()
-        speechRequests[id] = deferred
-        webView.evaluateJavascript("window.VayanaReader.$function($id)", null)
-        return withTimeoutOrNull(SpeechRequestTimeoutMillis) { deferred.await() }
-            ?: SpeechChunk(emptyList(), endOfBook = true).also { speechRequests.remove(id) }
+    /**
+     * Calls `window.VayanaReader.[function](requestId, ...[arguments])` and waits for the bridge's "reply" event carrying
+     * that id. Null when no reply comes in time or the engine closes first.
+     */
+    private suspend fun requestBridge(function: String, vararg arguments: String): JSONObject? {
+        val id = nextBridgeRequestId.incrementAndGet()
+        val deferred = CompletableDeferred<JSONObject?>()
+        bridgeRequests[id] = deferred
+        val callArguments = (listOf(id.toString()) + arguments).joinToString(", ")
+        webView.evaluateJavascript("window.VayanaReader.$function($callArguments)", null)
+        return withTimeoutOrNull(BridgeRequestTimeoutMillis) { deferred.await() }.also { bridgeRequests.remove(id) }
     }
 
     private var closed = false
@@ -377,10 +388,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         openResult?.complete(Result.failure(IllegalStateException("Reader closed before the book opened")))
         openResult = null
         pendingOpen = null
-        speechRequests.values.forEach { it.complete(SpeechChunk(emptyList(), endOfBook = true)) }
-        speechRequests.clear()
-        wordCountRequests.values.forEach { it.complete(emptyMap()) }
-        wordCountRequests.clear()
+        bridgeRequests.values.forEach { it.complete(null) }
+        bridgeRequests.clear()
         resources.clear()
         entryResources.clear()
         closeBookZip()
@@ -492,9 +501,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val text = payload.optStringOrNull("text")?.takeIf { it.isNotBlank() } ?: return
                 _events.tryEmit(FootnoteOpened(Footnote(text = text, href = payload.optString("href"))))
             }
-            "speech" -> speechRequests.remove(payload.optLong("requestId"))?.complete(payload.toSpeechChunk())
-            "chapterWords" -> wordCountRequests.remove(payload.optLong("requestId"))
-                ?.complete(payload.optJSONObject("counts")?.toIntMap() ?: emptyMap())
+            "reply" -> bridgeRequests.remove(payload.optLong("requestId"))?.complete(payload)
             "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {
                 val message = payload.optString("message", "Unknown reader error")
@@ -592,7 +599,8 @@ private fun JSONObject.toSpeechChunk(): SpeechChunk {
     return SpeechChunk(sentences, endOfBook = optBoolean("endOfBook"))
 }
 
-private const val SpeechRequestTimeoutMillis = 15_000L
+private const val BridgeRequestTimeoutMillis = 15_000L
+private val EndOfBookChunk = SpeechChunk(emptyList(), endOfBook = true)
 
 private fun JSONObject.optDoubleOrNull(name: String): Double? =
     if (has(name) && !isNull(name)) optDouble(name).takeIf(Double::isFinite) else null

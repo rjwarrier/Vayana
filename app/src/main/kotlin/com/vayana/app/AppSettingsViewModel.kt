@@ -3,8 +3,6 @@ package com.vayana.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.runCatchingCancellable
-import com.vayana.core.database.model.BookFileAvailability
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
@@ -47,8 +45,5 @@ class AppSettingsViewModel @Inject constructor(
     }
 
     /** The most recently read book that can open in the reader right now, for "Open on: Continue last book". */
-    suspend fun lastReadBookId(): Long? = bookRepository.observeAll().first()
-        .filter { it.lastReadAt != null && it.format != BookFormat.PHYSICAL && it.fileAvailability == BookFileAvailability.LOCAL }
-        .maxByOrNull { it.lastReadAt ?: 0L }
-        ?.id
+    suspend fun lastReadBookId(): Long? = bookRepository.lastReadOpenableBookId()
 }

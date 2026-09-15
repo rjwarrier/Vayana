@@ -61,12 +61,10 @@ class VocabularyCardRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markKnown(id: Long) {
-        vocabularyCardDao.markReviewed(id, System.currentTimeMillis(), known = true)
+        vocabularyCardDao.markKnown(id, System.currentTimeMillis())
     }
 
     override fun observeDueCount(now: Long): Flow<Int> = vocabularyCardDao.observeDueCount(now)
-
-    override suspend fun countDue(now: Long): Int = vocabularyCardDao.countDue(now)
 
     override suspend fun findByWord(word: String): VocabularyCard? = vocabularyCardDao.findByWord(word)?.toDomain()
 

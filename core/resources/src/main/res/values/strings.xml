@@ -443,6 +443,12 @@
     <string name="notes_delete_confirm">Delete</string>
     <string name="notes_delete_undo_message">Note deleted</string>
     <string name="notes_delete_undo_action">Undo</string>
+    <string name="notes_import_kindle">Import Kindle clippings</string>
+    <string name="notes_import_kindle_result">Imported %1$d from Kindle · %2$d already here · %3$d books not in library</string>
+    <string name="notes_import_kindle_empty">No Kindle highlights found in that file</string>
+    <string name="notes_tags_all">All tags</string>
+    <string name="notes_tag_label">#%1$s</string>
+    <string name="notes_edit_tags_hint">Tap a tag to add it, or type #tag in the note</string>
 
     <string name="statistics_title">Statistics</string>
     <string name="statistics_empty_title">Nothing to show yet</string>
@@ -457,6 +463,17 @@
     <string name="statistics_notes_total_value">%1$d</string>
     <string name="statistics_notes_total_support">%1$d with your own notes</string>
     <string name="statistics_highlight_revisit_title">Revisit this highlight</string>
+    <string name="statistics_highlight_review_action">Review today\'s %1$d highlights</string>
+    <string name="highlight_review_title">Today\'s highlights</string>
+    <string name="highlight_review_progress">%1$d of %2$d</string>
+    <string name="highlight_review_next">Next</string>
+    <string name="highlight_review_open_book">Open in book</string>
+    <string name="highlight_review_share">Share</string>
+    <string name="highlight_review_empty_title">No highlights yet</string>
+    <string name="highlight_review_empty_body">Highlight passages while reading and a few come back here each day.</string>
+    <string name="highlight_review_done_title">That\'s today\'s highlights</string>
+    <string name="highlight_review_done_body">A new set is waiting tomorrow.</string>
+    <string name="highlight_review_done">Done</string>
     <string name="statistics_activity_title">Reading activity</string>
     <string name="statistics_activity_support">%1$d min this week</string>
     <string name="statistics_activity_day_detail">%1$s: %2$d min</string>

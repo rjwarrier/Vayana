@@ -46,6 +46,13 @@ data class ReaderAnnotation(
     val text: String? = null,
 )
 
+/** Result of [BookEngine.mergeRanges]: the union's CFI and text, and which of the other CFIs it swallowed. */
+data class MergedRange(
+    val cfi: String,
+    val text: String,
+    val merged: List<String>,
+)
+
 /** Source handed to [BookEngine.open] — a resolved local file path, never a domain `Book` (§0.5: no cross-layer coupling). */
 data class BookSource(val absoluteFilePath: String)
 

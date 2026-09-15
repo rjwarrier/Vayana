@@ -5,6 +5,7 @@ import com.vayana.reader.api.BookSource
 import com.vayana.reader.api.BookStyle
 import com.vayana.reader.api.EngineEvent
 import com.vayana.reader.api.Locator
+import com.vayana.reader.api.MergedRange
 import com.vayana.reader.api.NavTarget
 import com.vayana.reader.api.OpenBook
 import com.vayana.reader.api.ReadTheme
@@ -147,7 +148,9 @@ class ReadAloudPlayerTest {
 
         override suspend fun clearSearch() = Unit
 
-        override suspend fun chapterWordCounts(): Map<String, Int> = emptyMap()
+        override suspend fun chapterWordCounts(minLength: Int): Map<String, Int> = emptyMap()
+
+        override suspend fun mergeRanges(cfi: String, others: List<String>): MergedRange? = null
 
         override fun events(): Flow<EngineEvent> = emptyFlow()
 

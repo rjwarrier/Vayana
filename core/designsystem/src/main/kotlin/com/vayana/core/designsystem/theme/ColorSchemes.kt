@@ -97,15 +97,7 @@ object ColorSchemes {
     )
 
     /** OLED true-black variant. */
-    val trueBlack: ColorScheme = dark.copy(
-        background = Palette.Amoled,
-        surface = Palette.Amoled,
-        surfaceContainerLowest = Palette.Amoled,
-        surfaceContainerLow = Palette.Amoled,
-        surfaceContainer = Palette.NearBlack,
-        surfaceContainerHigh = Palette.M3SurfaceContainerLowDark,
-        surfaceContainerHighest = Palette.M3SurfaceContainerDark,
-    )
+    val trueBlack: ColorScheme = dark.withTrueBlack()
 
     /** Monochrome, high-contrast chrome optimized for E-Ink refresh and legibility. */
     val eInk: ColorScheme = lightColorScheme(
@@ -145,18 +137,19 @@ object ColorSchemes {
     fun dynamic(context: Context, isDark: Boolean, darkVariant: DarkVariant): ColorScheme {
         if (!isDark) return dynamicLightColorScheme(context)
         val scheme = dynamicDarkColorScheme(context)
-        return if (darkVariant == DarkVariant.TRUE_BLACK) {
-            scheme.copy(
-                background = Palette.Amoled,
-                surface = Palette.Amoled,
-                surfaceContainerLowest = Palette.Amoled,
-                surfaceContainerLow = Palette.Amoled,
-                surfaceContainer = Palette.NearBlack,
-            )
-        } else {
-            scheme
-        }
+        return if (darkVariant == DarkVariant.TRUE_BLACK) scheme.withTrueBlack() else scheme
     }
+
+    /** Pure-black surfaces for OLED screens, laid over any dark scheme. */
+    private fun ColorScheme.withTrueBlack(): ColorScheme = copy(
+        background = Palette.Amoled,
+        surface = Palette.Amoled,
+        surfaceContainerLowest = Palette.Amoled,
+        surfaceContainerLow = Palette.Amoled,
+        surfaceContainer = Palette.NearBlack,
+        surfaceContainerHigh = Palette.M3SurfaceContainerLowDark,
+        surfaceContainerHighest = Palette.M3SurfaceContainerDark,
+    )
 
     fun forProfile(profile: DisplayProfile, isDark: Boolean, darkVariant: DarkVariant): ColorScheme = when {
         profile == DisplayProfile.E_INK -> eInk

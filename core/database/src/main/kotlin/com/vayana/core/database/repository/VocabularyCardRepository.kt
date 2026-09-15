@@ -39,8 +39,6 @@ interface VocabularyCardRepository {
     /** Cards due for review as of [now]. */
     fun observeDueCount(now: Long = System.currentTimeMillis()): Flow<Int>
 
-    suspend fun countDue(now: Long = System.currentTimeMillis()): Int
-
     /** The card for [word], ignoring case, or null when it hasn't been saved. */
     suspend fun findByWord(word: String): VocabularyCard?
 

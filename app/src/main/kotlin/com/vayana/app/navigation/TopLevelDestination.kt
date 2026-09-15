@@ -47,6 +47,9 @@ data object VocabularyReviewRoute
 data object LearnWordsRoute
 
 @Serializable
+data object HighlightReviewRoute
+
+@Serializable
 data object ShelvesRoute
 
 @Serializable

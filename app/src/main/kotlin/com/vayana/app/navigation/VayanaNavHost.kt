@@ -21,6 +21,7 @@ import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
 import com.vayana.feature.search.SearchRoute as SearchScreenRoute
 import com.vayana.feature.settings.DiagnosticsRoute as DiagnosticsScreenRoute
 import com.vayana.feature.settings.SettingsRoute as SettingsScreenRoute
+import com.vayana.feature.statistics.HighlightReviewRoute as HighlightReviewScreenRoute
 import com.vayana.feature.statistics.LearnWordsRoute as LearnWordsScreenRoute
 import com.vayana.feature.statistics.StatisticsRoute
 import com.vayana.feature.statistics.VocabularyReviewRoute as VocabularyReviewScreenRoute
@@ -64,10 +65,17 @@ fun VayanaNavHost(
             StatisticsRoute(
                 onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) },
                 onOpenLearnWords = { navController.navigate(LearnWordsRoute) },
+                onReviewHighlights = { navController.navigate(HighlightReviewRoute) },
             )
         }
         composable<VocabularyReviewRoute> {
             VocabularyReviewScreenRoute(onBack = { navController.popBackStack() })
+        }
+        composable<HighlightReviewRoute> {
+            HighlightReviewScreenRoute(
+                onBack = { navController.popBackStack() },
+                onOpenReader = { bookId, locator -> navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator)) },
+            )
         }
         composable<LearnWordsRoute> {
             LearnWordsScreenRoute(onBack = { navController.popBackStack() })

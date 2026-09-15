@@ -1,21 +1,33 @@
 package com.vayana.feature.notes
 
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.common.HighlightTags
+import com.vayana.core.common.KindleBookClippings
+import com.vayana.core.common.KindleClippingsParser
+import com.vayana.core.common.quoteMatchKey
+import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class BookNotesItem(
     val book: Book,
@@ -25,7 +37,12 @@ data class BookNotesItem(
 data class NotesUiState(
     val booksWithNotes: List<BookNotesItem> = emptyList(),
     val allAnnotations: List<Annotation> = emptyList(),
+    /** Every #tag used in a note, most used first. */
+    val tags: List<String> = emptyList(),
 )
+
+/** Outcome of a Kindle clippings import; all zero means the file had no clippings. */
+data class KindleImportResult(val added: Int, val duplicates: Int, val unmatchedBooks: Int)
 
 @HiltViewModel
 class NotesViewModel @Inject constructor(
@@ -58,11 +75,18 @@ class NotesViewModel @Inject constructor(
         NotesUiState(
             booksWithNotes = booksWithNotes,
             allAnnotations = annotations,
+            tags = annotations.flatMap { HighlightTags.parse(it.readerNote) }
+                .groupingBy { it }.eachCount()
+                .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .map { it.key },
         )
     }
         // Grouping every annotation by book re-runs on each book or annotation change; keep it off the main thread.
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotesUiState())
+
+    private val _kindleImportResult = MutableStateFlow<KindleImportResult?>(null)
+    val kindleImportResult: StateFlow<KindleImportResult?> = _kindleImportResult
 
     fun updateNote(annotation: Annotation, readerNote: String) {
         viewModelScope.launch {
@@ -91,4 +115,70 @@ class NotesViewModel @Inject constructor(
             annotationRepository.purge(annotationId)
         }
     }
+
+    /**
+     * Adds the highlights and notes of a Kindle "My Clippings.txt" to the library books they came from, matched by
+     * title. The reader places each highlight by finding its text; ones already in a book are skipped.
+     */
+    fun importKindleClippings(contentResolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            _kindleImportResult.value = withContext(Dispatchers.IO) {
+                val text = runCatchingCancellable {
+                    contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                }.getOrNull().orEmpty()
+                val clippings = KindleClippingsParser.parse(text)
+                if (clippings.isEmpty()) return@withContext KindleImportResult(0, 0, 0)
+                val booksByTitle = bookRepository.observeAll().first().groupBy { titleKey(it.title) }
+                val existingByBook = annotationRepository.observeAll().first().groupBy { it.bookId }
+                var duplicates = 0
+                var unmatched = 0
+                val now = System.currentTimeMillis()
+                val fresh = clippings.flatMap { bookClippings ->
+                    val book = booksByTitle[titleKey(bookClippings.title)]?.singleOrNull()
+                    if (book == null) {
+                        unmatched++
+                        return@flatMap emptyList()
+                    }
+                    val known = existingByBook[book.id].orEmpty()
+                        .mapTo(HashSet()) { quoteMatchKey(it.selectedText.ifBlank { it.readerNote.orEmpty() }) }
+                    bookClippings.toAnnotations(book.id, now).filter { annotation ->
+                        val key = quoteMatchKey(annotation.selectedText.ifBlank { annotation.readerNote.orEmpty() })
+                        (key.isNotEmpty() && known.add(key)).also { added -> if (!added) duplicates++ }
+                    }
+                }
+                annotationRepository.createAll(fresh)
+                KindleImportResult(added = fresh.size, duplicates = duplicates, unmatchedBooks = unmatched)
+            }
+        }
+    }
+
+    fun consumeKindleImportResult() {
+        _kindleImportResult.value = null
+    }
 }
+
+private fun KindleBookClippings.toAnnotations(bookId: Long, now: Long): List<Annotation> =
+    highlights.map { highlight ->
+        kindleAnnotation(bookId, AnnotationType.HIGHLIGHT, highlight.text, highlight.note, now)
+    } + looseNotes.map { note -> kindleAnnotation(bookId, AnnotationType.NOTE, "", note, now) }
+
+private fun kindleAnnotation(bookId: Long, type: AnnotationType, text: String, note: String?, now: Long) = Annotation(
+    id = 0,
+    bookId = bookId,
+    type = type,
+    colorKey = KindleHighlightColor,
+    // "text:" locators are placed by the reader by searching for the highlight's text.
+    locator = "text:kindle:${UUID.randomUUID()}",
+    chapterTitle = null,
+    chapterHref = null,
+    selectedText = text,
+    readerNote = note,
+    createdAt = now,
+    updatedAt = now,
+)
+
+/** Kindle titles often carry a subtitle or edition in brackets that the library copy doesn't. */
+private fun titleKey(title: String): String =
+    quoteMatchKey(title.substringBefore(':').substringBefore(" (").substringBefore(" ["))
+
+private const val KindleHighlightColor = "yellow"
