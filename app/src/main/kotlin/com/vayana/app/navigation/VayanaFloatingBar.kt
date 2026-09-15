@@ -50,8 +50,6 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import kotlin.math.roundToInt
 
-private const val PressedIconScale = 0.82f
-private const val LabelFadeThreshold = 0.35f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -61,20 +59,22 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
     val motionScheme = MaterialTheme.motionScheme
     val destinations = TopLevelDestination.entries
     val selectedFlags = destinations.map { destination -> currentDestination?.hasRoute(destination.routeClass) == true }
+    val selectedIndex = destinations.indexOfFirst { destination ->
+        currentDestination?.hasRoute(destination.routeClass) == true
+    }.let { if (it == -1) 0 else it }
 
-    // Animated values are kept as State and only read in layout/draw lambdas, so a tab switch
-    // re-measures and redraws the bar without recomposing it every frame.
+    // Animated values are kept as State and read in layout/draw lambdas to avoid recomposition.
     val spatialProgress: List<State<Float>> = selectedFlags.map { selected ->
         animateFloatAsState(
             targetValue = if (selected) 1f else 0f,
-            animationSpec = motionScheme.fastSpatialSpec(),
+            animationSpec = motionScheme.defaultSpatialSpec(),
             label = "floatingNavSpatialProgress",
         )
     }
     val effectsProgress: List<State<Float>> = selectedFlags.map { selected ->
         animateFloatAsState(
             targetValue = if (selected) 1f else 0f,
-            animationSpec = motionScheme.fastEffectsSpec(),
+            animationSpec = motionScheme.defaultEffectsSpec(),
             label = "floatingNavEffectsProgress",
         )
     }
@@ -82,6 +82,10 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
     val labelMaxWidth = Sizes.floatingNavSelectedItem - Spacing.lg - Sizes.icon - Spacing.sm - Spacing.lg
     val indicatorColor = colors.primary.copy(alpha = 0.16f)
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    // Invariant bar width: 1 selected tab + remaining unselected tabs + horizontal padding.
+    val totalContentWidth = Sizes.floatingNavSelectedItem + (Sizes.floatingNavUnselectedItem * (destinations.size - 1))
+    val totalBarWidth = totalContentWidth + (Spacing.xs * 2)
 
     BoxWithConstraints(
         modifier = modifier
@@ -91,21 +95,38 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
     ) {
         val alignBesideFab = currentDestination?.hasRoute(TopLevelRoute.Library::class) == true &&
             maxWidth < Sizes.floatingNavFabAlignmentBreakpoint
-        // 0 = start (beside the Library FAB), 0.5 = centered. Springs instead of snapping alignment.
+        // 0 = start (beside the Library FAB), 0.5 = centered. Springs smoothly with bouncy settle.
         val horizontalBias = animateFloatAsState(
             targetValue = if (alignBesideFab) 0f else 0.5f,
             animationSpec = motionScheme.defaultSpatialSpec(),
             label = "floatingNavHorizontalBias",
         )
 
+        val unselectedPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+            Sizes.floatingNavUnselectedItem.toPx()
+        }
+        val selectedPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+            Sizes.floatingNavSelectedItem.toPx()
+        }
+
+        // The indicator offset glides smoothly across tabs with spring physics.
+        val indicatorOffset = animateFloatAsState(
+            targetValue = selectedIndex * unselectedPx,
+            animationSpec = motionScheme.defaultSpatialSpec(),
+            label = "floatingNavIndicatorOffset",
+        )
+
         Surface(
-            modifier = Modifier.layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints.copy(minWidth = 0))
-                layout(constraints.maxWidth, placeable.height) {
-                    val x = ((constraints.maxWidth - placeable.width) * horizontalBias.value).roundToInt()
-                    placeable.placeRelative(x, 0)
-                }
-            },
+            modifier = Modifier
+                .widthIn(max = totalBarWidth)
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                    layout(constraints.maxWidth, placeable.height) {
+                        val availableSpace = (constraints.maxWidth - placeable.width).coerceAtLeast(0)
+                        val x = (availableSpace * horizontalBias.value).roundToInt()
+                        placeable.placeRelative(x, 0)
+                    }
+                },
             shape = CircleShape,
             color = colors.primaryContainer,
             shadowElevation = Elevations.shadowLarge,
@@ -115,40 +136,17 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                     .height(Sizes.floatingNavItem)
                     .padding(Spacing.xs)
                     .drawBehind {
-                        // Indicator follows the springing item widths exactly: its position is the
-                        // progress-weighted start of each item, so it never drifts off its tab mid-flight.
-                        val unselectedPx = Sizes.floatingNavUnselectedItem.toPx()
-                        val deltaPx = Sizes.floatingNavSelectedItem.toPx() - unselectedPx
-                        var itemStart = 0f
-                        var weight = 0f
-                        var indicatorStart = 0f
-                        var indicatorWidth = 0f
-                        var alpha = 0f
-                        spatialProgress.forEachIndexed { index, progressState ->
-                            val progress = progressState.value
-                            val itemWidth = unselectedPx + deltaPx * progress
-                            weight += progress
-                            indicatorStart += itemStart * progress
-                            indicatorWidth += itemWidth * progress
-                            alpha += effectsProgress[index].value
-                            itemStart += itemWidth
+                        val left = if (layoutDirection == LayoutDirection.Rtl) {
+                            size.width - indicatorOffset.value - selectedPx
+                        } else {
+                            indicatorOffset.value
                         }
-                        if (weight > 0.001f && alpha > 0.001f) {
-                            indicatorStart /= weight
-                            indicatorWidth /= weight
-                            val left = if (layoutDirection == LayoutDirection.Rtl) {
-                                size.width - indicatorStart - indicatorWidth
-                            } else {
-                                indicatorStart
-                            }
-                            drawRoundRect(
-                                color = indicatorColor,
-                                topLeft = Offset(left, 0f),
-                                size = Size(indicatorWidth, size.height),
-                                cornerRadius = CornerRadius(size.height / 2f),
-                                alpha = alpha.coerceIn(0f, 1f),
-                            )
-                        }
+                        drawRoundRect(
+                            color = indicatorColor,
+                            topLeft = Offset(left, 0f),
+                            size = Size(selectedPx, size.height),
+                            cornerRadius = CornerRadius(size.height / 2f),
+                        )
                     },
             ) {
                 Row(
@@ -162,24 +160,30 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                         val label = stringResource(destination.labelRes)
                         val interactionSource = remember { MutableInteractionSource() }
                         val pressed by interactionSource.collectIsPressedAsState()
-                        // Squish on press; release rides the expressive spring back past 1f for a pop.
-                        val iconScale = animateFloatAsState(
-                            targetValue = if (pressed) PressedIconScale else 1f,
+
+                        // Tactile press squish with expressive spring pop on release.
+                        val itemScale = animateFloatAsState(
+                            targetValue = if (pressed) 0.93f else 1f,
                             animationSpec = motionScheme.fastSpatialSpec(),
-                            label = "floatingNavIconScale",
+                            label = "floatingNavItemScale",
                         )
 
                         Box(
                             modifier = Modifier
                                 .height(itemHeight)
                                 .layout { measurable, constraints ->
-                                    val unselectedPx = Sizes.floatingNavUnselectedItem.toPx()
-                                    val deltaPx = Sizes.floatingNavSelectedItem.toPx() - unselectedPx
-                                    val width = (unselectedPx + deltaPx * spatial.value).roundToInt().coerceAtLeast(0)
+                                    val deltaPx = selectedPx - unselectedPx
+                                    val width = (unselectedPx + deltaPx * spatial.value.coerceIn(0f, 1.15f))
+                                        .roundToInt()
+                                        .coerceAtLeast(0)
                                     val placeable = measurable.measure(Constraints.fixed(width, constraints.maxHeight))
                                     layout(width, placeable.height) { placeable.placeRelative(0, 0) }
                                 }
                                 .clip(CircleShape)
+                                .graphicsLayer {
+                                    scaleX = itemScale.value
+                                    scaleY = itemScale.value
+                                }
                                 .selectable(
                                     selected = selected,
                                     interactionSource = interactionSource,
@@ -198,8 +202,6 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                                 tint = colors.onPrimaryContainer,
                                 modifier = iconModifier.graphicsLayer {
                                     alpha = (1f - effects.value).coerceIn(0f, 1f)
-                                    scaleX = iconScale.value
-                                    scaleY = iconScale.value
                                 },
                             )
                             Icon(
@@ -208,8 +210,6 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                                 tint = colors.onPrimaryContainer,
                                 modifier = iconModifier.graphicsLayer {
                                     alpha = effects.value.coerceIn(0f, 1f)
-                                    scaleX = iconScale.value
-                                    scaleY = iconScale.value
                                 },
                             )
                             Text(
@@ -221,14 +221,11 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                                 modifier = Modifier
                                     .align(Alignment.CenterStart)
                                     .padding(start = Spacing.lg + Sizes.icon + Spacing.sm)
-                                    // Constant measure constraints: text layout is cached while the item width springs.
                                     .wrapContentWidth(Alignment.Start, unbounded = true)
                                     .widthIn(max = labelMaxWidth)
                                     .graphicsLayer {
-                                        val progress = ((effects.value - LabelFadeThreshold) / (1f - LabelFadeThreshold))
-                                            .coerceIn(0f, 1f)
-                                        alpha = progress
-                                        val slide = Spacing.sm.toPx() * (1f - spatial.value.coerceIn(0f, 1f))
+                                        alpha = effects.value.coerceIn(0f, 1f)
+                                        val slide = Spacing.sm.toPx() * (1f - spatial.value).coerceIn(-0.2f, 1f)
                                         translationX = if (isRtl) slide else -slide
                                     }
                                     .then(if (selected) Modifier else Modifier.clearAndSetSemantics { }),

@@ -183,63 +183,75 @@ fun <S> vayanaContentTransform(): AnimatedContentTransitionScope<S>.() -> Conten
     }
 }
 
-fun vayanaNavTabEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme, direction: Int): EnterTransition = when {
-    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
-    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
+fun vayanaNavTabEnter(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme, direction: Int): EnterTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> EnterTransition.None
+    motionSetting == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.defaultEffectsSpec()) +
         slideInHorizontally(
-            animationSpec = scheme.slowSpatialSpec(),
-            initialOffsetX = { fullWidth -> fullWidth / 8 * direction },
+            animationSpec = scheme.defaultSpatialSpec(),
+            initialOffsetX = { fullWidth -> fullWidth / 14 * direction },
+        ) + scaleIn(
+            initialScale = 0.98f,
+            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
-fun vayanaNavTabExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme, direction: Int): ExitTransition = when {
-    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
-    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
+fun vayanaNavTabExit(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme, direction: Int): ExitTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> ExitTransition.None
+    motionSetting == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.defaultEffectsSpec()) +
         slideOutHorizontally(
-            animationSpec = scheme.slowSpatialSpec(),
-            targetOffsetX = { fullWidth -> -fullWidth / 8 * direction },
+            animationSpec = scheme.defaultSpatialSpec(),
+            targetOffsetX = { fullWidth -> -fullWidth / 14 * direction },
+        ) + scaleOut(
+            targetScale = 0.98f,
+            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
-fun vayanaNavEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
-    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
-    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
+fun vayanaNavEnter(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme): EnterTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> EnterTransition.None
+    motionSetting == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.defaultEffectsSpec()) +
         slideInHorizontally(
-            animationSpec = scheme.slowSpatialSpec(),
-            initialOffsetX = { fullWidth -> fullWidth / 6 },
+            animationSpec = scheme.defaultSpatialSpec(),
+            initialOffsetX = { fullWidth -> fullWidth / 8 },
         )
 }
 
-fun vayanaNavExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): ExitTransition = when {
-    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
-    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
+fun vayanaNavExit(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme): ExitTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> ExitTransition.None
+    motionSetting == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.defaultEffectsSpec()) +
         slideOutHorizontally(
-            animationSpec = scheme.slowSpatialSpec(),
-            targetOffsetX = { fullWidth -> -fullWidth / 6 },
+            animationSpec = scheme.defaultSpatialSpec(),
+            targetOffsetX = { fullWidth -> -fullWidth / 12 },
+        ) + scaleOut(
+            targetScale = 0.96f,
+            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
-fun vayanaNavPopEnter(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): EnterTransition = when {
-    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> EnterTransition.None
-    motion == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeIn(animationSpec = scheme.slowEffectsSpec()) +
+fun vayanaNavPopEnter(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme): EnterTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> EnterTransition.None
+    motionSetting == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeIn(animationSpec = scheme.defaultEffectsSpec()) +
         slideInHorizontally(
-            animationSpec = scheme.slowSpatialSpec(),
-            initialOffsetX = { fullWidth -> -fullWidth / 6 },
+            animationSpec = scheme.defaultSpatialSpec(),
+            initialOffsetX = { fullWidth -> -fullWidth / 12 },
+        ) + scaleIn(
+            initialScale = 0.96f,
+            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
-fun vayanaNavPopExit(profile: DisplayProfile, motion: MotionSetting, scheme: MotionScheme): ExitTransition = when {
-    profile == DisplayProfile.E_INK || motion == MotionSetting.OFF -> ExitTransition.None
-    motion == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
-    else -> fadeOut(animationSpec = scheme.slowEffectsSpec()) +
+fun vayanaNavPopExit(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme): ExitTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> ExitTransition.None
+    motionSetting == MotionSetting.REDUCED -> fadeOut(animationSpec = scheme.fastEffectsSpec())
+    else -> fadeOut(animationSpec = scheme.defaultEffectsSpec()) +
         slideOutHorizontally(
-            animationSpec = scheme.slowSpatialSpec(),
-            targetOffsetX = { fullWidth -> fullWidth / 6 },
+            animationSpec = scheme.defaultSpatialSpec(),
+            targetOffsetX = { fullWidth -> fullWidth / 8 },
         )
 }
 
