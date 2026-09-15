@@ -95,7 +95,7 @@ data class SettingsSnapshot(
     val displayProfile: DisplayProfile = DisplayProfile.STANDARD,
     val darkVariant: DarkVariant = DarkVariant.STANDARD,
     val motionSetting: MotionSetting = MotionSetting.FULL,
-    val navigationMode: NavigationMode = NavigationMode.BOTTOM_BAR,
+    val navigationMode: NavigationMode = NavigationMode.FLOATING_BAR,
     val readerFontSizePercent: Int = 100,
     val readerLineHeight: Float = 1.5f,
     val readerFontFamily: ReaderFontFamily = ReaderFontFamily.SERIF,
@@ -217,7 +217,7 @@ object SettingsRegistry {
     val NavigationMode: ChoiceSetting<com.vayana.core.datastore.settings.NavigationMode> =
         ChoiceSetting<com.vayana.core.datastore.settings.NavigationMode>(
         key = "appearance.navigation_mode",
-        defaultValue = com.vayana.core.datastore.settings.NavigationMode.BOTTOM_BAR,
+        defaultValue = com.vayana.core.datastore.settings.NavigationMode.FLOATING_BAR,
         titleRes = R.string.settings_navigation_mode_title,
         subtitleRes = R.string.settings_navigation_mode_subtitle,
         group = SettingsGroup.APPEARANCE,
