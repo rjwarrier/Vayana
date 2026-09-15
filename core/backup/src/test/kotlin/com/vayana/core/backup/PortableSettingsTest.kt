@@ -23,6 +23,7 @@ class PortableSettingsTest {
         assertFalse(SettingsRegistry.GithubSyncPassphrase.key in PortableSettings.allowlist)
         assertFalse("appearance.display_profile" in PortableSettings.allowlist)
         assertFalse("appearance.motion" in PortableSettings.allowlist)
+        assertFalse(SettingsRegistry.NavigationMode.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.ReaderVolumeKeys.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.ReaderKeepAwake.key in PortableSettings.allowlist)
         assertFalse(SettingsRegistry.LandscapeTwoColumnLayout.key in PortableSettings.allowlist)

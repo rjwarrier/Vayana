@@ -134,6 +134,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         displayProfile = read(SettingsRegistry.DisplayProfile),
         darkVariant = read(SettingsRegistry.DarkVariant),
         motionSetting = read(SettingsRegistry.Motion),
+        navigationMode = read(SettingsRegistry.NavigationMode),
         readerFontSizePercent = read(SettingsRegistry.ReaderFontSize),
         readerLineHeight = read(SettingsRegistry.ReaderLineHeight),
         readerFontFamily = read(SettingsRegistry.ReaderFontFamily),

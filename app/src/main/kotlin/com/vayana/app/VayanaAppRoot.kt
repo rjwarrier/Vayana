@@ -21,12 +21,15 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.window.core.layout.WindowSizeClass
+import com.vayana.app.navigation.NavigationPresentation
 import com.vayana.app.navigation.ReaderRoute
 import com.vayana.app.navigation.TopLevelRoute
-import com.vayana.core.datastore.settings.StartScreen
 import com.vayana.app.navigation.VayanaBottomBar
+import com.vayana.app.navigation.VayanaFloatingBar
 import com.vayana.app.navigation.VayanaNavHost
 import com.vayana.app.navigation.VayanaNavigationRail
+import com.vayana.app.navigation.resolveNavigationPresentation
+import com.vayana.core.datastore.settings.StartScreen
 import com.vayana.core.designsystem.theme.VayanaTheme
 import com.vayana.feature.onboarding.OnboardingRoute
 
@@ -68,15 +71,21 @@ fun VayanaAppRoot() {
 
         val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
         val useNavigationRail = windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+        val navigationPresentation = resolveNavigationPresentation(
+            showNavigation = showNavigation,
+            useNavigationRail = useNavigationRail,
+            displayProfile = settings.displayProfile,
+            navigationMode = settings.navigationMode,
+        )
 
         if (useNavigationRail) {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    if (showNavigation) VayanaNavigationRail(navController)
+                    if (navigationPresentation == NavigationPresentation.Rail) VayanaNavigationRail(navController)
                     VayanaNavHost(
                         navController = navController,
                         startDestination = startDestination,
-                        modifier = if (showNavigation) {
+                        modifier = if (navigationPresentation == NavigationPresentation.Rail) {
                             Modifier.fillMaxSize().safeDrawingPadding()
                         } else {
                             Modifier.fillMaxSize()
@@ -86,13 +95,24 @@ fun VayanaAppRoot() {
             }
         } else {
             Scaffold(
-                bottomBar = { if (showNavigation) VayanaBottomBar(navController) },
+                bottomBar = {
+                    when (navigationPresentation) {
+                        NavigationPresentation.BottomBar -> VayanaBottomBar(navController)
+                        NavigationPresentation.FloatingBar -> VayanaFloatingBar(navController)
+                        NavigationPresentation.Hidden,
+                        NavigationPresentation.Rail -> Unit
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.background,
             ) { innerPadding ->
                 VayanaNavHost(
                     navController = navController,
                     startDestination = startDestination,
-                    modifier = if (showNavigation) Modifier.padding(innerPadding) else Modifier,
+                    modifier = if (navigationPresentation != NavigationPresentation.Hidden) {
+                        Modifier.padding(innerPadding)
+                    } else {
+                        Modifier
+                    },
                 )
             }
         }

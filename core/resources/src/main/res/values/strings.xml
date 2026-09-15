@@ -666,6 +666,10 @@
     <string name="settings_motion_full">Full</string>
     <string name="settings_motion_reduced">Reduced</string>
     <string name="settings_motion_off">Off</string>
+    <string name="settings_navigation_mode_title">Navigation style</string>
+    <string name="settings_navigation_mode_subtitle">Choose the compact phone navigation control. Tablets still use the side rail.</string>
+    <string name="settings_navigation_mode_bottom_bar">Bottom bar</string>
+    <string name="settings_navigation_mode_floating_bar">Floating bar</string>
     <string name="settings_reader_font_size_title">Font size</string>
     <string name="settings_reader_font_size_subtitle">Scale book text in the reader.</string>
     <string name="settings_reader_line_height_title">Line height</string>

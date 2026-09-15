@@ -1106,6 +1106,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.DisplayProfile -> displayProfile
     SettingsRegistry.DarkVariant -> darkVariant
     SettingsRegistry.Motion -> motionSetting
+    SettingsRegistry.NavigationMode -> navigationMode
     SettingsRegistry.ReaderFontSize -> readerFontSizePercent
     SettingsRegistry.ReaderLineHeight -> readerLineHeight
     SettingsRegistry.ReaderFontFamily -> readerFontFamily
@@ -1163,6 +1164,7 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.DisplayProfile -> "display profile eink e ink contrast screen"
         SettingsRegistry.DarkVariant -> "dark black oled softer night theme"
         SettingsRegistry.Motion -> "motion animation reduce transitions"
+        SettingsRegistry.NavigationMode -> "navigation mode bottom bar floating bar panel tabs"
         SettingsRegistry.ReaderFontSize -> "reader font size text scale typography"
         SettingsRegistry.ReaderLineHeight -> "reader line height spacing text typography"
         SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono custom imported font typography"

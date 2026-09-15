@@ -95,6 +95,7 @@ data class SettingsSnapshot(
     val displayProfile: DisplayProfile = DisplayProfile.STANDARD,
     val darkVariant: DarkVariant = DarkVariant.STANDARD,
     val motionSetting: MotionSetting = MotionSetting.FULL,
+    val navigationMode: NavigationMode = NavigationMode.BOTTOM_BAR,
     val readerFontSizePercent: Int = 100,
     val readerLineHeight: Float = 1.5f,
     val readerFontFamily: ReaderFontFamily = ReaderFontFamily.SERIF,
@@ -150,6 +151,8 @@ enum class ReaderTheme { SYSTEM, LIGHT, PAPER, SEPIA, MINT, SKY, ROSE, DARK, OLE
 enum class TapZoneMode { THREE_ZONE }
 
 enum class DefaultCoverSource { YOURS, GOODREADS }
+
+enum class NavigationMode { BOTTOM_BAR, FLOATING_BAR }
 
 /** Where the app opens. [LAST_BOOK] opens the library with the most recently read book on top of it. */
 enum class StartScreen { LIBRARY, NOTES, STATISTICS, LAST_BOOK }
@@ -209,6 +212,18 @@ object SettingsRegistry {
             ChoiceOption(com.vayana.core.designsystem.theme.MotionSetting.FULL, R.string.settings_motion_full),
             ChoiceOption(com.vayana.core.designsystem.theme.MotionSetting.REDUCED, R.string.settings_motion_reduced),
             ChoiceOption(com.vayana.core.designsystem.theme.MotionSetting.OFF, R.string.settings_motion_off),
+        ),
+    )
+    val NavigationMode: ChoiceSetting<com.vayana.core.datastore.settings.NavigationMode> =
+        ChoiceSetting<com.vayana.core.datastore.settings.NavigationMode>(
+        key = "appearance.navigation_mode",
+        defaultValue = com.vayana.core.datastore.settings.NavigationMode.BOTTOM_BAR,
+        titleRes = R.string.settings_navigation_mode_title,
+        subtitleRes = R.string.settings_navigation_mode_subtitle,
+        group = SettingsGroup.APPEARANCE,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.NavigationMode>>(
+            ChoiceOption(com.vayana.core.datastore.settings.NavigationMode.BOTTOM_BAR, R.string.settings_navigation_mode_bottom_bar),
+            ChoiceOption(com.vayana.core.datastore.settings.NavigationMode.FLOATING_BAR, R.string.settings_navigation_mode_floating_bar),
         ),
     )
     val ReaderFontSize: IntSetting = IntSetting(
@@ -585,6 +600,7 @@ object SettingsRegistry {
         DarkVariant,
         DynamicColor,
         DisplayProfile,
+        NavigationMode,
         Motion,
         EinkRefreshEveryPages,
         DateFormat,
