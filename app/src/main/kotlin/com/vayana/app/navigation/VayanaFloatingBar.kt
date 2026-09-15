@@ -3,16 +3,17 @@ package com.vayana.app.navigation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -49,7 +51,6 @@ import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import kotlin.math.roundToInt
-
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -79,29 +80,19 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
         )
     }
     val itemHeight = Sizes.floatingNavItem - (Spacing.xs * 2)
-    val labelMaxWidth = Sizes.floatingNavSelectedItem - Spacing.lg - Sizes.icon - Spacing.sm - Spacing.lg
     val indicatorColor = colors.primary.copy(alpha = 0.16f)
-    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
     // Invariant bar width: 1 selected tab + remaining unselected tabs + horizontal padding.
     val totalContentWidth = Sizes.floatingNavSelectedItem + (Sizes.floatingNavUnselectedItem * (destinations.size - 1))
     val totalBarWidth = totalContentWidth + (Spacing.xs * 2)
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = Spacing.lg, vertical = Spacing.lg),
+        contentAlignment = Alignment.Center,
     ) {
-        val alignBesideFab = currentDestination?.hasRoute(TopLevelRoute.Library::class) == true &&
-            maxWidth < Sizes.floatingNavFabAlignmentBreakpoint
-        // 0 = start (beside the Library FAB), 0.5 = centered. Springs smoothly with bouncy settle.
-        val horizontalBias = animateFloatAsState(
-            targetValue = if (alignBesideFab) 0f else 0.5f,
-            animationSpec = motionScheme.defaultSpatialSpec(),
-            label = "floatingNavHorizontalBias",
-        )
-
         val unselectedPx = with(androidx.compose.ui.platform.LocalDensity.current) {
             Sizes.floatingNavUnselectedItem.toPx()
         }
@@ -117,16 +108,7 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
         )
 
         Surface(
-            modifier = Modifier
-                .widthIn(max = totalBarWidth)
-                .layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints.copy(minWidth = 0))
-                    layout(constraints.maxWidth, placeable.height) {
-                        val availableSpace = (constraints.maxWidth - placeable.width).coerceAtLeast(0)
-                        val x = (availableSpace * horizontalBias.value).roundToInt()
-                        placeable.placeRelative(x, 0)
-                    }
-                },
+            modifier = Modifier.width(totalBarWidth),
             shape = CircleShape,
             color = colors.primaryContainer,
             shadowElevation = Elevations.shadowLarge,
@@ -191,45 +173,64 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                                     role = Role.Tab,
                                     onClick = { navController.navigateToTopLevel(destination.route) },
                                 ),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            val iconModifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .padding(start = Spacing.lg)
-                                .size(Sizes.icon)
-                            Icon(
-                                imageVector = destination.unselectedIcon,
-                                contentDescription = if (selected) null else label,
-                                tint = colors.onPrimaryContainer,
-                                modifier = iconModifier.graphicsLayer {
-                                    alpha = (1f - effects.value).coerceIn(0f, 1f)
-                                },
-                            )
-                            Icon(
-                                imageVector = destination.selectedIcon,
-                                contentDescription = null,
-                                tint = colors.onPrimaryContainer,
-                                modifier = iconModifier.graphicsLayer {
-                                    alpha = effects.value.coerceIn(0f, 1f)
-                                },
-                            )
-                            Text(
-                                text = label,
-                                color = colors.onPrimaryContainer,
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .align(Alignment.CenterStart)
-                                    .padding(start = Spacing.lg + Sizes.icon + Spacing.sm)
-                                    .wrapContentWidth(Alignment.Start, unbounded = true)
-                                    .widthIn(max = labelMaxWidth)
-                                    .graphicsLayer {
-                                        alpha = effects.value.coerceIn(0f, 1f)
-                                        val slide = Spacing.sm.toPx() * (1f - spatial.value).coerceIn(-0.2f, 1f)
-                                        translationX = if (isRtl) slide else -slide
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.wrapContentSize(Alignment.Center),
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(Sizes.icon),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = destination.unselectedIcon,
+                                        contentDescription = if (selected) null else label,
+                                        tint = colors.onPrimaryContainer,
+                                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                                            alpha = (1f - effects.value).coerceIn(0f, 1f)
+                                        },
+                                    )
+                                    Icon(
+                                        imageVector = destination.selectedIcon,
+                                        contentDescription = null,
+                                        tint = colors.onPrimaryContainer,
+                                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                                            alpha = effects.value.coerceIn(0f, 1f)
+                                        },
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .layout { measurable, constraints ->
+                                            val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                                            val animatedWidth = (placeable.width * spatial.value.coerceIn(0f, 1f)).roundToInt()
+                                            layout(animatedWidth, placeable.height) {
+                                                placeable.placeRelative(0, 0)
+                                            }
+                                        }
+                                        .clipToBounds()
+                                        .graphicsLayer {
+                                            alpha = effects.value.coerceIn(0f, 1f)
+                                        },
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(start = Spacing.sm),
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = colors.onPrimaryContainer,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Clip,
+                                            softWrap = false,
+                                            modifier = Modifier.then(if (selected) Modifier else Modifier.clearAndSetSemantics { }),
+                                        )
                                     }
-                                    .then(if (selected) Modifier else Modifier.clearAndSetSemantics { }),
-                            )
+                                }
+                            }
                         }
                     }
                 }
