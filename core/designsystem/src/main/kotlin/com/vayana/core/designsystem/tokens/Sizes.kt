@@ -18,6 +18,8 @@ object Sizes {
     val menuItemLargeHeight = 64.dp
     val bottomNavHeight = 80.dp
     val floatingNavHostHeight = 96.dp
+    val floatingNavItem = 64.dp
+    val floatingNavIndicatorInset = 2.dp
     val topBarHeight = 56.dp
     val statusBarHeight = 44.dp
 
