@@ -1,5 +1,6 @@
 package com.vayana.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -9,6 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -16,6 +18,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -31,6 +35,9 @@ import com.vayana.app.navigation.VayanaNavigationRail
 import com.vayana.app.navigation.resolveNavigationPresentation
 import com.vayana.core.datastore.settings.StartScreen
 import com.vayana.core.designsystem.theme.VayanaTheme
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
+import com.vayana.core.designsystem.tokens.Sizes
+import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.feature.onboarding.OnboardingRoute
 
 @Composable
@@ -96,24 +103,35 @@ fun VayanaAppRoot() {
         } else {
             Scaffold(
                 bottomBar = {
-                    when (navigationPresentation) {
-                        NavigationPresentation.BottomBar -> VayanaBottomBar(navController)
-                        NavigationPresentation.FloatingBar -> VayanaFloatingBar(navController)
-                        NavigationPresentation.Hidden,
-                        NavigationPresentation.Rail -> Unit
-                    }
+                    if (navigationPresentation == NavigationPresentation.BottomBar) VayanaBottomBar(navController)
                 },
                 containerColor = MaterialTheme.colorScheme.background,
             ) { innerPadding ->
-                VayanaNavHost(
-                    navController = navController,
-                    startDestination = startDestination,
-                    modifier = if (navigationPresentation != NavigationPresentation.Hidden) {
-                        Modifier.padding(innerPadding)
-                    } else {
-                        Modifier
-                    },
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    CompositionLocalProvider(
+                        LocalFloatingNavigationInset provides if (navigationPresentation == NavigationPresentation.FloatingBar) {
+                            Sizes.floatingNavItem + Spacing.xxl
+                        } else {
+                            0.dp
+                        },
+                    ) {
+                        VayanaNavHost(
+                            navController = navController,
+                            startDestination = startDestination,
+                            modifier = when (navigationPresentation) {
+                                NavigationPresentation.FloatingBar ->
+                                    Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding())
+                                NavigationPresentation.BottomBar ->
+                                    Modifier.fillMaxSize().padding(innerPadding)
+                                NavigationPresentation.Hidden,
+                                NavigationPresentation.Rail -> Modifier.fillMaxSize()
+                            },
+                        )
+                    }
+                    if (navigationPresentation == NavigationPresentation.FloatingBar) {
+                        VayanaFloatingBar(navController, modifier = Modifier.align(Alignment.BottomCenter))
+                    }
+                }
             }
         }
     }

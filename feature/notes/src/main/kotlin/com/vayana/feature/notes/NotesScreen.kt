@@ -92,6 +92,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.resources.R
 import java.io.File
 import com.vayana.core.designsystem.theme.asAppDate
@@ -493,7 +494,7 @@ private fun BooksWithNotesList(
             start = Paddings.screenHorizontal,
             end = Paddings.screenHorizontal,
             top = contentPadding.calculateTopPadding() + Spacing.sm,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -755,7 +756,7 @@ private fun BookNotesDetailList(
             start = Paddings.screenHorizontal,
             end = Paddings.screenHorizontal,
             top = contentPadding.calculateTopPadding() + Spacing.sm,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.xl,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {

@@ -57,6 +57,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.resources.R
 import java.io.File
 
@@ -108,7 +109,10 @@ private fun ShelvesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
+            FloatingActionButton(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier.padding(bottom = LocalFloatingNavigationInset.current),
+            ) {
                 Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.library_shelves_create))
             }
         },
@@ -122,7 +126,7 @@ private fun ShelvesScreen(
                     start = Paddings.screenHorizontal,
                     end = Paddings.screenHorizontal,
                     top = innerPadding.calculateTopPadding() + Spacing.sm,
-                    bottom = innerPadding.calculateBottomPadding() + Spacing.xl,
+                    bottom = innerPadding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
                 ),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
@@ -366,7 +370,7 @@ private fun ShelfDetailScreen(
                     start = Paddings.screenHorizontal,
                     end = Paddings.screenHorizontal,
                     top = innerPadding.calculateTopPadding() + Spacing.sm,
-                    bottom = innerPadding.calculateBottomPadding() + Spacing.xl,
+                    bottom = innerPadding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
                 ),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),

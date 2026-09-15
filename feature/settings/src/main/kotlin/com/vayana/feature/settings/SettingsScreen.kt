@@ -86,6 +86,7 @@ import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Elevations
@@ -521,7 +522,7 @@ private fun SettingsHub(
             start = SettingsPagePadding,
             top = contentPadding.calculateTopPadding() + SettingsPagePadding,
             end = SettingsPagePadding,
-            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
+            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
     ) {
@@ -596,7 +597,7 @@ private fun SettingsGroupDetail(
             start = SettingsPagePadding,
             top = contentPadding.calculateTopPadding() + SettingsPagePadding,
             end = SettingsPagePadding,
-            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
+            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
     ) {

@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,14 +46,16 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
     val colors = MaterialTheme.colorScheme
     val motionSetting = LocalMotionSetting.current
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = Spacing.lg, vertical = Spacing.lg),
-        contentAlignment = Alignment.Center,
     ) {
+        val alignBesideFab = currentDestination?.hasRoute(TopLevelRoute.Library::class) == true &&
+            maxWidth < Sizes.floatingNavFabAlignmentBreakpoint
         Surface(
+            modifier = Modifier.align(if (alignBesideFab) Alignment.CenterStart else Alignment.Center),
             shape = CircleShape,
             color = colors.primaryContainer,
             shadowElevation = Elevations.shadowLarge,
@@ -81,8 +84,8 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                         },
                         label = "floatingNavSelectionProgress",
                     )
-                    val itemWidth = Sizes.floatingNavItem +
-                        (Sizes.floatingNavSelectedItem - Sizes.floatingNavItem) * progress
+                    val itemWidth = Sizes.floatingNavUnselectedItem +
+                        (Sizes.floatingNavSelectedItem - Sizes.floatingNavUnselectedItem) * progress
                     val label = stringResource(destination.labelRes)
 
                     Box(
@@ -103,7 +106,7 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                             tint = colors.onPrimaryContainer,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
-                                .padding(start = Spacing.lg + Spacing.xs)
+                                .padding(start = Spacing.lg)
                                 .size(Sizes.icon),
                         )
                         Text(
@@ -114,7 +117,7 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
-                                .padding(start = Spacing.lg + Spacing.xs + Sizes.icon + Spacing.sm)
+                                .padding(start = Spacing.lg + Sizes.icon + Spacing.sm)
                                 .graphicsLayer {
                                     alpha = ((progress - 0.35f) / 0.65f).coerceIn(0f, 1f)
                                 }

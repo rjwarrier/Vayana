@@ -61,6 +61,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.time.LocalDate
@@ -144,7 +145,7 @@ private fun StatisticsDashboard(
             start = Paddings.screenHorizontal,
             top = contentPadding.calculateTopPadding() + Spacing.md,
             end = Paddings.screenHorizontal,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.md,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.md + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {

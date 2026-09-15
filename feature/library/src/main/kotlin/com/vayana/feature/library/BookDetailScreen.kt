@@ -97,6 +97,7 @@ import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
@@ -460,6 +461,7 @@ private fun BookDetailScreen(
         floatingActionButton = {
             if (book != null) {
                 Column(
+                    modifier = Modifier.padding(bottom = LocalFloatingNavigationInset.current),
                     verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {

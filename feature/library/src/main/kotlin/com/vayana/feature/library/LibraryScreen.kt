@@ -102,6 +102,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Elevations
@@ -930,14 +931,17 @@ private fun LibrarySyncStatusBadge(
 }
 
 @Composable
-private fun LibraryAddFab(onImportFiles: () -> Unit, onImportFolder: () -> Unit) {
+private fun LibraryAddFab(
+    onImportFiles: () -> Unit,
+    onImportFolder: () -> Unit,
+) {
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column {
         FloatingActionButton(
             onClick = { menuExpanded = true },
-            modifier = Modifier.size(Sizes.fabLarge),
-            shape = RoundedCornerShape(Radii.largeIncreased),
+            modifier = Modifier.size(Sizes.fab),
+            shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
@@ -1028,7 +1032,7 @@ private fun LibraryGrid(
             start = Paddings.screenHorizontal,
             end = Paddings.screenHorizontal,
             top = contentPadding.calculateTopPadding() + Spacing.md,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.md,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.md + LocalFloatingNavigationInset.current,
         ),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
@@ -1123,7 +1127,7 @@ private fun LibraryList(
             start = Paddings.screenHorizontal,
             end = Paddings.screenHorizontal,
             top = contentPadding.calculateTopPadding() + Spacing.md,
-            bottom = contentPadding.calculateBottomPadding() + Spacing.md,
+            bottom = contentPadding.calculateBottomPadding() + Spacing.md + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {

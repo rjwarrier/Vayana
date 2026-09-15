@@ -22,7 +22,7 @@
 
     <string name="nav_library">Library</string>
     <string name="nav_notes">Notes</string>
-    <string name="nav_statistics">Statistics</string>
+    <string name="nav_statistics">Stats</string>
 
     <string name="search_title">Search</string>
     <string name="search_back_content_description">Back</string>
