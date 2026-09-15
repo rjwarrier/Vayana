@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.HighlightTags
 import com.vayana.core.common.KindleBookClippings
 import com.vayana.core.common.KindleClippingsParser
@@ -18,7 +19,6 @@ import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +49,7 @@ class NotesViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val bookRepository: BookRepository,
     private val storageRoots: StorageRoots,
+    private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
     val uiState: StateFlow<NotesUiState> = combine(
         bookRepository.observeAll(),
@@ -82,7 +83,7 @@ class NotesViewModel @Inject constructor(
         )
     }
         // Grouping every annotation by book re-runs on each book or annotation change; keep it off the main thread.
-        .flowOn(Dispatchers.Default)
+        .flowOn(dispatchers.default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotesUiState())
 
     private val _kindleImportResult = MutableStateFlow<KindleImportResult?>(null)
@@ -122,7 +123,7 @@ class NotesViewModel @Inject constructor(
      */
     fun importKindleClippings(contentResolver: ContentResolver, uri: Uri) {
         viewModelScope.launch {
-            _kindleImportResult.value = withContext(Dispatchers.IO) {
+            _kindleImportResult.value = withContext(dispatchers.io) {
                 val text = runCatchingCancellable {
                     contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                 }.getOrNull().orEmpty()

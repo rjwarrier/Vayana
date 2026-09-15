@@ -51,6 +51,10 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import com.vayana.core.common.ShareImageFormat
+import androidx.compose.ui.res.stringResource
+import com.vayana.core.resources.R
+import com.vayana.core.common.shareText
+import com.vayana.core.common.QuoteCitation
 import com.vayana.core.common.shareBitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.scale
@@ -200,6 +204,41 @@ fun ShareCardDialog(
                 }
             }
         }
+    }
+}
+
+/** A quote in the [QuoteShareCard] preview, shared as an image or as a cited text quote. */
+@Composable
+fun QuoteShareDialog(
+    text: String,
+    author: String?,
+    bookTitle: String?,
+    chapterTitle: String?,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val textChooserTitle = stringResource(R.string.share_card_share_text)
+    ShareCardDialog(
+        onDismiss = onDismiss,
+        onShareText = {
+            context.shareText(
+                QuoteCitation.format(text = text, author = author, bookTitle = bookTitle, chapterTitle = chapterTitle),
+                textChooserTitle,
+            )
+            onDismiss()
+        },
+        chooserTitle = stringResource(R.string.share_card_image_chooser_title),
+        shareTextLabel = textChooserTitle,
+        shareImageLabel = stringResource(R.string.share_card_share_image),
+    ) {
+        QuoteShareCard(
+            text = text,
+            author = author,
+            bookTitle = bookTitle,
+            pageLabel = chapterTitle,
+            watermark = stringResource(R.string.share_card_watermark),
+            footerRight = stringResource(R.string.share_card_tagline),
+        )
     }
 }
 

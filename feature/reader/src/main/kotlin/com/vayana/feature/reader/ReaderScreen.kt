@@ -138,8 +138,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.vayana.core.common.QuoteCitation
-import com.vayana.core.designsystem.sharecard.QuoteShareCard
-import com.vayana.core.designsystem.sharecard.ShareCardDialog
+import com.vayana.core.designsystem.sharecard.QuoteShareDialog
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.datastore.settings.FloatSetting
@@ -1056,32 +1055,13 @@ private fun ReaderScreen(
     }
 
     sharingSelection?.let { share ->
-        ShareCardDialog(
+        QuoteShareDialog(
+            text = share.text,
+            author = share.author,
+            bookTitle = share.bookTitle,
+            chapterTitle = share.chapterTitle,
             onDismiss = { sharingSelection = null },
-            onShareText = {
-                context.shareText(
-                    QuoteCitation.format(
-                        text = share.text,
-                        author = share.author,
-                        bookTitle = share.bookTitle,
-                        chapterTitle = share.chapterTitle,
-                    ),
-                )
-                sharingSelection = null
-            },
-            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
-            shareTextLabel = stringResource(R.string.share_card_share_text),
-            shareImageLabel = stringResource(R.string.share_card_share_image),
-        ) {
-            QuoteShareCard(
-                text = share.text,
-                author = share.author,
-                bookTitle = share.bookTitle,
-                pageLabel = share.chapterTitle,
-                watermark = stringResource(R.string.share_card_watermark),
-                footerRight = stringResource(R.string.share_card_tagline),
-            )
-        }
+        )
     }
 
     if (readingPositionPrompt != null) {
@@ -2695,10 +2675,3 @@ private fun Context.copyTextToClipboard(text: String) {
     clipboardManager.setPrimaryClip(clip)
 }
 
-private fun Context.shareText(text: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    startActivity(Intent.createChooser(intent, getString(R.string.reader_selection_share)))
-}

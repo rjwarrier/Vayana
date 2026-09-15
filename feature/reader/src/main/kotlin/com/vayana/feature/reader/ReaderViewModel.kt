@@ -1077,7 +1077,12 @@ class ReaderViewModel @Inject constructor(
             val candidates = if (type == AnnotationType.NOTE) {
                 emptyList()
             } else {
-                existing.filter { it.type == type && it.locator.startsWith(CfiPrefix) && it.locator != selection.cfi }
+                // Only ranges in the selection's own section (the CFI before '!') can overlap it.
+                val section = selection.cfi.substringBefore('!')
+                existing.filter {
+                    it.type == type && it.locator.startsWith(CfiPrefix) && it.locator != selection.cfi &&
+                        it.locator.substringBefore('!') == section
+                }
             }
             val union = runCatchingCancellable { engine.mergeRanges(selection.cfi, candidates.map { it.locator }) }.getOrNull()
             val swallowed = union?.merged?.let { merged -> candidates.filter { it.locator in merged } }.orEmpty()

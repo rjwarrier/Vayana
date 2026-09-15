@@ -741,9 +741,10 @@ function chapterWordCounts(requestId, minLength) {
 function mergeRanges(requestId, cfi, others) {
     let reply = { requestId }
     try {
+        const contents = view.renderer.getContents()
         const resolve = value => {
             const { index, anchor } = view.resolveCFI(value)
-            const doc = view.renderer.getContents().find(c => c.index === index)?.doc
+            const doc = contents.find(c => c.index === index)?.doc
             const range = doc ? anchor(doc) : null
             return range ? { index, range } : null
         }

@@ -92,9 +92,9 @@ object KindleClippingsParser {
         return (startText.dropLast(endText.length) + endText).toIntOrNull()?.takeIf { it >= start } ?: end
     }
 
-    private fun List<Entry>.dropExtended(): List<Entry> = filterIndexed { index, entry ->
-        val key = quoteMatchKey(entry.text)
-        (index + 1 until size).none { later -> quoteMatchKey(this[later].text).contains(key) }
+    private fun List<Entry>.dropExtended(): List<Entry> {
+        val keys = map { quoteMatchKey(it.text) }
+        return filterIndexed { index, _ -> (index + 1 until size).none { later -> keys[index] in keys[later] } }
     }
 
     private fun Entry.isAtEndOf(highlight: Entry): Boolean {

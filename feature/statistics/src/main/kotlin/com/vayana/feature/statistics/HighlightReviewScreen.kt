@@ -34,14 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.vayana.core.common.QuoteCitation
-import com.vayana.core.common.shareText
-import com.vayana.core.designsystem.sharecard.QuoteShareCard
-import com.vayana.core.designsystem.sharecard.ShareCardDialog
+import com.vayana.core.designsystem.sharecard.QuoteShareDialog
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
@@ -106,7 +102,6 @@ private fun HighlightReviewCard(
     onNext: () -> Unit,
     onOpenReader: (bookId: Long, locator: String) -> Unit,
 ) {
-    val context = LocalContext.current
     var sharing by remember(item.annotation.id) { mutableStateOf(false) }
     val annotation = item.annotation
 
@@ -172,34 +167,13 @@ private fun HighlightReviewCard(
     }
 
     if (sharing) {
-        val shareContentDescription = stringResource(R.string.notes_share_content_description)
-        ShareCardDialog(
+        QuoteShareDialog(
+            text = annotation.selectedText,
+            author = item.bookAuthor,
+            bookTitle = item.bookTitle,
+            chapterTitle = annotation.chapterTitle,
             onDismiss = { sharing = false },
-            onShareText = {
-                context.shareText(
-                    QuoteCitation.format(
-                        text = annotation.selectedText,
-                        author = item.bookAuthor,
-                        bookTitle = item.bookTitle,
-                        chapterTitle = annotation.chapterTitle,
-                    ),
-                    shareContentDescription,
-                )
-                sharing = false
-            },
-            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
-            shareTextLabel = stringResource(R.string.share_card_share_text),
-            shareImageLabel = stringResource(R.string.share_card_share_image),
-        ) {
-            QuoteShareCard(
-                text = annotation.selectedText,
-                author = item.bookAuthor,
-                bookTitle = item.bookTitle,
-                pageLabel = annotation.chapterTitle,
-                watermark = stringResource(R.string.share_card_watermark),
-                footerRight = stringResource(R.string.share_card_tagline),
-            )
-        }
+        )
     }
 }
 

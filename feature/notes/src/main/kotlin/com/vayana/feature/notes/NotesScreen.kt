@@ -79,15 +79,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.common.HighlightTags
-import com.vayana.core.common.QuoteCitation
 import com.vayana.core.common.shareFile
-import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
-import com.vayana.core.designsystem.sharecard.QuoteShareCard
-import com.vayana.core.designsystem.sharecard.ShareCardDialog
+import com.vayana.core.designsystem.sharecard.QuoteShareDialog
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Elevations
@@ -152,7 +149,6 @@ private fun NotesScreen(
     var sharingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     val deleteUndoMessage = stringResource(R.string.notes_delete_undo_message)
     val deleteUndoAction = stringResource(R.string.notes_delete_undo_action)
-    val shareContentDescription = stringResource(R.string.notes_share_content_description)
     var selectedTag by remember { mutableStateOf<String?>(null) }
     // A tag no note carries any more (its last one was edited or deleted) stops filtering.
     val activeTag = selectedTag?.takeIf { it in tags }
@@ -475,34 +471,13 @@ private fun NotesScreen(
 
     sharingAnnotation?.let { annotation ->
         val book = activeBookItem?.book
-        val quoteText = annotation.selectedText.ifBlank { annotation.readerNote.orEmpty() }
-        ShareCardDialog(
+        QuoteShareDialog(
+            text = annotation.selectedText.ifBlank { annotation.readerNote.orEmpty() },
+            author = book?.author,
+            bookTitle = book?.title,
+            chapterTitle = annotation.chapterTitle,
             onDismiss = { sharingAnnotation = null },
-            onShareText = {
-                context.shareTextWithChooser(
-                    QuoteCitation.format(
-                        text = quoteText,
-                        author = book?.author,
-                        bookTitle = book?.title,
-                        chapterTitle = annotation.chapterTitle,
-                    ),
-                    shareContentDescription,
-                )
-                sharingAnnotation = null
-            },
-            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
-            shareTextLabel = stringResource(R.string.share_card_share_text),
-            shareImageLabel = stringResource(R.string.share_card_share_image),
-        ) {
-            QuoteShareCard(
-                text = quoteText,
-                author = book?.author,
-                bookTitle = book?.title,
-                pageLabel = annotation.chapterTitle,
-                watermark = stringResource(R.string.share_card_watermark),
-                footerRight = stringResource(R.string.share_card_tagline),
-            )
-        }
+        )
     }
 }
 
