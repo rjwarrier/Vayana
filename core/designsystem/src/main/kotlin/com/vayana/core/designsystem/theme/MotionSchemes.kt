@@ -24,22 +24,24 @@ object SnapMotionScheme : MotionScheme {
 }
 
 /**
- * Custom expressive scheme tuned for lively, organic feedback.
- * Uses a low-bouncy damping ratio (0.74) and responsive stiffness so movements
- * have an organic tactile overshoot and settle without feeling stiff or sluggish.
+ * Coordinate the app's custom geometry and opacity with short, well-damped springs.
+ * The two specs share a stiffness so labels and page fades settle with their movement.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 class VayanaExpressiveMotionScheme(
     private val base: MotionScheme = MotionScheme.expressive(),
 ) : MotionScheme by base {
     override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.74f, stiffness = Spring.StiffnessMediumLow)
+        spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMedium)
 
     override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.70f, stiffness = Spring.StiffnessMedium)
+        spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMedium)
 
     override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessLow)
+        spring(dampingRatio = 0.95f, stiffness = Spring.StiffnessMediumLow)
+
+    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

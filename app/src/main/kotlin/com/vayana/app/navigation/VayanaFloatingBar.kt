@@ -118,10 +118,11 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                     .height(Sizes.floatingNavItem)
                     .padding(Spacing.xs)
                     .drawBehind {
+                        val boundedOffset = indicatorOffset.value.coerceIn(0f, size.width - selectedPx)
                         val left = if (layoutDirection == LayoutDirection.Rtl) {
-                            size.width - indicatorOffset.value - selectedPx
+                            size.width - boundedOffset - selectedPx
                         } else {
-                            indicatorOffset.value
+                            boundedOffset
                         }
                         drawRoundRect(
                             color = indicatorColor,
@@ -155,7 +156,7 @@ fun VayanaFloatingBar(navController: NavHostController, modifier: Modifier = Mod
                                 .height(itemHeight)
                                 .layout { measurable, constraints ->
                                     val deltaPx = selectedPx - unselectedPx
-                                    val width = (unselectedPx + deltaPx * spatial.value.coerceIn(0f, 1.15f))
+                                    val width = (unselectedPx + deltaPx * spatial.value.coerceIn(0f, 1f))
                                         .roundToInt()
                                         .coerceAtLeast(0)
                                     val placeable = measurable.measure(Constraints.fixed(width, constraints.maxHeight))

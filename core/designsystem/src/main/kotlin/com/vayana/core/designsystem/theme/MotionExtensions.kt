@@ -190,9 +190,6 @@ fun vayanaNavTabEnter(profile: DisplayProfile, motionSetting: MotionSetting, sch
         slideInHorizontally(
             animationSpec = scheme.defaultSpatialSpec(),
             initialOffsetX = { fullWidth -> fullWidth / 14 * direction },
-        ) + scaleIn(
-            initialScale = 0.98f,
-            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
@@ -203,9 +200,6 @@ fun vayanaNavTabExit(profile: DisplayProfile, motionSetting: MotionSetting, sche
         slideOutHorizontally(
             animationSpec = scheme.defaultSpatialSpec(),
             targetOffsetX = { fullWidth -> -fullWidth / 14 * direction },
-        ) + scaleOut(
-            targetScale = 0.98f,
-            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
@@ -226,9 +220,6 @@ fun vayanaNavExit(profile: DisplayProfile, motionSetting: MotionSetting, scheme:
         slideOutHorizontally(
             animationSpec = scheme.defaultSpatialSpec(),
             targetOffsetX = { fullWidth -> -fullWidth / 12 },
-        ) + scaleOut(
-            targetScale = 0.96f,
-            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
@@ -239,9 +230,6 @@ fun vayanaNavPopEnter(profile: DisplayProfile, motionSetting: MotionSetting, sch
         slideInHorizontally(
             animationSpec = scheme.defaultSpatialSpec(),
             initialOffsetX = { fullWidth -> -fullWidth / 12 },
-        ) + scaleIn(
-            initialScale = 0.96f,
-            animationSpec = scheme.defaultSpatialSpec(),
         )
 }
 
