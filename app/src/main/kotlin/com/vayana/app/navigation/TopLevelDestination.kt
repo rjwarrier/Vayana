@@ -9,6 +9,8 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import com.vayana.core.resources.R
 import kotlin.reflect.KClass
 import kotlinx.serialization.Serializable
@@ -87,3 +89,8 @@ enum class TopLevelDestination(
         labelRes = R.string.nav_statistics,
     ),
 }
+
+/** Keeps Library selected while the user is viewing a book reached from the Library flow. */
+internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boolean =
+    hasRoute(destination.routeClass) ||
+        (destination == TopLevelDestination.LIBRARY && hasRoute(BookDetailRoute::class))

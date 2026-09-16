@@ -108,7 +108,7 @@ import kotlinx.coroutines.flow.Flow
 fun BookDetailRoute(
     bookId: Long,
     onBack: () -> Unit,
-    onContinueReading: (Long) -> Unit,
+    onContinueReading: (Long, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -140,10 +140,15 @@ fun BookDetailRoute(
         showSyncReadingProgress = uiState.githubSyncReady,
         syncReadingProgressRunning = syncReadingProgressRunning,
         progressChangePrompt = progressChangePrompt,
-        onKeepSyncedProgress = { progressChangePrompt = null },
-        onRevertSyncedProgress = { prompt ->
-            viewModel.revertReadingProgress(prompt.bookId, prompt.previousLocator, prompt.previousPercent)
+        onKeepSyncedProgress = { prompt ->
             progressChangePrompt = null
+            onContinueReading(prompt.bookId, prompt.newLocator)
+        },
+        onRevertSyncedProgress = { prompt ->
+            progressChangePrompt = null
+            viewModel.revertReadingProgress(prompt.bookId, prompt.previousLocator, prompt.previousPercent) {
+                onContinueReading(prompt.bookId, prompt.previousLocator)
+            }
         },
         libraryBooks = libraryBooks,
         detailMessage = detailMessage,
@@ -239,7 +244,7 @@ private fun BookDetailScreen(
     showSyncReadingProgress: Boolean,
     syncReadingProgressRunning: Boolean,
     progressChangePrompt: BookProgressChange?,
-    onKeepSyncedProgress: () -> Unit,
+    onKeepSyncedProgress: (BookProgressChange) -> Unit,
     onRevertSyncedProgress: (BookProgressChange) -> Unit,
     libraryBooks: List<Book>,
     detailMessage: BookDetailMessage?,
@@ -251,7 +256,7 @@ private fun BookDetailScreen(
     onSetReadNext: (bookId: Long, queued: Boolean) -> Unit,
     readNextBumped: Flow<List<Book>>,
     onBack: () -> Unit,
-    onContinueReading: (Long) -> Unit,
+    onContinueReading: (Long, String?) -> Unit,
     onUpdateMetadata: (String, String, String, String, String, String) -> Unit,
     onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
@@ -481,7 +486,7 @@ private fun BookDetailScreen(
                     }
                     if (book.hasLocalReadableSource()) {
                         FloatingActionButton(
-                            onClick = { onContinueReading(book.id) },
+                            onClick = { onContinueReading(book.id, null) },
                             modifier = Modifier.size(Sizes.fab),
                             shape = CircleShape,
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -848,7 +853,7 @@ private fun BookDetailScreen(
     progressChangePrompt?.let { prompt ->
         ReadingProgressSyncDialog(
             prompt = prompt,
-            onKeepSyncedProgress = onKeepSyncedProgress,
+            onKeepSyncedProgress = { onKeepSyncedProgress(prompt) },
             onRevertSyncedProgress = { onRevertSyncedProgress(prompt) },
         )
     }

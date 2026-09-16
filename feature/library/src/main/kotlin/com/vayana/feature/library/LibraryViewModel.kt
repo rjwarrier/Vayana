@@ -400,6 +400,7 @@ data class BookProgressChange(
     val bookId: Long,
     val previousLocator: String?,
     val previousPercent: Float,
+    val newLocator: String?,
     val newPercent: Float,
     val previousUpdatedAt: Long,
     val newUpdatedAt: Long,
@@ -1024,6 +1025,7 @@ class LibraryViewModel @Inject constructor(
                 bookId = bookId,
                 previousLocator = before.lastLocator,
                 previousPercent = before.readingPercent,
+                newLocator = after.lastLocator,
                 newPercent = after.readingPercent,
                 previousUpdatedAt = before.updatedAt,
                 newUpdatedAt = after.updatedAt,
@@ -1053,10 +1055,23 @@ class LibraryViewModel @Inject constructor(
     }
 
     /** Reverts to a specific book's pre-sync position - the "stay" side of the prompt above. */
-    fun revertReadingProgress(bookId: Long, locator: String?, percent: Float) {
-        val cfi = locator?.takeIf { it.isNotBlank() } ?: return
+    fun revertReadingProgress(
+        bookId: Long,
+        locator: String?,
+        percent: Float,
+        onReverted: () -> Unit = {},
+    ) {
+        val cfi = locator?.takeIf { it.isNotBlank() }
+        if (cfi == null) {
+            onReverted()
+            return
+        }
         viewModelScope.launch {
-            bookRepository.updateLocator(bookId, cfi, percent, settingsRepository.snapshot.first().finishedFraction)
+            try {
+                bookRepository.updateLocator(bookId, cfi, percent, settingsRepository.snapshot.first().finishedFraction)
+            } finally {
+                onReverted()
+            }
         }
     }
 

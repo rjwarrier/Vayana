@@ -87,6 +87,7 @@ class LaunchReadingProgressCoordinatorTest {
         bookId = bookId,
         previousLocator = "old",
         previousPercent = 0.1f,
+        newLocator = "new",
         newPercent = 0.2f,
         previousUpdatedAt = 1L,
         newUpdatedAt = 2L,

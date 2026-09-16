@@ -6,7 +6,6 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
@@ -17,7 +16,7 @@ fun VayanaNavigationRail(navController: NavHostController) {
 
     NavigationRail {
         TopLevelDestination.entries.forEach { destination ->
-            val selected = currentDestination?.hasRoute(destination.routeClass) == true
+            val selected = currentDestination?.isSelectedFor(destination) == true
             NavigationRailItem(
                 selected = selected,
                 onClick = {

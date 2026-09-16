@@ -6,7 +6,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -18,7 +17,7 @@ fun VayanaBottomBar(navController: NavHostController) {
 
     NavigationBar {
         TopLevelDestination.entries.forEach { destination ->
-            val selected = currentDestination?.hasRoute(destination.routeClass) == true
+            val selected = currentDestination?.isSelectedFor(destination) == true
             NavigationBarItem(
                 selected = selected,
                 onClick = {

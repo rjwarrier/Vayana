@@ -37,7 +37,7 @@ fun LibraryListDetailRoute(
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
-    onContinueReading: (Long) -> Unit,
+    onContinueReading: (Long, String?) -> Unit,
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val landscapeTwoColumnLayout by viewModel.landscapeTwoColumnLayout.collectAsState()

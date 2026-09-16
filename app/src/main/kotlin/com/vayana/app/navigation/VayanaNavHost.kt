@@ -83,7 +83,9 @@ fun VayanaNavHost(
                 onSearchClick = { navController.navigate(SearchRoute) },
                 onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
                 onShelvesClick = { navController.navigate(ShelvesRoute) },
-                onContinueReading = { bookId -> navController.navigate(ReaderRoute(bookId)) },
+                onContinueReading = { bookId, locator ->
+                    navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
+                },
             )
         }
         composable<TopLevelRoute.Notes> {
@@ -156,7 +158,9 @@ fun VayanaNavHost(
             com.vayana.feature.library.BookDetailRoute(
                 bookId = route.bookId,
                 onBack = { navController.popBackStack() },
-                onContinueReading = { bookId -> navController.navigate(ReaderRoute(bookId)) },
+                onContinueReading = { bookId, locator ->
+                    navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
+                },
             )
         }
         composable<ReaderRoute> {
