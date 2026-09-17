@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -75,6 +76,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -203,8 +206,71 @@ private fun SettingsScreen(
     var query by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     val visibleSettings = remember(query) { SettingsRegistry.all.filterByQuery(query) }
+    val useTwoPane = LocalConfiguration.current.screenWidthDp.dp >= SettingsTwoColumnBreakpoint
 
-    BackHandler(enabled = selectedGroup != null || helpAndAboutOpen) {
+    val destinationContent: @Composable (SettingsDestinationState, PaddingValues) -> Unit = { destination, contentPadding ->
+        when {
+            destination.helpAndAboutOpen -> {
+                HelpAndAboutDetail(
+                    contentPadding = contentPadding,
+                    onHelpClick = onHelpClick,
+                    onDiagnosticsClick = onDiagnosticsClick,
+                )
+            }
+            destination.group == null -> {
+                if (useTwoPane) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = stringResource(R.string.settings_tablet_select_category),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    SettingsHub(
+                        contentPadding = contentPadding,
+                        query = query,
+                        visibleSettings = visibleSettings,
+                        settings = settings,
+                        onHelpAndAboutClick = { helpAndAboutOpen = true },
+                        onQueryChange = { query = it },
+                        onGroupSelected = {
+                            selectedGroup = it
+                            helpAndAboutOpen = false
+                        },
+                        onUpdate = onUpdate,
+                        onReset = onReset,
+                    )
+                }
+            }
+            else -> SettingsGroupDetail(
+                contentPadding = contentPadding,
+                group = destination.group,
+                settings = settings,
+                githubSyncSettingsTransferState = githubSyncSettingsTransferState,
+                githubConnectionTestState = githubConnectionTestState,
+                pendingCloudDeletions = pendingCloudDeletions,
+                readerFontImportState = readerFontImportState,
+                backupState = backupState,
+                onUpdate = onUpdate,
+                onReset = onReset,
+                onCreateBackup = onCreateBackup,
+                onPickRestoreFile = onPickRestoreFile,
+                onDismissBackupState = onDismissBackupState,
+                onExportGitHubSyncSettings = onExportGitHubSyncSettings,
+                onImportGitHubSyncSettings = onImportGitHubSyncSettings,
+                onTestGitHubConnection = onTestGitHubConnection,
+                onImportReaderFont = onImportReaderFont,
+                onSelectReaderCustomFont = onSelectReaderCustomFont,
+                onDismissGitHubSyncSettingsTransferState = onDismissGitHubSyncSettingsTransferState,
+                onDismissGitHubConnectionTestState = onDismissGitHubConnectionTestState,
+                onDismissReaderFontImportState = onDismissReaderFontImportState,
+                onOpenLibrary = onOpenLibrary,
+            )
+        }
+    }
+
+    BackHandler(enabled = !useTwoPane && (selectedGroup != null || helpAndAboutOpen)) {
         selectedGroup = null
         helpAndAboutOpen = false
     }
@@ -216,6 +282,7 @@ private fun SettingsScreen(
                 title = {
                     Text(
                         text = when {
+                            useTwoPane -> stringResource(R.string.settings_title)
                             helpAndAboutOpen -> stringResource(R.string.settings_help_about_card_title)
                             selectedGroup != null -> stringResource(selectedGroup!!.titleRes)
                             else -> stringResource(R.string.settings_title)
@@ -225,7 +292,7 @@ private fun SettingsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (selectedGroup != null || helpAndAboutOpen) {
+                        if (!useTwoPane && (selectedGroup != null || helpAndAboutOpen)) {
                             selectedGroup = null
                             helpAndAboutOpen = false
                         } else {
@@ -256,20 +323,9 @@ private fun SettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        AnimatedContent(
-            targetState = SettingsDestinationState(selectedGroup, helpAndAboutOpen),
-            transitionSpec = vayanaContentTransform(),
-            label = "SettingsNav",
-        ) { destination ->
-            when {
-                destination.helpAndAboutOpen -> {
-                    HelpAndAboutDetail(
-                        contentPadding = innerPadding,
-                        onHelpClick = onHelpClick,
-                        onDiagnosticsClick = onDiagnosticsClick,
-                    )
-                }
-                destination.group == null -> {
+        if (useTwoPane) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.weight(0.42f)) {
                 SettingsHub(
                     contentPadding = innerPadding,
                     query = query,
@@ -285,32 +341,29 @@ private fun SettingsScreen(
                     onReset = onReset,
                 )
                 }
-                else -> {
-                SettingsGroupDetail(
-                    contentPadding = innerPadding,
-                    group = destination.group,
-                    settings = settings,
-                    githubSyncSettingsTransferState = githubSyncSettingsTransferState,
-                    githubConnectionTestState = githubConnectionTestState,
-                    pendingCloudDeletions = pendingCloudDeletions,
-                    readerFontImportState = readerFontImportState,
-                    backupState = backupState,
-                    onUpdate = onUpdate,
-                    onReset = onReset,
-                    onCreateBackup = onCreateBackup,
-                    onPickRestoreFile = onPickRestoreFile,
-                    onDismissBackupState = onDismissBackupState,
-                    onExportGitHubSyncSettings = onExportGitHubSyncSettings,
-                    onImportGitHubSyncSettings = onImportGitHubSyncSettings,
-                    onTestGitHubConnection = onTestGitHubConnection,
-                    onImportReaderFont = onImportReaderFont,
-                    onSelectReaderCustomFont = onSelectReaderCustomFont,
-                    onDismissGitHubSyncSettingsTransferState = onDismissGitHubSyncSettingsTransferState,
-                    onDismissGitHubConnectionTestState = onDismissGitHubConnectionTestState,
-                    onDismissReaderFontImportState = onDismissReaderFontImportState,
-                    onOpenLibrary = onOpenLibrary,
+                Surface(
+                    modifier = Modifier
+                        .width(Strokes.hairline)
+                        .fillMaxHeight(),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    content = {},
                 )
+                AnimatedContent(
+                    targetState = SettingsDestinationState(selectedGroup, helpAndAboutOpen),
+                    transitionSpec = vayanaContentTransform(),
+                    modifier = Modifier.weight(0.58f),
+                    label = "TabletSettingsDetail",
+                ) { destination ->
+                    destinationContent(destination, innerPadding)
                 }
+            }
+        } else {
+            AnimatedContent(
+                targetState = SettingsDestinationState(selectedGroup, helpAndAboutOpen),
+                transitionSpec = vayanaContentTransform(),
+                label = "SettingsNav",
+            ) { destination ->
+                destinationContent(destination, innerPadding)
             }
         }
     }

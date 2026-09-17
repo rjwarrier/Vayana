@@ -371,6 +371,7 @@
     <string name="library_group_unknown_series">No series</string>
 
     <string name="notes_title">Notes</string>
+    <string name="notes_tablet_select_book">Select a book to review its notes</string>
     <string name="notes_books_title">Books with notes</string>
     <string name="notes_books_count">%1$d items</string>
     <string name="notes_single_note">1 item</string>
@@ -539,6 +540,7 @@
     <string name="help_section_settings_title">Settings</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_tablet_select_category">Select a settings category</string>
     <string name="settings_search_placeholder">Try “theme”, “font”, or “page”</string>
     <string name="settings_profile_title">vayana library</string>
     <string name="settings_profile_subtitle">Offline reader settings for this device</string>

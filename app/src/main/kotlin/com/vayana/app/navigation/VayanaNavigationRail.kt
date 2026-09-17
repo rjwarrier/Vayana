@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.CollectionsBookmark
+import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -29,10 +33,14 @@ fun VayanaNavigationRail(
     val settingsSelected = currentDestination?.hasRoute(SettingsRoute::class) == true ||
         currentDestination?.hasRoute(HelpRoute::class) == true ||
         currentDestination?.hasRoute(DiagnosticsRoute::class) == true
+    val shelvesSelected = currentDestination?.hasRoute(ShelvesRoute::class) == true ||
+        currentDestination?.hasRoute(ShelfDetailRoute::class) == true
+    val deletedSelected = currentDestination?.hasRoute(RecentlyDeletedRoute::class) == true
+    val secondarySelected = settingsSelected || shelvesSelected || deletedSelected
 
     NavigationRail {
         TopLevelDestination.entries.forEach { destination ->
-            val selected = !settingsSelected && currentDestination?.isSelectedFor(destination) == true
+            val selected = !secondarySelected && currentDestination?.isSelectedFor(destination) == true
             NavigationRailItem(
                 selected = selected,
                 onClick = {
@@ -46,6 +54,32 @@ fun VayanaNavigationRail(
                     )
                 },
                 label = { Text(stringResource(destination.labelRes)) },
+            )
+        }
+        if (showSettings) {
+            NavigationRailItem(
+                selected = shelvesSelected,
+                onClick = { navController.navigate(ShelvesRoute) },
+                icon = {
+                    TabletRailIcon(
+                        imageVector = if (shelvesSelected) Icons.Filled.CollectionsBookmark else Icons.Outlined.CollectionsBookmark,
+                        selected = shelvesSelected,
+                        animationLabel = "ShelvesRailIcon",
+                    )
+                },
+                label = { Text(stringResource(com.vayana.core.resources.R.string.library_shelves_title)) },
+            )
+            NavigationRailItem(
+                selected = deletedSelected,
+                onClick = { navController.navigate(RecentlyDeletedRoute) },
+                icon = {
+                    TabletRailIcon(
+                        imageVector = if (deletedSelected) Icons.Filled.RestoreFromTrash else Icons.Outlined.RestoreFromTrash,
+                        selected = deletedSelected,
+                        animationLabel = "RecentlyDeletedRailIcon",
+                    )
+                },
+                label = { Text(stringResource(com.vayana.core.resources.R.string.library_recently_deleted_title)) },
             )
         }
         if (showSettings) {

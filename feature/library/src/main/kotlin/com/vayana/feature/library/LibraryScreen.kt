@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
@@ -94,6 +95,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -137,6 +146,7 @@ fun LibraryRoute(
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
     showSettingsAction: Boolean = true,
+    selectedBookId: Long? = null,
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -181,6 +191,7 @@ fun LibraryRoute(
         onSyncNow = viewModel::syncNow,
         onSettingsClick = onSettingsClick,
         showSettingsAction = showSettingsAction,
+        selectedBookId = selectedBookId,
         onSearchClick = onSearchClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
         onShelvesClick = onShelvesClick,
@@ -220,6 +231,7 @@ private fun LibraryScreen(
     onSyncNow: suspend (Boolean, GitHubSyncMode) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
     showSettingsAction: Boolean,
+    selectedBookId: Long?,
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -230,6 +242,7 @@ private fun LibraryScreen(
     onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     val context = LocalContext.current
+    val searchFocusRequester = remember { FocusRequester() }
     val snackbarHostState = remember { SnackbarHostState() }
     PermanentDeletionNoticeEffect(deletionNotice, snackbarHostState, onDeletionNoticeShown)
     RemoteBookDeletionNoticeEffect(remoteBookDeletions, snackbarHostState, onRemoteBookDeletionsShown)
@@ -401,7 +414,24 @@ private fun LibraryScreen(
     }
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            if (event.isCtrlPressed && event.key == Key.F) {
+                searchFocusRequester.requestFocus()
+                return@onPreviewKeyEvent true
+            }
+            val books = uiState.books
+            if (books.isEmpty()) return@onPreviewKeyEvent false
+            val currentIndex = books.indexOfFirst { it.id == selectedBookId }.coerceAtLeast(0)
+            val targetIndex = when (event.key) {
+                Key.DirectionDown, Key.DirectionRight -> (currentIndex + 1).coerceAtMost(books.lastIndex)
+                Key.DirectionUp, Key.DirectionLeft -> (currentIndex - 1).coerceAtLeast(0)
+                Key.Enter, Key.NumPadEnter -> currentIndex
+                else -> return@onPreviewKeyEvent false
+            }
+            handleBookClick(books[targetIndex])
+            true
+        },
         topBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -410,6 +440,7 @@ private fun LibraryScreen(
             ) {
                 LibraryTopBar(
                     controls = uiState.controls,
+                    searchFocusRequester = searchFocusRequester,
                     showSyncNow = true,
                     syncRunning = syncRunning,
                     syncBadge = syncBadge,
@@ -449,6 +480,7 @@ private fun LibraryScreen(
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
                     downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
+                    selectedBookId = selectedBookId,
                     onBookClick = ::handleBookClick,
                     onMarkFinished = { book -> pendingFinishBook = book },
                     onRemoveFromReadNext = { book -> onSetReadNext(book.id, false) },
@@ -462,6 +494,7 @@ private fun LibraryScreen(
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
                     downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
+                    selectedBookId = selectedBookId,
                     onBookClick = ::handleBookClick,
                     onMarkFinished = { book -> pendingFinishBook = book },
                     onRemoveFromReadNext = { book -> onSetReadNext(book.id, false) },
@@ -624,6 +657,7 @@ private enum class LibrarySyncBadge {
 @Composable
 private fun LibraryTopBar(
     controls: LibraryControls,
+    searchFocusRequester: FocusRequester,
     showSyncNow: Boolean,
     showAddAction: Boolean,
     syncRunning: Boolean,
@@ -867,23 +901,23 @@ private fun LibraryTopBar(
                                 )
                             }
                             HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_shelves_title)) },
-                                leadingIcon = { Icon(Icons.Outlined.CollectionsBookmark, contentDescription = null) },
-                                onClick = {
-                                    moreExpanded = false
-                                    onShelvesClick()
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_recently_deleted_title)) },
-                                leadingIcon = { Icon(Icons.Outlined.RestoreFromTrash, contentDescription = null) },
-                                onClick = {
-                                    moreExpanded = false
-                                    onRecentlyDeletedClick()
-                                },
-                            )
                             if (showSettingsAction) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_shelves_title)) },
+                                    leadingIcon = { Icon(Icons.Outlined.CollectionsBookmark, contentDescription = null) },
+                                    onClick = {
+                                        moreExpanded = false
+                                        onShelvesClick()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_recently_deleted_title)) },
+                                    leadingIcon = { Icon(Icons.Outlined.RestoreFromTrash, contentDescription = null) },
+                                    onClick = {
+                                        moreExpanded = false
+                                        onRecentlyDeletedClick()
+                                    },
+                                )
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.library_settings_title)) },
                                     leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
@@ -904,6 +938,7 @@ private fun LibraryTopBar(
                 onValueChange = onQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(searchFocusRequester)
                     .heightIn(min = Sizes.touchTargetEink)
                     .padding(top = Spacing.md),
                 singleLine = true,
@@ -1066,6 +1101,7 @@ private fun LibraryGrid(
     contentPadding: PaddingValues,
     downloadingBookId: Long?,
     downloadProgress: Float?,
+    selectedBookId: Long?,
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
     onRemoveFromReadNext: (Book) -> Unit,
@@ -1120,6 +1156,7 @@ private fun LibraryGrid(
             gridItems(displayBooks.rows, key = { it.id }, contentType = { "book" }) { book ->
                 BookCoverCell(
                     book = book,
+                    selected = book.id == selectedBookId,
                     isDownloading = book.id == downloadingBookId,
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onMarkFinished = { onMarkFinished(book) },
@@ -1141,6 +1178,7 @@ private fun LibraryGrid(
                 gridItems(section.books, key = { it.id }, contentType = { "book" }) { book ->
                     BookCoverCell(
                         book = book,
+                        selected = book.id == selectedBookId,
                         isDownloading = book.id == downloadingBookId,
                         downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                         onMarkFinished = { onMarkFinished(book) },
@@ -1162,6 +1200,7 @@ private fun LibraryList(
     contentPadding: PaddingValues,
     downloadingBookId: Long?,
     downloadProgress: Float?,
+    selectedBookId: Long?,
     onBookClick: (Book) -> Unit,
     onMarkFinished: (Book) -> Unit,
     onRemoveFromReadNext: (Book) -> Unit,
@@ -1214,6 +1253,7 @@ private fun LibraryList(
             items(displayBooks.rows, key = { it.id }) { book ->
                 LibraryListRow(
                     book = book,
+                    selected = book.id == selectedBookId,
                     isDownloading = book.id == downloadingBookId,
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(book) },
@@ -1235,6 +1275,7 @@ private fun LibraryList(
                 items(section.books, key = { it.id }) { book ->
                     LibraryListRow(
                         book = book,
+                        selected = book.id == selectedBookId,
                         isDownloading = book.id == downloadingBookId,
                         downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                         onClick = { onBookClick(book) },
@@ -1267,6 +1308,7 @@ private fun rememberLazyItemPlacementSpec() = vayanaSpring<IntOffset>(
 @Composable
 private fun LibraryListRow(
     book: Book,
+    selected: Boolean,
     isDownloading: Boolean,
     downloadProgress: Float?,
     onClick: () -> Unit,
@@ -1285,7 +1327,8 @@ private fun LibraryListRow(
                 onClick = onClick,
             ),
         shape = RoundedCornerShape(Radii.medium),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = if (selected) BorderStroke(Strokes.emphasis, MaterialTheme.colorScheme.primary) else null,
         tonalElevation = Elevations.none,
     ) {
         Row(
@@ -1581,6 +1624,7 @@ private fun List<Book>.sortedBySeriesNumber(): List<Book> = sortedWith(
 @Composable
 private fun BookCoverCell(
     book: Book,
+    selected: Boolean,
     isDownloading: Boolean,
     downloadProgress: Float?,
     onMarkFinished: () -> Unit,
@@ -1590,6 +1634,23 @@ private fun BookCoverCell(
     val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
+            .background(
+                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                shape = RoundedCornerShape(Radii.medium),
+            )
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        width = Strokes.emphasis,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(Radii.medium),
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .clip(RoundedCornerShape(Radii.medium))
+            .padding(if (selected) Spacing.sm else 0.dp)
             .vayanaPressScale(interactionSource, pressedScale = 0.975f)
             .clickable(
                 enabled = !isDownloading,

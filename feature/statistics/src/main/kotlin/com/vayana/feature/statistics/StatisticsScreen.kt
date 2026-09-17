@@ -18,9 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -139,7 +140,8 @@ private fun StatisticsDashboard(
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 340.dp),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
@@ -147,6 +149,7 @@ private fun StatisticsDashboard(
             end = Paddings.screenHorizontal,
             bottom = contentPadding.calculateBottomPadding() + Spacing.md + LocalFloatingNavigationInset.current,
         ),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item {

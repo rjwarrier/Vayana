@@ -72,6 +72,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -168,6 +169,7 @@ private fun NotesScreen(
     val activeBookItem = remember(selectedBookId, taggedBooks) {
         taggedBooks.firstOrNull { it.book.id == selectedBookId }
     }
+    val useTwoPane = LocalConfiguration.current.screenWidthDp >= 840
 
     val kindlePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onImportKindleClippings(context.contentResolver, uri)
@@ -205,7 +207,7 @@ private fun NotesScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        if (activeBookItem != null) {
+                        if (activeBookItem != null && !useTwoPane) {
                             IconButton(onClick = { selectedBookId = null }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -214,7 +216,7 @@ private fun NotesScreen(
                             }
                         }
                         Text(
-                            text = if (activeBookItem != null) activeBookItem.book.title else stringResource(R.string.notes_title),
+                            text = if (activeBookItem != null && !useTwoPane) activeBookItem.book.title else stringResource(R.string.notes_title),
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -338,16 +340,38 @@ private fun NotesScreen(
             }
         },
     ) { innerPadding ->
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (useTwoPane) {
+                Box(modifier = Modifier.weight(0.38f)) {
+                    val visibleBookItems = remember(taggedBooks, query) { taggedBooks.filterBooksByQuery(query) }
+                    when {
+                        booksWithNotes.isEmpty() -> NotesEmptyState(contentPadding = innerPadding)
+                        visibleBookItems.isEmpty() -> NotesNoMatchesState(contentPadding = innerPadding)
+                        else -> BooksWithNotesList(
+                            contentPadding = innerPadding,
+                            booksWithNotes = visibleBookItems,
+                            onBookClick = { selectedBookId = it.book.id },
+                        )
+                    }
+                }
+            }
         AnimatedContent(
             targetState = activeBookItem,
             transitionSpec = vayanaContentTransform(),
+            modifier = if (useTwoPane) Modifier.weight(0.62f) else Modifier.fillMaxSize(),
             label = "NotesBookNav",
         ) { bookItem ->
             if (bookItem == null) {
-                val visibleBookItems = remember(taggedBooks, query) {
-                    taggedBooks.filterBooksByQuery(query)
-                }
-                if (booksWithNotes.isEmpty()) {
+                val visibleBookItems = remember(taggedBooks, query) { taggedBooks.filterBooksByQuery(query) }
+                if (useTwoPane) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = stringResource(R.string.notes_tablet_select_book),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else if (booksWithNotes.isEmpty()) {
                     NotesEmptyState(contentPadding = innerPadding)
                 } else if (visibleBookItems.isEmpty()) {
                     NotesNoMatchesState(contentPadding = innerPadding)
@@ -395,6 +419,7 @@ private fun NotesScreen(
                     )
                 }
             }
+        }
         }
     }
 

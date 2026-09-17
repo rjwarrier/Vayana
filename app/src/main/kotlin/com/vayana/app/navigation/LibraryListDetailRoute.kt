@@ -100,6 +100,7 @@ fun LibraryListDetailRoute(
                     },
                     onSettingsClick = onSettingsClick,
                     showSettingsAction = false,
+                    selectedBookId = navigator.currentDestination?.contentKey,
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
