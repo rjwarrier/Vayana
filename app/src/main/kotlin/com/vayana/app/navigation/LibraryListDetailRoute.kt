@@ -2,6 +2,7 @@ package com.vayana.app.navigation
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import com.vayana.feature.library.LibraryRoute
 import com.vayana.feature.library.LibraryViewModel
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.resources.R
 import kotlinx.coroutines.launch
 
@@ -109,19 +111,48 @@ fun LibraryListDetailRoute(
         detailPane = {
             AnimatedPane {
                 val bookId = navigator.currentDestination?.contentKey
-                if (bookId != null) {
-                    BookDetailRoute(
-                        bookId = bookId,
-                        onBack = { scope.launch { navigator.navigateBack() } },
-                        onContinueReading = onContinueReading,
-                        useWideActions = true,
-                    )
-                } else if (libraryBooks.isNotEmpty()) {
-                    LibraryDetailPlaceholder()
+                val detailContent = when {
+                    bookId != null -> LibraryDetailContent.Book(bookId)
+                    libraryBooks.isNotEmpty() -> LibraryDetailContent.Placeholder
+                    else -> LibraryDetailContent.Empty
+                }
+                AnimatedContent(
+                    targetState = detailContent,
+                    transitionSpec = vayanaContentTransform(),
+                    contentKey = { content -> content.key },
+                    modifier = Modifier.fillMaxSize(),
+                    label = "TabletLibraryDetail",
+                ) { content ->
+                    when (content) {
+                        is LibraryDetailContent.Book -> BookDetailRoute(
+                            bookId = content.id,
+                            onBack = { scope.launch { navigator.navigateBack() } },
+                            onContinueReading = onContinueReading,
+                            useWideActions = true,
+                        )
+                        LibraryDetailContent.Placeholder -> LibraryDetailPlaceholder()
+                        LibraryDetailContent.Empty -> Box(modifier = Modifier.fillMaxSize())
+                    }
                 }
             }
         },
     )
+}
+
+private sealed interface LibraryDetailContent {
+    val key: Any
+
+    data class Book(val id: Long) : LibraryDetailContent {
+        override val key: Any = id
+    }
+
+    data object Placeholder : LibraryDetailContent {
+        override val key: Any = "placeholder"
+    }
+
+    data object Empty : LibraryDetailContent {
+        override val key: Any = "empty"
+    }
 }
 
 @Composable
