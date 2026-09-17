@@ -31,7 +31,6 @@ import com.vayana.core.common.shareFile
 import com.vayana.core.database.repository.ReviewGrade
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -47,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.VocabularyCard
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -140,7 +140,7 @@ private fun VocabularyReviewCardScreen(
             .padding(Paddings.screenHorizontal),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        LinearProgressIndicator(
+        VayanaLinearProgressIndicator(
             progress = { position.toFloat() / total.toFloat() },
             modifier = Modifier.fillMaxWidth(),
         )

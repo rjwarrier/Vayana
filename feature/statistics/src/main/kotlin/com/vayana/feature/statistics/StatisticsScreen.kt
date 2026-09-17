@@ -34,7 +34,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -55,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.WordLookupStat
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Paddings
@@ -407,7 +407,7 @@ private fun GoalRow(modifier: Modifier = Modifier, label: String, valueText: Str
             Text(text = label, style = MaterialTheme.typography.bodyMedium)
             Text(text = valueText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        LinearProgressIndicator(
+        VayanaLinearProgressIndicator(
             progress = { fraction },
             modifier = Modifier
                 .fillMaxWidth()
@@ -573,7 +573,7 @@ private fun VocabularyGrowthCard(growth: VocabularyGrowth) {
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            LinearProgressIndicator(
+            VayanaLinearProgressIndicator(
                 progress = { growth.masteredFraction },
                 modifier = Modifier
                     .fillMaxWidth()

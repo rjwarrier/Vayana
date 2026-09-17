@@ -90,7 +90,22 @@ enum class TopLevelDestination(
     ),
 }
 
-/** Keeps Library selected while the user is viewing a book reached from the Library flow. */
-internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boolean =
-    hasRoute(destination.routeClass) ||
-        (destination == TopLevelDestination.LIBRARY && hasRoute(BookDetailRoute::class))
+/** Keeps the owning tab selected while the user is within one of its secondary screens. */
+internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boolean = when (destination) {
+    TopLevelDestination.LIBRARY ->
+        hasRoute(TopLevelRoute.Library::class) ||
+            hasRoute(SettingsRoute::class) ||
+            hasRoute(HelpRoute::class) ||
+            hasRoute(DiagnosticsRoute::class) ||
+            hasRoute(SearchRoute::class) ||
+            hasRoute(RecentlyDeletedRoute::class) ||
+            hasRoute(ShelvesRoute::class) ||
+            hasRoute(ShelfDetailRoute::class) ||
+            hasRoute(BookDetailRoute::class)
+    TopLevelDestination.NOTES -> hasRoute(TopLevelRoute.Notes::class)
+    TopLevelDestination.STATISTICS ->
+        hasRoute(TopLevelRoute.Statistics::class) ||
+            hasRoute(VocabularyReviewRoute::class) ||
+            hasRoute(LearnWordsRoute::class) ||
+            hasRoute(HighlightReviewRoute::class)
+}

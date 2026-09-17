@@ -21,7 +21,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +40,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.common.runCatchingCancellable
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
@@ -156,7 +156,10 @@ internal fun GoodreadsBrowserDialog(
                     }
                 }
                 if (loadingProgress in 1..99) {
-                    LinearProgressIndicator(progress = { loadingProgress / 100f }, modifier = Modifier.fillMaxWidth())
+                    VayanaLinearProgressIndicator(
+                        progress = { loadingProgress / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 } else {
                     HorizontalDivider()
                 }

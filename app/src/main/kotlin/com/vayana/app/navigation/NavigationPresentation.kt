@@ -18,7 +18,8 @@ fun resolveNavigationPresentation(
 ): NavigationPresentation = when {
     !showNavigation -> NavigationPresentation.Hidden
     useNavigationRail -> NavigationPresentation.Rail
-    displayProfile == DisplayProfile.E_INK -> NavigationPresentation.BottomBar
+    displayProfile == DisplayProfile.E_INK && navigationMode == NavigationMode.BOTTOM_BAR ->
+        NavigationPresentation.BottomBar
     navigationMode == NavigationMode.FLOATING_BAR -> NavigationPresentation.FloatingBar
     else -> NavigationPresentation.BottomBar
 }

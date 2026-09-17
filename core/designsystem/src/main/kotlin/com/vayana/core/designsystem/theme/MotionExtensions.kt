@@ -14,6 +14,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -25,7 +26,11 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import com.vayana.core.designsystem.tokens.Durations
 
 @Composable
@@ -257,5 +262,24 @@ fun Modifier.vayanaAnimateContentSize(): Modifier {
                 spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
             },
         )
+    }
+}
+
+/** Subtle press feedback for larger surfaces; disabled entirely for E-Ink and Motion Off. */
+@Composable
+fun Modifier.vayanaPressScale(
+    interactionSource: MutableInteractionSource,
+    pressedScale: Float = 0.985f,
+): Modifier {
+    val motionEnabled = isMotionEnabled()
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (motionEnabled && pressed) pressedScale else 1f,
+        animationSpec = vayanaSpring(),
+        label = "VayanaPressScale",
+    )
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
     }
 }

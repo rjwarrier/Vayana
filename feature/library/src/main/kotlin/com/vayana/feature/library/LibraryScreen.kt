@@ -7,10 +7,12 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -64,7 +66,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -97,6 +98,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.database.model.Book
@@ -104,6 +106,8 @@ import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
+import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Elevations
@@ -122,6 +126,11 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.vayana.core.database.model.MaxBookTags
 import com.vayana.core.database.model.normalizedBookTag
 
+enum class LibraryAddAction {
+    IMPORT_FILES,
+    IMPORT_FOLDER,
+}
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryRoute(
@@ -130,6 +139,8 @@ fun LibraryRoute(
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
+    addBookAction: LibraryAddAction? = null,
+    onAddBookActionHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
@@ -160,6 +171,8 @@ fun LibraryRoute(
         onCloudBookDownloadProgressDismissed = viewModel::onCloudBookDownloadProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
+        addBookAction = addBookAction,
+        onAddBookActionHandled = onAddBookActionHandled,
         onBookClick = onBookClick,
         onMarkFinished = { bookId -> viewModel.markFinished(bookId, announce = false) },
         onSetReadNext = viewModel::setReadNext,
@@ -196,6 +209,8 @@ private fun LibraryScreen(
     onCloudBookDownloadProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
+    addBookAction: LibraryAddAction?,
+    onAddBookActionHandled: () -> Unit,
     onBookClick: (Long) -> Unit,
     onMarkFinished: (Long) -> Unit,
     onSetReadNext: (Long, Boolean) -> Unit,
@@ -231,6 +246,13 @@ private fun LibraryScreen(
     }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) onImportFolder(context.contentResolver, uri)
+    }
+    LaunchedEffect(addBookAction) {
+        when (addBookAction ?: return@LaunchedEffect) {
+            LibraryAddAction.IMPORT_FILES -> filesPicker.launch(arrayOf("*/*"))
+            LibraryAddAction.IMPORT_FOLDER -> folderPicker.launch(null)
+        }
+        onAddBookActionHandled()
     }
     var pendingFinishBook by remember { mutableStateOf<Book?>(null) }
     val markedFinishedMessage = stringResource(R.string.library_marked_finished)
@@ -389,6 +411,7 @@ private fun LibraryScreen(
                     syncRunning = syncRunning,
                     syncBadge = syncBadge,
                     onSyncNow = { mode -> handleSyncNow(mode = mode) },
+                    showAddAction = LocalFloatingNavigationInset.current == 0.dp,
                     onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                     onImportFolder = { folderPicker.launch(null) },
                     onSettingsClick = onSettingsClick,
@@ -598,6 +621,7 @@ private enum class LibrarySyncBadge {
 private fun LibraryTopBar(
     controls: LibraryControls,
     showSyncNow: Boolean,
+    showAddAction: Boolean,
     syncRunning: Boolean,
     syncBadge: LibrarySyncBadge?,
     onSyncNow: (GitHubSyncMode) -> Unit,
@@ -618,262 +642,319 @@ private fun LibraryTopBar(
     var moreExpanded by remember { mutableStateOf(false) }
     var syncExpanded by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md)
-            .vayanaAnimateContentSize(),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val useCompactActions = maxWidth < Sizes.libraryToolbarExpandedActionsBreakpoint
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md)
+                .vayanaAnimateContentSize(),
         ) {
-            Text(text = stringResource(R.string.library_title), style = MaterialTheme.typography.headlineMedium)
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                if (showSyncNow) {
-                    Box {
-                        LibrarySyncTopBarIconButton(
-                            onClick = { syncExpanded = true },
-                            enabled = !syncRunning,
-                            badge = syncBadge.takeUnless { syncRunning },
-                        ) {
-                            if (syncRunning) {
-                                VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Outlined.Sync,
-                                    contentDescription = stringResource(R.string.library_sync_now_content_description),
-                                    modifier = Modifier.size(Sizes.icon),
+                Text(
+                    text = stringResource(R.string.library_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = Spacing.sm),
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    if (showSyncNow) {
+                        Box {
+                            LibrarySyncTopBarIconButton(
+                                onClick = { syncExpanded = true },
+                                enabled = !syncRunning,
+                                badge = syncBadge.takeUnless { syncRunning },
+                            ) {
+                                if (syncRunning) {
+                                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.icon))
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Sync,
+                                        contentDescription = stringResource(R.string.library_sync_now_content_description),
+                                        modifier = Modifier.size(Sizes.icon),
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = syncExpanded,
+                                onDismissRequest = { syncExpanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_sync_all)) },
+                                    onClick = {
+                                        syncExpanded = false
+                                        onSyncNow(GitHubSyncMode.FULL)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_sync_reading_progress_only)) },
+                                    onClick = {
+                                        syncExpanded = false
+                                        onSyncNow(GitHubSyncMode.READING_PROGRESS_ONLY)
+                                    },
                                 )
                             }
                         }
-                        DropdownMenu(
-                            expanded = syncExpanded,
-                            onDismissRequest = { syncExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_sync_all)) },
-                                onClick = {
-                                    syncExpanded = false
-                                    onSyncNow(GitHubSyncMode.FULL)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_sync_reading_progress_only)) },
-                                onClick = {
-                                    syncExpanded = false
-                                    onSyncNow(GitHubSyncMode.READING_PROGRESS_ONLY)
-                                },
-                            )
+                    }
+                    if (showAddAction) {
+                        Box {
+                            LibraryTopBarIconButton(onClick = { addExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = stringResource(R.string.library_add_content_description),
+                                    modifier = Modifier.size(Sizes.icon),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = addExpanded,
+                                onDismissRequest = { addExpanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_import_files)) },
+                                    leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
+                                    onClick = {
+                                        addExpanded = false
+                                        onImportFiles()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_import_folder)) },
+                                    leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null) },
+                                    onClick = {
+                                        addExpanded = false
+                                        onImportFolder()
+                                    },
+                                )
+                            }
                         }
                     }
-                }
-                Box {
-                    LibraryTopBarIconButton(onClick = { addExpanded = true }) {
+                    LibraryTopBarIconButton(onClick = onSearchClick) {
                         Icon(
-                            imageVector = Icons.Outlined.Add,
-                            contentDescription = stringResource(R.string.library_add_content_description),
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = stringResource(R.string.library_search_content_description),
                             modifier = Modifier.size(Sizes.icon),
                         )
                     }
-                    DropdownMenu(
-                        expanded = addExpanded,
-                        onDismissRequest = { addExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.library_import_files)) },
-                            leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
-                            onClick = {
-                                addExpanded = false
-                                onImportFiles()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.library_import_folder)) },
-                            leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null) },
-                            onClick = {
-                                addExpanded = false
-                                onImportFolder()
-                            },
-                        )
+                    if (!useCompactActions) {
+                        LibraryTopBarIconButton(onClick = { filterExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.FilterList,
+                                contentDescription = stringResource(R.string.library_filter_content_description),
+                                modifier = Modifier.size(Sizes.icon),
+                            )
+                        }
+                        DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
+                            LibrarySort.entries.forEach { sort ->
+                                val selected = controls.sort == sort
+                                DropdownMenuItem(
+                                    text = { Text(sort.label()) },
+                                    trailingIcon = if (selected) {
+                                        {
+                                            Icon(
+                                                imageVector = controls.sortDirection.icon(),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(Sizes.iconSmall),
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    onClick = {
+                                        filterExpanded = false
+                                        onSortChange(sort)
+                                    },
+                                )
+                            }
+                        }
+                        LibraryTopBarIconButton(
+                            onClick = { onViewModeChange(controls.viewMode.toggled()) },
+                        ) {
+                            Icon(
+                                imageVector = controls.viewMode.toggleIcon(),
+                                contentDescription = stringResource(controls.viewMode.toggleLabelRes()),
+                                modifier = Modifier.size(Sizes.icon),
+                            )
+                        }
                     }
-                }
-                LibraryTopBarIconButton(onClick = onSearchClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = stringResource(R.string.library_search_content_description),
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                LibraryTopBarIconButton(onClick = { filterExpanded = true }) {
-                    Icon(
-                        imageVector = Icons.Outlined.FilterList,
-                        contentDescription = stringResource(R.string.library_filter_content_description),
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
-                    LibrarySort.entries.forEach { sort ->
-                        val selected = controls.sort == sort
-                        DropdownMenuItem(
-                            text = { Text(sort.label()) },
-                            trailingIcon = if (selected) {
-                                {
-                                    Icon(
-                                        imageVector = controls.sortDirection.icon(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(Sizes.iconSmall),
+                    Box {
+                        LibraryTopBarIconButton(onClick = { moreExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.MoreVert,
+                                contentDescription = stringResource(R.string.library_more_content_description),
+                                modifier = Modifier.size(Sizes.icon),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = moreExpanded,
+                            onDismissRequest = { moreExpanded = false },
+                        ) {
+                            if (useCompactActions) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_filter_content_description)) },
+                                    enabled = false,
+                                    onClick = {},
+                                )
+                                LibrarySort.entries.forEach { sort ->
+                                    val selected = controls.sort == sort
+                                    DropdownMenuItem(
+                                        text = { Text(sort.label()) },
+                                        leadingIcon = {
+                                            if (selected) Icon(Icons.Outlined.Check, contentDescription = null)
+                                        },
+                                        trailingIcon = if (selected) {
+                                            {
+                                                Icon(
+                                                    imageVector = controls.sortDirection.icon(),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(Sizes.iconSmall),
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        onClick = {
+                                            moreExpanded = false
+                                            onSortChange(sort)
+                                        },
                                     )
                                 }
-                            } else {
-                                null
-                            },
-                            onClick = {
-                                filterExpanded = false
-                                onSortChange(sort)
-                            },
-                        )
-                    }
-                }
-                LibraryTopBarIconButton(
-                    onClick = {
-                        onViewModeChange(
-                            if (controls.viewMode == LibraryViewMode.THUMBNAILS) {
-                                LibraryViewMode.LIST
-                            } else {
-                                LibraryViewMode.THUMBNAILS
-                            },
-                        )
-                    },
-                ) {
-                    Icon(
-                        imageVector = if (controls.viewMode == LibraryViewMode.THUMBNAILS) {
-                            Icons.AutoMirrored.Outlined.ViewList
-                        } else {
-                            Icons.Outlined.GridView
-                        },
-                        contentDescription = if (controls.viewMode == LibraryViewMode.THUMBNAILS) {
-                            stringResource(R.string.library_view_list_content_description)
-                        } else {
-                            stringResource(R.string.library_view_thumbnails_content_description)
-                        },
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                Box {
-                    LibraryTopBarIconButton(onClick = { moreExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Outlined.MoreVert,
-                            contentDescription = stringResource(R.string.library_more_content_description),
-                            modifier = Modifier.size(Sizes.icon),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = moreExpanded,
-                        onDismissRequest = { moreExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.library_group_content_description)) },
-                            leadingIcon = { Icon(Icons.Outlined.Category, contentDescription = null) },
-                            enabled = false,
-                            onClick = {},
-                        )
-                        LibraryGroupBy.entries.forEach { groupBy ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(controls.viewMode.toggleLabelRes())) },
+                                    leadingIcon = {
+                                        Icon(controls.viewMode.toggleIcon(), contentDescription = null)
+                                    },
+                                    onClick = {
+                                        moreExpanded = false
+                                        onViewModeChange(controls.viewMode.toggled())
+                                    },
+                                )
+                                HorizontalDivider()
+                            }
                             DropdownMenuItem(
-                                text = { Text(groupBy.label()) },
-                                leadingIcon = {
-                                    if (controls.groupBy == groupBy) {
-                                        Icon(Icons.Outlined.Check, contentDescription = null)
-                                    }
-                                },
+                                text = { Text(stringResource(R.string.library_group_content_description)) },
+                                leadingIcon = { Icon(Icons.Outlined.Category, contentDescription = null) },
+                                enabled = false,
+                                onClick = {},
+                            )
+                            LibraryGroupBy.entries.forEach { groupBy ->
+                                DropdownMenuItem(
+                                    text = { Text(groupBy.label()) },
+                                    leadingIcon = {
+                                        if (controls.groupBy == groupBy) {
+                                            Icon(Icons.Outlined.Check, contentDescription = null)
+                                        }
+                                    },
+                                    onClick = {
+                                        moreExpanded = false
+                                        onGroupByChange(groupBy)
+                                    },
+                                )
+                            }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_shelves_title)) },
+                                leadingIcon = { Icon(Icons.Outlined.CollectionsBookmark, contentDescription = null) },
                                 onClick = {
                                     moreExpanded = false
-                                    onGroupByChange(groupBy)
+                                    onShelvesClick()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_recently_deleted_title)) },
+                                leadingIcon = { Icon(Icons.Outlined.RestoreFromTrash, contentDescription = null) },
+                                onClick = {
+                                    moreExpanded = false
+                                    onRecentlyDeletedClick()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.library_settings_title)) },
+                                leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                                onClick = {
+                                    moreExpanded = false
+                                    onSettingsClick()
                                 },
                             )
                         }
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.library_shelves_title)) },
-                            leadingIcon = { Icon(Icons.Outlined.CollectionsBookmark, contentDescription = null) },
-                            onClick = {
-                                moreExpanded = false
-                                onShelvesClick()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.library_recently_deleted_title)) },
-                            leadingIcon = { Icon(Icons.Outlined.RestoreFromTrash, contentDescription = null) },
-                            onClick = {
-                                moreExpanded = false
-                                onRecentlyDeletedClick()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.library_settings_title)) },
-                            leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                            onClick = {
-                                moreExpanded = false
-                                onSettingsClick()
-                            },
-                        )
                     }
                 }
             }
-        }
 
-        val focusManager = LocalFocusManager.current
-        OutlinedTextField(
-            value = controls.query,
-            onValueChange = onQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = Sizes.touchTargetEink)
-                .padding(top = Spacing.md),
-            singleLine = true,
-            shape = RoundedCornerShape(Radii.full),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = SearchFieldUnfocusedBorderAlpha),
-                focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
-                unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-            trailingIcon = {
-                if (controls.query.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChange("") }) {
-                        Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = stringResource(R.string.input_clear_content_description),
-                        )
+            val focusManager = LocalFocusManager.current
+            OutlinedTextField(
+                value = controls.query,
+                onValueChange = onQueryChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = Sizes.touchTargetEink)
+                    .padding(top = Spacing.md),
+                singleLine = true,
+                shape = RoundedCornerShape(Radii.full),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = SearchFieldUnfocusedBorderAlpha),
+                    focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (controls.query.isNotEmpty()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = stringResource(R.string.input_clear_content_description),
+                            )
+                        }
                     }
+                },
+                placeholder = { Text(stringResource(R.string.library_search_placeholder)) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+            )
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                LibraryFilter.entries.forEach { filter ->
+                    FilterChip(
+                        selected = controls.filter == filter,
+                        onClick = { onFilterChange(filter) },
+                        label = { Text(filter.label()) },
+                    )
                 }
-            },
-            placeholder = { Text(stringResource(R.string.library_search_placeholder)) },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-        )
-        Row(
-            modifier = Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            LibraryFilter.entries.forEach { filter ->
-                FilterChip(
-                    selected = controls.filter == filter,
-                    onClick = { onFilterChange(filter) },
-                    label = { Text(filter.label()) },
-                )
             }
         }
     }
+}
+
+private fun LibraryViewMode.toggled(): LibraryViewMode = when (this) {
+    LibraryViewMode.THUMBNAILS -> LibraryViewMode.LIST
+    LibraryViewMode.LIST -> LibraryViewMode.THUMBNAILS
+}
+
+private fun LibraryViewMode.toggleIcon(): ImageVector = when (this) {
+    LibraryViewMode.THUMBNAILS -> Icons.AutoMirrored.Outlined.ViewList
+    LibraryViewMode.LIST -> Icons.Outlined.GridView
+}
+
+private fun LibraryViewMode.toggleLabelRes(): Int = when (this) {
+    LibraryViewMode.THUMBNAILS -> R.string.library_view_list_content_description
+    LibraryViewMode.LIST -> R.string.library_view_thumbnails_content_description
 }
 
 @Composable
@@ -1185,10 +1266,17 @@ private fun LibraryListRow(
     onMarkFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = !isDownloading, onClick = onClick),
+            .vayanaPressScale(interactionSource)
+            .clickable(
+                enabled = !isDownloading,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.none,
@@ -1285,7 +1373,7 @@ private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadPro
                 )
             }
             book.readingPercent > 0f -> {
-                LinearProgressIndicator(
+                VayanaLinearProgressIndicator(
                     progress = { book.readingPercent.coerceIn(0f, 1f) },
                     modifier = Modifier.weight(1f),
                     strokeCap = StrokeCap.Round,
@@ -1319,10 +1407,17 @@ private fun LibraryHeroCard(
     onMarkFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = !isDownloading, onClick = onClick),
+            .vayanaPressScale(interactionSource)
+            .clickable(
+                enabled = !isDownloading,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
         shape = RoundedCornerShape(Radii.extraLargeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.shadowSmall,
@@ -1419,7 +1514,7 @@ private fun LibraryHeroCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        LinearProgressIndicator(
+                        VayanaLinearProgressIndicator(
                             progress = { book.readingPercent.coerceIn(0f, 1f) },
                             modifier = Modifier.weight(1f),
                             strokeCap = StrokeCap.Round,
@@ -1485,7 +1580,17 @@ private fun BookCoverCell(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Column(modifier = modifier.clickable(enabled = !isDownloading, onClick = onClick)) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = modifier
+            .vayanaPressScale(interactionSource, pressedScale = 0.975f)
+            .clickable(
+                enabled = !isDownloading,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
         Box {
             BookCover(book = book, modifier = Modifier.fillMaxWidth())
             BookFinishedBadge(
@@ -1502,7 +1607,7 @@ private fun BookCoverCell(
             modifier = Modifier.padding(top = Spacing.xs),
         )
         if (isDownloading) {
-            LinearProgressIndicator(
+            VayanaLinearProgressIndicator(
                 progress = { downloadProgress ?: 0f },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1510,7 +1615,7 @@ private fun BookCoverCell(
                 strokeCap = StrokeCap.Round,
             )
         } else if (book.readingPercent > 0f) {
-            LinearProgressIndicator(
+            VayanaLinearProgressIndicator(
                 progress = { book.readingPercent.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()

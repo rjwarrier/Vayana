@@ -23,7 +23,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -195,7 +194,7 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
                             )
                         }
                     }
-                    LinearProgressIndicator(
+                    VayanaLinearProgressIndicator(
                         progress = { progress.fraction },
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
@@ -327,7 +326,7 @@ internal fun CloudBookDownloadProgressSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.xs),
             )
-            LinearProgressIndicator(
+            VayanaLinearProgressIndicator(
                 progress = { progress.fraction },
                 modifier = Modifier
                     .fillMaxWidth()

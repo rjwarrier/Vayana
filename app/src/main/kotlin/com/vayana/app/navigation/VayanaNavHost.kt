@@ -1,6 +1,8 @@
 package com.vayana.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
@@ -19,6 +21,7 @@ import com.vayana.core.designsystem.theme.vayanaNavPopExit
 import com.vayana.core.designsystem.theme.vayanaNavTabEnter
 import com.vayana.core.designsystem.theme.vayanaNavTabExit
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
+import com.vayana.feature.library.LibraryAddAction
 import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
 import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
 import com.vayana.feature.notes.NotesRoute
@@ -76,7 +79,10 @@ fun VayanaNavHost(
             }
         },
     ) {
-        composable<TopLevelRoute.Library> {
+        composable<TopLevelRoute.Library> { backStackEntry ->
+            val addBookActionName by backStackEntry.savedStateHandle
+                .getStateFlow<String?>(LIBRARY_ADD_ACTION_KEY, null)
+                .collectAsState()
             LibraryListDetailRoute(
                 navController = navController,
                 onSettingsClick = { navController.navigate(SettingsRoute) },
@@ -85,6 +91,10 @@ fun VayanaNavHost(
                 onShelvesClick = { navController.navigate(ShelvesRoute) },
                 onContinueReading = { bookId, locator ->
                     navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
+                },
+                addBookAction = LibraryAddAction.entries.find { action -> action.name == addBookActionName },
+                onAddBookActionHandled = {
+                    backStackEntry.savedStateHandle[LIBRARY_ADD_ACTION_KEY] = null
                 },
             )
         }

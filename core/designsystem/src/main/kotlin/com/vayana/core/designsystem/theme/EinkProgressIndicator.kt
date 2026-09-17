@@ -1,12 +1,16 @@
 package com.vayana.core.designsystem.theme
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
+import com.vayana.core.designsystem.tokens.Durations
 
 /**
  * Drop-in replacement for [CircularProgressIndicator]'s indeterminate spinner. An indeterminate
@@ -50,6 +54,29 @@ fun VayanaLinearProgressIndicator(
     } else {
         LinearProgressIndicator(modifier = modifier, color = color, trackColor = trackColor)
     }
+}
+
+/** Determinate progress that eases between state updates and snaps for E-Ink or Motion Off. */
+@Composable
+fun VayanaLinearProgressIndicator(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    color: Color = ProgressIndicatorDefaults.linearColor,
+    trackColor: Color = ProgressIndicatorDefaults.linearTrackColor,
+    strokeCap: StrokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress().coerceIn(0f, 1f),
+        animationSpec = vayanaTween(durationMillis = Durations.medium),
+        label = "VayanaLinearProgress",
+    )
+    LinearProgressIndicator(
+        progress = { animatedProgress },
+        modifier = modifier,
+        color = color,
+        trackColor = trackColor,
+        strokeCap = strokeCap,
+    )
 }
 
 private const val EinkStaticProgressFraction = 0.75f

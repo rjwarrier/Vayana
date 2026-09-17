@@ -1,5 +1,6 @@
 package com.vayana.feature.settings
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,11 @@ import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.StringSetting
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
+import com.vayana.core.designsystem.theme.vayanaFadeIn
+import com.vayana.core.designsystem.theme.vayanaFadeOut
+import com.vayana.core.designsystem.theme.vayanaScaleIn
+import com.vayana.core.designsystem.theme.vayanaScaleOut
+import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -102,7 +108,11 @@ internal fun SettingRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                if (isModified) {
+                AnimatedVisibility(
+                    visible = isModified,
+                    enter = vayanaScaleIn(initialScale = 0.9f) + vayanaFadeIn(),
+                    exit = vayanaScaleOut(targetScale = 0.9f) + vayanaFadeOut(),
+                ) {
                     IconButton(onClick = { onReset(setting) }) {
                         Icon(
                             imageVector = Icons.Outlined.RestartAlt,
@@ -280,6 +290,7 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
             val selected = option.value == value
             val cornerRadius by animateDpAsState(
                 targetValue = if (selected) Radii.full else Radii.small,
+                animationSpec = vayanaSpring(),
                 label = "SettingsChoiceChipCorner",
             )
             FilterChip(

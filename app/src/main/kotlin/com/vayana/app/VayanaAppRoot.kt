@@ -103,7 +103,12 @@ fun VayanaAppRoot() {
         } else {
             Scaffold(
                 bottomBar = {
-                    if (navigationPresentation == NavigationPresentation.BottomBar) VayanaBottomBar(navController)
+                    if (navigationPresentation == NavigationPresentation.BottomBar) {
+                        VayanaBottomBar(
+                            navController = navController,
+                            onBooksLongPress = settingsViewModel::toggleNavigationMode,
+                        )
+                    }
                 },
                 containerColor = MaterialTheme.colorScheme.background,
             ) { innerPadding ->
@@ -129,7 +134,11 @@ fun VayanaAppRoot() {
                         )
                     }
                     if (navigationPresentation == NavigationPresentation.FloatingBar) {
-                        VayanaFloatingBar(navController, modifier = Modifier.align(Alignment.BottomCenter))
+                        VayanaFloatingBar(
+                            navController = navController,
+                            onBooksLongPress = settingsViewModel::toggleNavigationMode,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
                     }
                 }
             }

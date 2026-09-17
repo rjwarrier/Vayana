@@ -971,12 +971,16 @@ private fun ReaderScreen(
             )
         }
 
-        if (readAloud.active && !chromeVisible) {
+        AnimatedVisibility(
+            visible = readAloud.active && !chromeVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = settings.readerFooterGapDp.dp),
+            enter = vayanaSlideInVertically(initialOffsetY = { it / 2 }) + vayanaFadeIn(),
+            exit = vayanaSlideOutVertically(targetOffsetY = { it / 2 }) + vayanaFadeOut(),
+        ) {
             ReadAloudBar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = settings.readerFooterGapDp.dp),
                 state = readAloud,
                 onTogglePlayback = onToggleReadAloud,
                 onCycleRate = onCycleReadAloudRate,

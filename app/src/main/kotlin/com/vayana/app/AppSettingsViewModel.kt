@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.datastore.settings.SettingsRepository
+import com.vayana.core.datastore.settings.NavigationMode
+import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.feature.library.RecentlyDeletedAutoPurge
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,4 +48,15 @@ class AppSettingsViewModel @Inject constructor(
 
     /** The most recently read book that can open in the reader right now, for "Open on: Continue last book". */
     suspend fun lastReadBookId(): Long? = bookRepository.lastReadOpenableBookId()
+
+    fun toggleNavigationMode() {
+        val currentMode = settings.value?.navigationMode ?: return
+        val nextMode = when (currentMode) {
+            NavigationMode.BOTTOM_BAR -> NavigationMode.FLOATING_BAR
+            NavigationMode.FLOATING_BAR -> NavigationMode.BOTTOM_BAR
+        }
+        viewModelScope.launch {
+            settingsRepository.update(SettingsRegistry.NavigationMode, nextMode)
+        }
+    }
 }

@@ -27,6 +27,13 @@ object Sizes {
 
     val contentMaxWidth = 600.dp
 
+    /**
+     * A tablet list pane can be compact even when the full window is wide. Below this width,
+     * secondary library toolbar actions move into the overflow menu so the title row remains
+     * usable in a list-detail layout.
+     */
+    val libraryToolbarExpandedActionsBreakpoint = 560.dp
+
     /** Book cover aspect ratio, width:height. */
     const val coverAspectRatio = 2f / 3f
 

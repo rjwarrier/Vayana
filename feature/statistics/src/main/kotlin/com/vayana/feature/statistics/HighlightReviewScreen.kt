@@ -20,7 +20,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -38,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.designsystem.sharecard.QuoteShareDialog
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
@@ -112,7 +112,10 @@ private fun HighlightReviewCard(
             .padding(Paddings.screenHorizontal),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        LinearProgressIndicator(progress = { position.toFloat() / total }, modifier = Modifier.fillMaxWidth())
+        VayanaLinearProgressIndicator(
+            progress = { position.toFloat() / total },
+            modifier = Modifier.fillMaxWidth(),
+        )
         Text(
             text = stringResource(R.string.highlight_review_progress, position, total),
             style = MaterialTheme.typography.labelLarge,

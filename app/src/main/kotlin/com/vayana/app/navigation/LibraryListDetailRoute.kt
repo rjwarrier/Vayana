@@ -19,6 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.window.core.layout.WindowSizeClass
 import com.vayana.feature.library.BookDetailRoute
+import com.vayana.feature.library.LibraryAddAction
 import com.vayana.feature.library.LibraryRoute
 import com.vayana.feature.library.LibraryViewModel
 import kotlinx.coroutines.launch
@@ -38,6 +39,8 @@ fun LibraryListDetailRoute(
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
+    addBookAction: LibraryAddAction?,
+    onAddBookActionHandled: () -> Unit,
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val landscapeTwoColumnLayout by viewModel.landscapeTwoColumnLayout.collectAsState()
@@ -53,6 +56,8 @@ fun LibraryListDetailRoute(
             onSearchClick = onSearchClick,
             onRecentlyDeletedClick = onRecentlyDeletedClick,
             onShelvesClick = onShelvesClick,
+            addBookAction = addBookAction,
+            onAddBookActionHandled = onAddBookActionHandled,
         )
         return
     }
@@ -77,6 +82,8 @@ fun LibraryListDetailRoute(
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
+                    addBookAction = addBookAction,
+                    onAddBookActionHandled = onAddBookActionHandled,
                 )
             }
         },
