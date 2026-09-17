@@ -109,6 +109,7 @@ fun BookDetailRoute(
     bookId: Long,
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
+    useWideActions: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -161,6 +162,7 @@ fun BookDetailRoute(
         readNextBumped = viewModel.readNextBumped,
         onBack = onBack,
         onContinueReading = onContinueReading,
+        useWideActions = useWideActions,
         onUpdateMetadata = { title, author, series, seriesNumber, description, tagsCsv ->
             viewModel.updateMetadata(bookId, title, author, series, seriesNumber, description, tagsCsv)
         },
@@ -257,6 +259,7 @@ private fun BookDetailScreen(
     readNextBumped: Flow<List<Book>>,
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
+    useWideActions: Boolean,
     onUpdateMetadata: (String, String, String, String, String, String) -> Unit,
     onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
@@ -328,7 +331,6 @@ private fun BookDetailScreen(
     }
 
     val cleanedDescription = remember(book?.description) { book?.description?.cleanHtml() }
-
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -345,10 +347,31 @@ private fun BookDetailScreen(
                 Text(
                     text = stringResource(R.string.library_book_detail_title),
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(start = Spacing.sm),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = Spacing.sm),
                 )
-                Spacer(modifier = Modifier.weight(1f))
                 if (book != null) {
+                    if (useWideActions) {
+                        IconButton(onClick = { showEditDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Edit,
+                                contentDescription = stringResource(R.string.library_edit_metadata),
+                            )
+                        }
+                        if (book.hasLocalReadableSource()) {
+                            Button(onClick = { onContinueReading(book.id, null) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoStories,
+                                    contentDescription = null,
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.sm))
+                                Text(stringResource(R.string.library_continue_reading))
+                            }
+                        }
+                    }
                     Box {
                         IconButton(onClick = { actionsExpanded = true }) {
                             Icon(
@@ -464,7 +487,7 @@ private fun BookDetailScreen(
             }
         },
         floatingActionButton = {
-            if (book != null) {
+            if (book != null && !useWideActions) {
                 Column(
                     modifier = Modifier.padding(bottom = LocalFloatingNavigationInset.current),
                     verticalArrangement = Arrangement.spacedBy(Spacing.md),

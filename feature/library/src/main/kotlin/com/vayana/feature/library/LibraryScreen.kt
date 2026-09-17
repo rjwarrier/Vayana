@@ -136,6 +136,7 @@ enum class LibraryAddAction {
 fun LibraryRoute(
     onBookClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
+    showSettingsAction: Boolean = true,
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -179,6 +180,7 @@ fun LibraryRoute(
         onDownloadCloudBook = viewModel::downloadCloudBook,
         onSyncNow = viewModel::syncNow,
         onSettingsClick = onSettingsClick,
+        showSettingsAction = showSettingsAction,
         onSearchClick = onSearchClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
         onShelvesClick = onShelvesClick,
@@ -217,6 +219,7 @@ private fun LibraryScreen(
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
     onSyncNow: suspend (Boolean, GitHubSyncMode) -> GitHubSyncNowResult,
     onSettingsClick: () -> Unit,
+    showSettingsAction: Boolean,
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -415,6 +418,7 @@ private fun LibraryScreen(
                     onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                     onImportFolder = { folderPicker.launch(null) },
                     onSettingsClick = onSettingsClick,
+                    showSettingsAction = showSettingsAction,
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
@@ -628,6 +632,7 @@ private fun LibraryTopBar(
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
     onSettingsClick: () -> Unit,
+    showSettingsAction: Boolean,
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
@@ -878,14 +883,16 @@ private fun LibraryTopBar(
                                     onRecentlyDeletedClick()
                                 },
                             )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_settings_title)) },
-                                leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                                onClick = {
-                                    moreExpanded = false
-                                    onSettingsClick()
-                                },
-                            )
+                            if (showSettingsAction) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.library_settings_title)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                                    onClick = {
+                                        moreExpanded = false
+                                        onSettingsClick()
+                                    },
+                                )
+                            }
                         }
                     }
                 }

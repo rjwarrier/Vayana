@@ -149,6 +149,8 @@
     <string name="library_download_progress_percent">%1$d%% complete</string>
     <string name="library_settings_content_description">Open settings</string>
     <string name="library_book_detail_title">Book details</string>
+    <string name="library_detail_empty_title">Select a book</string>
+    <string name="library_detail_empty_body">Choose a book from your library to see its details.</string>
     <string name="library_book_actions_content_description">Book actions</string>
     <string name="library_book_not_found">Book not found.</string>
     <string name="library_progress_value">%1$d%% read</string>

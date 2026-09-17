@@ -1,6 +1,7 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -43,6 +44,17 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
     val daysTakenText = remember(daysTaken, context) {
         formatDaysTaken(daysTaken, context)
     }
+    val stats = buildList {
+        add(stringResource(R.string.library_stat_started) to startedAt.formatDate())
+        if (isFinished) {
+            add(
+                stringResource(R.string.library_stat_finished) to
+                    (book.finishedReadingAt ?: book.updatedAt).formatDate(),
+            )
+        }
+        add(stringResource(R.string.library_stat_time_taken) to timeTakenText)
+        add(stringResource(R.string.library_stat_days_taken) to daysTakenText)
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -78,29 +90,33 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
                 )
             }
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                ReadingStatPill(
-                    label = stringResource(R.string.library_stat_started),
-                    value = startedAt.formatDate(),
-                )
-                if (isFinished) {
-                    ReadingStatPill(
-                        label = stringResource(R.string.library_stat_finished),
-                        value = (book.finishedReadingAt ?: book.updatedAt).formatDate(),
-                    )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val minimumRowWidth = (Sizes.chipMinWidth * stats.size) +
+                    (Spacing.sm * (stats.size - 1).coerceAtLeast(0))
+                if (maxWidth >= minimumRowWidth) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        stats.forEach { (label, value) ->
+                            ReadingStatPill(
+                                label = label,
+                                value = value,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                } else {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        stats.forEach { (label, value) ->
+                            ReadingStatPill(label = label, value = value)
+                        }
+                    }
                 }
-                ReadingStatPill(
-                    label = stringResource(R.string.library_stat_time_taken),
-                    value = timeTakenText,
-                )
-                ReadingStatPill(
-                    label = stringResource(R.string.library_stat_days_taken),
-                    value = daysTakenText,
-                )
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.vayana.app
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -78,6 +80,8 @@ fun VayanaAppRoot() {
 
         val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
         val useNavigationRail = windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+        val showSettingsInRail = useNavigationRail &&
+            LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
         val navigationPresentation = resolveNavigationPresentation(
             showNavigation = showNavigation,
             useNavigationRail = useNavigationRail,
@@ -88,7 +92,12 @@ fun VayanaAppRoot() {
         if (useNavigationRail) {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    if (navigationPresentation == NavigationPresentation.Rail) VayanaNavigationRail(navController)
+                    if (navigationPresentation == NavigationPresentation.Rail) {
+                        VayanaNavigationRail(
+                            navController = navController,
+                            showSettings = showSettingsInRail,
+                        )
+                    }
                     VayanaNavHost(
                         navController = navController,
                         startDestination = startDestination,

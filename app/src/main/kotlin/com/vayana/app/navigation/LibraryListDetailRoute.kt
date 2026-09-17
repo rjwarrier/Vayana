@@ -3,6 +3,16 @@ package com.vayana.app.navigation
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
@@ -11,10 +21,12 @@ import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.window.core.layout.WindowSizeClass
@@ -22,6 +34,9 @@ import com.vayana.feature.library.BookDetailRoute
 import com.vayana.feature.library.LibraryAddAction
 import com.vayana.feature.library.LibraryRoute
 import com.vayana.feature.library.LibraryViewModel
+import com.vayana.core.designsystem.tokens.Sizes
+import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.resources.R
 import kotlinx.coroutines.launch
 
 /**
@@ -44,15 +59,18 @@ fun LibraryListDetailRoute(
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val landscapeTwoColumnLayout by viewModel.landscapeTwoColumnLayout.collectAsState()
+    val libraryBooks by viewModel.libraryBooks.collectAsState()
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val useListDetailPane = landscapeTwoColumnLayout && isLandscape &&
+    val isTabletLandscape = isLandscape &&
         windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val useListDetailPane = landscapeTwoColumnLayout && isTabletLandscape
 
     if (!useListDetailPane) {
         LibraryRoute(
             onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
             onSettingsClick = onSettingsClick,
+            showSettingsAction = !isTabletLandscape,
             onSearchClick = onSearchClick,
             onRecentlyDeletedClick = onRecentlyDeletedClick,
             onShelvesClick = onShelvesClick,
@@ -79,6 +97,7 @@ fun LibraryListDetailRoute(
                         scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, bookId) }
                     },
                     onSettingsClick = onSettingsClick,
+                    showSettingsAction = false,
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
@@ -95,9 +114,44 @@ fun LibraryListDetailRoute(
                         bookId = bookId,
                         onBack = { scope.launch { navigator.navigateBack() } },
                         onContinueReading = onContinueReading,
+                        useWideActions = true,
                     )
+                } else if (libraryBooks.isNotEmpty()) {
+                    LibraryDetailPlaceholder()
                 }
             }
         },
     )
+}
+
+@Composable
+private fun LibraryDetailPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Spacing.xxl),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AutoStories,
+                contentDescription = null,
+                modifier = Modifier.size(Sizes.badgeLarge),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.library_detail_empty_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.library_detail_empty_body),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
