@@ -159,9 +159,13 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Radii.extraLarge),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurface,
                 tonalElevation = Elevations.level1,
+                border = BorderStroke(
+                    Strokes.outline,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                ),
             ) {
                 Column(
                     modifier = Modifier.padding(Spacing.lg),
@@ -173,8 +177,8 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Sync,
@@ -190,7 +194,7 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
                             Text(
                                 text = progress.detail,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -198,7 +202,7 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
                         progress = { progress.fraction },
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
                         strokeCap = StrokeCap.Round,
                     )
                 }
@@ -253,18 +257,27 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
 @Composable
 private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus, detail: String? = null) {
     val colors = status.containerAndContentColor()
+    val accentColor = status.accentColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.medium),
         color = colors.first,
         contentColor = colors.second,
+        border = BorderStroke(
+            Strokes.outline,
+            when (status) {
+                GitHubSyncStepStatus.RUNNING -> accentColor.copy(alpha = 0.65f)
+                GitHubSyncStepStatus.FAILED -> accentColor.copy(alpha = 0.55f)
+                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f)
+            },
+        ),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            GitHubSyncStepIcon(status = status, modifier = Modifier.size(Sizes.icon))
+            GitHubSyncStepIcon(status = status, color = accentColor, modifier = Modifier.size(Sizes.icon))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
@@ -284,12 +297,12 @@ private fun GitHubSyncProgressRow(label: String, status: GitHubSyncStepStatus, d
 }
 
 @Composable
-private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus, modifier: Modifier = Modifier) {
+private fun GitHubSyncStepIcon(status: GitHubSyncStepStatus, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     when (status) {
-        GitHubSyncStepStatus.RUNNING -> VayanaCircularProgressIndicator(modifier = modifier)
-        GitHubSyncStepStatus.DONE -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = modifier)
-        GitHubSyncStepStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = modifier)
-        GitHubSyncStepStatus.WAITING -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = modifier)
+        GitHubSyncStepStatus.RUNNING -> VayanaCircularProgressIndicator(modifier = modifier, color = color)
+        GitHubSyncStepStatus.DONE -> Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = modifier, tint = color)
+        GitHubSyncStepStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = modifier, tint = color)
+        GitHubSyncStepStatus.WAITING -> Icon(Icons.Outlined.HourglassEmpty, contentDescription = null, modifier = modifier, tint = color)
     }
 }
 
@@ -404,10 +417,18 @@ internal fun GitHubSyncStepStatus.label(): String = when (this) {
 
 @Composable
 private fun GitHubSyncStepStatus.containerAndContentColor() = when (this) {
-    GitHubSyncStepStatus.RUNNING -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-    GitHubSyncStepStatus.DONE -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    GitHubSyncStepStatus.RUNNING -> MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurface
+    GitHubSyncStepStatus.DONE -> MaterialTheme.colorScheme.surfaceContainer to MaterialTheme.colorScheme.onSurface
     GitHubSyncStepStatus.FAILED -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
     GitHubSyncStepStatus.WAITING -> MaterialTheme.colorScheme.surfaceContainerLow to MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+@Composable
+private fun GitHubSyncStepStatus.accentColor() = when (this) {
+    GitHubSyncStepStatus.RUNNING -> MaterialTheme.colorScheme.primary
+    GitHubSyncStepStatus.DONE -> MaterialTheme.colorScheme.secondary
+    GitHubSyncStepStatus.FAILED -> MaterialTheme.colorScheme.error
+    GitHubSyncStepStatus.WAITING -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 private fun GitHubSyncProgressState.statusFor(step: GitHubSyncProgressStep): GitHubSyncStepStatus {

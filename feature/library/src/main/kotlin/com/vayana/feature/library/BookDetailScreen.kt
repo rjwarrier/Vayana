@@ -121,6 +121,7 @@ fun BookDetailRoute(
     val uiState by viewModel.uiState.collectAsState()
     val libraryBooks by viewModel.libraryBooks.collectAsState()
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
+    val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsState()
     val allShelves by viewModel.shelves.collectAsState()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
     val goodreadsImport by viewModel.goodreadsImport.collectAsState()
@@ -160,6 +161,7 @@ fun BookDetailRoute(
         },
         libraryBooks = libraryBooks,
         detailMessage = detailMessage,
+        coverImageDownloadInProgress = coverImageDownloadInProgress,
         allShelves = allShelves,
         shelvesForBook = shelvesForBook,
         onCreateShelf = viewModel::createShelf,
@@ -261,6 +263,7 @@ private fun BookDetailScreen(
     onRevertSyncedProgress: (BookProgressChange) -> Unit,
     libraryBooks: List<Book>,
     detailMessage: BookDetailMessage?,
+    coverImageDownloadInProgress: Boolean,
     allShelves: List<com.vayana.core.database.model.Shelf>,
     shelvesForBook: List<com.vayana.core.database.model.Shelf>,
     onCreateShelf: (String) -> Unit,
@@ -308,6 +311,7 @@ private fun BookDetailScreen(
     var showResetStatsDialog by remember { mutableStateOf(false) }
     var showEditCoverDialog by remember { mutableStateOf(false) }
     var showCoverImageSearch by remember { mutableStateOf(false) }
+    var coverImageDownloadStarted by remember { mutableStateOf(false) }
     var showShareBookDialog by remember { mutableStateOf(false) }
     var showRemoveFromDeviceDialog by remember { mutableStateOf(false) }
     var readNextSeriesBreakWarning by remember { mutableStateOf<ReadNextSeriesBreakWarning?>(null) }
@@ -332,6 +336,15 @@ private fun BookDetailScreen(
         val message = detailMessageText ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         onDetailMessageShown()
+    }
+
+    LaunchedEffect(coverImageDownloadInProgress) {
+        if (coverImageDownloadInProgress) {
+            coverImageDownloadStarted = true
+        } else if (coverImageDownloadStarted) {
+            coverImageDownloadStarted = false
+            showCoverImageSearch = false
+        }
     }
 
     val readNextBumpedOneMessage = stringResource(R.string.library_read_next_bumped_one)
@@ -996,8 +1009,8 @@ private fun BookDetailScreen(
     if (showCoverImageSearch && book != null) {
         CoverImageSearchBrowser(
             bookTitle = book.title,
+            imageDownloadInProgress = coverImageDownloadInProgress,
             onImageSelected = { request ->
-                showCoverImageSearch = false
                 onReplaceCoverFromWeb(request)
             },
             onDismiss = {

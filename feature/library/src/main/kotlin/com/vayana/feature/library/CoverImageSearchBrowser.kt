@@ -52,6 +52,7 @@ internal fun coverImageSearchUrl(bookTitle: String): String =
 @Composable
 internal fun CoverImageSearchBrowser(
     bookTitle: String,
+    imageDownloadInProgress: Boolean,
     onImageSelected: (CoverImageRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -164,6 +165,24 @@ internal fun CoverImageSearchBrowser(
                     Text(stringResource(R.string.library_edit_metadata_cancel))
                 }
             },
+        )
+    }
+
+    if (imageDownloadInProgress) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.library_cover_search_downloading_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.library_cover_search_downloading_body))
+                    VayanaLinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.md),
+                    )
+                }
+            },
+            confirmButton = {},
         )
     }
 }

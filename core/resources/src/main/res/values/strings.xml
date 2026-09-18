@@ -201,6 +201,8 @@
     <string name="library_cover_search_confirm_title">Use this image as the cover?</string>
     <string name="library_cover_search_confirm_body">The image will be downloaded and saved as your cover.</string>
     <string name="library_cover_search_download">Download image</string>
+    <string name="library_cover_search_downloading_title">Updating cover</string>
+    <string name="library_cover_search_downloading_body">Downloading and applying the selected image…</string>
     <string name="library_remove_cover">Remove</string>
     <string name="library_edit_cover">Edit cover</string>
     <string name="library_edit_cover_done">Done</string>

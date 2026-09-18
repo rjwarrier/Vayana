@@ -529,6 +529,9 @@ class LibraryViewModel @Inject constructor(
     private val _bookDetailMessage = MutableStateFlow<BookDetailMessage?>(null)
     val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
 
+    private val _coverImageDownloadInProgress = MutableStateFlow(false)
+    val coverImageDownloadInProgress: StateFlow<Boolean> = _coverImageDownloadInProgress
+
     val pendingLaunchProgressChange: StateFlow<BookProgressChange?> =
         launchReadingProgressCoordinator.pendingProgressChange
 
@@ -830,8 +833,14 @@ class LibraryViewModel @Inject constructor(
     }
 
     internal fun replaceCoverFromWeb(bookId: Long, request: CoverImageRequest) {
+        if (_coverImageDownloadInProgress.value) return
+        _coverImageDownloadInProgress.value = true
         viewModelScope.launch {
-            _bookDetailMessage.value = withContext(dispatchers.io) { replaceCoverFromWebInLibrary(bookId, request) }
+            try {
+                _bookDetailMessage.value = withContext(dispatchers.io) { replaceCoverFromWebInLibrary(bookId, request) }
+            } finally {
+                _coverImageDownloadInProgress.value = false
+            }
         }
     }
 
