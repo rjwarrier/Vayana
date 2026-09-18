@@ -194,12 +194,19 @@
     <string name="library_edit_metadata_cancel">Cancel</string>
     <string name="library_metadata_saved">Metadata saved</string>
     <string name="library_change_cover">Change</string>
+    <string name="library_search_cover_images">Search cover images</string>
+    <string name="library_cover_search_title">Find cover image</string>
+    <string name="library_cover_search_close">Close image search</string>
+    <string name="library_cover_search_hint">Select an image, then long-press it and tap Download image.</string>
+    <string name="library_cover_search_confirm_title">Use this image as the cover?</string>
+    <string name="library_cover_search_confirm_body">The image will be downloaded and saved as your cover.</string>
+    <string name="library_cover_search_download">Download image</string>
     <string name="library_remove_cover">Remove</string>
     <string name="library_edit_cover">Edit cover</string>
     <string name="library_edit_cover_done">Done</string>
     <string name="library_cover_source_custom">Your cover</string>
     <string name="library_cover_source_goodreads">Goodreads</string>
-    <string name="library_goodreads_import">Import from Goodreads</string>
+    <string name="library_goodreads_import">Fetch from Goodreads</string>
     <string name="library_goodreads_refresh">Refresh Goodreads data</string>
     <string name="library_goodreads_link_label">Goodreads book link</string>
     <string name="library_goodreads_link_hint">goodreads.com/book/show/…</string>
@@ -207,6 +214,7 @@
     <string name="library_goodreads_import_action">Import</string>
     <string name="library_goodreads_step_book">Reading book details…</string>
     <string name="library_goodreads_step_extras">Downloading cover and quotes…</string>
+    <string name="library_goodreads_quotes_progress">%1$d Quotes / Total %2$d Quotes</string>
     <string name="library_goodreads_applied_quotes">Goodreads details applied · %1$d quotes added · %2$d skipped</string>
     <string name="library_goodreads_quotes_failed">Details applied, but the quotes couldn\'t be fetched</string>
     <string name="library_goodreads_invalid_link">That doesn\'t look like a Goodreads book link.</string>
@@ -219,11 +227,17 @@
     <string name="library_goodreads_browser_import">Import this book</string>
     <string name="library_goodreads_browser_reading_book">Reading book details…</string>
     <string name="library_goodreads_browser_reading_quotes">Reading quotes · page %1$d…</string>
+    <string name="library_goodreads_browser_reading_quotes_progress">Reading quotes · %1$d Quotes / Total %2$d Quotes</string>
     <string name="library_goodreads_browser_not_ready">This page hasn\'t finished loading. Wait a moment and try again.</string>
     <string name="library_goodreads_failed">Couldn\'t read that page from Goodreads. Check your connection and try again.</string>
     <string name="library_goodreads_rating">★ %1$.2f on Goodreads</string>
     <string name="library_goodreads_rating_with_count">★ %1$.2f on Goodreads (%2$s ratings)</string>
+    <string name="library_goodreads_rating_chip">%1$.2f Goodreads</string>
     <string name="library_goodreads_first_published">First published %1$d</string>
+    <plurals name="library_community_quotes_count">
+        <item quantity="one">%d community quote</item>
+        <item quantity="other">%d community quotes</item>
+    </plurals>
     <string name="library_goodreads_applied">Goodreads details applied</string>
     <string name="library_goodreads_cover_failed">Details applied, but the cover couldn\'t be downloaded</string>
     <string name="library_goodreads_apply_failed">Couldn\'t apply the Goodreads details</string>

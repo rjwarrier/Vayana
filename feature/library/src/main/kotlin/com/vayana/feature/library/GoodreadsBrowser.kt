@@ -60,7 +60,10 @@ internal data class GoodreadsBrowserCapture(val metadata: GoodreadsBookMetadata,
 
 private sealed interface CaptureStatus {
     data object Book : CaptureStatus
-    data class Quotes(val page: Int) : CaptureStatus
+    data class Quotes(
+        val page: Int,
+        val progress: GoodreadsQuoteProgress? = null,
+    ) : CaptureStatus
 }
 
 /**
@@ -104,7 +107,11 @@ internal fun GoodreadsBrowserDialog(
                     return@launch
                 }
                 val quotes = metadata.workId?.let { workId ->
-                    collectGoodreadsQuotes { page ->
+                    var currentPage = 1
+                    collectGoodreadsQuotes(
+                        onProgress = { progress -> status = CaptureStatus.Quotes(currentPage, progress) },
+                    ) { page ->
+                        currentPage = page
                         status = CaptureStatus.Quotes(page)
                         pageReader.loadHtml(goodreadsQuotesUrl(workId, page))
                     }
@@ -195,7 +202,16 @@ internal fun GoodreadsBrowserDialog(
                         Text(
                             text = when (val current = status) {
                                 CaptureStatus.Book -> stringResource(R.string.library_goodreads_browser_reading_book)
-                                is CaptureStatus.Quotes -> stringResource(R.string.library_goodreads_browser_reading_quotes, current.page)
+                                is CaptureStatus.Quotes -> current.progress
+                                    ?.takeIf { it.total > GoodreadsQuoteProgressThreshold }
+                                    ?.let { progress ->
+                                        stringResource(
+                                            R.string.library_goodreads_browser_reading_quotes_progress,
+                                            progress.processed,
+                                            progress.total,
+                                        )
+                                    }
+                                    ?: stringResource(R.string.library_goodreads_browser_reading_quotes, current.page)
                                 null -> if (notReady) {
                                     stringResource(R.string.library_goodreads_browser_not_ready)
                                 } else {

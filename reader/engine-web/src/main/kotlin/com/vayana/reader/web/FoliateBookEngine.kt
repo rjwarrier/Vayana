@@ -610,6 +610,7 @@ private fun ReaderAnnotation.toJson(): JSONObject = JSONObject()
     .put("value", cfi)
     .put("type", type.toFoliateType())
     .put("color", colorKey.toAnnotationColor())
+    .put("popular", colorKey.equals("popular", ignoreCase = true))
     .put("note", note)
     .put("text", text)
 

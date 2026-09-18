@@ -46,9 +46,14 @@ sealed interface GoodreadsFetchResult {
 
 enum class GoodreadsImportStep { FETCHING_BOOK, FETCHING_COVER_AND_QUOTES }
 
+data class GoodreadsQuoteProgress(val processed: Int, val total: Int)
+
 sealed interface GoodreadsImportState {
     data object Idle : GoodreadsImportState
-    data class Working(val step: GoodreadsImportStep) : GoodreadsImportState
+    data class Working(
+        val step: GoodreadsImportStep,
+        val quoteProgress: GoodreadsQuoteProgress? = null,
+    ) : GoodreadsImportState
     data class Failed(val error: GoodreadsFetchError) : GoodreadsImportState
     data class Preview(val metadata: GoodreadsBookMetadata, val capturedQuotes: List<ParsedQuote>? = null) : GoodreadsImportState
     /** The import landed; the dialog closes itself and the result shows as a snackbar. */
@@ -72,6 +77,7 @@ enum class CoverSource { CUSTOM, GOODREADS }
 
 /** Goodreads lists a long tail of genres; only the leading ones become tags. */
 internal const val GoodreadsMaxGenreTags = 5
+internal const val GoodreadsQuoteProgressThreshold = 50
 
 /**
  * Reads the one Goodreads book page the user pasted, plus its cover and quote pages. Goodreads has no public API,
@@ -122,13 +128,16 @@ class GoodreadsMetadataFetcher @Inject constructor(
     }
 
     /**
-     * Every quote Goodreads lists for [workId], reading pages until one comes back empty (or [MaxQuotePages]),
-     * with near-identical texts collapsed. Null only if the first page can't be read; a later page failing just
-     * ends the list early.
+     * Every English quote Goodreads lists for [workId], following the next-page link until Goodreads stops
+     * advertising another page, with near-identical texts collapsed. Null only if the first page can't be read;
+     * a later page failing just ends the list early.
      */
-    suspend fun fetchQuotes(workId: String): List<ParsedQuote>? = withContext(dispatchers.io) {
+    suspend fun fetchQuotes(
+        workId: String,
+        onProgress: (GoodreadsQuoteProgress) -> Unit = {},
+    ): List<ParsedQuote>? = withContext(dispatchers.io) {
         if (workId.isEmpty() || !workId.all(Char::isDigit)) return@withContext null
-        collectGoodreadsQuotes { page ->
+        collectGoodreadsQuotes(onProgress = onProgress) { page ->
             try {
                 getWithRetry(goodreadsQuotesUrl(workId, page), MaxPageBytes, expectImage = false, isAllowedHost = ::isGoodreadsHost)
                     .decodeToString()
@@ -231,21 +240,63 @@ internal fun String.looksLikeGoodreadsChallenge(): Boolean =
     contains("awsWafCookieDomainList", ignoreCase = true) || contains("gokuProps", ignoreCase = true)
 
 /**
- * Walks a work's quote pages through [loadPage] (the HTML of page N, or null if it couldn't be read) until one
- * comes back empty or [MaxQuotePages] is reached, keyed by quote id and with near-identical texts collapsed.
- * Null only if the very first page couldn't be read; a later failure just ends the list early. Shared by the
- * direct fetch and the in-app browser, which load pages differently but read them the same way.
+ * Walks a work's quote pages through [loadPage] (the HTML of page N, or null if it couldn't be read), following
+ * the next-page link exposed by Goodreads instead of imposing a fixed page limit. Results are keyed by quote id,
+ * filtered to English, and have near-identical texts collapsed. Null only if the first page couldn't be read; a
+ * later failure just ends the list early. Shared by the direct fetch and the in-app browser, which load pages
+ * differently but read them the same way.
  */
-internal suspend fun collectGoodreadsQuotes(loadPage: suspend (page: Int) -> String?): List<ParsedQuote>? {
+internal suspend fun collectGoodreadsQuotes(
+    acceptsQuote: suspend (String) -> Boolean = ::isEnglishGoodreadsQuote,
+    onProgress: (GoodreadsQuoteProgress) -> Unit = {},
+    loadPage: suspend (page: Int) -> String?,
+): List<ParsedQuote>? {
     val byId = LinkedHashMap<String, ParsedQuote>()
-    for (page in 1..MaxQuotePages) {
+    val visitedPages = HashSet<Int>()
+    var processedFallback = 0
+    var knownTotal: Int? = null
+    var page = 1
+    while (visitedPages.add(page)) {
         val html = loadPage(page) ?: if (page == 1) return null else break
         val pageQuotes = parseQuotesPage(html)
-        if (pageQuotes.isEmpty()) break
-        pageQuotes.forEach { (id, quote) -> byId.putIfAbsent(id, quote) }
+        val advertisedProgress = goodreadsQuotePageProgress(html)
+        knownTotal = advertisedProgress?.total ?: knownTotal
+        val rawPageCount = html.split("<article>").size - 1
+        val pageEnd = maxOf(processedFallback + rawPageCount, advertisedProgress?.processed ?: 0)
+        var processed = (pageEnd - rawPageCount).coerceAtLeast(processedFallback)
+        pageQuotes.forEach { (id, quote) ->
+            if (acceptsQuote(quote.quoteText)) byId.putIfAbsent(id, quote)
+            processed += 1
+            knownTotal?.let { total ->
+                onProgress(GoodreadsQuoteProgress(processed.coerceAtMost(total), total))
+            }
+        }
+        processedFallback = pageEnd
+        knownTotal?.let { total ->
+            if (processed != pageEnd) {
+                onProgress(GoodreadsQuoteProgress(pageEnd.coerceAtMost(total), total))
+            }
+        }
+        page = nextGoodreadsQuotesPage(html, page) ?: break
     }
     return byId.values.distinctBy { quoteMatchKey(it.quoteText) }
 }
+
+/** Goodreads renders this above quote results, for example "Showing 31 - 60 of 143". */
+internal fun goodreadsQuotePageProgress(html: String): GoodreadsQuoteProgress? {
+    val match = QuoteResultsRangeRegex.find(html) ?: return null
+    val processed = match.groupValues[1].replace(",", "").toIntOrNull() ?: return null
+    val total = match.groupValues[2].replace(",", "").toIntOrNull() ?: return null
+    if (processed < 0 || total <= 0) return null
+    return GoodreadsQuoteProgress(processed.coerceAtMost(total), total)
+}
+
+/** The next quote page Goodreads advertises through its mobile load-more or standard next-page link. */
+internal fun nextGoodreadsQuotesPage(html: String, currentPage: Int): Int? =
+    QuoteNextAnchorRegex.findAll(html)
+        .mapNotNull { anchor -> QuotePageParamRegex.find(anchor.value)?.groupValues?.get(1)?.toIntOrNull() }
+        .filter { it > currentPage }
+        .minOrNull()
 
 internal fun parseBookPage(html: String, bookId: String, canonicalUrl: String): GoodreadsBookMetadata? {
     val nextData = NextDataRegex.find(html)?.groupValues?.get(1) ?: return null
@@ -300,7 +351,7 @@ internal fun parseQuotesPage(html: String): List<Pair<String, ParsedQuote>> =
     html.split("<article>").drop(1).mapNotNull { article ->
         val body = QuoteBodyRegex.find(article)?.groupValues?.get(1) ?: return@mapNotNull null
         val text = body.htmlToPlainText()
-        if (quoteMatchKey(text).length < MinQuoteChars) return@mapNotNull null
+        if (!hasGoodreadsQuoteMinimumLength(text)) return@mapNotNull null
         val id = QuoteIdRegex.find(article)?.groupValues?.get(1) ?: "text:${quoteMatchKey(text)}"
         val likes = QuoteLikesRegex.find(article)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         id to ParsedQuote(
@@ -389,6 +440,15 @@ private val QuoteLikesRegex = Regex("""<span class=["']likesCount["']>([\d,]+)</
 private val QuoteAuthorRegex = Regex("""<span class=["']quoteAuthor["']>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
 private val QuoteBookRegex = Regex("""<span class=["']quoteBook["']>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
 private val QuoteTagRegex = Regex("""href="/quotes/tag/[^"]+">([^<]+)<""")
+private val QuoteNextAnchorRegex = Regex(
+    """<a\b(?=[^>]*(?:class=["'][^"']*(?:jsLoadMore|next_page)[^"']*["']|rel=["']next["']))[^>]*>""",
+    RegexOption.IGNORE_CASE,
+)
+private val QuotePageParamRegex = Regex("""(?:[?&]|&amp;)page=(\d+)""", RegexOption.IGNORE_CASE)
+private val QuoteResultsRangeRegex = Regex(
+    """Showing\s+[\d,]+\s*[-–]\s*([\d,]+)\s+of\s+([\d,]+)""",
+    RegexOption.IGNORE_CASE,
+)
 private val BreakTagRegex = Regex("""<br\s*/?>|</p\s*>""", RegexOption.IGNORE_CASE)
 private val TagRegex = Regex("""<[^>]*>""")
 private val EntityRegex = Regex("""&(#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z]{2,8});""")
@@ -400,11 +460,11 @@ private val NamedEntities = mapOf(
     "hellip" to "…", "mdash" to "—", "ndash" to "–",
 )
 
-/** Goodreads pages its quotes 30 at a time; popular books run to hundreds of pages, so stop somewhere sane. */
-private const val MaxQuotePages = 10
+/** Very short fragments are noisy and cannot be matched reliably in the reader. */
+internal fun hasGoodreadsQuoteMinimumLength(text: String): Boolean =
+    text.codePointCount(0, text.length) >= MinQuoteChars
 
-/** Matches the reader's own floor for placing a quote in the text - anything shorter can't be found reliably. */
-private const val MinQuoteChars = 5
+private const val MinQuoteChars = 12
 private const val MaxBookIdDigits = 12
 private const val MinPublicationYear = 1000
 private const val MaxPublicationYear = 2200

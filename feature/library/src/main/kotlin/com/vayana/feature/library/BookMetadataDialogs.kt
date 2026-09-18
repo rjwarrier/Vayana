@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -548,6 +549,7 @@ private fun TagSuggestionField(
 internal fun EditCoverDialog(
     book: Book,
     onChangeCover: () -> Unit,
+    onSearchCover: () -> Unit,
     onRemoveCover: () -> Unit,
     onUseCover: (CoverSource) -> Unit,
     onDismiss: () -> Unit,
@@ -602,6 +604,15 @@ internal fun EditCoverDialog(
                 Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                 Text(stringResource(R.string.library_change_cover), maxLines = 1)
             }
+        }
+        OutlinedButton(
+            onClick = onSearchCover,
+            modifier = Modifier.fillMaxWidth(),
+            shape = Radii.buttonShape,
+        ) {
+            Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(stringResource(R.string.library_search_cover_images))
         }
         Button(
             onClick = onDismiss,

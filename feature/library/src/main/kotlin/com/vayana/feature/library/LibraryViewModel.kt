@@ -46,6 +46,7 @@ import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
+import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
@@ -141,6 +142,9 @@ data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
 private data class QuoteImportResult(val added: Int, val skipped: Int)
+
+private const val QuoteLocatorPrefix = "quote"
+private const val GoodreadsQuoteLocatorPrefix = "goodreads-quote"
 
 sealed interface BookDetailMessage {
     data object METADATA_SAVED : BookDetailMessage
@@ -459,6 +463,7 @@ class LibraryViewModel @Inject constructor(
     private val remoteBookDeletionNotices: RemoteBookDeletionNotices,
     private val resolvedBooks: ResolvedBooks,
     private val goodreadsMetadataFetcher: GoodreadsMetadataFetcher,
+    private val coverImageFetcher: CoverImageFetcher,
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
     private val launchReadingProgressCoordinator: LaunchReadingProgressCoordinator,
@@ -638,6 +643,10 @@ class LibraryViewModel @Inject constructor(
 
     fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeCountForBook(bookId)
 
+    fun observeCommunityQuoteCount(bookId: Long): Flow<Int> = annotationRepository.observeForBook(bookId)
+        .map { annotations -> annotations.count(Annotation::isCommunityQuote) }
+        .distinctUntilChanged()
+
     val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
         .withAbsolutePaths()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -758,7 +767,13 @@ class LibraryViewModel @Inject constructor(
     fun applyPendingGoodreads(bookId: Long, options: GoodreadsImportOptions = GoodreadsImportOptions()) {
         val preview = _goodreadsImport.value as? GoodreadsImportState.Preview ?: return
         if (!options.hasAnySelection) return
-        _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
+        _goodreadsImport.value = GoodreadsImportState.Working(
+            step = GoodreadsImportStep.FETCHING_COVER_AND_QUOTES,
+            quoteProgress = preview.capturedQuotes
+                ?.takeIf { options.quotes }
+                ?.size
+                ?.let { GoodreadsQuoteProgress(processed = it, total = it) },
+        )
         viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) {
                 applyGoodreadsInLibrary(
@@ -814,6 +829,12 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    internal fun replaceCoverFromWeb(bookId: Long, request: CoverImageRequest) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = withContext(dispatchers.io) { replaceCoverFromWebInLibrary(bookId, request) }
+        }
+    }
+
     fun removeCover(bookId: Long) {
         viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) { removeCoverFromLibrary(bookId) }
@@ -839,12 +860,17 @@ class LibraryViewModel @Inject constructor(
     }
 
     /** A quote as a "popular" underline: the reader finds [ParsedQuote.quoteText] in the book and draws it there. */
-    private fun ParsedQuote.toPopularHighlight(bookId: Long, index: Int, now: Long): Annotation = Annotation(
+    private fun ParsedQuote.toPopularHighlight(
+        bookId: Long,
+        index: Int,
+        now: Long,
+        locatorPrefix: String = QuoteLocatorPrefix,
+    ): Annotation = Annotation(
         id = 0,
         bookId = bookId,
         type = AnnotationType.UNDERLINE,
         colorKey = "popular",
-        locator = "quote:$index:${UUID.randomUUID()}",
+        locator = "$locatorPrefix:$index:${UUID.randomUUID()}",
         chapterTitle = sourceTitle ?: author,
         chapterHref = null,
         selectedText = quoteText,
@@ -2169,14 +2195,7 @@ class LibraryViewModel @Inject constructor(
         return runCatchingCancellable {
             val pickedCover = savePickedCover(contentResolver, uri)
             coverFile = pickedCover
-            val pickedPath = storageRoots.relativize(pickedCover)
-            bookRepository.updateCover(bookId, pickedPath)
-            // The picked image becomes "your cover"; a Goodreads cover, if any, stays available to switch back to.
-            bookRepository.updateCoverAlternates(bookId, customCoverPath = pickedPath, goodreadsCoverPath = existingBook.goodreadsCoverPath)
-            listOfNotNull(existingBook.coverPath, existingBook.customCoverPath)
-                .distinct()
-                .filter { it != existingBook.goodreadsCoverPath }
-                .forEach { storageRoots.resolve(it).delete() }
+            applyCustomCover(existingBook, pickedCover)
             coverFile = null
             BookDetailMessage.COVER_UPDATED
         }.getOrElse { BookDetailMessage.COVER_FAILED }
@@ -2185,6 +2204,37 @@ class LibraryViewModel @Inject constructor(
                     coverFile?.delete()
                 }
             }
+    }
+
+    private suspend fun replaceCoverFromWebInLibrary(bookId: Long, request: CoverImageRequest): BookDetailMessage {
+        val existingBook = bookRepository.getById(bookId) ?: return BookDetailMessage.COVER_FAILED
+        var coverFile: File? = null
+        return runCatchingCancellable {
+            val downloaded = coverImageFetcher.fetch(request) ?: error("Cover image could not be downloaded")
+            val pickedCover = saveCover(downloaded.bytes, downloaded.extension)
+            coverFile = pickedCover
+            applyCustomCover(existingBook, pickedCover)
+            coverFile = null
+            BookDetailMessage.COVER_UPDATED
+        }.getOrElse { BookDetailMessage.COVER_FAILED }
+            .also { result ->
+                if (result != BookDetailMessage.COVER_UPDATED) coverFile?.delete()
+            }
+    }
+
+    private suspend fun applyCustomCover(existingBook: Book, coverFile: File) {
+        val pickedPath = storageRoots.relativize(coverFile)
+        bookRepository.updateCover(existingBook.id, pickedPath)
+        // A downloaded or picked image becomes "your cover"; Goodreads stays available to switch back to.
+        bookRepository.updateCoverAlternates(
+            existingBook.id,
+            customCoverPath = pickedPath,
+            goodreadsCoverPath = existingBook.goodreadsCoverPath,
+        )
+        listOfNotNull(existingBook.coverPath, existingBook.customCoverPath)
+            .distinct()
+            .filter { it != existingBook.goodreadsCoverPath }
+            .forEach { storageRoots.resolve(it).delete() }
     }
 
     private suspend fun removeCoverFromLibrary(bookId: Long): BookDetailMessage {
@@ -2222,7 +2272,7 @@ class LibraryViewModel @Inject constructor(
         metadata: GoodreadsBookMetadata,
         options: GoodreadsImportOptions,
         capturedQuotes: List<ParsedQuote>? = null,
-        loadQuotes: suspend (workId: String) -> List<ParsedQuote>?,
+        loadQuotes: suspend (workId: String, onProgress: (GoodreadsQuoteProgress) -> Unit) -> List<ParsedQuote>?,
     ): BookDetailMessage {
         val book = bookRepository.getById(bookId) ?: return BookDetailMessage.GOODREADS_FAILED
         return runCatchingCancellable {
@@ -2252,10 +2302,26 @@ class LibraryViewModel @Inject constructor(
             // Cover and quotes only need the metadata already in hand, so both downloads run at once.
             val coverUrl = metadata.coverUrl?.takeIf { options.cover }
             val workId = metadata.workId?.takeIf { options.quotes }
-            _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_COVER_AND_QUOTES)
+            val capturedQuoteProgress = capturedQuotes
+                ?.takeIf { options.quotes }
+                ?.size
+                ?.let { GoodreadsQuoteProgress(processed = it, total = it) }
+            _goodreadsImport.value = GoodreadsImportState.Working(
+                GoodreadsImportStep.FETCHING_COVER_AND_QUOTES,
+                capturedQuoteProgress,
+            )
             val (coverBytes, quotes) = coroutineScope {
                 val cover = async { coverUrl?.let { goodreadsMetadataFetcher.downloadCover(it) } }
-                val fetchedQuotes = async { capturedQuotes?.takeIf { options.quotes } ?: workId?.let { loadQuotes(it) } }
+                val fetchedQuotes = async {
+                    capturedQuotes?.takeIf { options.quotes } ?: workId?.let { id ->
+                        loadQuotes(id) { progress ->
+                            _goodreadsImport.value = GoodreadsImportState.Working(
+                                GoodreadsImportStep.FETCHING_COVER_AND_QUOTES,
+                                progress,
+                            )
+                        }
+                    }
+                }
                 cover.await() to fetchedQuotes.await()
             }
             val coverApplied = coverUrl == null || coverBytes?.let { bytes ->
@@ -2263,7 +2329,7 @@ class LibraryViewModel @Inject constructor(
             } != null
             // Null means the quotes page couldn't be read at all, as opposed to it simply having none new.
             val quotesResult: QuoteImportResult? = when {
-                quotes != null -> addGoodreadsQuotes(bookId, quotes)
+                quotes != null -> refreshGoodreadsQuotes(bookId, quotes)
                 !options.quotes -> QuoteImportResult(added = 0, skipped = 0)
                 workId == null -> QuoteImportResult(added = 0, skipped = 0)
                 else -> null
@@ -2295,6 +2361,34 @@ class LibraryViewModel @Inject constructor(
         if (fresh.isEmpty()) return QuoteImportResult(added = 0, skipped = quotes.size)
         val now = System.currentTimeMillis()
         annotationRepository.createAll(fresh.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now) })
+        return QuoteImportResult(added = fresh.size, skipped = quotes.size - fresh.size)
+    }
+
+    /**
+     * Refresh adds quotes exposed by pages that earlier imports never reached, and cleans old auto-imported
+     * popular quotes that no longer pass the current length/language rules. Ordinary reader annotations are
+     * never candidates. The legacy `quote:` prefix is included because older Goodreads imports predate the
+     * dedicated locator prefix.
+     */
+    private suspend fun refreshGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): QuoteImportResult {
+        annotationRepository.observeForBook(bookId).first()
+            .filter(Annotation::isCommunityQuote)
+            .filter { annotation -> !isEligibleGoodreadsQuote(annotation.selectedText) }
+            .forEach { annotation -> annotationRepository.softDelete(annotation.id) }
+
+        val known = annotationRepository.observeForBook(bookId).first()
+            .mapTo(HashSet()) { quoteMatchKey(it.selectedText) }
+        val fresh = quotes.filter { quote ->
+            val key = quoteMatchKey(quote.quoteText)
+            key.isNotEmpty() && known.add(key)
+        }
+        if (fresh.isEmpty()) return QuoteImportResult(added = 0, skipped = quotes.size)
+        val now = System.currentTimeMillis()
+        annotationRepository.createAll(
+            fresh.mapIndexed { index, quote ->
+                quote.toPopularHighlight(bookId, index, now, GoodreadsQuoteLocatorPrefix)
+            },
+        )
         return QuoteImportResult(added = fresh.size, skipped = quotes.size - fresh.size)
     }
 
@@ -2375,8 +2469,9 @@ class LibraryViewModel @Inject constructor(
 
     private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> = resolvedBooks.resolveAll(this)
 
-    private fun saveCover(bytes: ByteArray): File {
-        val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.jpg")
+    private fun saveCover(bytes: ByteArray, extension: String = "jpg"): File {
+        val safeExtension = extension.takeIf { it in SupportedCoverExtensions } ?: "jpg"
+        val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.$safeExtension")
         coverFile.writeBytes(bytes)
         return coverFile
     }

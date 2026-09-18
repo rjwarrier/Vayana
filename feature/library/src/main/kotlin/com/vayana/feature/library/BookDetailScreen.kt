@@ -111,6 +111,7 @@ fun BookDetailRoute(
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
     useWideActions: Boolean = false,
+    onReadableSourceChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -124,9 +125,14 @@ fun BookDetailRoute(
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
     val goodreadsImport by viewModel.goodreadsImport.collectAsState()
     val highlightCount by remember(bookId) { viewModel.observeAnnotationCount(bookId) }.collectAsState(initial = null)
+    val communityQuoteCount by remember(bookId) { viewModel.observeCommunityQuoteCount(bookId) }.collectAsState(initial = null)
     val pendingLaunchProgressChange by viewModel.pendingLaunchProgressChange.collectAsState()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
     var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
+
+    LaunchedEffect(book?.id, book?.hasLocalReadableSource()) {
+        onReadableSourceChanged(book?.hasLocalReadableSource() == true)
+    }
 
     LaunchedEffect(bookId, pendingLaunchProgressChange) {
         val prompt = pendingLaunchProgressChange ?: return@LaunchedEffect
@@ -176,6 +182,9 @@ fun BookDetailRoute(
         onReplaceCover = { contentResolver, uri ->
             viewModel.replaceCover(bookId, contentResolver, uri)
         },
+        onReplaceCoverFromWeb = { request ->
+            viewModel.replaceCoverFromWeb(bookId, request)
+        },
         onRemoveCover = {
             viewModel.removeCover(bookId)
         },
@@ -219,6 +228,7 @@ fun BookDetailRoute(
             onBack()
         },
         highlightCount = highlightCount,
+        communityQuoteCount = communityQuoteCount,
     )
 }
 
@@ -265,6 +275,7 @@ private fun BookDetailScreen(
     onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
+    onReplaceCoverFromWeb: (CoverImageRequest) -> Unit,
     onRemoveCover: () -> Unit,
     onRemoveFromDevice: () -> Unit,
     onSyncReadingProgress: suspend () -> GitHubSyncNowResult,
@@ -275,6 +286,7 @@ private fun BookDetailScreen(
     onDeleteBook: () -> Unit,
     onDeletePermanently: () -> Unit,
     highlightCount: Int?,
+    communityQuoteCount: Int?,
     goodreadsImport: GoodreadsImportState,
     onImportGoodreads: (String) -> Unit,
     onImportGoodreadsCapture: (GoodreadsBookMetadata, List<ParsedQuote>?) -> Unit,
@@ -295,6 +307,7 @@ private fun BookDetailScreen(
     var goodreadsBrowserUrl by remember { mutableStateOf<String?>(null) }
     var showResetStatsDialog by remember { mutableStateOf(false) }
     var showEditCoverDialog by remember { mutableStateOf(false) }
+    var showCoverImageSearch by remember { mutableStateOf(false) }
     var showShareBookDialog by remember { mutableStateOf(false) }
     var showRemoveFromDeviceDialog by remember { mutableStateOf(false) }
     var readNextSeriesBreakWarning by remember { mutableStateOf<ReadNextSeriesBreakWarning?>(null) }
@@ -332,6 +345,8 @@ private fun BookDetailScreen(
     }
 
     val cleanedDescription = remember(book?.description) { book?.description?.cleanHtml() }
+    val floatingNavigationInset = LocalFloatingNavigationInset.current
+    val usesFloatingNavigation = floatingNavigationInset.value > 0f
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -355,13 +370,13 @@ private fun BookDetailScreen(
                         .padding(start = Spacing.sm),
                 )
                 if (book != null) {
+                    IconButton(onClick = { showEditDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = stringResource(R.string.library_edit_metadata),
+                        )
+                    }
                     if (useWideActions) {
-                        IconButton(onClick = { showEditDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = stringResource(R.string.library_edit_metadata),
-                            )
-                        }
                         if (book.hasLocalReadableSource()) {
                             Button(onClick = { onContinueReading(book.id, null) }) {
                                 Icon(
@@ -390,7 +405,11 @@ private fun BookDetailScreen(
                                 onClick = {
                                     actionsExpanded = false
                                     onDismissGoodreads()
-                                    showGoodreadsDialog = true
+                                    goodreadsBrowserUrl = goodreadsSearchUrl(
+                                        listOf(book.title, book.author.orEmpty())
+                                            .filter(String::isNotBlank)
+                                            .joinToString(" "),
+                                    )
                                 },
                             )
                             book.goodreadsUrl?.takeIf { it.isNotBlank() }?.let { goodreadsUrl ->
@@ -488,42 +507,22 @@ private fun BookDetailScreen(
             }
         },
         floatingActionButton = {
-            if (book != null && !useWideActions) {
-                Column(
-                    modifier = Modifier.padding(bottom = LocalFloatingNavigationInset.current),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+            if (book?.hasLocalReadableSource() == true && !useWideActions && !usesFloatingNavigation) {
+                FloatingActionButton(
+                    onClick = { onContinueReading(book.id, null) },
+                    modifier = Modifier
+                        .padding(bottom = floatingNavigationInset)
+                        .size(Sizes.fab),
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
                 ) {
-                    FloatingActionButton(
-                        onClick = { showEditDialog = true },
-                        modifier = Modifier.size(Sizes.fab),
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = stringResource(R.string.library_edit_metadata),
-                            modifier = Modifier.size(Sizes.iconLarge),
-                        )
-                    }
-                    if (book.hasLocalReadableSource()) {
-                        FloatingActionButton(
-                            onClick = { onContinueReading(book.id, null) },
-                            modifier = Modifier.size(Sizes.fab),
-                            shape = CircleShape,
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = Elevations.shadowSmall),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.AutoStories,
-                                contentDescription = stringResource(R.string.library_continue_reading),
-                                modifier = Modifier.size(Sizes.iconLarge),
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Outlined.AutoStories,
+                        contentDescription = stringResource(R.string.library_continue_reading),
+                        modifier = Modifier.size(Sizes.iconLarge),
+                    )
                 }
             }
         },
@@ -599,7 +598,11 @@ private fun BookDetailScreen(
                                         modifier = Modifier.padding(top = Spacing.xs),
                                     )
                                 }
-                                GoodreadsInfoLine(book = book, modifier = Modifier.padding(top = Spacing.sm))
+                                GoodreadsInfoLine(
+                                    book = book,
+                                    communityQuoteCount = communityQuoteCount,
+                                    modifier = Modifier.padding(top = Spacing.sm),
+                                )
                             }
                         }
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -928,15 +931,16 @@ private fun BookDetailScreen(
                     onDismissGoodreads()
                 },
             )
-            else -> GoodreadsImportDialog(
+            else -> GoodreadsImportStatusDialog(
                 state = importState,
-                initialLink = book.goodreadsUrl.orEmpty(),
-                browseFallbackQuery = listOfNotNull(book.title, book.author).joinToString(" "),
-                onImport = onImportGoodreads,
-                onBrowse = { url ->
+                onBrowse = {
                     showGoodreadsDialog = false
                     onDismissGoodreads()
-                    goodreadsBrowserUrl = url
+                    goodreadsBrowserUrl = book.goodreadsUrl ?: goodreadsSearchUrl(
+                        listOf(book.title, book.author.orEmpty())
+                            .filter(String::isNotBlank)
+                            .joinToString(" "),
+                    )
                 },
                 onDismiss = {
                     showGoodreadsDialog = false
@@ -967,7 +971,7 @@ private fun BookDetailScreen(
             startUrl = url,
             onCaptured = { capture ->
                 goodreadsBrowserUrl = null
-                // Reopen the import dialog so the cover download shows progress, then closes itself when done.
+                // Open the review step with the book and quotes captured from the selected result.
                 showGoodreadsDialog = true
                 onImportGoodreadsCapture(capture.metadata, capture.quotes)
             },
@@ -979,9 +983,27 @@ private fun BookDetailScreen(
         EditCoverDialog(
             book = book,
             onChangeCover = { coverPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onSearchCover = {
+                showEditCoverDialog = false
+                showCoverImageSearch = true
+            },
             onRemoveCover = onRemoveCover,
             onUseCover = onUseCover,
             onDismiss = { showEditCoverDialog = false },
+        )
+    }
+
+    if (showCoverImageSearch && book != null) {
+        CoverImageSearchBrowser(
+            bookTitle = book.title,
+            onImageSelected = { request ->
+                showCoverImageSearch = false
+                onReplaceCoverFromWeb(request)
+            },
+            onDismiss = {
+                showCoverImageSearch = false
+                showEditCoverDialog = true
+            },
         )
     }
 

@@ -17,6 +17,11 @@ import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.GitHubAssetStoreException
 import com.vayana.core.sync.asset.GitHubContentsAssetStore
 import java.util.concurrent.ConcurrentHashMap
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -55,8 +60,8 @@ class RemotePortableSnapshotDocument internal constructor(
     internal suspend fun sliceJsonOrNull(key: String): String? {
         loadedSlices[key]?.let { return it }
         if (key in missingSlices) return null
-        val path = slicePaths[key] ?: return null
         val loader = loadSlice ?: return null
+        val path = slicePaths[key] ?: return null
         val json = loadSnapshotSliceOrNull(path, loader)
         if (json == null) missingSlices += key else loadedSlices[key] = json
         return json
@@ -144,9 +149,38 @@ internal fun remotePortableSnapshotDocumentFrom(
 private suspend fun GitHubContentsAssetStore.getSnapshotSliceCached(path: String): String {
     val key = "$cacheScope|$path"
     SnapshotSliceCache.get(key)?.let { return it }
-    val json = getSyncDocument(path).toString(Charsets.UTF_8)
+    val bytes = getSyncDocument(path)
+    val json = if (path.endsWith(".zip")) unzipSnapshotJson(bytes) else bytes.toString(Charsets.UTF_8)
     SnapshotSliceCache.put(key, json)
     return json
+}
+
+internal fun zipSnapshotJson(json: String): ByteArray {
+    val output = ByteArrayOutputStream()
+    ZipOutputStream(output).use { zip ->
+        zip.putNextEntry(ZipEntry(AnnotationsZipEntryName))
+        zip.write(json.toByteArray(Charsets.UTF_8))
+        zip.closeEntry()
+    }
+    return output.toByteArray()
+}
+
+internal fun unzipSnapshotJson(bytes: ByteArray): String {
+    val output = ByteArrayOutputStream()
+    ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
+        val entry = zip.nextEntry ?: error("Compressed snapshot slice is empty")
+        require(!entry.isDirectory && entry.name == AnnotationsZipEntryName) { "Invalid compressed snapshot slice" }
+        val buffer = ByteArray(ZipBufferBytes)
+        while (true) {
+            val read = zip.read(buffer)
+            if (read < 0) break
+            output.write(buffer, 0, read)
+            require(output.size() <= MaxUncompressedSliceBytes) { "Compressed snapshot slice is too large" }
+        }
+        zip.closeEntry()
+        require(zip.nextEntry == null) { "Compressed snapshot slice has unexpected entries" }
+    }
+    return output.toByteArray().toString(Charsets.UTF_8)
 }
 
 /** Process-wide, size-bounded LRU of slice texts keyed by repository scope and path. */
@@ -277,17 +311,30 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     val documents = snapshot.toSlicedJsonDocuments()
     val latestDocument = documents.last { it.path == PortableSnapshotLatestPath }
     val allSliceDocuments = documents.filter { it.path != PortableSnapshotLatestPath }
+    val compressAnnotations = snapshot.hasLargeGoodreadsQuoteSet()
     val reusedPathsByKey = allSliceDocuments.mapNotNull { document ->
         val key = document.sliceKey ?: return@mapNotNull null
         val previousJson = previous?.loadedSliceJsonOrNull(key) ?: return@mapNotNull null
         val previousPath = previous.slicePathOrNull(key) ?: return@mapNotNull null
+        if (key == RemotePortableSnapshotSlice.Annotations.key && previousPath.endsWith(".zip") != compressAnnotations) {
+            return@mapNotNull null
+        }
         if (portableSnapshotSliceDataEquals(key, document.jsonText, previousJson)) key to previousPath else null
     }.toMap()
     val sliceDocuments = allSliceDocuments.filter { it.sliceKey !in reusedPathsByKey }
-    val latestBytes = repointPortableSnapshotSlices(latestDocument.jsonText, reusedPathsByKey).toByteArray(Charsets.UTF_8)
-    val sliceBytes = sliceDocuments.map { document -> document.path to document.jsonText.toByteArray(Charsets.UTF_8) }
-    val totalDocuments = sliceBytes.size + 2
-    val totalBytes = sliceBytes.sumOf { it.second.size } + latestBytes.size + latestBytes.size
+    val sliceUploads = sliceDocuments.map { document ->
+        val zipped = compressAnnotations && document.sliceKey == RemotePortableSnapshotSlice.Annotations.key
+        SnapshotSliceUpload(
+            sliceKey = requireNotNull(document.sliceKey),
+            path = if (zipped) "$SnapshotSlicesRoot/${snapshot.exportedAt}/annotations.zip" else document.path,
+            bytes = if (zipped) zipSnapshotJson(document.jsonText) else document.jsonText.toByteArray(Charsets.UTF_8),
+            jsonText = document.jsonText,
+        )
+    }
+    val publishedPathsByKey = reusedPathsByKey + sliceUploads.associate { it.sliceKey to it.path }
+    val latestBytes = repointPortableSnapshotSlices(latestDocument.jsonText, publishedPathsByKey).toByteArray(Charsets.UTF_8)
+    val totalDocuments = sliceUploads.size + 2
+    val totalBytes = sliceUploads.sumOf { it.bytes.size } + latestBytes.size + latestBytes.size
     var completedDocuments = 0
     var completedBytes = 0
     fun report(stage: PortableSnapshotPublishStage, path: String? = null) {
@@ -306,13 +353,12 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     completedDocuments += 1
     completedBytes += latestBytes.size
     report(PortableSnapshotPublishStage.DEVICE_SNAPSHOT, deviceSnapshotPath)
-    sliceDocuments.zip(sliceBytes).forEach { (document, pathAndBytes) ->
-        val (path, bytes) = pathAndBytes
-        putNewSyncDocument(path, bytes)
-        SnapshotSliceCache.put("$cacheScope|$path", document.jsonText)
+    sliceUploads.forEach { upload ->
+        putNewSyncDocument(upload.path, upload.bytes)
+        SnapshotSliceCache.put("$cacheScope|${upload.path}", upload.jsonText)
         completedDocuments += 1
-        completedBytes += bytes.size
-        report(PortableSnapshotPublishStage.SNAPSHOT_SLICE, path)
+        completedBytes += upload.bytes.size
+        report(PortableSnapshotPublishStage.SNAPSHOT_SLICE, upload.path)
     }
     putSyncDocumentIfUnchanged(
         path = PortableSnapshotLatestPath,
@@ -340,7 +386,8 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
             append(", slices=").append(sliceDocuments.size)
             append(", reusedSlices=").append(reusedPathsByKey.size)
             append(", latestBytes=").append(latestBytes.size)
-            append(", sliceBytes=").append(sliceBytes.sumOf { it.second.size })
+            append(", sliceBytes=").append(sliceUploads.sumOf { it.bytes.size })
+            append(", compressedAnnotations=").append(compressAnnotations)
             append(", prunedDirs=").append(pruneSummary.directoriesPruned)
             append(", prunedFiles=").append(pruneSummary.filesPruned)
             append(", pruneFailed=").append(pruneSummary.failed)
@@ -396,10 +443,37 @@ internal data class SnapshotSlicePruneSummary(
     val failed: Boolean = false,
 )
 
+private data class SnapshotSliceUpload(
+    val sliceKey: String,
+    val path: String,
+    val bytes: ByteArray,
+    val jsonText: String,
+)
+
+internal fun PortableSnapshot.hasLargeGoodreadsQuoteSet(): Boolean {
+    val countsByBook = HashMap<String, Int>()
+    annotations.forEach { annotation ->
+        if (
+            !annotation.isDeleted &&
+            (annotation.locator.startsWith("goodreads-quote:") || annotation.locator.startsWith("quote:"))
+        ) {
+            val count = (countsByBook[annotation.bookSyncId] ?: 0) + 1
+            if (count > CompressedAnnotationsQuoteThreshold) return true
+            countsByBook[annotation.bookSyncId] = count
+        }
+    }
+    return false
+}
+
 private const val SnapshotSlicesRoot = "vayana/snapshot-slices"
 private const val RetainedSnapshotSliceSets = 3
+private const val CompressedAnnotationsQuoteThreshold = 50
+private const val AnnotationsZipEntryName = "annotations.json"
+private const val MaxUncompressedSliceBytes = 16 * 1024 * 1024
+private const val ZipBufferBytes = 16 * 1024
 private val SnapshotSliceFileNames = setOf(
     "annotations.json",
+    "annotations.zip",
     "shelves.json",
     "shelf-memberships.json",
     "reading-sessions.json",

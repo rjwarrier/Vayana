@@ -1,5 +1,6 @@
 package com.vayana.core.sync.asset
 
+import com.vayana.core.backup.PortableAnnotation
 import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.PortableSnapshot
 import com.vayana.core.sync.snapshot.SnapshotSliceCache
@@ -602,6 +603,58 @@ class GitHubContentsAssetStoreTest {
         val manifest = Base64.getDecoder().decode(manifestJson).toString(Charsets.UTF_8)
         assertTrue(manifest.contains("vayana/snapshot-slices/1000/annotations.json"))
         assertTrue(manifest.contains("vayana/snapshot-slices/2000/shelves.json"))
+    }
+
+    @Test
+    fun fullPublishUploadsOnlyZipForBookWithMoreThanFiftyGoodreadsQuotes() = runBlocking {
+        val snapshot = PortableSnapshot(
+            formatVersion = 1,
+            exportedAt = 2000,
+            deviceLabel = "Phone",
+            books = emptyList(),
+            annotations = List(51) { index ->
+                PortableAnnotation(
+                    syncId = "quote-$index",
+                    bookSyncId = "book-a",
+                    type = "POPULAR_HIGHLIGHT",
+                    colorKey = "popular",
+                    locator = "goodreads-quote:$index",
+                    chapterTitle = null,
+                    chapterHref = null,
+                    selectedText = "Quote number $index",
+                    readerNote = null,
+                    createdAt = 1,
+                    updatedAt = 1,
+                    isDeleted = false,
+                )
+            },
+            shelves = emptyList(),
+            shelfMemberships = emptyList(),
+            readingSessions = emptyList(),
+            vocabularyCards = emptyList(),
+            wordLookupCounters = emptyList(),
+            settings = emptyMap(),
+        )
+        val created = GitHubHttpResponse(201, """{"content":{"sha":"x"}}""".toByteArray())
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(404, """{"message":"Not Found"}""".toByteArray()),
+            *Array(9) { created },
+            GitHubHttpResponse(200, """{"content":{"sha":"x"}}""".toByteArray()),
+            GitHubHttpResponse(200, latestManifestReferencing(2000)),
+            GitHubHttpResponse(200, "[]".toByteArray()),
+        )
+        val store = testStore(client)
+
+        store.putPortableSnapshotDocuments(snapshot, "vayana/snapshots/phone.json", ExistingSha)
+
+        val puts = client.requests.filter { it.method == "PUT" }
+        assertTrue(puts.any { it.url.endsWith("/vayana/snapshot-slices/2000/annotations.zip") })
+        assertTrue(puts.none { it.url.endsWith("/vayana/snapshot-slices/2000/annotations.json") })
+        val manifest = Base64.getDecoder().decode(
+            Regex(""""content":"([^"]+)"""").find(puts.last().bodyText())!!.groupValues[1],
+        ).toString(Charsets.UTF_8)
+        assertTrue(manifest.contains("vayana/snapshot-slices/2000/annotations.zip"))
+        assertTrue(!manifest.contains("annotations.json"))
     }
 
     @Test

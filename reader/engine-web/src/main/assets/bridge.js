@@ -245,29 +245,11 @@ async function open(bookUrl, lastLocatorCfi) {
                         line.setAttribute('stroke-linecap', 'round')
                         g.append(line)
                     }
-                    const countMatch = annotation.note ? String(annotation.note).match(/\d+/) : null
+                    const countMatch = annotation.popular && annotation.note
+                        ? String(annotation.note).match(/\d+/)
+                        : null
                     const countText = countMatch ? countMatch[0] : (annotation.note || '')
-                    if (countText && rects.length > 0) {
-                        const firstRect = rects[0]
-                        const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-                        if (firstRect.left >= 14) {
-                            badge.setAttribute('text-anchor', 'end')
-                            badge.setAttribute('x', firstRect.left - 6)
-                            badge.setAttribute('y', firstRect.bottom - 2)
-                        } else {
-                            const lastRect = rects[rects.length - 1]
-                            badge.setAttribute('text-anchor', 'start')
-                            badge.setAttribute('x', lastRect.right + 6)
-                            badge.setAttribute('y', lastRect.bottom - 2)
-                        }
-                        badge.setAttribute('fill', color)
-                        badge.setAttribute('font-size', '11px')
-                        badge.setAttribute('font-weight', '600')
-                        badge.setAttribute('font-family', 'sans-serif')
-                        badge.setAttribute('opacity', '0.75')
-                        badge.textContent = countText
-                        g.append(badge)
-                    }
+                    if (countMatch && rects.length > 0) appendPopularCountBadge(g, rects, countText, color, doc)
                     return g
                 })
             } else {
@@ -323,6 +305,52 @@ async function open(bookUrl, lastLocatorCfi) {
     }
 }
 
+/** Draws the popularity count as a high-contrast pill in the closest margin of its page/column. */
+function appendPopularCountBadge(group, rects, countText, color, doc) {
+    const firstRect = rects[0]
+    const pageWidth = Math.max(
+        1,
+        doc?.documentElement?.getBoundingClientRect?.().width ||
+            doc?.documentElement?.clientWidth ||
+            doc?.defaultView?.innerWidth ||
+            firstRect.right,
+    )
+    // Paginated chapters are one wide document made from page-width columns. Locate the column
+    // containing the first quote line so later pages do not send their badge back to page one.
+    const pageStart = Math.floor(firstRect.left / pageWidth) * pageWidth
+    const pageEnd = pageStart + pageWidth
+    const badgeWidth = Math.max(20, String(countText).length * 7 + 10)
+    const badgeHeight = 18
+    const edgeInset = 4
+    const quoteCenter = firstRect.left + firstRect.width / 2
+    const centerX = quoteCenter < pageStart + pageWidth / 2
+        ? pageStart + edgeInset + badgeWidth / 2
+        : pageEnd - edgeInset - badgeWidth / 2
+    const centerY = firstRect.top + firstRect.height / 2
+
+    const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+    background.setAttribute('x', centerX - badgeWidth / 2)
+    background.setAttribute('y', centerY - badgeHeight / 2)
+    background.setAttribute('width', badgeWidth)
+    background.setAttribute('height', badgeHeight)
+    background.setAttribute('rx', badgeHeight / 2)
+    background.setAttribute('fill', color)
+    background.setAttribute('opacity', '0.95')
+    group.append(background)
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    label.setAttribute('x', centerX)
+    label.setAttribute('y', centerY)
+    label.setAttribute('text-anchor', 'middle')
+    label.setAttribute('dominant-baseline', 'central')
+    label.setAttribute('fill', '#ffffff')
+    label.setAttribute('font-size', '11px')
+    label.setAttribute('font-weight', '700')
+    label.setAttribute('font-family', 'sans-serif')
+    label.textContent = countText
+    group.append(label)
+}
+
 // 'relocate' can fire many times in a row for the same page turn (each a no-op full document
 // walk once bionic reading/annotations are already applied) - collapse repeats scheduled
 // before the first one runs into a single pass instead of stacking up redundant timeouts.
@@ -343,6 +371,12 @@ function goLeft() { view?.goLeft() }
 function goRight() { view?.goRight() }
 function goToFraction(fraction) { view?.goToFraction(fraction) }
 
+function isTextAnnotationValue(value) {
+    return value?.startsWith('text:') ||
+        value?.startsWith('quote:') ||
+        value?.startsWith('goodreads-quote:')
+}
+
 async function goToHref(href) {
     if (!view || !href) return
     if (href.startsWith('epubcfi(') || href.includes('#') || href.endsWith('.xhtml') || href.endsWith('.html') || href.endsWith('.htm')) {
@@ -359,7 +393,7 @@ async function goToHref(href) {
         (a.value && href.includes(a.value)) ||
         (a.id && href.endsWith(a.id))
     )
-    const textToFind = ann?.text || (href.length > 8 && !href.startsWith('quote:') && !href.startsWith('text:') ? href : null)
+    const textToFind = ann?.text || (href.length > 8 && !isTextAnnotationValue(href) ? href : null)
 
     if (textToFind) {
         const cfi = await findCfiInBook(textToFind)
@@ -379,7 +413,7 @@ async function goToHref(href) {
         }
     }
 
-    if (href.startsWith('quote:') || href.startsWith('text:')) {
+    if (isTextAnnotationValue(href)) {
         post('log', { step: 'quoteNotFound', value: href })
         return
     }
@@ -855,8 +889,7 @@ async function renderAnnotations(annotations) {
     }
     for (const annotation of activeAnnotationsList) {
         if (annotation.value &&
-            !annotation.value.startsWith('text:') &&
-            !annotation.value.startsWith('quote:') &&
+            !isTextAnnotationValue(annotation.value) &&
             !standardAnnotationFingerprints.has(annotation.value)) {
             await view.addAnnotation(annotation)
             renderedAnnotations.add(annotation.value)
@@ -873,6 +906,7 @@ function annotationFingerprint(annotation) {
     return JSON.stringify([
         annotation?.type || '',
         annotation?.color || '',
+        annotation?.popular || false,
         annotation?.note || '',
         annotation?.text || '',
     ])

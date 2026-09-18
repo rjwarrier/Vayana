@@ -54,6 +54,7 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.toRoute
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -100,6 +102,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal const val LIBRARY_ADD_ACTION_KEY = "libraryAddAction"
+internal const val BOOK_DETAIL_READABLE_KEY = "bookDetailReadable"
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -108,7 +111,17 @@ fun VayanaFloatingBar(
     onBooksLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentDestination = navController.currentBackStackEntryAsState().value?.destination
+    val currentBackStackEntry = navController.currentBackStackEntryAsState().value
+    val currentDestination = currentBackStackEntry?.destination
+    val readableStateFlow = remember(currentBackStackEntry) {
+        currentBackStackEntry?.savedStateHandle?.getStateFlow(BOOK_DETAIL_READABLE_KEY, false)
+    }
+    val bookDetailReadable = if (readableStateFlow != null) {
+        val readable by readableStateFlow.collectAsState()
+        readable
+    } else {
+        false
+    }
     val colors = MaterialTheme.colorScheme
     val displayProfile = LocalDisplayProfile.current
     val motionSetting = LocalMotionSetting.current
@@ -158,6 +171,9 @@ fun VayanaFloatingBar(
     val showSettingsBackAttachment = currentDestination?.hasRoute(SettingsRoute::class) == true
     val showBackAttachment = showBookDetailBackAttachment || showSettingsBackAttachment
     val showAddBookAttachment = currentDestination?.hasRoute(TopLevelRoute.Library::class) == true
+    val bookDetailRoute = if (showBookDetailBackAttachment) currentBackStackEntry.toRoute<BookDetailRoute>() else null
+    val showReadBookAttachment = bookDetailRoute != null && bookDetailReadable
+    val showRightAttachment = showAddBookAttachment || showReadBookAttachment
     val attachmentShape = MaterialShapes.Ghostish.toShape()
     var addBookMenuExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(showAddBookAttachment) {
@@ -174,7 +190,7 @@ fun VayanaFloatingBar(
         val attachmentSize = Sizes.floatingNavItem
         val attachmentGap = 0.5.dp
         val visibleAttachmentCount =
-            (if (showBackAttachment) 1 else 0) + (if (showAddBookAttachment) 1 else 0)
+            (if (showBackAttachment) 1 else 0) + (if (showRightAttachment) 1 else 0)
         val expandedContentWidth =
             Sizes.floatingNavSelectedItem + (Sizes.floatingNavUnselectedItem * (destinations.size - 1))
         val expandedBarWidth = expandedContentWidth + (Spacing.xs * 2)
@@ -251,7 +267,7 @@ fun VayanaFloatingBar(
             },
         )
         FloatingBarCompanionButton(
-            visible = showAddBookAttachment,
+            visible = showRightAttachment,
             side = FloatingBarCompanionSide.Right,
             offset = attachmentOffset,
             shape = attachmentShape,
@@ -260,20 +276,34 @@ fun VayanaFloatingBar(
             animateBlob = motionEnabled,
             useSlowReveal = motionEnabled && motionSetting == MotionSetting.FULL,
             shadowElevation = barElevation,
-            icon = Icons.Outlined.Add,
-            contentDescription = stringResource(com.vayana.core.resources.R.string.library_add_content_description),
-            iconRotationDegrees = if (addBookMenuExpanded) 45f else 0f,
-            pressedIconRotation = 45f,
-            onClick = { addBookMenuExpanded = !addBookMenuExpanded },
-        ) {
-            AddBookDropdownMenu(
-                expanded = addBookMenuExpanded,
-                onDismissRequest = { addBookMenuExpanded = false },
-                onAction = { action ->
-                    addBookMenuExpanded = false
-                    navController.requestLibraryAddAction(action)
+            icon = if (showReadBookAttachment) Icons.Outlined.AutoStories else Icons.Outlined.Add,
+            contentDescription = stringResource(
+                if (showReadBookAttachment) {
+                    com.vayana.core.resources.R.string.library_continue_reading
+                } else {
+                    com.vayana.core.resources.R.string.library_add_content_description
                 },
-            )
+            ),
+            iconRotationDegrees = if (showAddBookAttachment && addBookMenuExpanded) 45f else 0f,
+            pressedIconRotation = if (showReadBookAttachment) 0f else 45f,
+            onClick = {
+                if (showReadBookAttachment) {
+                    navController.navigate(ReaderRoute(bookId = requireNotNull(bookDetailRoute).bookId))
+                } else {
+                    addBookMenuExpanded = !addBookMenuExpanded
+                }
+            },
+        ) {
+            if (showAddBookAttachment) {
+                AddBookDropdownMenu(
+                    expanded = addBookMenuExpanded,
+                    onDismissRequest = { addBookMenuExpanded = false },
+                    onAction = { action ->
+                        addBookMenuExpanded = false
+                        navController.requestLibraryAddAction(action)
+                    },
+                )
+            }
         }
 
         Surface(

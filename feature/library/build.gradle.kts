@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.coil.compose)
     implementation(libs.coil.core)
+    implementation(libs.mlkit.language.id)
     testImplementation(kotlin("test"))
     testImplementation(libs.org.json)
     testImplementation(libs.room.runtime)

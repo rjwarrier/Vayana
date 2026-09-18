@@ -424,10 +424,12 @@ private enum class PortableSnapshotSlice(val key: String, val jsonArrayName: Str
 
     fun path(exportedAt: Long): String = "vayana/snapshot-slices/$exportedAt/$fileName"
 
-    fun isValidPath(path: String): Boolean =
-        path.length <= MaxSnapshotPathChars && pathRegex.matches(path)
+    fun isValidPath(path: String): Boolean = path.length <= MaxSnapshotPathChars && (
+        pathRegex.matches(path) || (this == Annotations && compressedPathRegex.matches(path))
+    )
 
     private val pathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*/${Regex.escape(fileName)}$")
+    private val compressedPathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*/annotations\\.zip$")
 }
 
 private fun PortableBook.toJson(): JSONObject =

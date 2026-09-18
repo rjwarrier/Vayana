@@ -168,6 +168,9 @@ fun VayanaNavHost(
             com.vayana.feature.library.BookDetailRoute(
                 bookId = route.bookId,
                 onBack = { navController.popBackStack() },
+                onReadableSourceChanged = { readable ->
+                    backStackEntry.savedStateHandle[BOOK_DETAIL_READABLE_KEY] = readable
+                },
                 onContinueReading = { bookId, locator ->
                     navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
                 },

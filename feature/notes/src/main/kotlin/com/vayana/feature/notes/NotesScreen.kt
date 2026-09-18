@@ -82,6 +82,7 @@ import coil3.compose.AsyncImage
 import com.vayana.core.common.HighlightTags
 import com.vayana.core.common.shareFile
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
@@ -833,7 +834,6 @@ private fun BookNotesDetailList(
     }
 }
 
-private fun Annotation.isCommunityQuote(): Boolean = locator.startsWith("quote:")
 
 @Composable
 private fun BookNotesHero(

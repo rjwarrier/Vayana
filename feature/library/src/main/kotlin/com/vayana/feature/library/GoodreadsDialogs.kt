@@ -15,11 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.Button
@@ -29,8 +27,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,65 +42,91 @@ import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
+import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
-import java.text.NumberFormat
 import kotlinx.coroutines.launch
 
-/** Goodreads rating and original year under the series line; tapping it opens the book on Goodreads. */
+/** Goodreads rating, original year, and imported community-quote count under the series line. */
 @Composable
-internal fun GoodreadsInfoLine(book: Book, modifier: Modifier = Modifier) {
-    val rating = book.goodreadsRating?.let { value ->
-        val count = book.goodreadsRatingsCount
-        if (count != null) {
-            stringResource(R.string.library_goodreads_rating_with_count, value, NumberFormat.getIntegerInstance().format(count))
-        } else {
-            stringResource(R.string.library_goodreads_rating, value)
-        }
-    }
+internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: Modifier = Modifier) {
+    val rating = book.goodreadsRating
     val year = book.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) }
-    val text = listOfNotNull(rating, year).joinToString("  ·  ")
-    if (text.isEmpty()) return
+    if (rating == null && year == null && book.goodreadsUrl == null && (communityQuoteCount ?: 0) == 0) return
     val uriHandler = LocalUriHandler.current
     val url = book.goodreadsUrl
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.then(if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier),
-    )
+    Column(modifier = modifier) {
+        rating?.let { value ->
+            Surface(
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = Palette.Gold500,
+                        modifier = Modifier.size(Sizes.iconSmall),
+                    )
+                    Text(
+                        text = stringResource(R.string.library_goodreads_rating_chip, value),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+        }
+        year?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = (if (rating == null) Modifier else Modifier.padding(top = Spacing.xs))
+                    .then(if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier),
+            )
+        }
+        communityQuoteCount?.let { count ->
+            Surface(
+                modifier = Modifier.padding(top = Spacing.sm),
+                shape = RoundedCornerShape(Radii.full),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ) {
+                Text(
+                    text = pluralStringResource(R.plurals.library_community_quotes_count, count, count),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                )
+            }
+        }
+    }
 }
 
-/**
- * Paste a Goodreads link and read it into a preview. Applying the preview fills in details, cover and popular quotes.
- */
+/** Progress/error surface for refreshing an already-linked book; first-time imports start in the browser. */
 @Composable
-internal fun GoodreadsImportDialog(
+internal fun GoodreadsImportStatusDialog(
     state: GoodreadsImportState,
-    initialLink: String,
-    browseFallbackQuery: String,
-    onImport: (String) -> Unit,
-    onBrowse: (url: String) -> Unit,
+    onBrowse: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var link by rememberSaveable { mutableStateOf(initialLink) }
-    // The pasted book's page if there is one, otherwise a Goodreads search for this book.
-    val browseUrl = goodreadsBookIdOf(link)?.let(::goodreadsBookUrl) ?: goodreadsSearchUrl(browseFallbackQuery)
     val working = state as? GoodreadsImportState.Working
-    val canImport = link.isNotBlank() && working == null
+    val failed = state as? GoodreadsImportState.Failed
+    val quoteProgress = working?.quoteProgress?.takeIf { it.total > GoodreadsQuoteProgressThreshold }
     ExpressiveDialogSurface(
-        // An import in flight can't be abandoned halfway; the dialog only closes once it's done or failed.
         onDismissRequest = { if (working == null) onDismiss() },
     ) {
         ExpressiveDialogHeader(
@@ -114,34 +136,7 @@ internal fun GoodreadsImportDialog(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         )
-        OutlinedTextField(
-            value = link,
-            onValueChange = { link = it },
-            label = { Text(stringResource(R.string.library_goodreads_link_label)) },
-            placeholder = { Text(stringResource(R.string.library_goodreads_link_hint)) },
-            singleLine = true,
-            enabled = working == null,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-            keyboardActions = KeyboardActions(onGo = { if (canImport) onImport(link) }),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radii.medium),
-            colors = expressiveTextFieldColors(),
-        )
-        OutlinedButton(
-            onClick = { onBrowse(browseUrl) },
-            enabled = working == null,
-            modifier = Modifier.fillMaxWidth(),
-            shape = Radii.buttonShape,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Link,
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize),
-            )
-            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-            Text(stringResource(R.string.library_goodreads_browse))
-        }
-        if (working != null) {
+        if (failed == null) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Radii.large),
@@ -154,19 +149,31 @@ internal fun GoodreadsImportDialog(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
-                    Text(
-                        text = stringResource(
-                            when (working.step) {
-                                GoodreadsImportStep.FETCHING_BOOK -> R.string.library_goodreads_step_book
-                                GoodreadsImportStep.FETCHING_COVER_AND_QUOTES -> R.string.library_goodreads_step_extras
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Column {
+                        Text(
+                            text = stringResource(
+                                when (working?.step ?: GoodreadsImportStep.FETCHING_BOOK) {
+                                    GoodreadsImportStep.FETCHING_BOOK -> R.string.library_goodreads_step_book
+                                    GoodreadsImportStep.FETCHING_COVER_AND_QUOTES -> R.string.library_goodreads_step_extras
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        quoteProgress?.let { progress ->
+                            Text(
+                                text = stringResource(
+                                    R.string.library_goodreads_quotes_progress,
+                                    progress.processed,
+                                    progress.total,
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            )
+                        }
+                    }
                 }
             }
-        }
-        (state as? GoodreadsImportState.Failed)?.let { failed ->
+        } else {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Radii.medium),
@@ -186,25 +193,16 @@ internal fun GoodreadsImportDialog(
                     modifier = Modifier.padding(Spacing.md),
                 )
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledTonalButton(
-                onClick = onDismiss,
-                enabled = working == null,
-                shape = Radii.buttonShape,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
             ) {
-                Text(stringResource(R.string.library_edit_metadata_cancel))
-            }
-            Button(
-                onClick = { onImport(link) },
-                enabled = canImport,
-                shape = Radii.buttonShape,
-            ) {
-                Text(stringResource(R.string.library_goodreads_import_action))
+                FilledTonalButton(onClick = onDismiss, shape = Radii.buttonShape) {
+                    Text(stringResource(R.string.library_edit_metadata_cancel))
+                }
+                Button(onClick = onBrowse, shape = Radii.buttonShape) {
+                    Text(stringResource(R.string.library_goodreads_browse))
+                }
             }
         }
     }

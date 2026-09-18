@@ -3,10 +3,20 @@ package com.vayana.feature.library
 import com.vayana.core.common.quoteMatchKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 
 class GoodreadsParsingTest {
+
+    @Test
+    fun searchUrlIncludesEncodedBookTitleAndAuthor() {
+        assertEquals(
+            "https://www.goodreads.com/search?q=Countdown+City+Ben+H.+Winters",
+            goodreadsSearchUrl("Countdown City Ben H. Winters"),
+        )
+    }
 
     @Test
     fun bookIdComesFromEveryShapeOfLinkPeoplePaste() {
@@ -94,6 +104,86 @@ class GoodreadsParsingTest {
     }
 
     @Test
+    fun quoteLengthFloorIsTwelveCharacters() {
+        assertTrue(parseQuotesPage(quotesPage(id = "1", text = "a b c d e f")).isEmpty())
+        assertEquals("a b c d e f!", parseQuotesPage(quotesPage(id = "2", text = "a b c d e f!")).single().second.quoteText)
+    }
+
+    @Test
+    fun quoteCollectionFollowsTheAdvertisedNextPage() = runBlocking {
+        val requestedPages = mutableListOf<Int>()
+        val pages = mapOf(
+            1 to quotesPage(id = "1", text = "Too short", nextPage = 2),
+            2 to quotesPage(id = "2", text = "Second English quote."),
+        )
+
+        val quotes = collectGoodreadsQuotes(
+            loadPage = { page -> requestedPages += page; pages[page] },
+            acceptsQuote = { true },
+        )
+
+        assertEquals(listOf(1, 2), requestedPages)
+        assertEquals(listOf("Second English quote."), quotes?.map { it.quoteText })
+    }
+
+    @Test
+    fun quoteCollectionReportsGoodreadsProcessedAndTotalCounts() = runBlocking {
+        val progress = mutableListOf<GoodreadsQuoteProgress>()
+        val pages = mapOf(
+            1 to "Showing 1 - 30 of 77" + quotesPage(id = "1", text = "First English quote.", nextPage = 2),
+            2 to "Showing 31–60 of 77" + quotesPage(id = "2", text = "Second English quote."),
+        )
+
+        collectGoodreadsQuotes(
+            loadPage = pages::get,
+            acceptsQuote = { true },
+            onProgress = progress::add,
+        )
+
+        assertEquals(
+            listOf(GoodreadsQuoteProgress(30, 77), GoodreadsQuoteProgress(60, 77)),
+            progress,
+        )
+    }
+
+    @Test
+    fun quoteProgressSupportsThousandsSeparators() {
+        assertEquals(
+            GoodreadsQuoteProgress(processed = 60, total = 1_234),
+            goodreadsQuotePageProgress("<div class='mediumText'>Showing 31 - 60 of 1,234</div>"),
+        )
+    }
+
+    @Test
+    fun nextQuotePageSupportsMobileAndStandardPaginationMarkup() {
+        assertEquals(
+            2,
+            nextGoodreadsQuotesPage(
+                """<a class="jsLoadMore btnSecondary" href="/work/quotes/1?mobile_xhr=1&amp;page=2">Load More</a>""",
+                currentPage = 1,
+            ),
+        )
+        assertEquals(
+            4,
+            nextGoodreadsQuotesPage(
+                """<a class="next_page" rel="next" href="?page=4">next</a>""",
+                currentPage = 3,
+            ),
+        )
+        assertNull(nextGoodreadsQuotesPage("<span class=\"disabled next_page\">next</span>", currentPage = 4))
+    }
+
+    @Test
+    fun onlyEnglishLanguageResultsAreAccepted() = runBlocking {
+        assertTrue(isEnglishGoodreadsQuote("This is an English quote.") { "en" })
+        assertTrue(isEnglishGoodreadsQuote("This is an English quote.") { "en-US" })
+        assertFalse(isEnglishGoodreadsQuote("هذا اقتباس عربي") { "ar" })
+        assertFalse(isEnglishGoodreadsQuote("Esta es una cita.") { "es" })
+        assertFalse(isEnglishGoodreadsQuote("Ambiguous text") { "und" })
+        assertFalse(isEnglishGoodreadsQuote("Detection failed") { null })
+    }
+
+    @Test
     fun htmlDecodingKeepsEscapedMarkupAsText() {
         assertEquals("<b>bold</b> — ok", "&lt;b&gt;bold&lt;/b&gt; &#x2014; ok".htmlToPlainText())
         assertEquals("one\ntwo", "<p>one</p><p>two</p>".htmlToPlainText())
@@ -109,6 +199,16 @@ class GoodreadsParsingTest {
         fun fixture(path: String): String =
             requireNotNull(GoodreadsParsingTest::class.java.classLoader?.getResource(path)) { "Missing fixture: $path" }
                 .readText()
+
+        fun quotesPage(id: String, text: String, nextPage: Int? = null): String = """
+            <div class="quotesList">
+            <article>
+            <blockquote class="quoteBody">$text</blockquote>
+            <a id="like_id_quote_$id" href="/quotes/$id"><span class="likesCount">0</span></a>
+            </article>
+            </div>
+            ${nextPage?.let { """<a class="jsLoadMore" href="?page=$it">Load More</a>"""}.orEmpty()}
+        """.trimIndent()
 
         val QuotesPageHtml = """
             <div class='quotesList'>
