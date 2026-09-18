@@ -219,13 +219,16 @@ private fun SettingsAboutSection() {
         Surface(
             modifier = Modifier.size(SettingsAboutBadgeSize),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_vayana_app),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_vayana_mark),
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.iconLarge),
+                )
+            }
         }
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
