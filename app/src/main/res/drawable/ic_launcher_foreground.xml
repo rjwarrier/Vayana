@@ -1,50 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Reader-and-book mark adapted from vayana_icon_512_1.svg. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="400"
-    android:viewportHeight="400">
-    <group
-        android:name="mark"
-        android:pivotX="200"
-        android:pivotY="249"
-        android:scaleX="0.6"
-        android:scaleY="0.6">
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#006A60"
-            android:strokeWidth="70"
-            android:strokeLineCap="butt"
-            android:pathData="M70,55 L197,280" />
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#CCE8E1"
-            android:strokeWidth="14"
-            android:strokeLineCap="butt"
-            android:pathData="M94.4,41.3 L221.4,266.3" />
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#F4FBF8"
-            android:strokeWidth="3"
-            android:strokeLineCap="butt"
-            android:pathData="M97.9,39.3 L224.9,264.3" />
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#006A60"
-            android:strokeWidth="70"
-            android:strokeLineCap="butt"
-            android:pathData="M330,55 L203,280" />
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#CCE8E1"
-            android:strokeWidth="14"
-            android:strokeLineCap="butt"
-            android:pathData="M305.6,41.3 L178.6,266.3" />
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#F4FBF8"
-            android:strokeWidth="3"
-            android:strokeLineCap="butt"
-            android:pathData="M302.1,39.3 L175.1,264.3" />
-    </group>
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#1C1B22"
+        android:pathData="M49.2,40 C46.9,38.3 45.6,35.3 45.6,31.4 C45.6,25.9 49.3,22.2 54,22.2 C58.7,22.2 62.4,25.9 62.4,31.4 C62.4,35.3 61.1,38.3 58.8,40 C58.4,41.8 58.4,43.3 60.4,44 C64.6,45.5 67.2,47.6 67.3,50.3 L54,56.2 L40.7,50.3 C40.8,47.6 43.4,45.5 47.6,44 C49.6,43.3 49.6,41.8 49.2,40 Z" />
+    <path
+        android:fillColor="#1C1B22"
+        android:pathData="M36.7,58.9 A1.2,1.2 0,0 1,36.7,61.3 A1.2,1.2 0,0 1,36.7,63.7 A1.2,1.2 0,0 1,36.7,66.1 A1.2,1.2 0,0 1,36.7,68.5 C35.5,69.3 33.8,69.4 32.6,69 C30.6,68.3 29.4,66.3 29.4,63.7 C29.4,60.8 31,58.9 33.4,58.8 C34.6,58.75 35.8,58.8 36.7,58.9 Z" />
+    <path
+        android:fillColor="#1C1B22"
+        android:pathData="M71.3,58.9 A1.2,1.2 0,0 0,71.3,61.3 A1.2,1.2 0,0 0,71.3,63.7 A1.2,1.2 0,0 0,71.3,66.1 A1.2,1.2 0,0 0,71.3,68.5 C72.5,69.3 74.2,69.4 75.4,69 C77.4,68.3 78.6,66.3 78.6,63.7 C78.6,60.8 77,58.9 74.6,58.8 C73.4,58.75 72.2,58.8 71.3,58.9 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#1C1B22"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,60.4 L34.6,51.6 L34.6,75.4 L54,84 L73.4,75.4 L73.4,51.6 Z M34.6,51.6 L37.6,49 L54,56.2 L70.4,49 L73.4,51.6 M54,56.2 L54,84" />
 </vector>

@@ -1,6 +1,7 @@
 package com.vayana.feature.onboarding
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Contrast
@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -147,13 +148,21 @@ private fun OnboardingPageContent(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             tonalElevation = Elevations.none,
         ) {
-            Icon(
-                imageVector = page.icon,
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(Spacing.xl)
-                    .size(Sizes.iconLarge),
-            )
+            if (page == OnboardingPage.WELCOME) {
+                Image(
+                    painter = painterResource(R.drawable.ic_vayana_app),
+                    contentDescription = null,
+                    modifier = Modifier.size(OnboardingHeroIconSize),
+                )
+            } else {
+                Icon(
+                    imageVector = requireNotNull(page.icon),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(Spacing.xl)
+                        .size(Sizes.iconLarge),
+                )
+            }
         }
         Text(
             text = page.title(),
@@ -203,8 +212,10 @@ private fun PageDots(pageIndex: Int) {
     }
 }
 
-private enum class OnboardingPage(val icon: ImageVector) {
-    WELCOME(Icons.Outlined.AutoStories),
+private val OnboardingHeroIconSize = Sizes.iconLarge + (Spacing.xl * 2)
+
+private enum class OnboardingPage(val icon: ImageVector?) {
+    WELCOME(null),
     APPEARANCE(Icons.Outlined.Contrast),
     IMPORT(Icons.Outlined.FileOpen),
     SYNC(Icons.Outlined.CloudSync),

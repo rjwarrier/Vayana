@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.IosShare
@@ -220,16 +219,13 @@ private fun SettingsAboutSection() {
         Surface(
             modifier = Modifier.size(SettingsAboutBadgeSize),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Outlined.AutoStories,
-                    contentDescription = null,
-                    modifier = Modifier.size(Sizes.iconLarge),
-                )
-            }
+            Image(
+                painter = painterResource(R.drawable.ic_vayana_app),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(

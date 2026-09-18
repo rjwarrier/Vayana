@@ -918,15 +918,16 @@ private fun LibraryTopBar(
                                         onRecentlyDeletedClick()
                                     },
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_settings_title)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                                    onClick = {
-                                        moreExpanded = false
-                                        onSettingsClick()
-                                    },
-                                )
                             }
+                        }
+                    }
+                    if (showSettingsAction) {
+                        LibraryTopBarIconButton(onClick = onSettingsClick) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = stringResource(R.string.library_settings_content_description),
+                                modifier = Modifier.size(Sizes.icon),
+                            )
                         }
                     }
                 }
