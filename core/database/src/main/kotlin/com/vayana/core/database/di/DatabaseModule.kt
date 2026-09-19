@@ -19,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import com.vayana.core.database.search.BookSearchIndexCallback
+import com.vayana.core.database.dao.HighlightReviewDao
 import com.vayana.core.database.dao.PendingCloudDeletionDao
 
 @Module
@@ -59,4 +60,7 @@ object DatabaseModule {
 
     @Provides
     fun providePendingCloudDeletionDao(database: VayanaDatabase): PendingCloudDeletionDao = database.pendingCloudDeletionDao()
+
+    @Provides
+    fun provideHighlightReviewDao(database: VayanaDatabase): HighlightReviewDao = database.highlightReviewDao()
 }

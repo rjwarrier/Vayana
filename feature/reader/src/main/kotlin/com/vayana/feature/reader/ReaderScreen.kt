@@ -215,17 +215,19 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
             viewModel.installEnglishDictionary(uri.toString())
         }
     }
+    var readAloudFromSelectionPending by remember { mutableStateOf(false) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         // Notification permission controls visibility only; declining it must not prevent read-aloud itself.
-        viewModel.startReadAloud()
+        viewModel.startReadAloud(fromSelection = readAloudFromSelectionPending)
     }
-    val startReadAloud = {
+    val startReadAloud = { fromSelection: Boolean ->
         val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         if (needsNotificationPermission(Build.VERSION.SDK_INT, permissionGranted)) {
+            readAloudFromSelectionPending = fromSelection
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
-            viewModel.startReadAloud()
+            viewModel.startReadAloud(fromSelection)
         }
     }
 
@@ -316,7 +318,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onDismissFootnote = viewModel::dismissFootnote,
                 onOpenFootnote = viewModel::openFootnoteTarget,
                 readAloud = readAloud,
-                onStartReadAloud = startReadAloud,
+                onStartReadAloud = { startReadAloud(false) },
+                onReadAloudFromSelection = { startReadAloud(true) },
                 onToggleReadAloud = viewModel::toggleReadAloud,
                 onStopReadAloud = viewModel::stopReadAloud,
                 onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
@@ -425,7 +428,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onDismissFootnote = viewModel::dismissFootnote,
         onOpenFootnote = viewModel::openFootnoteTarget,
         readAloud = readAloud,
-        onStartReadAloud = startReadAloud,
+        onStartReadAloud = { startReadAloud(false) },
+        onReadAloudFromSelection = { startReadAloud(true) },
         onToggleReadAloud = viewModel::toggleReadAloud,
         onStopReadAloud = viewModel::stopReadAloud,
         onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
@@ -517,6 +521,7 @@ private fun ReaderScreen(
     onOpenFootnote: () -> Unit,
     readAloud: ReadAloudState,
     onStartReadAloud: () -> Unit,
+    onReadAloudFromSelection: () -> Unit,
     onToggleReadAloud: () -> Unit,
     onStopReadAloud: () -> Unit,
     onCycleReadAloudSleepTimer: () -> Unit,
@@ -1068,6 +1073,8 @@ private fun ReaderScreen(
                     },
                     selectedText = selection?.selectedText ?: dictionaryWord.orEmpty(),
                     selectionActionsEnabled = selection != null,
+                    readAloudAvailable = audioFeaturesEnabled,
+                    onReadAloud = onReadAloudFromSelection,
                     dictionaryLookup = dictionaryLookup,
                     recentLookups = recentLookups,
                     onHighlight = onCreateHighlight,
@@ -1426,6 +1433,8 @@ private fun SelectionActions(
     modifier: Modifier = Modifier,
     selectedText: String,
     selectionActionsEnabled: Boolean,
+    readAloudAvailable: Boolean,
+    onReadAloud: () -> Unit,
     dictionaryLookup: DictionaryLookupState,
     recentLookups: List<String>,
     onHighlight: (String) -> Unit,
@@ -1513,6 +1522,16 @@ private fun SelectionActions(
                             modifier = Modifier.size(Sizes.iconSmall),
                         )
                         Text(stringResource(R.string.reader_selection_share))
+                    }
+                    if (readAloudAvailable) {
+                        FilledTonalButton(onClick = onReadAloud) {
+                            Icon(
+                                imageVector = Icons.Outlined.Headphones,
+                                contentDescription = null,
+                                modifier = Modifier.size(Sizes.iconSmall),
+                            )
+                            Text(stringResource(R.string.reader_selection_read_aloud))
+                        }
                     }
                 }
             }

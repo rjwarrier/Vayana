@@ -9,6 +9,7 @@ import com.vayana.core.database.model.VocabularyCard
 import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.database.repository.HighlightReviewRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
@@ -124,6 +125,7 @@ class StatisticsViewModel @Inject constructor(
     readingSessionRepository: ReadingSessionRepository,
     settingsRepository: SettingsRepository,
     vocabularyCardRepository: VocabularyCardRepository,
+    highlightReviewRepository: HighlightReviewRepository,
 ) : ViewModel() {
     private val coreInputs = combine(
         bookRepository.observeAll(),
@@ -156,6 +158,15 @@ class StatisticsViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+
+    /** Highlights whose review has come round, or that were never reviewed, ready for the review screen. */
+    val highlightsDue: StateFlow<List<Annotation>> = combine(
+        annotationRepository.observeAll(),
+        highlightReviewRepository.observeAll(),
+    ) { annotations, reviews -> dueHighlights(annotations, reviews, System.currentTimeMillis()) }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val vocabularyCardCount: StateFlow<Int> = vocabularyCards
         .map { it.size }

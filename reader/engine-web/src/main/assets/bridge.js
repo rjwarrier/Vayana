@@ -738,14 +738,24 @@ function speechSentencesFor(doc, index, fromRange) {
     return sentences
 }
 
-function startSpeech(requestId) {
+// [fromCfi] starts reading at the sentence holding that position (a selection) instead of at the top of the page.
+function startSpeech(requestId, fromCfi) {
     const content = currentContent()
     if (!content?.doc) {
         post('reply', { requestId, sentences: [], endOfBook: true })
         return
     }
     const visible = view.lastLocation?.range
-    const fromRange = visible?.startContainer?.ownerDocument === content.doc ? visible : null
+    let fromRange = visible?.startContainer?.ownerDocument === content.doc ? visible : null
+    if (fromCfi) {
+        try {
+            const { index, anchor } = view.resolveCFI(fromCfi)
+            const selected = index === content.index ? anchor(content.doc) : null
+            if (selected?.startContainer) fromRange = selected
+        } catch (error) {
+            post('log', { step: 'startSpeech', message: String(error) })
+        }
+    }
     post('reply', { requestId, sentences: speechSentencesFor(content.doc, content.index, fromRange), endOfBook: false })
 }
 

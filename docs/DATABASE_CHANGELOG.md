@@ -2,6 +2,9 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 23
+Spaced review of highlights: new table `highlight_reviews` (`annotationId` primary key, `dueAt`, `intervalDays`, `easeFactor`, `repetitions`, `lastReviewedAt`; index on `dueAt`), scheduled by `VocabularySchedule` like vocabulary cards. Local to the device and **not synced or exported**: a review must not bump the annotation's `updatedAt`, and `annotationId` is not a foreign key because sync merges replace annotation rows. A highlight with no row is new and counts as due. Orphaned rows (purged books) are removed by `HighlightReviewRepository.deleteOrphans`.
+
 ## Version 22
 Spaced repetition for vocabulary cards (`repository/VocabularySchedule.kt`, SM-2 style with Again / Good / Easy):
 `vocabulary_cards.dueAt` (nullable epoch millis; null = a new card, due now), `intervalDays` (default 0),

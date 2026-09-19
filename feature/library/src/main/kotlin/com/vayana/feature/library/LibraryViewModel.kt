@@ -111,6 +111,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -144,6 +145,7 @@ enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSU
 private data class QuoteImportResult(val added: Int, val skipped: Int)
 
 private const val QuoteLocatorPrefix = "quote"
+private const val EpubMimeType = "application/epub+zip"
 private const val GoodreadsQuoteLocatorPrefix = "goodreads-quote"
 
 sealed interface BookDetailMessage {
@@ -473,10 +475,21 @@ class LibraryViewModel @Inject constructor(
     private val shelfDao: ShelfDao,
     private val vocabularyCardDao: VocabularyCardDao,
     private val annotationDao: AnnotationDao,
+    private val incomingBookFiles: IncomingBookFiles,
     @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val controls = MutableStateFlow(LibraryControls())
+
+    init {
+        // Books other apps opened or shared into Vayana are imported like any picked file, as soon as the library exists.
+        viewModelScope.launch {
+            incomingBookFiles.pending.filter { it.isNotEmpty() }.collect {
+                val uris = incomingBookFiles.drain()
+                if (uris.isNotEmpty()) importFiles(appContext.contentResolver, uris)
+            }
+        }
+    }
 
     /** Active books with absolute paths, shared app-wide through [ResolvedBooks]. */
     val libraryBooks: StateFlow<List<Book>> =
@@ -2091,7 +2104,9 @@ class LibraryViewModel @Inject constructor(
     private suspend fun importOne(contentResolver: ContentResolver, candidate: ImportCandidate): ImportResult {
         val uri = candidate.uri
         val displayName = candidate.displayName
+        // Files opened from a browser or mail app often have no usable extension; their MIME type still says EPUB.
         val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+            .ifEmpty { if (contentResolver.getType(uri) == EpubMimeType) "epub" else "" }
         val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
             ?: return finishImportRow(candidate.id, ImportResult.Unsupported)
         if (format != BookFormat.EPUB) return finishImportRow(candidate.id, ImportResult.Unsupported)

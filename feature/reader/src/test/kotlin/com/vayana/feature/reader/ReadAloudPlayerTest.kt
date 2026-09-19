@@ -187,6 +187,165 @@ class ReadAloudPlayerTest {
         assertEquals(listOf("0:1"), output.queued)
     }
 
+    @Test
+    fun startsAtTheGivenPositionWhenReadingFromASelection() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "", fromCfi = "epubcfi(/6/4!/4/2)")
+
+        assertEquals("epubcfi(/6/4!/4/2)", engine.startedFrom)
+    }
+
+    @Test
+    fun skipsToTheNextAndPreviousSentence() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.", "Three.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:0")
+        player.skip(1)
+        assertEquals(listOf("0:1", "0:2"), output.queued)
+
+        output.listener!!.onStart("0:1")
+        player.skip(-1)
+        assertEquals(listOf("0:0", "0:1", "0:2"), output.queued)
+    }
+
+    @Test
+    fun skippingBackFromTheFirstSentenceRestartsIt() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:0")
+        player.skip(-1)
+
+        assertEquals(listOf("0:0", "0:1"), output.queued)
+    }
+
+    @Test
+    fun skippingPastTheLastSentenceMovesToTheNextChapter() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two."), listOf("Three.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:1")
+        player.skip(1)
+
+        assertEquals(listOf("1:0"), output.queued)
+    }
+
+    @Test
+    fun pausesForAnotherAppAndResumesWhenItIsDone() {
+        val output = FakeOutput()
+        val focus = FakeFocus()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, focus)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:1")
+        focus.send(PlaybackFocusEvent.LOST_TEMPORARILY)
+        assertFalse(player.state.value.playing)
+
+        focus.send(PlaybackFocusEvent.REGAINED)
+        assertTrue(player.state.value.playing)
+        assertEquals(listOf("0:1"), output.queued)
+    }
+
+    @Test
+    fun staysPausedAfterAnotherAppTakesFocusForGood() {
+        val output = FakeOutput()
+        val focus = FakeFocus()
+        val engine = FakeEngine(listOf(listOf("One.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, focus)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        focus.send(PlaybackFocusEvent.LOST)
+        focus.send(PlaybackFocusEvent.REGAINED)
+
+        assertFalse(player.state.value.playing)
+        assertEquals(1, focus.abandoned)
+    }
+
+    @Test
+    fun pausesWhenTheHeadphonesAreUnplugged() {
+        val output = FakeOutput()
+        val focus = FakeFocus()
+        val engine = FakeEngine(listOf(listOf("One.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, focus)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        focus.send(PlaybackFocusEvent.BECOMING_NOISY)
+
+        assertFalse(player.state.value.playing)
+    }
+
+    @Test
+    fun aPauseDuringATemporaryLossIsNotUndoneWhenFocusReturns() {
+        val output = FakeOutput()
+        val focus = FakeFocus()
+        val engine = FakeEngine(listOf(listOf("One.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, focus)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        focus.send(PlaybackFocusEvent.LOST_TEMPORARILY)
+        player.togglePlayback()
+        player.togglePlayback()
+        player.pause()
+        focus.send(PlaybackFocusEvent.REGAINED)
+
+        assertFalse(player.state.value.playing)
+    }
+
+    @Test
+    fun doesNotStartWhileAnotherAppRefusesToShareAudio() {
+        val output = FakeOutput()
+        val focus = FakeFocus(granted = false)
+        val engine = FakeEngine(listOf(listOf("One.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, focus)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+
+        assertFalse(player.state.value.playing)
+        assertTrue(output.queued.isEmpty())
+    }
+
+    @Test
+    fun letsGoOfAudioFocusWhenPausedOrStopped() {
+        val output = FakeOutput()
+        val focus = FakeFocus()
+        val engine = FakeEngine(listOf(listOf("One.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, focus)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        player.pause()
+        assertEquals(1, focus.abandoned)
+
+        player.stop()
+        assertEquals(2, focus.abandoned)
+    }
+
+    private class FakeFocus(private val granted: Boolean = true) : PlaybackFocus {
+        private var onEvent: ((PlaybackFocusEvent) -> Unit)? = null
+        var abandoned = 0
+
+        override fun request(onEvent: (PlaybackFocusEvent) -> Unit): Boolean {
+            this.onEvent = onEvent
+            return granted
+        }
+
+        override fun abandon() {
+            abandoned++
+        }
+
+        fun send(event: PlaybackFocusEvent) = onEvent!!.invoke(event)
+    }
+
     private class FakeOutput(private val available: Boolean = true) : SpeechOutput {
         override var listener: SpeechOutput.Listener? = null
         override val voices: StateFlow<List<SpeechVoiceOption>> = MutableStateFlow(emptyList())
@@ -224,9 +383,13 @@ class ReadAloudPlayerTest {
     private class FakeEngine(private val chapters: List<List<String>>) : BookEngine {
         private var chapter = 0
         val marked = mutableListOf<MarkedSpeech>()
+        var startedFrom: String? = null
         var stopped = false
 
-        override suspend fun startSpeech(): SpeechChunk = chunk(0)
+        override suspend fun startSpeech(fromCfi: String?): SpeechChunk {
+            startedFrom = fromCfi
+            return chunk(0)
+        }
 
         override suspend fun nextSpeechChunk(): SpeechChunk = chunk(++chapter)
 

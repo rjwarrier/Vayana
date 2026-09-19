@@ -34,6 +34,7 @@ import com.vayana.app.navigation.VayanaBottomBar
 import com.vayana.app.navigation.VayanaFloatingBar
 import com.vayana.app.navigation.VayanaNavHost
 import com.vayana.app.navigation.VayanaNavigationRail
+import com.vayana.app.navigation.navigateToTopLevel
 import com.vayana.app.navigation.resolveNavigationPresentation
 import com.vayana.core.datastore.settings.StartScreen
 import com.vayana.core.designsystem.theme.VayanaTheme
@@ -74,6 +75,11 @@ fun VayanaAppRoot() {
             if (startScreen != StartScreen.LAST_BOOK || lastBookOpened) return@LaunchedEffect
             lastBookOpened = true
             settingsViewModel.lastReadBookId()?.let { bookId -> navController.navigate(ReaderRoute(bookId)) }
+        }
+        // A book opened or shared from another app is imported by the library, so show it.
+        val hasIncomingBooks by settingsViewModel.hasIncomingBooks.collectAsState()
+        LaunchedEffect(hasIncomingBooks) {
+            if (hasIncomingBooks) navController.navigateToTopLevel(TopLevelRoute.Library)
         }
         val currentDestination = navController.currentBackStackEntryAsState().value?.destination
         val showNavigation = currentDestination?.hasRoute(ReaderRoute::class) != true

@@ -21,6 +21,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.database.repository.ReviewGrade
 import com.vayana.core.designsystem.sharecard.QuoteShareDialog
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Paddings
@@ -51,7 +53,7 @@ fun HighlightReviewRoute(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: HighlightReviewViewModel = hiltViewModel()
-    val items by viewModel.items.collectAsState()
+    val session by viewModel.session.collectAsState()
     val index by viewModel.index.collectAsState()
 
     Scaffold(
@@ -67,25 +69,37 @@ fun HighlightReviewRoute(
             )
         },
     ) { innerPadding ->
-        val loaded = items ?: return@Scaffold
+        val loaded = session ?: return@Scaffold
+        val items = loaded.items
         when {
-            loaded.isEmpty() -> HighlightReviewMessage(
+            items.isEmpty() && loaded.reviewableCount == 0 -> HighlightReviewMessage(
                 contentPadding = innerPadding,
                 title = stringResource(R.string.highlight_review_empty_title),
                 body = stringResource(R.string.highlight_review_empty_body),
-                onDone = null,
             )
-            index >= loaded.size -> HighlightReviewMessage(
+            items.isEmpty() -> HighlightReviewMessage(
+                contentPadding = innerPadding,
+                title = stringResource(R.string.highlight_review_caught_up_title),
+                body = stringResource(R.string.highlight_review_caught_up_body),
+                actionLabel = stringResource(R.string.highlight_review_practice),
+                onAction = viewModel::practiceAnyway,
+            )
+            index >= items.size -> HighlightReviewMessage(
                 contentPadding = innerPadding,
                 title = stringResource(R.string.highlight_review_done_title),
-                body = stringResource(R.string.highlight_review_done_body),
-                onDone = onBack,
+                body = stringResource(
+                    if (loaded.scheduled) R.string.highlight_review_done_body else R.string.highlight_review_practice_done_body,
+                ),
+                actionLabel = stringResource(R.string.highlight_review_done),
+                onAction = onBack,
             )
             else -> HighlightReviewCard(
                 contentPadding = innerPadding,
-                item = loaded[index],
+                item = items[index],
                 position = index + 1,
-                total = loaded.size,
+                total = items.size,
+                scheduled = loaded.scheduled,
+                onGrade = viewModel::grade,
                 onNext = viewModel::next,
                 onOpenReader = onOpenReader,
             )
@@ -99,6 +113,8 @@ private fun HighlightReviewCard(
     item: HighlightReviewItem,
     position: Int,
     total: Int,
+    scheduled: Boolean,
+    onGrade: (ReviewGrade) -> Unit,
     onNext: () -> Unit,
     onOpenReader: (bookId: Long, locator: String) -> Unit,
 ) {
@@ -150,6 +166,7 @@ private fun HighlightReviewCard(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { sharing = true }) {
                 Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.highlight_review_share))
@@ -163,8 +180,26 @@ private fun HighlightReviewCard(
                     Text(stringResource(R.string.highlight_review_open_book))
                 }
             }
-            Button(onClick = onNext, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.highlight_review_next))
+            if (!scheduled) {
+                Button(onClick = onNext, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.highlight_review_next))
+                }
+            }
+        }
+        if (scheduled) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                OutlinedButton(onClick = { onGrade(ReviewGrade.AGAIN) }, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.highlight_review_again))
+                }
+                Button(onClick = { onGrade(ReviewGrade.GOOD) }, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.highlight_review_good))
+                }
+                FilledTonalButton(onClick = { onGrade(ReviewGrade.EASY) }, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.highlight_review_easy))
+                }
             }
         }
     }
@@ -181,7 +216,13 @@ private fun HighlightReviewCard(
 }
 
 @Composable
-private fun HighlightReviewMessage(contentPadding: PaddingValues, title: String, body: String, onDone: (() -> Unit)?) {
+private fun HighlightReviewMessage(
+    contentPadding: PaddingValues,
+    title: String,
+    body: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -198,9 +239,9 @@ private fun HighlightReviewMessage(contentPadding: PaddingValues, title: String,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            onDone?.let { done ->
-                Button(onClick = done, modifier = Modifier.padding(top = Spacing.md)) {
-                    Text(stringResource(R.string.highlight_review_done))
+            if (actionLabel != null && onAction != null) {
+                Button(onClick = onAction, modifier = Modifier.padding(top = Spacing.md)) {
+                    Text(actionLabel)
                 }
             }
         }

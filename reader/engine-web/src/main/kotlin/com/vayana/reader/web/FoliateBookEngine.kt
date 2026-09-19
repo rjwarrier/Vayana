@@ -352,7 +352,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     private val bridgeRequests = ConcurrentHashMap<Long, CompletableDeferred<JSONObject?>>()
     private val nextBridgeRequestId = AtomicLong()
 
-    override suspend fun startSpeech(): SpeechChunk = requestBridge("startSpeech")?.toSpeechChunk() ?: EndOfBookChunk
+    override suspend fun startSpeech(fromCfi: String?): SpeechChunk =
+        requestBridge("startSpeech", fromCfi?.let(JSONObject::quote) ?: "null")?.toSpeechChunk() ?: EndOfBookChunk
 
     override suspend fun nextSpeechChunk(): SpeechChunk = requestBridge("nextSpeechChunk")?.toSpeechChunk() ?: EndOfBookChunk
 

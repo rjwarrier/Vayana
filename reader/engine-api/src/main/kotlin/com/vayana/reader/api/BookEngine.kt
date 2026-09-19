@@ -23,8 +23,11 @@ interface BookEngine {
     suspend fun clearSearch()
     fun events(): Flow<EngineEvent>
 
-    /** Sentences from the first one on the current page to the end of its chapter, for read-aloud. */
-    suspend fun startSpeech(): SpeechChunk
+    /**
+     * Sentences from the first one on the current page to the end of its chapter, for read-aloud. With [fromCfi] (a
+     * position on the current page, such as a selection) they start at the sentence holding it instead.
+     */
+    suspend fun startSpeech(fromCfi: String? = null): SpeechChunk
 
     /** Moves to the next chapter and returns all of its sentences. */
     suspend fun nextSpeechChunk(): SpeechChunk

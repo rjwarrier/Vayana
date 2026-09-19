@@ -216,6 +216,7 @@ class ReaderViewModel @Inject constructor(
         scope = viewModelScope,
         engine = { boundEngine?.takeIf { bookOpen } },
         onSpeaking = ::onSpeaking,
+        focus = AndroidPlaybackFocus(appContext),
     )
     private var lastSpeechInteractionAt = 0L
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
@@ -619,17 +620,25 @@ class ReaderViewModel @Inject constructor(
         onReaderInteraction()
     }
 
-    fun startReadAloud() {
+    /** Starts read aloud at the top of the page, or, with [fromSelection], at the sentence holding the selection. */
+    fun startReadAloud(fromSelection: Boolean = false) {
         if (!settings.value.readerAudioFeaturesEnabled) return
         _returnRecap.value = null
+        val selectionCfi = if (fromSelection) (uiState.value as? ReaderUiState.Loaded)?.selection?.cfi else null
+        // Choosing a new starting point while already reading restarts from there.
+        if (selectionCfi != null) readAloudPlayer.stop()
         readAloudPlayer.start(
             rate = settings.value.readAloudRate,
             pitch = settings.value.readAloudPitch,
             voiceName = settings.value.readAloudVoiceName,
+            fromCfi = selectionCfi,
         )
+        if (selectionCfi != null) clearSelection()
     }
 
     fun toggleReadAloud() = readAloudPlayer.togglePlayback()
+
+    fun skipReadAloudSentence(sentences: Int) = readAloudPlayer.skip(sentences)
 
     fun stopReadAloud() = readAloudPlayer.stop()
 
@@ -946,7 +955,15 @@ class ReaderViewModel @Inject constructor(
                 }
         }
         viewModelScope.launch {
-            ReadAloudNotificationCommands.toggles.collectLatest { toggleReadAloud() }
+            ReadAloudNotificationCommands.commands.collect { command ->
+                when (command) {
+                    ReadAloudCommand.PLAY -> readAloudPlayer.play()
+                    ReadAloudCommand.PAUSE -> readAloudPlayer.pause()
+                    ReadAloudCommand.NEXT -> readAloudPlayer.skip(1)
+                    ReadAloudCommand.PREVIOUS -> readAloudPlayer.skip(-1)
+                    ReadAloudCommand.STOP -> readAloudPlayer.stop()
+                }
+            }
         }
         viewModelScope.launch {
             settings

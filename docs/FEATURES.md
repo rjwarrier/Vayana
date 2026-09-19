@@ -1,6 +1,6 @@
-# Features: onboarding, search, Read Next, deleting books
+# Features: onboarding, search, Read Next, deleting books, opening files, read aloud, highlight review
 
-How three recently added features behave, where their code lives, and the rules that aren't obvious from
+How these features behave, where their code lives, and the rules that aren't obvious from
 reading one file. Keep this in step with the code when any of them changes.
 
 ---
@@ -135,3 +135,53 @@ again creates a new book with a new sync id. Older encrypted copies remain in th
 **Tests:** `feature/library/.../PermanentBookDeletionTest.kt` (Robolectric + Room),
 `core/sync/.../CloudAssetDeletionProcessorTest.kt`, `GitHubContentsAssetStoreTest` (delete cases),
 `core/filesystem/.../BookFileCleanerTest.kt`, `core/database/.../BookPurgeTombstoneIdTest.kt`.
+
+---
+
+## Open with Vayana
+
+An EPUB opened or shared from another app (file manager, browser download, mail attachment, Calibre transfer) is
+imported into the library like any picked file.
+
+- `MainActivity` is `singleTask` and accepts `VIEW` (`application/epub+zip`, or `application/octet-stream` with a
+  `.epub` path), `SEND` and `SEND_MULTIPLE` (`application/epub+zip`). Only `content://` URIs are used; `file://` cannot
+  be read on modern Android.
+- `Intent.incomingBookUris()` (feature/library `IncomingBookFiles.kt`) reads the URIs; the activity hands them to the
+  singleton `IncomingBookFiles`, skipping a recreated activity's old intent (`savedInstanceState != null`).
+- `VayanaAppRoot` navigates to Library while files are waiting; `LibraryViewModel` drains them into `importFiles`, so
+  the usual import progress and summary appear. Nothing is lost while onboarding or the reader is on screen: files wait
+  until a `LibraryViewModel` exists.
+- A file whose display name has no extension is still accepted when its MIME type is `application/epub+zip`.
+
+**Tests:** `feature/library/.../IncomingBookFilesTest.kt`.
+
+## Read aloud: focus, media controls, start from selection
+
+- **Audio focus** (`PlaybackFocus.kt`). Read aloud requests focus when it starts speaking and gives it up when paused
+  or stopped. A call or navigation prompt (`LOST_TEMPORARILY`) pauses it and it resumes by itself when focus returns;
+  other audio taking focus for good (`LOST`) and unplugged headphones (`BECOMING_NOISY`) pause it until the reader
+  presses play. A user pause during a temporary loss is never undone. If focus is refused (a call in progress) it does
+  not start. The engine speaks with `USAGE_MEDIA` / `CONTENT_TYPE_SPEECH`.
+- **Media controls.** `ReadAloudForegroundService` owns a `MediaSession`: lock-screen and Bluetooth/headset play,
+  pause, next and previous, and a notification with previous sentence / play-pause / next sentence. Commands reach
+  the reader through `ReadAloudNotificationCommands` (`ReadAloudCommand` PLAY, PAUSE, NEXT, PREVIOUS, STOP).
+  `ReadAloudPlayer.skip(±n)` moves by sentence; past a chapter's end it continues into the next chapter.
+- **From here.** The selection toolbar has a Read aloud button (hidden when audio features are off). It restarts read
+  aloud at the sentence holding the selection: `BookEngine.startSpeech(fromCfi)` → `bridge.js startSpeech(requestId,
+  fromCfi)` resolves the CFI and skips sentences that end before it.
+
+**Tests:** `ReadAloudPlayerTest` (focus, skip, start-from-CFI).
+
+## Highlight review (spaced)
+
+Statistics → the highlight card opens a review of highlights that are due, instead of a fixed set of five.
+
+- Each highlight has a schedule in `highlight_reviews` (DB v23), reusing `VocabularySchedule` (SM-2 style) with three
+  answers: See soon (again), Got it (good), Know it well (easy).
+- `dueHighlights()` picks overdue highlights first (longest overdue first), then never-reviewed ones (oldest first),
+  up to 10 per session. Only the reader's own highlights and notes count: no bookmarks, no Goodreads quotes.
+- With nothing due the screen says so and offers today's fixed set (`dailyHighlights`) as practice; practice answers
+  are not recorded.
+- Schedules are **per device and not synced** (see `docs/DATABASE_CHANGELOG.md`, version 23).
+
+**Tests:** `HighlightReviewTest`, `feature/library/.../HighlightReviewRepositoryTest.kt`.

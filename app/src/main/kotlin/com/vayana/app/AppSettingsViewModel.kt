@@ -8,6 +8,7 @@ import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.NavigationMode
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.feature.library.IncomingBookFiles
 import com.vayana.feature.library.RecentlyDeletedAutoPurge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -26,7 +27,13 @@ class AppSettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val bookRepository: BookRepository,
     private val recentlyDeletedAutoPurge: RecentlyDeletedAutoPurge,
+    incomingBookFiles: IncomingBookFiles,
 ) : ViewModel() {
+    /** True while book files from another app wait to be imported, so the app can bring the library forward. */
+    val hasIncomingBooks: StateFlow<Boolean> = incomingBookFiles.pending
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** Null until the first DataStore read and the one-off existing-library check are done. */
     val settings: StateFlow<SettingsSnapshot?> = flow {
         // Installs from before onboarding existed already have a library; don't walk them through setup.

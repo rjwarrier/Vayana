@@ -30,6 +30,7 @@ internal class ReadAloudPlayer(
     private val scope: CoroutineScope,
     private val engine: () -> BookEngine?,
     private val onSpeaking: () -> Unit,
+    private val focus: PlaybackFocus = PlaybackFocus.Unmanaged,
 ) : SpeechOutput.Listener {
     private val _state = MutableStateFlow(ReadAloudState())
     val state: StateFlow<ReadAloudState> = _state
@@ -44,11 +45,14 @@ internal class ReadAloudPlayer(
     private var sleepJob: Job? = null
     private var chunkJob: Job? = null
 
+    /** Paused only because another app took audio focus for a moment, so reading picks up again when it is back. */
+    private var resumeOnFocusGain = false
+
     init {
         output.listener = this
     }
 
-    fun start(rate: Float, pitch: Float, voiceName: String) {
+    fun start(rate: Float, pitch: Float, voiceName: String, fromCfi: String? = null) {
         if (_state.value.active) return
         val bookEngine = engine() ?: return
         _state.value = ReadAloudState(active = true, rate = rate, pitch = pitch)
@@ -62,7 +66,7 @@ internal class ReadAloudPlayer(
                     _state.value = ReadAloudState(rate = rate, pitch = pitch, voiceMissing = true)
                     return@launch
                 }
-                load(bookEngine.startSpeech())
+                load(bookEngine.startSpeech(fromCfi))
             }
         }
     }
@@ -70,12 +74,13 @@ internal class ReadAloudPlayer(
     fun togglePlayback() {
         val current = _state.value
         if (!current.active) return
+        resumeOnFocusGain = false
         if (current.playing) {
             _state.update { it.copy(playing = false) }
             output.stop()
+            focus.abandon()
         } else if (queue.isNotEmpty()) {
-            _state.update { it.copy(playing = true) }
-            speakFromPosition()
+            resume()
         }
     }
 
@@ -83,10 +88,34 @@ internal class ReadAloudPlayer(
         if (_state.value.playing) togglePlayback()
     }
 
+    /** Plays if paused, from the sentence that was being read. */
+    fun play() {
+        if (_state.value.active && !_state.value.playing) togglePlayback()
+    }
+
+    /** Jumps [sentences] forward (positive) or back (negative) and reads from there; past the chapter's end, moves on. */
+    fun skip(sentences: Int) {
+        if (!_state.value.active || queue.isEmpty()) return
+        val target = position + sentences
+        if (target > queue.lastIndex) {
+            if (!endOfBook) {
+                resumeOnFocusGain = false
+                output.stop()
+                nextChapter()
+            }
+            return
+        }
+        position = target.coerceAtLeast(0)
+        resumeOnFocusGain = false
+        resume()
+    }
+
     fun stop() {
         sleepJob?.cancel()
         chunkJob?.cancel()
         output.stop()
+        focus.abandon()
+        resumeOnFocusGain = false
         val wasActive = _state.value.active
         queue = emptyList()
         position = 0
@@ -180,6 +209,32 @@ internal class ReadAloudPlayer(
         }
     }
 
+    /** Starts or resumes speaking at [position], unless another app (a call, say) will not give up the audio. */
+    private fun resume() {
+        if (!focus.request(::onFocusEvent)) {
+            _state.update { it.copy(playing = false) }
+            return
+        }
+        _state.update { it.copy(playing = true) }
+        speakFromPosition()
+    }
+
+    private fun onFocusEvent(event: PlaybackFocusEvent) {
+        val current = _state.value
+        when (event) {
+            PlaybackFocusEvent.LOST_TEMPORARILY -> if (current.playing) {
+                resumeOnFocusGain = true
+                _state.update { it.copy(playing = false) }
+                output.stop()
+            }
+            PlaybackFocusEvent.LOST, PlaybackFocusEvent.BECOMING_NOISY -> if (current.playing) togglePlayback()
+            PlaybackFocusEvent.REGAINED -> if (resumeOnFocusGain && current.active && !current.playing) {
+                resumeOnFocusGain = false
+                resume()
+            }
+        }
+    }
+
     private fun load(chunk: SpeechChunk) {
         queue = chunk.sentences.flatMap { it.splitForSpeech() }
         position = 0
@@ -189,8 +244,7 @@ internal class ReadAloudPlayer(
             nextChapter()
             return
         }
-        _state.update { it.copy(playing = true) }
-        speakFromPosition()
+        resume()
     }
 
     private fun nextChapter() {

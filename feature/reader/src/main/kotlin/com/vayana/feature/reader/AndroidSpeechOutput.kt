@@ -123,6 +123,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                     created.setOnUtteranceProgressListener(progressListener)
                     created.setSpeechRate(rate)
                     created.setPitch(pitch)
+                    created.setAudioAttributes(SpeechAudioAttributes)
                     systemDefaultVoice = created.defaultVoice
                     _voices.value = created.installedVoices()
                         .sortedWith(

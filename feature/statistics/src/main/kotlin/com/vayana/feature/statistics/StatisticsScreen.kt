@@ -55,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
@@ -83,12 +84,14 @@ fun StatisticsRoute(
     val summary by viewModel.summary.collectAsState()
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsState()
     val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsState()
+    val highlightsDue by viewModel.highlightsDue.collectAsState()
 
     StatisticsScreen(
         modifier = modifier,
         summary = summary,
         vocabularyCardCount = vocabularyCardCount,
         vocabularyDueCount = vocabularyDueCount,
+        highlightsDue = highlightsDue,
         onReviewVocabulary = onReviewVocabulary,
         onOpenLearnWords = onOpenLearnWords,
         onReviewHighlights = onReviewHighlights,
@@ -101,6 +104,7 @@ private fun StatisticsScreen(
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
     vocabularyDueCount: Int,
+    highlightsDue: List<Annotation>,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -123,6 +127,7 @@ private fun StatisticsScreen(
                 summary = summary,
                 vocabularyCardCount = vocabularyCardCount,
                 vocabularyDueCount = vocabularyDueCount,
+                highlightsDue = highlightsDue,
                 onReviewVocabulary = onReviewVocabulary,
                 onOpenLearnWords = onOpenLearnWords,
                 onReviewHighlights = onReviewHighlights,
@@ -137,6 +142,7 @@ private fun StatisticsDashboard(
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
     vocabularyDueCount: Int,
+    highlightsDue: List<Annotation>,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -272,7 +278,9 @@ private fun StatisticsDashboard(
                 }
             }
         }
-        summary.highlightsToRevisit.firstOrNull()?.let { highlight ->
+        // Due highlights come first; with none due, today's fixed set is still on offer for practice.
+        val revisit = highlightsDue.ifEmpty { summary.highlightsToRevisit }
+        revisit.firstOrNull()?.let { highlight ->
             item {
                 Surface(
                     modifier = Modifier
@@ -304,7 +312,11 @@ private fun StatisticsDashboard(
                             )
                         }
                         Text(
-                            text = stringResource(R.string.statistics_highlight_review_action, summary.highlightsToRevisit.size),
+                            text = if (highlightsDue.isNotEmpty()) {
+                                stringResource(R.string.statistics_highlight_due_action, highlightsDue.size)
+                            } else {
+                                stringResource(R.string.statistics_highlight_review_action, revisit.size)
+                            },
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(top = Spacing.md),
                         )

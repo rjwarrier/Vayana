@@ -4,6 +4,8 @@ import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.AnnotationRepositoryImpl
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.BookRepositoryImpl
+import com.vayana.core.database.repository.HighlightReviewRepository
+import com.vayana.core.database.repository.HighlightReviewRepositoryImpl
 import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.ReadingSessionRepositoryImpl
 import com.vayana.core.database.repository.ShelfRepository
@@ -44,4 +46,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindVocabularyCardRepository(impl: VocabularyCardRepositoryImpl): VocabularyCardRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindHighlightReviewRepository(impl: HighlightReviewRepositoryImpl): HighlightReviewRepository
 }

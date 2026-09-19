@@ -391,9 +391,21 @@ val MIGRATION_21_22 = object : Migration(21, 22) {
     }
 }
 
+val MIGRATION_22_23 = object : Migration(22, 23) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Spaced review of highlights, kept per device (see HighlightReviewEntity).
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `highlight_reviews` (`annotationId` INTEGER NOT NULL, `dueAt` INTEGER NOT NULL, " +
+                "`intervalDays` INTEGER NOT NULL DEFAULT 0, `easeFactor` REAL NOT NULL DEFAULT 2.5, " +
+                "`repetitions` INTEGER NOT NULL DEFAULT 0, `lastReviewedAt` INTEGER NOT NULL, PRIMARY KEY(`annotationId`))",
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_highlight_reviews_dueAt` ON `highlight_reviews` (`dueAt`)")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
-    MIGRATION_21_22,
+    MIGRATION_21_22, MIGRATION_22_23,
 )

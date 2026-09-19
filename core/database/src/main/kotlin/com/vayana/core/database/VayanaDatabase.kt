@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
+import com.vayana.core.database.dao.HighlightReviewDao
 import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.ShelfDao
 import com.vayana.core.database.dao.TombstoneDao
@@ -16,6 +17,7 @@ import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.entity.BookFtsEntity
 import com.vayana.core.database.entity.BookShelfCrossRefEntity
+import com.vayana.core.database.entity.HighlightReviewEntity
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.entity.ShelfEntity
 import com.vayana.core.database.entity.TombstoneEntity
@@ -25,14 +27,14 @@ import com.vayana.core.database.dao.PendingCloudDeletionDao
 import com.vayana.core.database.entity.PendingCloudDeletionEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (PROMPT2appbuild.md §2). */
-const val DATABASE_VERSION = 22
+const val DATABASE_VERSION = 23
 
 @Database(
     entities = [
         BookEntity::class, AnnotationEntity::class, WordLookupStatEntity::class, ReadingSessionEntity::class,
         ShelfEntity::class, BookShelfCrossRefEntity::class, VocabularyCardEntity::class,
         BookAliasEntity::class, TombstoneEntity::class, BookFtsEntity::class, AnnotationFtsEntity::class,
-        PendingCloudDeletionEntity::class,
+        PendingCloudDeletionEntity::class, HighlightReviewEntity::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -47,4 +49,5 @@ abstract class VayanaDatabase : RoomDatabase() {
     abstract fun bookAliasDao(): BookAliasDao
     abstract fun tombstoneDao(): TombstoneDao
     abstract fun pendingCloudDeletionDao(): PendingCloudDeletionDao
+    abstract fun highlightReviewDao(): HighlightReviewDao
 }
