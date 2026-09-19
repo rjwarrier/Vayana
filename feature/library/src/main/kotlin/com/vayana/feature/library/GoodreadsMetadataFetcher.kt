@@ -16,6 +16,9 @@ import java.time.Instant
 import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -167,34 +170,44 @@ class GoodreadsMetadataFetcher @Inject constructor(
     }
 
     private fun httpGet(url: String, maxBytes: Int, expectImage: Boolean, isAllowedHost: (String) -> Boolean): ByteArray {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        try {
-            connection.connectTimeout = TimeoutMillis
-            connection.readTimeout = TimeoutMillis
-            connection.instanceFollowRedirects = true
-            connection.setRequestProperty("User-Agent", UserAgent)
-            // Fixed language so the page (and the markup parsed from it) doesn't vary with the device locale.
-            connection.setRequestProperty("Accept-Language", "en-US,en;q=0.8")
-            connection.setRequestProperty("Accept", if (expectImage) "image/*" else "text/html")
-            val status = connection.responseCode
-            // Goodreads' AWS WAF answers suspected bots with a 202 JavaScript challenge page instead of the content.
-            if (status == HttpURLConnection.HTTP_ACCEPTED) throw GoodreadsHttpException(BotChallenge)
-            if (status !in 200..299) throw GoodreadsHttpException(status)
-            // Redirects are followed automatically; make sure where we landed is still somewhere we'd ask for.
-            val landed = connection.url
-            if (landed.protocol != "https" || !isAllowedHost(landed.host.orEmpty())) throw GoodreadsHttpException(PolicyViolation)
-            if (expectImage && connection.contentType?.startsWith("image/") != true) throw GoodreadsHttpException(PolicyViolation)
-            val declaredLength = connection.contentLengthLong
-            if (declaredLength > maxBytes) throw GoodreadsHttpException(PolicyViolation)
-            val bytes = connection.inputStream.use { it.readCapped(maxBytes) }
-            // The same challenge can also arrive as a 200; it's tiny and carries the WAF's own markers.
-            if (!expectImage && bytes.size < ChallengePageMaxBytes && bytes.decodeToString().looksLikeGoodreadsChallenge()) {
-                throw GoodreadsHttpException(BotChallenge)
+        var uri = url.validatedGoodreadsRequestUri(isAllowedHost) ?: throw GoodreadsHttpException(PolicyViolation)
+        repeat(MaxRedirects + 1) { redirectCount ->
+            val connection = URL(uri.toASCIIString()).openConnection() as HttpURLConnection
+            try {
+                connection.connectTimeout = TimeoutMillis
+                connection.readTimeout = TimeoutMillis
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("User-Agent", UserAgent)
+                // Fixed language so the page (and the markup parsed from it) doesn't vary with the device locale.
+                connection.setRequestProperty("Accept-Language", "en-US,en;q=0.8")
+                connection.setRequestProperty("Accept", if (expectImage) "image/*" else "text/html")
+                val status = connection.responseCode
+                if (status in 300..399) {
+                    if (redirectCount == MaxRedirects) throw GoodreadsHttpException(PolicyViolation)
+                    val location = connection.getHeaderField("Location") ?: throw GoodreadsHttpException(PolicyViolation)
+                    uri = uri.resolve(location).toString().validatedGoodreadsRequestUri(isAllowedHost)
+                        ?: throw GoodreadsHttpException(PolicyViolation)
+                    return@repeat
+                }
+                // Goodreads' AWS WAF answers suspected bots with a 202 JavaScript challenge page instead of the content.
+                if (status == HttpURLConnection.HTTP_ACCEPTED) throw GoodreadsHttpException(BotChallenge)
+                if (status !in 200..299) throw GoodreadsHttpException(status)
+                if (expectImage && connection.contentType?.startsWith("image/") != true) {
+                    throw GoodreadsHttpException(PolicyViolation)
+                }
+                val declaredLength = connection.contentLengthLong
+                if (declaredLength > maxBytes) throw GoodreadsHttpException(PolicyViolation)
+                val bytes = connection.inputStream.use { it.readCapped(maxBytes, declaredLength) }
+                // The same challenge can also arrive as a 200; it's tiny and carries the WAF's own markers.
+                if (!expectImage && bytes.size < ChallengePageMaxBytes && bytes.decodeToString().looksLikeGoodreadsChallenge()) {
+                    throw GoodreadsHttpException(BotChallenge)
+                }
+                return bytes
+            } finally {
+                connection.disconnect()
             }
-            return bytes
-        } finally {
-            connection.disconnect()
         }
+        throw GoodreadsHttpException(PolicyViolation)
     }
 
     private fun ByteArray.isDecodableImage(): Boolean {
@@ -258,14 +271,16 @@ internal suspend fun collectGoodreadsQuotes(
     var page = 1
     while (visitedPages.add(page)) {
         val html = loadPage(page) ?: if (page == 1) return null else break
-        val pageQuotes = parseQuotesPage(html)
+        val articleFragments = html.split("<article>")
+        val pageQuotes = parseQuoteArticles(articleFragments)
         val advertisedProgress = goodreadsQuotePageProgress(html)
         knownTotal = advertisedProgress?.total ?: knownTotal
-        val rawPageCount = html.split("<article>").size - 1
+        val rawPageCount = articleFragments.size - 1
         val pageEnd = maxOf(processedFallback + rawPageCount, advertisedProgress?.processed ?: 0)
         var processed = (pageEnd - rawPageCount).coerceAtLeast(processedFallback)
-        pageQuotes.forEach { (id, quote) ->
-            if (acceptsQuote(quote.quoteText)) byId.putIfAbsent(id, quote)
+        val acceptedQuotes = classifyGoodreadsQuotes(pageQuotes.map { it.second.quoteText }, acceptsQuote)
+        pageQuotes.forEachIndexed { index, (id, quote) ->
+            if (acceptedQuotes[index]) byId.putIfAbsent(id, quote)
             processed += 1
             knownTotal?.let { total ->
                 onProgress(GoodreadsQuoteProgress(processed.coerceAtMost(total), total))
@@ -295,7 +310,7 @@ internal fun goodreadsQuotePageProgress(html: String): GoodreadsQuoteProgress? {
 internal fun nextGoodreadsQuotesPage(html: String, currentPage: Int): Int? =
     QuoteNextAnchorRegex.findAll(html)
         .mapNotNull { anchor -> QuotePageParamRegex.find(anchor.value)?.groupValues?.get(1)?.toIntOrNull() }
-        .filter { it > currentPage }
+        .filter { it > currentPage && it <= MaxGoodreadsQuotePage }
         .minOrNull()
 
 internal fun parseBookPage(html: String, bookId: String, canonicalUrl: String): GoodreadsBookMetadata? {
@@ -347,8 +362,10 @@ internal fun parseBookNextData(nextData: String, bookId: String, canonicalUrl: S
  * mobile layout (`<article>` → `blockquote.quoteBody`, `quoteAuthor`, `quoteBook`, tag links, `likesCount`),
  * which is what [GoodreadsMetadataFetcher]'s phone user agent is served; an empty result marks the last page.
  */
-internal fun parseQuotesPage(html: String): List<Pair<String, ParsedQuote>> =
-    html.split("<article>").drop(1).mapNotNull { article ->
+internal fun parseQuotesPage(html: String): List<Pair<String, ParsedQuote>> = parseQuoteArticles(html.split("<article>"))
+
+private fun parseQuoteArticles(articleFragments: List<String>): List<Pair<String, ParsedQuote>> =
+    articleFragments.drop(1).mapNotNull { article ->
         val body = QuoteBodyRegex.find(article)?.groupValues?.get(1) ?: return@mapNotNull null
         val text = body.htmlToPlainText()
         if (!hasGoodreadsQuoteMinimumLength(text)) return@mapNotNull null
@@ -362,6 +379,16 @@ internal fun parseQuotesPage(html: String): List<Pair<String, ParsedQuote>> =
             likesCount = likes,
         )
     }
+
+/** Runs ML-backed quote classification in bounded batches while retaining input order. */
+internal suspend fun classifyGoodreadsQuotes(
+    texts: List<String>,
+    acceptsQuote: suspend (String) -> Boolean = ::isEnglishGoodreadsQuote,
+): List<Boolean> = texts.chunked(GoodreadsQuoteClassificationConcurrency).flatMap { batch ->
+    coroutineScope {
+        batch.map { text -> async { acceptsQuote(text) } }.awaitAll()
+    }
+}
 
 /**
  * Markup to plain text without Android's `Html` (keeps this parsing unit-testable): line breaks and paragraph ends
@@ -401,13 +428,21 @@ private fun isAllowedCoverUrl(url: String): Boolean {
     return uri.scheme == "https" && isCoverHost(uri.host.orEmpty())
 }
 
+private fun String.validatedGoodreadsRequestUri(isAllowedHost: (String) -> Boolean): URI? =
+    toSafeHttpsUri()?.takeIf { uri -> isAllowedHost(uri.host.orEmpty()) }
+
 private fun String.isHostOrSubdomainOf(domain: String): Boolean {
     val host = lowercase()
     return host == domain || host.endsWith(".$domain")
 }
 
-private fun InputStream.readCapped(maxBytes: Int): ByteArray {
-    val out = ByteArrayOutputStream()
+private fun InputStream.readCapped(maxBytes: Int, declaredLength: Long): ByteArray {
+    val initialCapacity = declaredLength
+        .takeIf { it > 0L }
+        ?.coerceAtMost(MaxInitialBufferBytes.toLong())
+        ?.toInt()
+        ?: BufferBytes
+    val out = ByteArrayOutputStream(initialCapacity)
     val buffer = ByteArray(BufferBytes)
     while (true) {
         val read = read(buffer)
@@ -466,9 +501,12 @@ internal fun hasGoodreadsQuoteMinimumLength(text: String): Boolean =
 
 private const val MinQuoteChars = 12
 private const val MaxBookIdDigits = 12
+private const val GoodreadsQuoteClassificationConcurrency = 8
 private const val MinPublicationYear = 1000
 private const val MaxPublicationYear = 2200
 private const val MaxAttempts = 2
+private const val MaxRedirects = 3
+private const val MaxGoodreadsQuotePage = 500
 private const val RetryDelayMillis = 800L
 private const val HttpTooManyRequests = 429
 private const val PolicyViolation = -1
@@ -480,5 +518,6 @@ private const val TimeoutMillis = 15_000
 private const val MaxPageBytes = 8 * 1024 * 1024
 private const val MaxCoverBytes = 10 * 1024 * 1024
 private const val BufferBytes = 16 * 1024
+private const val MaxInitialBufferBytes = 256 * 1024
 private const val UserAgent =
     "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"

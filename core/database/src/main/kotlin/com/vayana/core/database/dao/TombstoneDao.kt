@@ -11,6 +11,9 @@ interface TombstoneDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(tombstone: TombstoneEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(tombstones: List<TombstoneEntity>)
+
     @Query("SELECT * FROM tombstones WHERE entityType = :entityType")
     suspend fun getByType(entityType: String): List<TombstoneEntity>
 

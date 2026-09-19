@@ -677,6 +677,8 @@
     <string name="settings_display_profile_subtitle">Standard screens or a high-contrast e-ink profile.</string>
     <string name="settings_display_profile_standard">Standard</string>
     <string name="settings_display_profile_eink">E-ink</string>
+    <string name="settings_eink_audio_features_title">Audio features</string>
+    <string name="settings_eink_audio_features_subtitle">Show Read Aloud on this e-ink device. Turn off for devices without audio output.</string>
     <string name="settings_dark_variant_title">Dark appearance</string>
     <string name="settings_dark_variant_subtitle">Tune dark surfaces for comfort or OLED black.</string>
     <string name="settings_dark_variant_standard">Standard dark</string>
@@ -861,6 +863,8 @@
     <string name="reader_read_aloud_pause">Pause</string>
     <string name="reader_read_aloud_stop">Stop reading aloud</string>
     <string name="reader_read_aloud_rate">%1$s×</string>
+    <string name="reader_read_aloud_speed_control">Speed</string>
+    <string name="reader_read_aloud_pitch_control">Pitch</string>
     <string name="reader_read_aloud_sleep_off">Sleep</string>
     <string name="reader_read_aloud_sleep_minutes">%1$d min</string>
     <string name="reader_read_aloud_voice_missing_title">No voice available</string>
@@ -888,6 +892,17 @@
     <string name="reader_words_empty">No unusual words in this chapter.</string>
     <string name="settings_read_aloud_rate_title">Read aloud speed</string>
     <string name="settings_read_aloud_rate_subtitle">How fast the reader reads aloud. Uses the phone\'s text-to-speech voice.</string>
+    <string name="settings_read_aloud_section_title">Read aloud</string>
+    <string name="settings_read_aloud_section_subtitle">Voice speed and pitch</string>
+    <string name="settings_read_aloud_start">Start Reading</string>
+    <string name="settings_read_aloud_pitch_title">Voice pitch</string>
+    <string name="settings_read_aloud_pitch_subtitle">Lower values sound deeper; higher values sound brighter. The available voice still depends on your phone.</string>
+    <string name="settings_read_aloud_language_title">Language</string>
+    <string name="settings_read_aloud_voice_title">Voice</string>
+    <string name="settings_read_aloud_voice_subtitle">Choose an available voice. Android does not consistently identify voices as male or female.</string>
+    <string name="settings_read_aloud_voice_default">System default</string>
+    <string name="settings_read_aloud_voice_network">Requires internet</string>
+    <string name="settings_read_aloud_voice_empty">No voices are available from the current text-to-speech engine.</string>
     <string name="settings_reader_brightness_title">Reader brightness</string>
     <string name="settings_reader_brightness_subtitle">Screen brightness while reading. 0 follows the system setting.</string>
     <string name="settings_reader_warm_light_title">Warm light</string>

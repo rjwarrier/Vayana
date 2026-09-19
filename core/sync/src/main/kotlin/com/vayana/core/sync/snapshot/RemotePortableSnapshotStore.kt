@@ -156,7 +156,7 @@ private suspend fun GitHubContentsAssetStore.getSnapshotSliceCached(path: String
 }
 
 internal fun zipSnapshotJson(json: String): ByteArray {
-    val output = ByteArrayOutputStream()
+    val output = ByteArrayOutputStream(json.length.coerceAtMost(MaxInitialZipBufferBytes))
     ZipOutputStream(output).use { zip ->
         zip.putNextEntry(ZipEntry(AnnotationsZipEntryName))
         zip.write(json.toByteArray(Charsets.UTF_8))
@@ -180,7 +180,7 @@ internal fun unzipSnapshotJson(bytes: ByteArray): String {
         zip.closeEntry()
         require(zip.nextEntry == null) { "Compressed snapshot slice has unexpected entries" }
     }
-    return output.toByteArray().toString(Charsets.UTF_8)
+    return output.toString(Charsets.UTF_8.name())
 }
 
 /** Process-wide, size-bounded LRU of slice texts keyed by repository scope and path. */
@@ -471,6 +471,7 @@ private const val CompressedAnnotationsQuoteThreshold = 50
 private const val AnnotationsZipEntryName = "annotations.json"
 private const val MaxUncompressedSliceBytes = 16 * 1024 * 1024
 private const val ZipBufferBytes = 16 * 1024
+private const val MaxInitialZipBufferBytes = 256 * 1024
 private val SnapshotSliceFileNames = setOf(
     "annotations.json",
     "annotations.zip",

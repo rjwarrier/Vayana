@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -421,6 +422,7 @@ private fun GoalRow(modifier: Modifier = Modifier, label: String, valueText: Str
 
 @Composable
 private fun ReadingHabitsCard(habits: ReadingHabits) {
+    val locale = LocalLocale.current.platformLocale
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.medium),
@@ -432,7 +434,7 @@ private fun ReadingHabitsCard(habits: ReadingHabits) {
                 HabitFactRow(
                     stringResource(
                         R.string.statistics_habits_busiest_day,
-                        day.getDisplayName(TextStyle.FULL, Locale.getDefault()),
+                        day.getDisplayName(TextStyle.FULL, locale),
                     ),
                 )
             }
@@ -755,6 +757,7 @@ private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentW
 
 @Composable
 private fun DayOfWeekLabels(days: List<java.time.DayOfWeek>) {
+    val locale = LocalLocale.current.platformLocale
     Column(verticalArrangement = Arrangement.spacedBy(HeatmapCellGap)) {
         Spacer(modifier = Modifier.height(HeatmapMonthLabelHeight))
         // GitHub labels every other row so the labels don't crowd the small row height; [days] follows the week start.
@@ -762,7 +765,7 @@ private fun DayOfWeekLabels(days: List<java.time.DayOfWeek>) {
             Box(modifier = Modifier.height(HeatmapCellSize), contentAlignment = Alignment.CenterStart) {
                 if (index % 2 == 1) {
                     Text(
-                        text = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                        text = day.getDisplayName(TextStyle.SHORT, locale),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

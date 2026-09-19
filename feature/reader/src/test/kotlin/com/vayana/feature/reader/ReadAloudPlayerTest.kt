@@ -32,12 +32,12 @@ class ReadAloudPlayerTest {
         val engine = FakeEngine(listOf(listOf("One.", "Two."), listOf("Three.")))
         val player = ReadAloudPlayer(output, scope, { engine }, {})
 
-        player.start(rate = 1f)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
         assertEquals(listOf("0:0", "0:1"), output.queued)
         assertTrue(player.state.value.playing)
 
         output.listener!!.onStart("0:1")
-        assertEquals(listOf("0:1"), engine.marked)
+        assertEquals(listOf(MarkedSpeech("0:1", 0, 4)), engine.marked)
 
         output.listener!!.onDone("0:1")
         assertEquals(listOf("1:0"), output.queued)
@@ -53,7 +53,7 @@ class ReadAloudPlayerTest {
         val engine = FakeEngine(listOf(listOf("One.", "Two.", "Three.")))
         val player = ReadAloudPlayer(output, scope, { engine }, {})
 
-        player.start(rate = 1f)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:1")
         player.togglePlayback()
         assertFalse(player.state.value.playing)
@@ -69,7 +69,7 @@ class ReadAloudPlayerTest {
         val engine = FakeEngine(listOf(listOf("One.")))
         val player = ReadAloudPlayer(output, scope, { engine }, {})
 
-        player.start(rate = 1f)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
 
         assertTrue(player.state.value.voiceMissing)
         assertFalse(player.state.value.active)
@@ -83,17 +83,119 @@ class ReadAloudPlayerTest {
         val engine = FakeEngine(listOf(listOf("A."), emptyList(), listOf("B.")))
         val player = ReadAloudPlayer(output, scope, { engine }, {})
 
-        player.start(rate = 1f)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onDone("0:0")
 
         assertEquals(listOf("2:0"), output.queued)
     }
 
+    @Test
+    fun highlightsTheTimedWordRangeReportedByTts() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hello world.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onRangeStart("0:0", 6, 11)
+
+        assertEquals(MarkedSpeech("0:0", 6, 11), engine.marked.last())
+    }
+
+    @Test
+    fun highlightsTheWholeSentenceWhileTheEngineSendsNoWordRanges() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hello world.", "Second one.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:0")
+        output.listener!!.onStart("0:1")
+
+        assertEquals(listOf(MarkedSpeech("0:0", 0, 12), MarkedSpeech("0:1", 0, 11)), engine.marked)
+    }
+
+    @Test
+    fun narrowsToTheFirstWordOnceTheEngineHasSentWordRanges() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hello world.", "Second one.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:0")
+        output.listener!!.onRangeStart("0:0", 0, 5)
+        output.listener!!.onStart("0:1")
+
+        assertEquals(
+            listOf(MarkedSpeech("0:0", 0, 12), MarkedSpeech("0:0", 0, 5), MarkedSpeech("0:1", 0, 6)),
+            engine.marked,
+        )
+    }
+
+    @Test
+    fun timedRangeInSplitUtteranceMapsBackToTheSentence() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("a".repeat(3_001))))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onRangeStart("0:0#1", 0, 1)
+
+        assertEquals(MarkedSpeech("0:0", 3_000, 3_001), engine.marked.last())
+    }
+
+    @Test
+    fun appliesPitchAndRestartsTheCurrentSentenceWhenItChanges() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 0.8f, voiceName = "")
+        output.listener!!.onStart("0:1")
+        player.setPitch(1.2f)
+
+        assertEquals(listOf(0.8f, 1.2f), output.pitches)
+        assertEquals(listOf("0:1"), output.queued)
+        assertEquals(1.2f, player.state.value.pitch)
+    }
+
+    @Test
+    fun appliesRateAndRestartsTheCurrentSentenceWhenItChanges() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:1")
+        player.setRate(1.5f)
+
+        assertEquals(listOf(1f, 1.5f), output.rates)
+        assertEquals(listOf("0:1"), output.queued)
+        assertEquals(1.5f, player.state.value.rate)
+    }
+
+    @Test
+    fun appliesSelectedVoiceAndRestartsTheCurrentSentenceWhenItChanges() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {})
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "voice-a")
+        output.listener!!.onStart("0:1")
+        player.setVoice("voice-b")
+
+        assertEquals(listOf<String?>("voice-a", "voice-b"), output.voiceNames)
+        assertEquals(listOf("0:1"), output.queued)
+    }
+
     private class FakeOutput(private val available: Boolean = true) : SpeechOutput {
         override var listener: SpeechOutput.Listener? = null
+        override val voices: StateFlow<List<SpeechVoiceOption>> = MutableStateFlow(emptyList())
 
         /** What the engine has queued since the last flush. */
         val queued = mutableListOf<String>()
+        val rates = mutableListOf<Float>()
+        val pitches = mutableListOf<Float>()
+        val voiceNames = mutableListOf<String?>()
 
         override fun prepare(onReady: (Boolean) -> Unit) = onReady(available)
 
@@ -102,7 +204,17 @@ class ReadAloudPlayerTest {
             queued += utteranceId
         }
 
-        override fun setRate(rate: Float) = Unit
+        override fun setRate(rate: Float) {
+            rates += rate
+        }
+
+        override fun setPitch(pitch: Float) {
+            pitches += pitch
+        }
+
+        override fun setVoice(name: String?) {
+            voiceNames += name
+        }
 
         override fun stop() = Unit
 
@@ -111,15 +223,15 @@ class ReadAloudPlayerTest {
 
     private class FakeEngine(private val chapters: List<List<String>>) : BookEngine {
         private var chapter = 0
-        val marked = mutableListOf<String>()
+        val marked = mutableListOf<MarkedSpeech>()
         var stopped = false
 
         override suspend fun startSpeech(): SpeechChunk = chunk(0)
 
         override suspend fun nextSpeechChunk(): SpeechChunk = chunk(++chapter)
 
-        override suspend fun markSpeech(id: String) {
-            marked += id
+        override suspend fun markSpeech(id: String, start: Int, end: Int) {
+            marked += MarkedSpeech(id, start, end)
         }
 
         override suspend fun stopSpeech() {
@@ -156,4 +268,6 @@ class ReadAloudPlayerTest {
 
         override fun close() = Unit
     }
+
+    private data class MarkedSpeech(val id: String, val start: Int, val end: Int)
 }

@@ -22,6 +22,7 @@ data class KindleBookClippings(
  * highlight contained in a later one of the same book is dropped too.
  */
 object KindleClippingsParser {
+    private const val ByteOrderMark = "\uFEFF"
     private val SeparatorRegex = Regex("""^=+\s*$""")
     private val AuthorRegex = Regex("""^(.*)\(([^()]*)\)\s*$""")
     private val LocationRegex = Regex("""(?:location|loc\.|position|posición|emplacement)\s*(\d+)(?:\s*-\s*(\d+))?""", RegexOption.IGNORE_CASE)
@@ -29,7 +30,7 @@ object KindleClippingsParser {
     private val BookmarkRegex = Regex("""\b(bookmark|lesezeichen|signet|marcador|segnalibro)\b""", RegexOption.IGNORE_CASE)
 
     fun parse(rawText: String): List<KindleBookClippings> {
-        val entries = rawText.removePrefix("﻿").replace("\r\n", "\n").replace('\r', '\n')
+        val entries = rawText.removePrefix(ByteOrderMark).replace("\r\n", "\n").replace('\r', '\n')
             .split('\n')
             .fold(mutableListOf(mutableListOf<String>())) { groups, line ->
                 if (SeparatorRegex.matches(line)) groups.add(mutableListOf()) else groups.last().add(line)
@@ -58,7 +59,7 @@ object KindleClippingsParser {
     private fun parseEntry(lines: List<String>): Entry? {
         val content = lines.dropWhile { it.isBlank() }
         if (content.size < 2) return null
-        val bookLine = content[0].trim().removePrefix("﻿")
+        val bookLine = content[0].trim().removePrefix(ByteOrderMark)
         val metadata = content[1].trim()
         if (!metadata.startsWith("-")) return null
         val text = content.drop(2).joinToString("\n").trim()
@@ -92,9 +93,19 @@ object KindleClippingsParser {
         return (startText.dropLast(endText.length) + endText).toIntOrNull()?.takeIf { it >= start } ?: end
     }
 
+    /** A highlight is only an earlier save of a later one when its text sits inside it *and* the Kindle locations meet. */
     private fun List<Entry>.dropExtended(): List<Entry> {
         val keys = map { quoteMatchKey(it.text) }
-        return filterIndexed { index, _ -> (index + 1 until size).none { later -> keys[index] in keys[later] } }
+        return filterIndexed { index, entry ->
+            (index + 1 until size).none { later -> keys[index] in keys[later] && entry.overlaps(this[later]) }
+        }
+    }
+
+    /** Entries without a parsed location can't be told apart by position, so they count as overlapping. */
+    private fun Entry.overlaps(other: Entry): Boolean {
+        val from = start ?: return true
+        val otherFrom = other.start ?: return true
+        return from <= (other.end ?: otherFrom) && otherFrom <= (end ?: from)
     }
 
     private fun Entry.isAtEndOf(highlight: Entry): Boolean {

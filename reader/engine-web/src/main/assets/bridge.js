@@ -641,7 +641,41 @@ function selectWordAt(doc, x, y) {
 }
 
 const SpeechHighlightColor = '#5B8DEF'
-const speech = { index: -1, sentences: new Map(), marked: null }
+const speech = { index: -1, sentences: new Map(), marked: null, turning: false }
+
+// Android TTS reports UTF-16 offsets into the whitespace-normalized text it receives. Keep a boundary map back to
+// the EPUB's original text so every timed range can become an exact DOM Range even across collapsed whitespace.
+function normalizeSpeechSegment(segment) {
+    let text = ''
+    const sourceStarts = []
+    const sourceEnds = []
+    for (let index = 0; index < segment.length;) {
+        if (/\s/u.test(segment[index])) {
+            let end = index + 1
+            while (end < segment.length && /\s/u.test(segment[end])) end++
+            if (text && end < segment.length) {
+                text += ' '
+                sourceStarts.push(index)
+                sourceEnds.push(end)
+            }
+            index = end
+        } else {
+            text += segment[index]
+            sourceStarts.push(index)
+            sourceEnds.push(index + 1)
+            index++
+        }
+    }
+    return {
+        text,
+        sourceRange(start, end) {
+            const safeStart = Math.max(0, Math.min(sourceStarts.length, start))
+            const safeEnd = Math.max(safeStart, Math.min(sourceEnds.length, end))
+            if (safeStart === safeEnd) return null
+            return [sourceStarts[safeStart], sourceEnds[safeEnd - 1]]
+        },
+    }
+}
 
 // The chapter's sentences in reading order, from the first one not before [fromRange] (the page on screen).
 function speechSentencesFor(doc, index, fromRange) {
@@ -675,17 +709,30 @@ function speechSentencesFor(doc, index, fromRange) {
     }
     const sentences = []
     for (const { segment, index: segmentStart } of segmenterFor(doc, 'sentence').segment(text)) {
-        const sentenceText = segment.replace(/\s+/g, ' ').trim()
+        const normalized = normalizeSpeechSegment(segment)
+        const sentenceText = normalized.text
         if (!/[\p{L}\p{N}]/u.test(sentenceText)) continue
-        const start = segmentStart + (segment.length - segment.trimStart().length)
-        const endPoint = pointAt(segmentStart + segment.trimEnd().length)
+        const sentenceSourceRange = normalized.sourceRange(0, sentenceText.length)
+        if (!sentenceSourceRange) continue
+        const start = segmentStart + sentenceSourceRange[0]
+        const endPoint = pointAt(segmentStart + sentenceSourceRange[1])
         // Skip sentences that end before the page on screen without building a Range for them.
         if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
         const range = doc.createRange()
         range.setStart(...pointAt(start))
         range.setEnd(...endPoint)
         const id = `${index}:${sentences.length}`
-        speech.sentences.set(id, range)
+        speech.sentences.set(id, {
+            range,
+            rangeForOffsets(startOffset, endOffset) {
+                const sourceRange = normalized.sourceRange(startOffset, endOffset)
+                if (!sourceRange) return null
+                const wordRange = doc.createRange()
+                wordRange.setStart(...pointAt(segmentStart + sourceRange[0]))
+                wordRange.setEnd(...pointAt(segmentStart + sourceRange[1]))
+                return wordRange
+            },
+        })
         sentences.push({ id, text: sentenceText })
     }
     return sentences
@@ -723,17 +770,26 @@ async function nextSpeechChunk(requestId) {
     }
 }
 
-async function markSpeech(id) {
-    const range = speech.sentences.get(id)
+async function markSpeech(id, start, end) {
+    const sentence = speech.sentences.get(id)
+    const range = sentence?.rangeForOffsets(start, end) ?? sentence?.range
     if (!range || !view) return
     clearSpeechMark()
     speech.marked = { value: view.getCFI(speech.index, range), color: SpeechHighlightColor }
     view.addAnnotation(speech.marked)
     // Turn the page once speech reaches text past the end of the page on screen.
+    // Words arrive every few hundred ms, and the paginator queues a page turn requested mid-turn (skipping a page),
+    // so only one turn is in flight at a time; the next word re-checks against the new page.
+    if (speech.turning) return
     const visible = view.lastLocation?.range
     if (visible?.startContainer?.ownerDocument === range.startContainer.ownerDocument &&
         visible.comparePoint(range.startContainer, range.startOffset) > 0) {
-        await view.next()
+        speech.turning = true
+        try {
+            await view.next()
+        } finally {
+            speech.turning = false
+        }
     }
 }
 
@@ -746,6 +802,7 @@ function stopSpeech() {
     clearSpeechMark()
     speech.sentences.clear()
     speech.index = -1
+    speech.turning = false
 }
 
 const MaxChapterWordKinds = 20000

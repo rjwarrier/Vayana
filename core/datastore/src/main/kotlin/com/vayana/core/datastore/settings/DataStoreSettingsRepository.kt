@@ -105,14 +105,14 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun exportToMap(includeNonExportable: Boolean): Map<String, String> {
         val preferences = dataStore.data.first()
-        return SettingsRegistry.all
+        return SettingsRegistry.persisted
             .filter { setting -> includeNonExportable || setting.isExportable }
             .associate { setting -> setting.key to preferences.read(setting).serializeSettingValue() }
     }
 
     override suspend fun importFromMap(values: Map<String, String>) {
         dataStore.edit { preferences ->
-            SettingsRegistry.all.forEach { setting ->
+            SettingsRegistry.persisted.forEach { setting ->
                 values[setting.key]?.let { encoded -> preferences.writeFromString(setting, encoded) }
             }
         }
@@ -157,6 +157,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         readerFullScreen = read(SettingsRegistry.ReaderFullScreen),
         readerPageTurnAnimation = read(SettingsRegistry.ReaderPageTurnAnimation),
         einkRefreshEveryPages = read(SettingsRegistry.EinkRefreshEveryPages),
+        einkAudioFeaturesEnabled = read(SettingsRegistry.EinkAudioFeatures),
         dailyReadingGoalMinutes = read(SettingsRegistry.DailyReadingGoalMinutes),
         yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
         defaultCoverSource = read(SettingsRegistry.DefaultCoverSource),
@@ -176,6 +177,8 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         recentlyDeletedRetention = read(SettingsRegistry.RecentlyDeletedRetention),
         weekStart = read(SettingsRegistry.WeekStart),
         readAloudRate = read(SettingsRegistry.ReadAloudRate),
+        readAloudPitch = read(SettingsRegistry.ReadAloudPitch),
+        readAloudVoiceName = read(SettingsRegistry.ReadAloudVoiceName),
         readerBrightnessPercent = read(SettingsRegistry.ReaderBrightness),
         readerWarmLightPercent = read(SettingsRegistry.ReaderWarmLight),
         readerEdgeSwipeLight = read(SettingsRegistry.ReaderEdgeSwipeLight),

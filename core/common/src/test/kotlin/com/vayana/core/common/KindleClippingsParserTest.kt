@@ -57,6 +57,22 @@ class KindleClippingsParserTest {
     }
 
     @Test
+    fun keepsSeparateHighlightsWhoseTextRepeatsLaterInTheBook() {
+        val clippings = "Dune\n" +
+            "- Your Highlight at location 100-101 | Added on Tuesday, 2 January 2024 09:00:00\n\n" +
+            "Fear\n" +
+            "==========\n" +
+            "Dune\n" +
+            "- Your Highlight at location 900-905 | Added on Tuesday, 2 January 2024 09:01:00\n\n" +
+            "I must not fear. Fear is the mind-killer.\n" +
+            "==========\n"
+
+        val dune = KindleClippingsParser.parse(clippings).single()
+
+        assertEquals(listOf("Fear", "I must not fear. Fear is the mind-killer."), dune.highlights.map { it.text })
+    }
+
+    @Test
     fun emptyOrForeignTextYieldsNothing() {
         assertEquals(emptyList(), KindleClippingsParser.parse(""))
         assertEquals(emptyList(), KindleClippingsParser.parse("just some text\nwithout clippings"))

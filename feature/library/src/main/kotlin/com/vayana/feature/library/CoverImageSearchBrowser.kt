@@ -6,6 +6,7 @@ import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -198,14 +199,16 @@ private fun WebView.configureCoverSearchBrowser(
     settings.domStorageEnabled = true
     settings.allowFileAccess = false
     settings.allowContentAccess = false
-    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    settings.safeBrowsingEnabled = true
+    CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
     webChromeClient = object : WebChromeClient() {
         override fun onProgressChanged(view: WebView?, newProgress: Int) = onProgress(newProgress)
     }
     webViewClient = object : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
             val scheme = request?.url?.scheme.orEmpty()
-            return scheme != "https" && scheme != "http"
+            return scheme != "https"
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {

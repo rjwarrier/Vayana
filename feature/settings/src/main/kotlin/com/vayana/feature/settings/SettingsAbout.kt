@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val SettingsAboutBadgeSize = Sizes.badgeLarge
+private val SettingsAboutMarkSize = (Sizes.iconLarge + Spacing.sm) * 1.265f
 private enum class SharePromoTheme(@param:DrawableRes val imageRes: Int) {
     LIGHT(R.drawable.vayana_share_light),
     DARK(R.drawable.vayana_share_dark_reader),
@@ -226,7 +227,7 @@ private fun SettingsAboutSection() {
                 Icon(
                     painter = painterResource(R.drawable.ic_vayana_mark),
                     contentDescription = null,
-                    modifier = Modifier.size(Sizes.iconLarge),
+                    modifier = Modifier.size(SettingsAboutMarkSize),
                 )
             }
         }

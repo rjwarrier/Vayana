@@ -342,8 +342,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override suspend fun nextSpeechChunk(): SpeechChunk = requestBridge("nextSpeechChunk")?.toSpeechChunk() ?: EndOfBookChunk
 
-    override suspend fun markSpeech(id: String) {
-        webView.evaluateJavascript("window.VayanaReader.markSpeech(${JSONObject.quote(id)})", null)
+    override suspend fun markSpeech(id: String, start: Int, end: Int) {
+        webView.evaluateJavascript("window.VayanaReader.markSpeech(${JSONObject.quote(id)}, $start, $end)", null)
     }
 
     override suspend fun stopSpeech() {

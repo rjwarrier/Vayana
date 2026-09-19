@@ -3,6 +3,7 @@
     <string name="read_aloud_notification_channel">Read aloud</string>
     <string name="read_aloud_notification_title">Reading aloud</string>
     <string name="read_aloud_notification_text">Playback can continue while the screen is off</string>
+    <string name="read_aloud_notification_progress">%1$d%% complete</string>
     <string name="read_aloud_notification_pause">Pause</string>
     <string name="read_aloud_notification_play">Play</string>
 </resources>

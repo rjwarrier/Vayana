@@ -24,7 +24,12 @@ class HighlightReviewTest {
     @Test
     fun skipsBlankAndCommunityQuotes() {
         val picks = dailyHighlights(
-            listOf(highlight(1), highlight(2, text = ""), highlight(3, locator = "quote:0:x")),
+            listOf(
+                highlight(1),
+                highlight(2, text = ""),
+                highlight(3, locator = "quote:0:x"),
+                highlight(4, locator = "goodreads-quote:0:x"),
+            ),
             LocalDate.of(2026, 1, 1),
         )
         assertEquals(listOf(1L), picks.map { it.id })

@@ -29,8 +29,8 @@ interface BookEngine {
     /** Moves to the next chapter and returns all of its sentences. */
     suspend fun nextSpeechChunk(): SpeechChunk
 
-    /** Highlights sentence [id] and turns the page once it is past the one on screen. */
-    suspend fun markSpeech(id: String)
+    /** Highlights [start, end) within sentence [id] and turns the page once that range is past the one on screen. */
+    suspend fun markSpeech(id: String, start: Int, end: Int)
 
     suspend fun stopSpeech()
 

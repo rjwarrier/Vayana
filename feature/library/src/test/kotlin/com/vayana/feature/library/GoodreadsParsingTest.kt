@@ -1,12 +1,16 @@
 package com.vayana.feature.library
 
 import com.vayana.core.common.quoteMatchKey
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 class GoodreadsParsingTest {
 
@@ -147,6 +151,33 @@ class GoodreadsParsingTest {
     }
 
     @Test
+    fun quoteCollectionClassifiesConcurrentlyWithoutReordering() = runBlocking {
+        val bothStarted = CompletableDeferred<Unit>()
+        val releaseClassifiers = CompletableDeferred<Unit>()
+        val started = AtomicInteger()
+        val page = quotesPage(id = "1", text = "First English quote.") +
+            quotesPage(id = "2", text = "Second English quote.")
+
+        val collection = async {
+            collectGoodreadsQuotes(
+                loadPage = { page },
+                acceptsQuote = {
+                    if (started.incrementAndGet() == 2) bothStarted.complete(Unit)
+                    releaseClassifiers.await()
+                    true
+                },
+            )
+        }
+
+        withTimeout(1_000) { bothStarted.await() }
+        releaseClassifiers.complete(Unit)
+        assertEquals(
+            listOf("First English quote.", "Second English quote."),
+            collection.await()?.map { it.quoteText },
+        )
+    }
+
+    @Test
     fun quoteProgressSupportsThousandsSeparators() {
         assertEquals(
             GoodreadsQuoteProgress(processed = 60, total = 1_234),
@@ -171,6 +202,7 @@ class GoodreadsParsingTest {
             ),
         )
         assertNull(nextGoodreadsQuotesPage("<span class=\"disabled next_page\">next</span>", currentPage = 4))
+        assertNull(nextGoodreadsQuotesPage("""<a class="next_page" href="?page=501">next</a>""", currentPage = 500))
     }
 
     @Test

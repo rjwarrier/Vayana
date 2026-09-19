@@ -39,6 +39,7 @@ interface AnnotationRepository {
     fun observeSearch(text: String, limit: Int): Flow<List<Annotation>>
     fun observeForBook(bookId: Long): Flow<List<Annotation>>
     fun observeCountForBook(bookId: Long): Flow<Int>
+    fun observeCommunityQuoteCountForBook(bookId: Long): Flow<Int>
     suspend fun getById(id: Long): Annotation?
     suspend fun create(
         bookId: Long,
@@ -56,6 +57,9 @@ interface AnnotationRepository {
     /** Immediately hides the annotation from every query. Durable - safe even if the app is
      * killed a moment later, unlike a timer-based delete. */
     suspend fun softDelete(id: Long)
+
+    /** Atomically hides multiple annotations and writes their sync tombstones. */
+    suspend fun softDeleteAll(ids: Collection<Long>)
 
     /** Un-hides a soft-deleted annotation (the "Undo" action after [softDelete]). */
     suspend fun restore(id: Long)

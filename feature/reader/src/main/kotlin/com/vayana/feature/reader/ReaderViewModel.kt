@@ -44,6 +44,7 @@ import com.vayana.reader.api.Footnote
 import com.vayana.reader.api.FootnoteOpened
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.VocabularyCard
+import com.vayana.core.database.model.isCommunityQuote
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -68,6 +69,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
  * Standing state of background reading-progress sync, rendered as a dot beside the reader clock.
@@ -209,6 +211,7 @@ class ReaderViewModel @Inject constructor(
     )
     private var lastSpeechInteractionAt = 0L
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
+    internal val readAloudVoices: StateFlow<List<SpeechVoiceOption>> = readAloudPlayer.voices
 
     private val _chapterWords = MutableStateFlow<ChapterWordsState>(ChapterWordsState.Idle)
     val chapterWords: StateFlow<ChapterWordsState> = _chapterWords
@@ -586,8 +589,13 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun startReadAloud() {
+        if (!settings.value.readerAudioFeaturesEnabled) return
         _returnRecap.value = null
-        readAloudPlayer.start(settings.value.readAloudRate)
+        readAloudPlayer.start(
+            rate = settings.value.readAloudRate,
+            pitch = settings.value.readAloudPitch,
+            voiceName = settings.value.readAloudVoiceName,
+        )
     }
 
     fun toggleReadAloud() = readAloudPlayer.togglePlayback()
@@ -598,11 +606,23 @@ class ReaderViewModel @Inject constructor(
 
     fun dismissReadAloudVoiceMissing() = readAloudPlayer.dismissVoiceMissing()
 
-    fun cycleReadAloudRate() {
-        val current = readAloudPlayer.state.value.rate
-        val next = ReadAloudRates.firstOrNull { it > current + 0.01f } ?: ReadAloudRates.first()
+    fun updateReadAloudRate(rate: Float) {
+        val next = rate.coerceIn(SettingsRegistry.ReadAloudRate.range)
         readAloudPlayer.setRate(next)
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReadAloudRate, next) }
+    }
+
+    fun updateReadAloudPitch(pitch: Float) {
+        val next = pitch.coerceIn(SettingsRegistry.ReadAloudPitch.range)
+        readAloudPlayer.setPitch(next)
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReadAloudPitch, next) }
+    }
+
+    fun loadReadAloudVoices() = readAloudPlayer.loadVoices()
+
+    fun updateReadAloudVoice(name: String) {
+        readAloudPlayer.setVoice(name)
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReadAloudVoiceName, name) }
     }
 
     fun updateBrightness(percent: Int) {
@@ -871,12 +891,24 @@ class ReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            readAloud
-                .map { state -> state.active to state.playing }
+            combine(readAloud, uiState) { playback, readerState ->
+                val loaded = readerState as? ReaderUiState.Loaded
+                ReadAloudNotificationSnapshot(
+                    active = playback.active,
+                    playing = playback.playing,
+                    bookTitle = loaded?.bookTitle,
+                    progressPercent = readAloudProgressPercent(loaded?.currentLocator?.progression),
+                )
+            }
                 .distinctUntilChanged()
-                .collectLatest { (active, playing) ->
-                    if (active) {
-                        ReadAloudForegroundService.show(appContext, playing)
+                .collectLatest { notification ->
+                    if (notification.active) {
+                        ReadAloudForegroundService.show(
+                            context = appContext,
+                            playing = notification.playing,
+                            bookTitle = notification.bookTitle,
+                            progressPercent = notification.progressPercent,
+                        )
                     } else {
                         ReadAloudForegroundService.stop(appContext)
                     }
@@ -884,6 +916,14 @@ class ReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             ReadAloudNotificationCommands.toggles.collectLatest { toggleReadAloud() }
+        }
+        viewModelScope.launch {
+            settings
+                .map { it.readerAudioFeaturesEnabled }
+                .distinctUntilChanged()
+                .collectLatest { enabled ->
+                    if (!enabled) readAloudPlayer.stop()
+                }
         }
         viewModelScope.launch {
             ReadingSessionContinuationStore.drainExpired(System.currentTimeMillis()).forEach { (expiredBookId, update) ->
@@ -1067,7 +1107,7 @@ class ReaderViewModel @Inject constructor(
         if (awayMillis < ReturnRecapMinAwayMillis) return
         viewModelScope.launch {
             val highlight = annotationRepository.observeForBook(bookId).first()
-                .firstOrNull { it.type != AnnotationType.BOOKMARK && it.selectedText.isNotBlank() }
+                .firstOrNull { it.type != AnnotationType.BOOKMARK && it.selectedText.isNotBlank() && !it.isCommunityQuote() }
                 ?.selectedText
             _returnRecap.value = ReaderRecap(
                 awayMillis = awayMillis,
@@ -1261,13 +1301,6 @@ private fun String.toDictionaryWord(): String? {
     return candidate.takeIf { DictionarySelectionWordRegex.matches(it) }
 }
 
-/** Speeds the read-aloud bar cycles through: every step of the Read aloud speed setting. */
-private val ReadAloudRates: List<Float> = SettingsRegistry.ReadAloudRate.let { setting ->
-    generateSequence(setting.range.start) { rate ->
-        (rate + setting.step).takeIf { it <= setting.range.endInclusive + RateEpsilon }
-    }.toList()
-}
-private const val RateEpsilon = 0.001f
 private const val SpeechInteractionIntervalMillis = 30_000L
 private const val MaxChapterWords = 25
 
@@ -1287,3 +1320,13 @@ private const val SessionContinuationGraceMs = 60 * 1000L
 
 private const val SearchDebounceMillis = 400L
 private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")
+
+private data class ReadAloudNotificationSnapshot(
+    val active: Boolean,
+    val playing: Boolean,
+    val bookTitle: String?,
+    val progressPercent: Int?,
+)
+
+internal fun readAloudProgressPercent(progression: Float?): Int? =
+    progression?.times(100)?.roundToInt()?.coerceIn(0, 100)

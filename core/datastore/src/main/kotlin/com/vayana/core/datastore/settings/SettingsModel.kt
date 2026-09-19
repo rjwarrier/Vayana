@@ -116,6 +116,7 @@ data class SettingsSnapshot(
     val readerFullScreen: Boolean = false,
     val readerPageTurnAnimation: Boolean = false,
     val einkRefreshEveryPages: Int = 6,
+    val einkAudioFeaturesEnabled: Boolean = true,
     val dailyReadingGoalMinutes: Int = 20,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
@@ -135,6 +136,8 @@ data class SettingsSnapshot(
     val recentlyDeletedRetention: RecentlyDeletedRetention = RecentlyDeletedRetention.FOREVER,
     val weekStart: WeekStart = WeekStart.SUNDAY,
     val readAloudRate: Float = 1f,
+    val readAloudPitch: Float = 1f,
+    val readAloudVoiceName: String = "",
     /** 0 follows the system brightness. */
     val readerBrightnessPercent: Int = 0,
     val readerWarmLightPercent: Int = 0,
@@ -142,6 +145,10 @@ data class SettingsSnapshot(
 ) {
     /** Reading progress (0..1) from which a book counts as finished. */
     val finishedFraction: Float get() = finishedPercent / 100f
+
+    /** Standard devices always expose audio; e-ink users can opt out for hardware without speakers. */
+    val readerAudioFeaturesEnabled: Boolean
+        get() = displayProfile != DisplayProfile.E_INK || einkAudioFeaturesEnabled
 }
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
@@ -213,6 +220,13 @@ object SettingsRegistry {
             ChoiceOption(com.vayana.core.designsystem.theme.MotionSetting.REDUCED, R.string.settings_motion_reduced),
             ChoiceOption(com.vayana.core.designsystem.theme.MotionSetting.OFF, R.string.settings_motion_off),
         ),
+    )
+    val EinkAudioFeatures: BooleanSetting = BooleanSetting(
+        key = "appearance.eink_audio_features",
+        defaultValue = true,
+        titleRes = R.string.settings_eink_audio_features_title,
+        subtitleRes = R.string.settings_eink_audio_features_subtitle,
+        group = SettingsGroup.APPEARANCE,
     )
     val NavigationMode: ChoiceSetting<com.vayana.core.datastore.settings.NavigationMode> =
         ChoiceSetting<com.vayana.core.datastore.settings.NavigationMode>(
@@ -412,6 +426,23 @@ object SettingsRegistry {
         range = 0.5f..2f,
         step = 0.25f,
     )
+    val ReadAloudPitch: FloatSetting = FloatSetting(
+        key = "reader.read_aloud_pitch",
+        defaultValue = 1f,
+        titleRes = R.string.settings_read_aloud_pitch_title,
+        subtitleRes = R.string.settings_read_aloud_pitch_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+        range = 0.5f..2f,
+        step = 0.1f,
+    )
+    val ReadAloudVoiceName: StringSetting = StringSetting(
+        key = "reader.read_aloud_voice_name",
+        defaultValue = "",
+        titleRes = R.string.settings_read_aloud_voice_title,
+        subtitleRes = R.string.settings_read_aloud_voice_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+        maxLength = 255,
+    )
     val ReaderBrightness: IntSetting = IntSetting(
         key = "reader.brightness_percent",
         defaultValue = 0,
@@ -600,6 +631,7 @@ object SettingsRegistry {
         DarkVariant,
         DynamicColor,
         DisplayProfile,
+        EinkAudioFeatures,
         NavigationMode,
         Motion,
         EinkRefreshEveryPages,
@@ -628,6 +660,7 @@ object SettingsRegistry {
         ReaderVolumeKeys,
         ReaderEdgeSwipeLight,
         ReadAloudRate,
+        ReadAloudPitch,
         ReaderAutoMarkSelection,
         ReaderKeepAwake,
         DailyReadingGoalMinutes,
@@ -642,4 +675,8 @@ object SettingsRegistry {
         GithubSyncPassphrase,
         ReadingAutoSyncEveryPages,
     )
+
+    /** Persisted and backed up, but edited only by purpose-built feature UI. */
+    val internal: List<Setting<out Any>> = listOf(ReadAloudVoiceName)
+    val persisted: List<Setting<out Any>> = all + internal
 }

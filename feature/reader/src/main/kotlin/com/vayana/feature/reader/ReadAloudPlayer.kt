@@ -16,13 +16,14 @@ data class ReadAloudState(
     val active: Boolean = false,
     val playing: Boolean = false,
     val rate: Float = 1f,
+    val pitch: Float = 1f,
     val sleepTimerMinutes: Int = 0,
     val voiceMissing: Boolean = false,
 )
 
 /**
  * Reads the open book aloud a chapter at a time: the engine supplies sentences and highlights the one being
- * spoken (turning pages as speech moves on), [output] speaks them. State changes run on [scope].
+ * spoken word by word (turning pages as speech moves on), [output] speaks them. State changes run on [scope].
  */
 internal class ReadAloudPlayer(
     private val output: SpeechOutput,
@@ -32,10 +33,14 @@ internal class ReadAloudPlayer(
 ) : SpeechOutput.Listener {
     private val _state = MutableStateFlow(ReadAloudState())
     val state: StateFlow<ReadAloudState> = _state
+    val voices: StateFlow<List<SpeechVoiceOption>> = output.voices
 
-    private var queue: List<SpeechSentence> = emptyList()
+    private var queue: List<SpeechUtterance> = emptyList()
     private var position = 0
     private var endOfBook = false
+
+    /** Set once the speech engine sends a word range; not every engine does. */
+    private var reportsWordRanges = false
     private var sleepJob: Job? = null
     private var chunkJob: Job? = null
 
@@ -43,16 +48,18 @@ internal class ReadAloudPlayer(
         output.listener = this
     }
 
-    fun start(rate: Float) {
+    fun start(rate: Float, pitch: Float, voiceName: String) {
         if (_state.value.active) return
         val bookEngine = engine() ?: return
-        _state.value = ReadAloudState(active = true, rate = rate)
+        _state.value = ReadAloudState(active = true, rate = rate, pitch = pitch)
         output.setRate(rate)
+        output.setPitch(pitch)
+        output.setVoice(voiceName)
         output.prepare { available ->
             scope.launch {
                 if (!_state.value.active) return@launch
                 if (!available) {
-                    _state.value = ReadAloudState(rate = rate, voiceMissing = true)
+                    _state.value = ReadAloudState(rate = rate, pitch = pitch, voiceMissing = true)
                     return@launch
                 }
                 load(bookEngine.startSpeech())
@@ -83,7 +90,7 @@ internal class ReadAloudPlayer(
         val wasActive = _state.value.active
         queue = emptyList()
         position = 0
-        _state.value = ReadAloudState(rate = _state.value.rate)
+        _state.value = ReadAloudState(rate = _state.value.rate, pitch = _state.value.pitch)
         if (wasActive) scope.launch { engine()?.stopSpeech() }
     }
 
@@ -95,6 +102,22 @@ internal class ReadAloudPlayer(
         output.setRate(rate)
         _state.update { it.copy(rate = rate) }
         // A new rate only applies to what the engine is asked to speak next, so restart the current sentence.
+        if (_state.value.playing) speakFromPosition()
+    }
+
+    fun setPitch(pitch: Float) {
+        output.setPitch(pitch)
+        _state.update { it.copy(pitch = pitch) }
+        // Android only applies pitch to newly queued speech, so restart the current sentence.
+        if (_state.value.playing) speakFromPosition()
+    }
+
+    fun loadVoices() {
+        output.prepare { }
+    }
+
+    fun setVoice(name: String) {
+        output.setVoice(name)
         if (_state.value.playing) speakFromPosition()
     }
 
@@ -122,7 +145,32 @@ internal class ReadAloudPlayer(
             if (index < 0) return@launch
             position = index
             onSpeaking()
-            engine()?.markSpeech(utteranceId.substringBefore(PartSeparator))
+            val utterance = queue[index]
+            // Until the engine has proven it reports word timings, highlight the whole sentence: engines that never
+            // send them would otherwise show only the first word. Word timings then narrow it as they arrive.
+            val range = if (reportsWordRanges) firstSpokenWordRange(utterance.text) else 0 until utterance.text.length
+            if (range != null && !range.isEmpty()) {
+                engine()?.markSpeech(
+                    utterance.sourceId,
+                    utterance.sourceOffset + range.first,
+                    utterance.sourceOffset + range.last + 1,
+                )
+            }
+        }
+    }
+
+    override fun onRangeStart(utteranceId: String, start: Int, end: Int) {
+        scope.launch {
+            val utterance = queue.firstOrNull { it.id == utteranceId } ?: return@launch
+            reportsWordRanges = true
+            val safeStart = start.coerceIn(0, utterance.text.length)
+            val safeEnd = end.coerceIn(safeStart, utterance.text.length)
+            if (safeStart == safeEnd) return@launch
+            engine()?.markSpeech(
+                utterance.sourceId,
+                utterance.sourceOffset + safeStart,
+                utterance.sourceOffset + safeEnd,
+            )
         }
     }
 
@@ -162,13 +210,30 @@ internal class ReadAloudPlayer(
 }
 
 /** Splits a sentence longer than one utterance may be into parts whose ids keep the sentence id before [PartSeparator]. */
-private fun SpeechSentence.splitForSpeech(): List<SpeechSentence> =
+private data class SpeechUtterance(
+    val id: String,
+    val text: String,
+    val sourceId: String,
+    val sourceOffset: Int,
+)
+
+private fun SpeechSentence.splitForSpeech(): List<SpeechUtterance> =
     if (text.length <= MaxUtteranceChars) {
-        listOf(this)
+        listOf(SpeechUtterance(id = id, text = text, sourceId = id, sourceOffset = 0))
     } else {
-        text.chunked(MaxUtteranceChars).mapIndexed { part, partText -> SpeechSentence("$id$PartSeparator$part", partText) }
+        text.chunked(MaxUtteranceChars).mapIndexed { part, partText ->
+            SpeechUtterance(
+                id = "$id$PartSeparator$part",
+                text = partText,
+                sourceId = id,
+                sourceOffset = part * MaxUtteranceChars,
+            )
+        }
     }
+
+private fun firstSpokenWordRange(text: String): IntRange? = SpokenWordRegex.find(text)?.range
 
 private const val PartSeparator = '#'
 private const val MaxUtteranceChars = 3_000
 private val SleepTimerSteps = listOf(0, 15, 30, 60)
+private val SpokenWordRegex = Regex("[\\p{L}\\p{N}]+(?:['’\\-][\\p{L}\\p{N}]+)*")

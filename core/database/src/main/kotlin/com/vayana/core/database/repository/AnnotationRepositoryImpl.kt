@@ -38,6 +38,9 @@ class AnnotationRepositoryImpl @Inject constructor(
 
     override fun observeCountForBook(bookId: Long): Flow<Int> = annotationDao.observeCountForBook(bookId)
 
+    override fun observeCommunityQuoteCountForBook(bookId: Long): Flow<Int> =
+        annotationDao.observeCommunityQuoteCountForBook(bookId)
+
     override suspend fun getById(id: Long): Annotation? = annotationDao.getById(id)?.toDomain()
 
     override suspend fun create(
@@ -91,6 +94,27 @@ class AnnotationRepositoryImpl @Inject constructor(
                 tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION.value, deletedAt = now))
             }
             annotationDao.softDelete(id, now)
+        }
+    }
+
+    override suspend fun softDeleteAll(ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            ids.distinct().chunked(MaxSqlParametersPerBatch).forEach { batch ->
+                val annotations = annotationDao.getByIds(batch)
+                if (annotations.isEmpty()) return@forEach
+                tombstoneDao.upsertAll(
+                    annotations.map { annotation ->
+                        TombstoneEntity(
+                            syncId = annotation.syncId,
+                            entityType = TombstoneEntityType.ANNOTATION.value,
+                            deletedAt = now,
+                        )
+                    },
+                )
+                annotationDao.softDeleteAll(annotations.map(AnnotationEntity::id), now)
+            }
         }
     }
 
@@ -194,3 +218,5 @@ private fun Annotation.toEntity(updatedAt: Long): AnnotationEntity = AnnotationE
     updatedAt = updatedAt,
     isDeleted = isDeleted,
 )
+
+private const val MaxSqlParametersPerBatch = 900

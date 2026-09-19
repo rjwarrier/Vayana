@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 /** Keeps read-aloud alive while the reader activity is paused or the screen is locked. */
 class ReadAloudForegroundService : Service() {
     private var playing = false
+    private var bookTitle: String? = null
+    private var progressPercent: Int? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -29,7 +31,14 @@ class ReadAloudForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ActionUpdate -> playing = intent.getBooleanExtra(ExtraPlaying, false)
+            ActionUpdate -> {
+                playing = intent.getBooleanExtra(ExtraPlaying, false)
+                bookTitle = intent.getStringExtra(ExtraBookTitle)
+                progressPercent = intent
+                    .takeIf { it.hasExtra(ExtraProgressPercent) }
+                    ?.getIntExtra(ExtraProgressPercent, 0)
+                    ?.coerceIn(0, 100)
+            }
             ActionToggle -> ReadAloudNotificationCommands.requestToggle()
         }
         val playbackAction = readAloudNotificationPlaybackAction(playing)
@@ -40,10 +49,13 @@ class ReadAloudForegroundService : Service() {
             toggleIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = Notification.Builder(this, NotificationChannelId)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(getString(R.string.read_aloud_notification_title))
-            .setContentText(getString(R.string.read_aloud_notification_text))
+        val notificationBuilder = Notification.Builder(this, NotificationChannelId)
+            .setSmallIcon(R.drawable.ic_notification_read_aloud)
+            .setContentTitle(bookTitle?.takeIf(String::isNotBlank) ?: getString(R.string.read_aloud_notification_title))
+            .setContentText(
+                progressPercent?.let { getString(R.string.read_aloud_notification_progress, it) }
+                    ?: getString(R.string.read_aloud_notification_text),
+            )
             .setCategory(Notification.CATEGORY_SERVICE)
             .setOngoing(true)
             .setShowWhen(false)
@@ -52,9 +64,9 @@ class ReadAloudForegroundService : Service() {
                     Icon.createWithResource(
                         this,
                         if (playbackAction == ReadAloudNotificationPlaybackAction.PAUSE) {
-                            android.R.drawable.ic_media_pause
+                            R.drawable.ic_notification_pause
                         } else {
-                            android.R.drawable.ic_media_play
+                            R.drawable.ic_notification_play
                         },
                     ),
                     getString(
@@ -69,7 +81,8 @@ class ReadAloudForegroundService : Service() {
             )
             .setStyle(Notification.MediaStyle().setShowActionsInCompactView(0))
             .setOnlyAlertOnce(true)
-            .build()
+        progressPercent?.let { notificationBuilder.setProgress(100, it, false) }
+        val notification = notificationBuilder.build()
         startForeground(NotificationId, notification)
         return START_NOT_STICKY
     }
@@ -77,10 +90,12 @@ class ReadAloudForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        fun show(context: Context, playing: Boolean) {
+        fun show(context: Context, playing: Boolean, bookTitle: String?, progressPercent: Int?) {
             val intent = Intent(context, ReadAloudForegroundService::class.java)
                 .setAction(ActionUpdate)
                 .putExtra(ExtraPlaying, playing)
+                .putExtra(ExtraBookTitle, bookTitle)
+            progressPercent?.let { intent.putExtra(ExtraProgressPercent, it) }
             context.startForegroundService(intent)
         }
 
@@ -94,6 +109,8 @@ class ReadAloudForegroundService : Service() {
         private const val ActionUpdate = "com.vayana.feature.reader.action.UPDATE_READ_ALOUD"
         private const val ActionToggle = "com.vayana.feature.reader.action.TOGGLE_READ_ALOUD"
         private const val ExtraPlaying = "playing"
+        private const val ExtraBookTitle = "book_title"
+        private const val ExtraProgressPercent = "progress_percent"
     }
 }
 

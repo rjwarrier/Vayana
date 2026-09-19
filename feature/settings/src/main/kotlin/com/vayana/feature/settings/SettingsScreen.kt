@@ -88,6 +88,7 @@ import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsGroup
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
@@ -104,12 +105,11 @@ internal val SettingsPagePadding = Paddings.page
 private val SettingsContentMaxWidth = Sizes.settingsContentMaxWidth
 private val SettingsTwoColumnBreakpoint = Sizes.twoColumnBreakpoint
 internal val SettingsCategoryBadgeSize = Sizes.badge
-private val SettingsCategoryEntries: List<Pair<SettingsGroup, Int>> by lazy {
+private fun settingsCategoryEntries(settings: SettingsSnapshot): List<Pair<SettingsGroup, Int>> =
     SettingsGroup.entries.mapNotNull { group ->
-        val settingCount = SettingsRegistry.all.count { it.group == group }
+        val settingCount = SettingsRegistry.all.count { it.group == group && it.isVisibleFor(settings) }
         if (settingCount > 0 || group == SettingsGroup.BACKUP) group to settingCount else null
     }
-}
 
 internal const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
 internal const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
@@ -205,7 +205,9 @@ private fun SettingsScreen(
     var helpAndAboutOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
-    val visibleSettings = remember(query) { SettingsRegistry.all.filterByQuery(query) }
+    val visibleSettings = remember(query, settings.displayProfile) {
+        SettingsRegistry.all.filter { it.isVisibleFor(settings) }.filterByQuery(query)
+    }
     val useTwoPane = LocalConfiguration.current.screenWidthDp.dp >= SettingsTwoColumnBreakpoint
 
     val destinationContent: @Composable (SettingsDestinationState, PaddingValues) -> Unit = { destination, contentPadding ->
@@ -592,7 +594,7 @@ private fun SettingsHub(
             item {
                 SettingsContentContainer {
                     SettingsCategoryCards(
-                        categoryEntries = SettingsCategoryEntries,
+                        categoryEntries = settingsCategoryEntries(settings),
                         onGroupSelected = onGroupSelected,
                     )
                 }
@@ -648,7 +650,9 @@ private fun SettingsGroupDetail(
     onDismissReaderFontImportState: () -> Unit,
     onOpenLibrary: () -> Unit,
 ) {
-    val groupSettings = remember(group) { SettingsRegistry.all.filter { it.group == group } }
+    val groupSettings = remember(group, settings.displayProfile) {
+        SettingsRegistry.all.filter { it.group == group && it.isVisibleFor(settings) }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -1175,6 +1179,7 @@ internal fun Setting<out Any>.asAny(): Setting<Any> = this as Setting<Any>
 private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (setting) {
     SettingsRegistry.ThemeMode -> themeMode
     SettingsRegistry.DisplayProfile -> displayProfile
+    SettingsRegistry.EinkAudioFeatures -> einkAudioFeaturesEnabled
     SettingsRegistry.DarkVariant -> darkVariant
     SettingsRegistry.Motion -> motionSetting
     SettingsRegistry.NavigationMode -> navigationMode
@@ -1204,6 +1209,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.RecentlyDeletedRetention -> recentlyDeletedRetention
     SettingsRegistry.WeekStart -> weekStart
     SettingsRegistry.ReadAloudRate -> readAloudRate
+    SettingsRegistry.ReadAloudPitch -> readAloudPitch
     SettingsRegistry.ReaderBrightness -> readerBrightnessPercent
     SettingsRegistry.ReaderWarmLight -> readerWarmLightPercent
     SettingsRegistry.ReaderEdgeSwipeLight -> readerEdgeSwipeLight
@@ -1229,10 +1235,14 @@ private fun List<Setting<out Any>>.filterByQuery(query: String): List<Setting<ou
     }
 }
 
+private fun Setting<out Any>.isVisibleFor(settings: SettingsSnapshot): Boolean =
+    this != SettingsRegistry.EinkAudioFeatures || settings.displayProfile == DisplayProfile.E_INK
+
 private fun Setting<out Any>.searchTokens(): String {
     val synonyms = when (this) {
         SettingsRegistry.ThemeMode -> "theme system light dark appearance display"
         SettingsRegistry.DisplayProfile -> "display profile eink e ink contrast screen"
+        SettingsRegistry.EinkAudioFeatures -> "eink e ink audio sound speaker read aloud tts disable"
         SettingsRegistry.DarkVariant -> "dark black oled softer night theme"
         SettingsRegistry.Motion -> "motion animation reduce transitions"
         SettingsRegistry.NavigationMode -> "navigation mode bottom bar floating bar panel tabs"
@@ -1262,6 +1272,7 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.RecentlyDeletedRetention -> "recently deleted trash empty auto purge retention days"
         SettingsRegistry.WeekStart -> "week start first day sunday monday calendar heatmap"
         SettingsRegistry.ReadAloudRate -> "read aloud tts text to speech voice speed rate listen"
+        SettingsRegistry.ReadAloudPitch -> "read aloud tts text to speech voice pitch deeper higher tone listen"
         SettingsRegistry.ReaderBrightness -> "brightness light screen dim night"
         SettingsRegistry.ReaderWarmLight -> "warm light night amber blue filter"
         SettingsRegistry.ReaderEdgeSwipeLight -> "swipe edge brightness warm light gesture"

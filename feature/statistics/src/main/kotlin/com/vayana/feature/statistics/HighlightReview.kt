@@ -10,7 +10,9 @@ import java.time.LocalDate
  */
 internal fun dailyHighlights(annotations: List<Annotation>, today: LocalDate, count: Int = DailyHighlightCount): List<Annotation> {
     val eligible = annotations
-        .filter { it.selectedText.isNotBlank() && !it.locator.startsWith(CommunityQuotePrefix) }
+        .filter { annotation ->
+            annotation.selectedText.isNotBlank() && CommunityQuotePrefixes.none(annotation.locator::startsWith)
+        }
         .sortedWith(compareBy<Annotation> { it.createdAt }.thenBy { it.id })
     if (eligible.size <= count) return eligible
     val start = Math.floorMod(today.toEpochDay() * count, eligible.size.toLong()).toInt()
@@ -18,4 +20,5 @@ internal fun dailyHighlights(annotations: List<Annotation>, today: LocalDate, co
 }
 
 internal const val DailyHighlightCount = 5
-private const val CommunityQuotePrefix = "quote:"
+/** Locator prefixes of imported Goodreads quotes; `quote:` is the older form, `goodreads-quote:` the current one. */
+private val CommunityQuotePrefixes = listOf("quote:", "goodreads-quote:")

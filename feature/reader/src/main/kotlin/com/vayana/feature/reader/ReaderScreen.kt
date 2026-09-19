@@ -1,12 +1,15 @@
 package com.vayana.feature.reader
 
+import android.Manifest
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.text.format.DateFormat
 import android.view.ActionMode
 import android.view.KeyEvent as AndroidKeyEvent
@@ -67,6 +70,7 @@ import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -76,11 +80,14 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -116,8 +123,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -195,12 +204,26 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val recentLookups by viewModel.recentLookups.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsState()
+    val readAloudVoices by viewModel.readAloudVoices.collectAsState()
     val context = LocalContext.current
     val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
             viewModel.cancelDictionaryInstall()
         } else {
             viewModel.installEnglishDictionary(uri.toString())
+        }
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        // Notification permission controls visibility only; declining it must not prevent read-aloud itself.
+        viewModel.startReadAloud()
+    }
+    val startReadAloud = {
+        val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        if (needsNotificationPermission(Build.VERSION.SDK_INT, permissionGranted)) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.startReadAloud()
         }
     }
 
@@ -279,16 +302,20 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onShowHeadersChange = viewModel::updateShowHeaders,
                 onShowFooterChange = viewModel::updateShowFooter,
                 onBionicReadingChange = viewModel::updateBionicReading,
+                onReadAloudRateChange = viewModel::updateReadAloudRate,
+                onReadAloudPitchChange = viewModel::updateReadAloudPitch,
+                readAloudVoices = readAloudVoices,
+                onLoadReadAloudVoices = viewModel::loadReadAloudVoices,
+                onReadAloudVoiceChange = viewModel::updateReadAloudVoice,
                 onPause = viewModel::onPause,
                 onResume = viewModel::onResume,
                 footnote = footnote,
                 onDismissFootnote = viewModel::dismissFootnote,
                 onOpenFootnote = viewModel::openFootnoteTarget,
                 readAloud = readAloud,
-                onStartReadAloud = viewModel::startReadAloud,
+                onStartReadAloud = startReadAloud,
                 onToggleReadAloud = viewModel::toggleReadAloud,
                 onStopReadAloud = viewModel::stopReadAloud,
-                onCycleReadAloudRate = viewModel::cycleReadAloudRate,
                 onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
                 onDismissReadAloudVoiceMissing = viewModel::dismissReadAloudVoiceMissing,
                 returnRecap = returnRecap,
@@ -383,16 +410,20 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onShowHeadersChange = viewModel::updateShowHeaders,
         onShowFooterChange = viewModel::updateShowFooter,
         onBionicReadingChange = viewModel::updateBionicReading,
+        onReadAloudRateChange = viewModel::updateReadAloudRate,
+        onReadAloudPitchChange = viewModel::updateReadAloudPitch,
+        readAloudVoices = readAloudVoices,
+        onLoadReadAloudVoices = viewModel::loadReadAloudVoices,
+        onReadAloudVoiceChange = viewModel::updateReadAloudVoice,
         onPause = viewModel::onPause,
         onResume = viewModel::onResume,
         footnote = footnote,
         onDismissFootnote = viewModel::dismissFootnote,
         onOpenFootnote = viewModel::openFootnoteTarget,
         readAloud = readAloud,
-        onStartReadAloud = viewModel::startReadAloud,
+        onStartReadAloud = startReadAloud,
         onToggleReadAloud = viewModel::toggleReadAloud,
         onStopReadAloud = viewModel::stopReadAloud,
-        onCycleReadAloudRate = viewModel::cycleReadAloudRate,
         onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
         onDismissReadAloudVoiceMissing = viewModel::dismissReadAloudVoiceMissing,
         returnRecap = returnRecap,
@@ -412,7 +443,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
 /** A selection captured for the quote card, so the selection itself can be cleared while the card is open. */
 private data class SelectionShare(val text: String, val chapterTitle: String?, val author: String?, val bookTitle: String?)
 
-private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, SEARCH, WORDS }
+private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, READ_ALOUD, SEARCH, WORDS }
 
 private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
     YELLOW("yellow", R.string.reader_selection_highlight_yellow, Color(0xFFF6C453)),
@@ -469,6 +500,11 @@ private fun ReaderScreen(
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
+    onReadAloudRateChange: (Float) -> Unit,
+    onReadAloudPitchChange: (Float) -> Unit,
+    readAloudVoices: List<SpeechVoiceOption>,
+    onLoadReadAloudVoices: () -> Unit,
+    onReadAloudVoiceChange: (String) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     footnote: Footnote?,
@@ -478,7 +514,6 @@ private fun ReaderScreen(
     onStartReadAloud: () -> Unit,
     onToggleReadAloud: () -> Unit,
     onStopReadAloud: () -> Unit,
-    onCycleReadAloudRate: () -> Unit,
     onCycleReadAloudSleepTimer: () -> Unit,
     onDismissReadAloudVoiceMissing: () -> Unit,
     returnRecap: ReaderRecap?,
@@ -498,6 +533,7 @@ private fun ReaderScreen(
     var footerShowsBookTime by remember { mutableStateOf(false) }
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
+    val audioFeaturesEnabled = settings.readerAudioFeaturesEnabled
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val onEngineReleasedState = rememberUpdatedState(onEngineReleased)
     val onReaderInteractionState = rememberUpdatedState(onReaderInteraction)
@@ -656,6 +692,12 @@ private fun ReaderScreen(
         focusRequester.requestFocus()
     }
 
+    LaunchedEffect(audioFeaturesEnabled) {
+        if (!audioFeaturesEnabled && selectedPanel == ReaderPanel.READ_ALOUD) {
+            selectedPanel = ReaderPanel.STYLE
+        }
+    }
+
     LaunchedEffect(Unit) {
         while (true) {
             nowMillis = System.currentTimeMillis()
@@ -686,6 +728,9 @@ private fun ReaderScreen(
         einkFlashVisible = false
     }
 
+    val readAloudPanelVisible = audioFeaturesEnabled && readAloud.active && !chromeVisible
+    var readAloudPanelHeightPx by remember { mutableIntStateOf(0) }
+    val readAloudPanelHeight = with(LocalDensity.current) { readAloudPanelHeightPx.toDp() }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -728,10 +773,21 @@ private fun ReaderScreen(
             }
             .background(settings.readerBackgroundColor()),
     ) {
-        AndroidView(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
+                .padding(bottom = if (readAloudPanelVisible) readAloudPanelHeight else 0.dp),
+        ) {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(
+                        if (readAloudPanelVisible) {
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+                        } else {
+                            WindowInsets.safeDrawing
+                        },
+                    ),
             factory = { context ->
                 val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
                 var downX = 0f
@@ -919,6 +975,11 @@ private fun ReaderScreen(
                 onShowHeadersChange = onShowHeadersChange,
                 onShowFooterChange = onShowFooterChange,
                 onBionicReadingChange = onBionicReadingChange,
+                onReadAloudRateChange = onReadAloudRateChange,
+                onReadAloudPitchChange = onReadAloudPitchChange,
+                readAloudVoices = readAloudVoices,
+                onLoadReadAloudVoices = onLoadReadAloudVoices,
+                onReadAloudVoiceChange = onReadAloudVoiceChange,
                 onCreateBookmark = onCreateBookmark,
                 onRefreshScreen = { einkFlashTrigger++ },
                 searchResults = searchResults,
@@ -971,24 +1032,6 @@ private fun ReaderScreen(
                     onDismissReturnRecap()
                     onReviewVocabulary()
                 },
-            )
-        }
-
-        AnimatedVisibility(
-            visible = readAloud.active && !chromeVisible,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = settings.readerFooterGapDp.dp),
-            enter = vayanaSlideInVertically(initialOffsetY = { it / 2 }) + vayanaFadeIn(),
-            exit = vayanaSlideOutVertically(targetOffsetY = { it / 2 }) + vayanaFadeOut(),
-        ) {
-            ReadAloudBar(
-                state = readAloud,
-                onTogglePlayback = onToggleReadAloud,
-                onCycleRate = onCycleReadAloudRate,
-                onCycleSleepTimer = onCycleReadAloudSleepTimer,
-                onStop = onStopReadAloud,
             )
         }
 
@@ -1048,6 +1091,21 @@ private fun ReaderScreen(
                     onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
                 )
             }
+        }
+        }
+
+        if (readAloudPanelVisible) {
+            ReadAloudBar(
+                state = readAloud,
+                onTogglePlayback = onToggleReadAloud,
+                onRateChange = onReadAloudRateChange,
+                onPitchChange = onReadAloudPitchChange,
+                onCycleSleepTimer = onCycleReadAloudSleepTimer,
+                onStop = onStopReadAloud,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { readAloudPanelHeightPx = it.height },
+            )
         }
     }
 
@@ -1740,6 +1798,11 @@ private fun ReaderChrome(
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
+    onReadAloudRateChange: (Float) -> Unit,
+    onReadAloudPitchChange: (Float) -> Unit,
+    readAloudVoices: List<SpeechVoiceOption>,
+    onLoadReadAloudVoices: () -> Unit,
+    onReadAloudVoiceChange: (String) -> Unit,
     onCreateBookmark: () -> Unit,
     onRefreshScreen: () -> Unit,
     searchResults: List<com.vayana.reader.api.SearchResult>,
@@ -1833,12 +1896,6 @@ private fun ReaderChrome(
                             contentDescription = stringResource(R.string.reader_words_content_description),
                         )
                     }
-                    IconButton(onClick = onStartReadAloud) {
-                        Icon(
-                            imageVector = Icons.Outlined.Headphones,
-                            contentDescription = stringResource(R.string.reader_read_aloud_content_description),
-                        )
-                    }
                     IconButton(onClick = onCreateBookmark) {
                         Icon(
                             imageVector = Icons.Outlined.BookmarkAdd,
@@ -1865,6 +1922,15 @@ private fun ReaderChrome(
                 }
                 ReaderPanelButton(Icons.Outlined.TextFields, R.string.reader_style, selectedPanel == ReaderPanel.STYLE) {
                     onPanelSelected(ReaderPanel.STYLE)
+                }
+                if (settings.readerAudioFeaturesEnabled) {
+                    ReaderPanelButton(
+                        Icons.Outlined.Headphones,
+                        R.string.settings_read_aloud_section_title,
+                        selectedPanel == ReaderPanel.READ_ALOUD,
+                    ) {
+                        onPanelSelected(ReaderPanel.READ_ALOUD)
+                    }
                 }
                 ReaderPanelButton(Icons.Outlined.Search, R.string.reader_search, selectedPanel == ReaderPanel.SEARCH) {
                     onPanelSelected(ReaderPanel.SEARCH)
@@ -1898,6 +1964,15 @@ private fun ReaderChrome(
                         onShowHeadersChange = onShowHeadersChange,
                         onShowFooterChange = onShowFooterChange,
                         onBionicReadingChange = onBionicReadingChange,
+                    )
+                    ReaderPanel.READ_ALOUD -> ReadAloudSettingsPage(
+                        settings = settings,
+                        voices = readAloudVoices,
+                        onStartReading = onStartReadAloud,
+                        onLoadVoices = onLoadReadAloudVoices,
+                        onVoiceChange = onReadAloudVoiceChange,
+                        onRateChange = onReadAloudRateChange,
+                        onPitchChange = onReadAloudPitchChange,
                     )
                     ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
                     ReaderPanel.SEARCH -> SearchPanel(
@@ -2349,7 +2424,6 @@ private fun StylePanel(
     LaunchedEffect(settings.readerSideMarginPercent) {
         pendingSideMargin = settings.readerSideMarginPercent
     }
-
     Column(
         modifier = Modifier
             .padding(horizontal = Spacing.lg, vertical = Spacing.md)
@@ -2511,6 +2585,218 @@ private fun StylePanel(
 }
 
 @Composable
+private fun ReadAloudSettingsPage(
+    settings: SettingsSnapshot,
+    voices: List<SpeechVoiceOption>,
+    onStartReading: () -> Unit,
+    onLoadVoices: () -> Unit,
+    onVoiceChange: (String) -> Unit,
+    onRateChange: (Float) -> Unit,
+    onPitchChange: (Float) -> Unit,
+) {
+    val rateSetting = SettingsRegistry.ReadAloudRate
+    val pitchSetting = SettingsRegistry.ReadAloudPitch
+    val networkVoiceLabel = stringResource(R.string.settings_read_aloud_voice_network)
+    val defaultVoiceLabel = stringResource(R.string.settings_read_aloud_voice_default)
+    val languageOptions = remember(voices) { speechLanguageOptions(voices) }
+    val defaultVoice = voices.firstOrNull(SpeechVoiceOption::isSystemDefault)
+    var pendingRate by remember { mutableFloatStateOf(settings.readAloudRate) }
+    var pendingPitch by remember { mutableFloatStateOf(settings.readAloudPitch) }
+    var pendingVoiceName by rememberSaveable { mutableStateOf(settings.readAloudVoiceName) }
+    var selectedLanguageTag by rememberSaveable { mutableStateOf("") }
+    var languageExpanded by remember { mutableStateOf(false) }
+    var voiceExpanded by remember { mutableStateOf(false) }
+    val selectedVoice = voices.firstOrNull { it.name == pendingVoiceName }
+    val selectedLanguageLabel = languageOptions.firstOrNull { it.tag == selectedLanguageTag }?.label.orEmpty()
+
+    LaunchedEffect(voices, pendingVoiceName) {
+        selectedLanguageTag = resolveSpeechLanguageTag(voices, pendingVoiceName, selectedLanguageTag)
+    }
+    LaunchedEffect(settings.readAloudVoiceName) {
+        pendingVoiceName = settings.readAloudVoiceName
+    }
+
+    LaunchedEffect(settings.readAloudRate) {
+        pendingRate = settings.readAloudRate
+    }
+    LaunchedEffect(settings.readAloudPitch) {
+        pendingPitch = settings.readAloudPitch
+    }
+    LaunchedEffect(Unit) {
+        onLoadVoices()
+    }
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+            .heightIn(max = Sizes.contentMaxWidth)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Button(
+            onClick = onStartReading,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(imageVector = Icons.Outlined.Headphones, contentDescription = null)
+            Text(
+                text = stringResource(R.string.settings_read_aloud_start),
+                modifier = Modifier.padding(start = Spacing.sm),
+            )
+        }
+
+        Text(text = stringResource(R.string.settings_read_aloud_language_title), style = MaterialTheme.typography.labelLarge)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { languageExpanded = true },
+                enabled = languageOptions.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = selectedLanguageLabel.ifBlank { defaultVoiceLabel },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
+                }
+            }
+            DropdownMenu(
+                expanded = languageExpanded,
+                onDismissRequest = { languageExpanded = false },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                languageOptions.forEach { language ->
+                    DropdownMenuItem(
+                        text = { Text(language.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        onClick = {
+                            selectedLanguageTag = language.tag
+                            languageExpanded = false
+                            voices.firstOrNull { it.localeTag == language.tag }?.let { voice ->
+                                pendingVoiceName = voice.name
+                                onVoiceChange(voice.name)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
+        Text(text = stringResource(R.string.settings_read_aloud_voice_title), style = MaterialTheme.typography.labelLarge)
+        Text(
+            text = stringResource(R.string.settings_read_aloud_voice_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val visibleVoices = voices.filter { it.localeTag == selectedLanguageTag }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { voiceExpanded = true },
+                enabled = languageOptions.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = selectedVoice?.name ?: defaultVoiceLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
+                }
+            }
+            DropdownMenu(
+                expanded = voiceExpanded,
+                onDismissRequest = { voiceExpanded = false },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (defaultVoice?.localeTag == selectedLanguageTag) {
+                    DropdownMenuItem(
+                        text = { Text(defaultVoiceLabel) },
+                        onClick = {
+                            pendingVoiceName = ""
+                            selectedLanguageTag = defaultVoice.localeTag
+                            onVoiceChange("")
+                            voiceExpanded = false
+                        },
+                    )
+                }
+                visibleVoices.forEach { voice ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(voice.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (voice.requiresNetwork) {
+                                    Text(
+                                        text = networkVoiceLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
+                        onClick = {
+                            pendingVoiceName = voice.name
+                            onVoiceChange(voice.name)
+                            voiceExpanded = false
+                        },
+                    )
+                }
+            }
+        }
+        if (voices.isEmpty()) {
+            Text(
+                text = stringResource(R.string.settings_read_aloud_voice_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        ReaderStyleLabel(
+            title = stringResource(R.string.settings_read_aloud_rate_title),
+            value = "${pendingRate}x",
+        )
+        Text(
+            text = stringResource(R.string.settings_read_aloud_rate_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+            value = pendingRate,
+            onValueChange = { pendingRate = it.roundToStep(rateSetting) },
+            onValueChangeFinished = { onRateChange(pendingRate) },
+            valueRange = rateSetting.range,
+            steps = rateSetting.sliderSteps(),
+        )
+
+        ReaderStyleLabel(
+            title = stringResource(R.string.settings_read_aloud_pitch_title),
+            value = "${pendingPitch.roundToTenth()}x",
+        )
+        Text(
+            text = stringResource(R.string.settings_read_aloud_pitch_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+            value = pendingPitch,
+            onValueChange = { pendingPitch = it.roundToStep(pitchSetting) },
+            onValueChangeFinished = { onPitchChange(pendingPitch) },
+            valueRange = pitchSetting.range,
+            steps = pitchSetting.sliderSteps(),
+        )
+    }
+}
+
+@Composable
 private fun ReaderSettingsSwitchRow(
     title: String,
     subtitle: String,
@@ -2638,6 +2924,9 @@ internal fun shouldInterceptReaderVolumeKey(
 ): Boolean = !readAloudPlaying && (volumeKeysTurnPages || chromeVisible)
 
 internal fun shouldPauseReaderWebView(readAloudPlaying: Boolean): Boolean = !readAloudPlaying
+
+internal fun needsNotificationPermission(sdkInt: Int, permissionGranted: Boolean): Boolean =
+    sdkInt >= 33 && !permissionGranted
 private val ReaderSyncDotSize = Sizes.syncDot
 
 private val ReaderSyncDotEinkSize = Sizes.syncDotEink

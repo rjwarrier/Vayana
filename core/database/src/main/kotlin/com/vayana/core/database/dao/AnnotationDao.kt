@@ -19,8 +19,18 @@ interface AnnotationDao {
     @Query("SELECT COUNT(*) FROM annotations WHERE bookId = :bookId AND isDeleted = 0")
     fun observeCountForBook(bookId: Long): Flow<Int>
 
+    @Query(
+        "SELECT COUNT(*) FROM annotations WHERE bookId = :bookId AND isDeleted = 0 " +
+            "AND type = 'UNDERLINE' AND colorKey = 'popular' " +
+            "AND (locator LIKE 'quote:%' OR locator LIKE 'goodreads-quote:%')",
+    )
+    fun observeCommunityQuoteCountForBook(bookId: Long): Flow<Int>
+
     @Query("SELECT * FROM annotations WHERE id = :id")
     suspend fun getById(id: Long): AnnotationEntity?
+
+    @Query("SELECT * FROM annotations WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<AnnotationEntity>
 
     /** Unlike [observeAll]/[observeForBook], deliberately not filtered by isDeleted - sync merge
      *  needs to see the current deletion state to decide how to reconcile it. */
@@ -38,6 +48,9 @@ interface AnnotationDao {
 
     @Query("UPDATE annotations SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long)
+
+    @Query("UPDATE annotations SET isDeleted = 1, updatedAt = :updatedAt WHERE id IN (:ids)")
+    suspend fun softDeleteAll(ids: List<Long>, updatedAt: Long)
 
     @Query("UPDATE annotations SET isDeleted = 1, updatedAt = :updatedAt WHERE syncId = :syncId AND isDeleted = 0 AND updatedAt <= :updatedAt")
     suspend fun softDeleteBySyncId(syncId: String, updatedAt: Long): Int

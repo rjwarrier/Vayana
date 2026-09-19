@@ -646,9 +646,8 @@ class LibraryViewModel @Inject constructor(
 
     fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeCountForBook(bookId)
 
-    fun observeCommunityQuoteCount(bookId: Long): Flow<Int> = annotationRepository.observeForBook(bookId)
-        .map { annotations -> annotations.count(Annotation::isCommunityQuote) }
-        .distinctUntilChanged()
+    fun observeCommunityQuoteCount(bookId: Long): Flow<Int> =
+        annotationRepository.observeCommunityQuoteCountForBook(bookId)
 
     val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
         .withAbsolutePaths()
@@ -2380,12 +2379,21 @@ class LibraryViewModel @Inject constructor(
      * dedicated locator prefix.
      */
     private suspend fun refreshGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): QuoteImportResult {
-        annotationRepository.observeForBook(bookId).first()
-            .filter(Annotation::isCommunityQuote)
-            .filter { annotation -> !isEligibleGoodreadsQuote(annotation.selectedText) }
-            .forEach { annotation -> annotationRepository.softDelete(annotation.id) }
+        val annotations = annotationRepository.observeForBook(bookId).first()
+        val communityQuotes = annotations.filter(Annotation::isCommunityQuote)
+        val eligible = classifyGoodreadsQuotes(
+            texts = communityQuotes.map(Annotation::selectedText),
+            acceptsQuote = ::isEligibleGoodreadsQuote,
+        )
+        val removedIds = buildSet {
+            communityQuotes.forEachIndexed { index, annotation ->
+                if (!eligible[index]) add(annotation.id)
+            }
+        }
+        annotationRepository.softDeleteAll(removedIds)
 
-        val known = annotationRepository.observeForBook(bookId).first()
+        val known = annotations.asSequence()
+            .filterNot { it.id in removedIds }
             .mapTo(HashSet()) { quoteMatchKey(it.selectedText) }
         val fresh = quotes.filter { quote ->
             val key = quoteMatchKey(quote.quoteText)

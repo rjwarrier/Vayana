@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.outlined.Check
@@ -24,18 +25,25 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import com.vayana.core.datastore.settings.FloatSetting
+import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.designsystem.dialog.ConfirmActionDialog
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
@@ -48,60 +56,155 @@ import com.vayana.core.resources.R
 import com.vayana.reader.api.Footnote
 import java.text.DecimalFormat
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 /** Which page edge a vertical light swipe started on: brightness on the left, warm light on the right. */
 internal enum class ReaderEdge { LEFT, RIGHT }
 
-/** Play/pause, speed, sleep timer and stop for read-aloud, floating above the page. */
+/** Play/pause, speed, sleep timer and stop for read-aloud, laid out below the reading viewport. */
 @Composable
 internal fun ReadAloudBar(
     state: ReadAloudState,
     onTogglePlayback: () -> Unit,
-    onCycleRate: () -> Unit,
+    onRateChange: (Float) -> Unit,
+    onPitchChange: (Float) -> Unit,
     onCycleSleepTimer: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val adjustment = remember { mutableStateOf<ReadAloudAdjustment?>(null) }
     Surface(
-        modifier = modifier.padding(Spacing.md),
-        shape = RoundedCornerShape(Radii.full),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.shadowSmall,
         shadowElevation = Elevations.shadowSmall,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            IconButton(onClick = onTogglePlayback) {
-                Icon(
-                    imageVector = if (state.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                    contentDescription = stringResource(
-                        if (state.playing) R.string.reader_read_aloud_pause else R.string.reader_read_aloud_play,
-                    ),
+        Column(modifier = Modifier.fillMaxWidth()) {
+            when (adjustment.value) {
+                ReadAloudAdjustment.SPEED -> ReadAloudAdjustmentSlider(
+                    label = stringResource(R.string.reader_read_aloud_speed_control),
+                    value = state.rate,
+                    setting = SettingsRegistry.ReadAloudRate,
+                    onValueChangeFinished = onRateChange,
                 )
+                ReadAloudAdjustment.PITCH -> ReadAloudAdjustmentSlider(
+                    label = stringResource(R.string.reader_read_aloud_pitch_control),
+                    value = state.pitch,
+                    setting = SettingsRegistry.ReadAloudPitch,
+                    onValueChangeFinished = onPitchChange,
+                )
+                null -> Unit
             }
-            TextButton(onClick = onCycleRate) {
-                Text(stringResource(R.string.reader_read_aloud_rate, RateFormat.format(state.rate)))
-            }
-            TextButton(onClick = onCycleSleepTimer) {
-                Icon(imageVector = Icons.Outlined.Bedtime, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(
-                    text = if (state.sleepTimerMinutes > 0) {
-                        stringResource(R.string.reader_read_aloud_sleep_minutes, state.sleepTimerMinutes)
-                    } else {
-                        stringResource(R.string.reader_read_aloud_sleep_off)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                IconButton(onClick = onTogglePlayback) {
+                    Icon(
+                        imageVector = if (state.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                        contentDescription = stringResource(
+                            if (state.playing) R.string.reader_read_aloud_pause else R.string.reader_read_aloud_play,
+                        ),
+                    )
+                }
+                ReadAloudSettingButton(
+                    label = stringResource(R.string.reader_read_aloud_speed_control),
+                    value = "${RateFormat.format(state.rate)}×",
+                    selected = adjustment.value == ReadAloudAdjustment.SPEED,
+                    onClick = {
+                        adjustment.value = if (adjustment.value == ReadAloudAdjustment.SPEED) null else ReadAloudAdjustment.SPEED
                     },
                 )
-            }
-            IconButton(onClick = onStop) {
-                Icon(imageVector = Icons.Outlined.Close, contentDescription = stringResource(R.string.reader_read_aloud_stop))
+                ReadAloudSettingButton(
+                    label = stringResource(R.string.reader_read_aloud_pitch_control),
+                    value = "${RateFormat.format(state.pitch)}×",
+                    selected = adjustment.value == ReadAloudAdjustment.PITCH,
+                    onClick = {
+                        adjustment.value = if (adjustment.value == ReadAloudAdjustment.PITCH) null else ReadAloudAdjustment.PITCH
+                    },
+                )
+                TextButton(onClick = onCycleSleepTimer) {
+                    Icon(imageVector = Icons.Outlined.Bedtime, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text(
+                        text = if (state.sleepTimerMinutes > 0) {
+                            stringResource(R.string.reader_read_aloud_sleep_minutes, state.sleepTimerMinutes)
+                        } else {
+                            stringResource(R.string.reader_read_aloud_sleep_off)
+                        },
+                    )
+                }
+                IconButton(onClick = onStop) {
+                    Icon(imageVector = Icons.Outlined.Close, contentDescription = stringResource(R.string.reader_read_aloud_stop))
+                }
             }
         }
     }
 }
+
+@Composable
+private fun ReadAloudAdjustmentSlider(
+    label: String,
+    value: Float,
+    setting: FloatSetting,
+    onValueChangeFinished: (Float) -> Unit,
+) {
+    val pendingValue = remember(value, setting) { mutableFloatStateOf(value) }
+    val steps = remember(setting) {
+        (((setting.range.endInclusive - setting.range.start) / setting.step).roundToInt() - 1).coerceAtLeast(0)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Paddings.screenHorizontal)
+            .padding(top = Spacing.sm),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = label, style = MaterialTheme.typography.labelLarge)
+            Text(text = "${RateFormat.format(pendingValue.floatValue)}×", style = MaterialTheme.typography.labelLarge)
+        }
+        Slider(
+            value = pendingValue.floatValue,
+            onValueChange = { raw ->
+                pendingValue.floatValue = ((raw / setting.step).roundToInt() * setting.step)
+                    .coerceIn(setting.range.start, setting.range.endInclusive)
+            },
+            onValueChangeFinished = { onValueChangeFinished(pendingValue.floatValue) },
+            valueRange = setting.range,
+            steps = steps,
+        )
+    }
+}
+
+@Composable
+private fun ReadAloudSettingButton(
+    label: String,
+    value: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = label, style = MaterialTheme.typography.labelSmall)
+            Text(text = value, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+private enum class ReadAloudAdjustment { SPEED, PITCH }
 
 @Composable
 internal fun ReadAloudVoiceMissingDialog(onDismiss: () -> Unit, onOpenSettings: () -> Unit) {
