@@ -103,6 +103,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -204,6 +205,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val recentLookups by viewModel.recentLookups.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsState()
+    val engineGeneration by viewModel.engineGeneration.collectAsState()
     val readAloudVoices by viewModel.readAloudVoices.collectAsState()
     val context = LocalContext.current
     val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -267,6 +269,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
                 onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
                 onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
+                engineGeneration = engineGeneration,
                 onEngineReady = viewModel::bindEngine,
                 onEngineReleased = viewModel::releaseEngine,
                 activeReadingSessionSeconds = activeReadingSessionSeconds,
@@ -375,6 +378,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
         onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
         onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
+        engineGeneration = engineGeneration,
         onEngineReady = viewModel::bindEngine,
         onEngineReleased = viewModel::releaseEngine,
         activeReadingSessionSeconds = activeReadingSessionSeconds,
@@ -472,6 +476,7 @@ private fun ReaderScreen(
     readingPositionPrompt: ReadingPositionPrompt?,
     onAcceptReadingPositionPrompt: () -> Unit,
     onDismissReadingPositionPrompt: () -> Unit,
+    engineGeneration: Int,
     onEngineReady: (BookEngine) -> Unit,
     onEngineReleased: (BookEngine) -> Unit,
     activeReadingSessionSeconds: Long,
@@ -778,99 +783,102 @@ private fun ReaderScreen(
                 .fillMaxSize()
                 .padding(bottom = if (readAloudPanelVisible) readAloudPanelHeight else 0.dp),
         ) {
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(
-                        if (readAloudPanelVisible) {
-                            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
-                        } else {
-                            WindowInsets.safeDrawing
-                        },
-                    ),
-            factory = { context ->
-                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-                var downX = 0f
-                var downY = 0f
-                var downTime = 0L
-                val webView = ReaderWebView(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    overScrollMode = View.OVER_SCROLL_NEVER
-                    isHorizontalScrollBarEnabled = false
-                    isVerticalScrollBarEnabled = false
-                    setOnKeyListener { _, keyCode, event ->
-                        onHardwarePageKeyState.value(keyCode, event.action, event.eventTime - event.downTime)
-                    }
-                    var swipeEdge: ReaderEdge? = null
-                    var swiping = false
-                    setOnTouchListener { view, event ->
-                        when (event.actionMasked) {
-                            MotionEvent.ACTION_DOWN -> {
-                                downX = event.x
-                                downY = event.y
-                                downTime = event.eventTime
-                                swiping = false
-                                swipeEdge = when {
-                                    !edgeSwipeEnabledState.value -> null
-                                    event.x < view.width * EdgeSwipeZoneFraction -> ReaderEdge.LEFT
-                                    event.x > view.width * (1 - EdgeSwipeZoneFraction) -> ReaderEdge.RIGHT
-                                    else -> null
-                                }
-                            }
-                            MotionEvent.ACTION_MOVE -> {
-                                val edge = swipeEdge
-                                val dy = downY - event.y
-                                if (edge != null && !swiping && abs(dy) > touchSlop * 2 && abs(dy) > abs(event.x - downX) * 2) {
-                                    swiping = true
-                                    // The page mustn't also turn this gesture into a long-press selection.
-                                    val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
-                                    view.onTouchEvent(cancel)
-                                    cancel.recycle()
-                                }
-                                if (swiping && edge != null) {
-                                    onEdgeSwipeState.value(edge, dy / view.height.coerceAtLeast(1), false)
-                                    return@setOnTouchListener true
-                                }
-                            }
-                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                val edge = swipeEdge
-                                if (swiping && edge != null) {
+            // A dead renderer leaves the WebView unusable; a new generation replaces it, and the book reopens.
+            key(engineGeneration) {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(
+                            if (readAloudPanelVisible) {
+                                WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+                            } else {
+                                WindowInsets.safeDrawing
+                            },
+                        ),
+                factory = { context ->
+                    val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+                    var downX = 0f
+                    var downY = 0f
+                    var downTime = 0L
+                    val webView = ReaderWebView(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                        overScrollMode = View.OVER_SCROLL_NEVER
+                        isHorizontalScrollBarEnabled = false
+                        isVerticalScrollBarEnabled = false
+                        setOnKeyListener { _, keyCode, event ->
+                            onHardwarePageKeyState.value(keyCode, event.action, event.eventTime - event.downTime)
+                        }
+                        var swipeEdge: ReaderEdge? = null
+                        var swiping = false
+                        setOnTouchListener { view, event ->
+                            when (event.actionMasked) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    downX = event.x
+                                    downY = event.y
+                                    downTime = event.eventTime
                                     swiping = false
-                                    onEdgeSwipeState.value(edge, (downY - event.y) / view.height.coerceAtLeast(1), true)
-                                    return@setOnTouchListener true
+                                    swipeEdge = when {
+                                        !edgeSwipeEnabledState.value -> null
+                                        event.x < view.width * EdgeSwipeZoneFraction -> ReaderEdge.LEFT
+                                        event.x > view.width * (1 - EdgeSwipeZoneFraction) -> ReaderEdge.RIGHT
+                                        else -> null
+                                    }
                                 }
-                                if (event.actionMasked == MotionEvent.ACTION_UP) {
-                                    onReaderInteractionState.value()
-                                    val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
-                                    if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
-                                        onReaderTapState.value(event.x, view.width)
+                                MotionEvent.ACTION_MOVE -> {
+                                    val edge = swipeEdge
+                                    val dy = downY - event.y
+                                    if (edge != null && !swiping && abs(dy) > touchSlop * 2 && abs(dy) > abs(event.x - downX) * 2) {
+                                        swiping = true
+                                        // The page mustn't also turn this gesture into a long-press selection.
+                                        val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+                                        view.onTouchEvent(cancel)
+                                        cancel.recycle()
+                                    }
+                                    if (swiping && edge != null) {
+                                        onEdgeSwipeState.value(edge, dy / view.height.coerceAtLeast(1), false)
+                                        return@setOnTouchListener true
+                                    }
+                                }
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                    val edge = swipeEdge
+                                    if (swiping && edge != null) {
+                                        swiping = false
+                                        onEdgeSwipeState.value(edge, (downY - event.y) / view.height.coerceAtLeast(1), true)
+                                        return@setOnTouchListener true
+                                    }
+                                    if (event.actionMasked == MotionEvent.ACTION_UP) {
+                                        onReaderInteractionState.value()
+                                        val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
+                                        if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
+                                            onReaderTapState.value(event.x, view.width)
+                                        }
                                     }
                                 }
                             }
+                            false
                         }
-                        false
                     }
-                }
-                webViewRef = webView
-                val engine = FoliateBookEngine(webView, context.applicationContext)
-                onEngineReadyState.value(engine)
-                FrameLayout(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    tag = engine
-                    addView(webView)
-                }
-            },
-            onRelease = { container ->
-                (container.tag as? BookEngine)?.let { engine ->
-                    onEngineReleasedState.value(engine)
-                }
-                if (webViewRef?.parent === container) {
-                    webViewRef = null
-                }
-                container.tag = null
-                container.removeAllViews()
-            },
-        )
+                    webViewRef = webView
+                    val engine = FoliateBookEngine(webView, context.applicationContext)
+                    onEngineReadyState.value(engine)
+                    FrameLayout(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                        tag = engine
+                        addView(webView)
+                    }
+                },
+                onRelease = { container ->
+                    (container.tag as? BookEngine)?.let { engine ->
+                        onEngineReleasedState.value(engine)
+                    }
+                    if (webViewRef?.parent === container) {
+                        webViewRef = null
+                    }
+                    container.tag = null
+                    container.removeAllViews()
+                },
+            )
+            }
 
         // Tints the page only; no pointer input, so taps and swipes still reach the book underneath.
         if (warmLightPercent > 0 && settings.displayProfile != DisplayProfile.E_INK) {

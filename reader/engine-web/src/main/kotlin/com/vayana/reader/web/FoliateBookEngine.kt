@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -192,6 +193,19 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url
                 return url.scheme != "https" || url.host != "appassets.androidplatform.net"
+            }
+
+            // Without this the app dies with the renderer (crash or out-of-memory kill). The WebView is unusable
+            // afterwards, so unblock whoever waits on it and tell the reader to build a new engine.
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                jsReady = false
+                openResult?.complete(Result.failure(IllegalStateException("The reader engine stopped unexpectedly")))
+                openResult = null
+                pendingOpen = null
+                bridgeRequests.values.forEach { it.complete(null) }
+                bridgeRequests.clear()
+                _events.tryEmit(EngineEvent.RendererGone)
+                return true
             }
         }
         webView.webChromeClient = object : WebChromeClient() {

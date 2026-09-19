@@ -69,6 +69,9 @@ sealed interface EngineEvent {
     data class SelectionChanged(val selection: ReaderSelection?) : EngineEvent
     data class SearchCompleted(val query: String, val results: List<SearchResult>) : EngineEvent
     data class Error(val message: String) : EngineEvent
+
+    /** The engine's rendering process crashed or was killed; the engine is unusable and must be replaced. */
+    data object RendererGone : EngineEvent
 }
 
 data class SearchResult(

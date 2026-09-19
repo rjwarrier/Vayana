@@ -184,6 +184,14 @@ class ReaderViewModel @Inject constructor(
 
     private var boundEngine: BookEngine? = null
     private var bookOpen = false
+
+    /** Bumped each time the reader must build a fresh engine because the WebView's renderer died. */
+    private val _engineGeneration = MutableStateFlow(0)
+    val engineGeneration: StateFlow<Int> = _engineGeneration
+    private val rendererRestartPolicy = RendererRestartPolicy()
+
+    /** Where to reopen after a renderer crash: the position at the crash beats the screen's original target. */
+    private var restartCfi: String? = null
     private val engineJobs = mutableListOf<Job>()
     private var dictionaryLookupJob: Job? = null
     private var dictionaryInstallJob: Job? = null
@@ -246,7 +254,10 @@ class ReaderViewModel @Inject constructor(
             }
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
             // Read before recordBookOpened below replaces it; a jump to a note or search hit isn't a "return".
-            val previousReadAt = book.lastReadAt.takeIf { targetLocator.isNullOrBlank() && book.readingPercent > 0f }
+            val restoredCfi = restartCfi?.takeIf { it.isNotBlank() }
+            restartCfi = null
+            val openTarget = restoredCfi ?: targetLocator
+            val previousReadAt = book.lastReadAt.takeIf { openTarget.isNullOrBlank() && book.readingPercent > 0f }
             if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
                 _uiState.value = ReaderUiState.Failed("This book is in your cloud library. Download support is being wired next.")
                 return@launch
@@ -264,7 +275,7 @@ class ReaderViewModel @Inject constructor(
 
             val source = BookSource(localFile.absolutePath)
             val savedLocator = book.lastLocator?.takeIf { it.isNotBlank() }
-            val initialLocatorString = targetLocator?.takeIf { it.isNotBlank() }
+            val initialLocatorString = openTarget?.takeIf { it.isNotBlank() }
             val resumeLocator = initialLocatorString?.let {
                 Locator(cfi = it, href = null, progression = book.readingPercent, chapterTitle = null)
             }
@@ -272,7 +283,8 @@ class ReaderViewModel @Inject constructor(
             engine.open(source, resumeLocator)
                 .onSuccess { openBook: OpenBook ->
                     bookOpen = true
-                    viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
+                    // A reopen after a renderer crash is the same reading session, not a new open.
+                    if (restoredCfi == null) viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
                     if (readerResumed) onResume()
                     applyReaderStyle(engine, effectiveSettings.value)
                     _uiState.value = ReaderUiState.Loaded(
@@ -283,8 +295,8 @@ class ReaderViewModel @Inject constructor(
                     )
                     observeAnnotations(engine)
                     showReturnRecap(previousReadAt)
-                    if (!targetLocator.isNullOrBlank()) {
-                        engine.goTo(NavTarget.ToLocator(Locator(cfi = targetLocator, href = null, progression = 0f, chapterTitle = null)))
+                    if (!openTarget.isNullOrBlank()) {
+                        engine.goTo(NavTarget.ToLocator(Locator(cfi = openTarget, href = null, progression = 0f, chapterTitle = null)))
                     } else if (savedLocator != null && book.readingPercent > 0.001f) {
                         engine.goTo(NavTarget.ToFraction(book.readingPercent.coerceIn(0f, 0.999f)))
                     }
@@ -344,6 +356,7 @@ class ReaderViewModel @Inject constructor(
                         if (event.query == lastSearchQuery) _searchResults.value = event.results
                     }
                     is FootnoteOpened -> _footnote.value = event.footnote
+                    com.vayana.reader.api.EngineEvent.RendererGone -> onRendererGone()
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
                     -> Unit
@@ -356,6 +369,24 @@ class ReaderViewModel @Inject constructor(
                 if (bookOpen) applyReaderStyle(engine, snapshot)
             }
         }
+    }
+
+    /**
+     * The WebView's renderer crashed or was killed (often out of memory), so the engine is dead. Remember where the
+     * reader was and ask the screen for a fresh WebView; [bindEngine] then reopens the book at that spot.
+     */
+    private fun onRendererGone() {
+        val position = (_uiState.value as? ReaderUiState.Loaded)?.currentLocator?.cfi
+        bookOpen = false
+        readAloudPlayer.stop()
+        flushPendingLocatorWrite()
+        if (!rendererRestartPolicy.allowRestart(System.currentTimeMillis())) {
+            _uiState.value = ReaderUiState.Failed("The reader stopped working repeatedly. Close the book and open it again.")
+            return
+        }
+        restartCfi = position
+        _uiState.value = ReaderUiState.Loading
+        _engineGeneration.update { it + 1 }
     }
 
     fun releaseEngine(engine: BookEngine) {
