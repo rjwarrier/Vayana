@@ -871,6 +871,21 @@ class ReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            readAloud
+                .map { state -> state.active to state.playing }
+                .distinctUntilChanged()
+                .collectLatest { (active, playing) ->
+                    if (active) {
+                        ReadAloudForegroundService.show(appContext, playing)
+                    } else {
+                        ReadAloudForegroundService.stop(appContext)
+                    }
+                }
+        }
+        viewModelScope.launch {
+            ReadAloudNotificationCommands.toggles.collectLatest { toggleReadAloud() }
+        }
+        viewModelScope.launch {
             ReadingSessionContinuationStore.drainExpired(System.currentTimeMillis()).forEach { (expiredBookId, update) ->
                 update.session?.let { session ->
                     readingSessionRepository.record(
@@ -892,8 +907,6 @@ class ReaderViewModel @Inject constructor(
 
     fun onPause() {
         readerResumed = false
-        // The page can't follow speech while the reader is in the background.
-        readAloudPlayer.pause()
         persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
         trackingJob?.cancel()
         trackingJob = null
@@ -1046,6 +1059,7 @@ class ReaderViewModel @Inject constructor(
         autoProgressSyncJob?.cancel()
         autoProgressSyncJob = null
         readAloudPlayer.release()
+        ReadAloudForegroundService.stop(appContext)
     }
 
     private fun showReturnRecap(previousReadAt: Long?) {

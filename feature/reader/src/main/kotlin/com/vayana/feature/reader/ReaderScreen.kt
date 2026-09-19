@@ -503,6 +503,7 @@ private fun ReaderScreen(
     val onReaderInteractionState = rememberUpdatedState(onReaderInteraction)
     val onPauseState = rememberUpdatedState(onPause)
     val onResumeState = rememberUpdatedState(onResume)
+    val readAloudPlayingState = rememberUpdatedState(readAloud.playing)
     val lifecycleOwner = LocalLifecycleOwner.current
     val rootView = LocalView.current
     val focusRequester = remember { FocusRequester() }
@@ -535,13 +536,13 @@ private fun ReaderScreen(
     }
     val onHardwarePageKeyState = rememberUpdatedState<(Int, Int, Long) -> Boolean> { keyCode, action, heldMillis ->
         if (keyCode == AndroidKeyEvent.KEYCODE_VOLUME_UP || keyCode == AndroidKeyEvent.KEYCODE_VOLUME_DOWN) {
-            if (chromeVisible) {
+            if (!shouldInterceptReaderVolumeKey(readAloud.playing, settings.readerVolumeKeys, chromeVisible)) {
+                false
+            } else if (chromeVisible) {
                 if (action == AndroidKeyEvent.ACTION_UP) {
                     chromeVisible = false
                 }
                 true
-            } else if (!settings.readerVolumeKeys) {
-                false
             } else {
                 if (action == AndroidKeyEvent.ACTION_UP) {
                     onReaderInteraction()
@@ -566,7 +567,8 @@ private fun ReaderScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> {
-                    webViewRef?.onPause()
+                    // Speech may need the book engine to load the next chapter while the screen is locked.
+                    if (shouldPauseReaderWebView(readAloudPlayingState.value)) webViewRef?.onPause()
                     onPauseState.value()
                 }
                 Lifecycle.Event.ON_RESUME -> {
@@ -583,10 +585,9 @@ private fun ReaderScreen(
         }
     }
 
-    DisposableEffect(settings.readerKeepAwake, readAloud.playing) {
+    DisposableEffect(settings.readerKeepAwake) {
         val previous = rootView.keepScreenOn
-        // Reading aloud is paused if the screen turns off, so keep it on while speaking.
-        rootView.keepScreenOn = settings.readerKeepAwake || readAloud.playing
+        rootView.keepScreenOn = settings.readerKeepAwake
         onDispose { rootView.keepScreenOn = previous }
     }
 
@@ -692,13 +693,15 @@ private fun ReaderScreen(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.VolumeUp || event.key == Key.VolumeDown) {
+                    if (!shouldInterceptReaderVolumeKey(readAloud.playing, settings.readerVolumeKeys, chromeVisible)) {
+                        return@onPreviewKeyEvent false
+                    }
                     if (chromeVisible) {
                         if (event.type == KeyEventType.KeyUp) {
                             chromeVisible = false
                         }
                         return@onPreviewKeyEvent true
                     }
-                    if (!settings.readerVolumeKeys) return@onPreviewKeyEvent false
                     when (event.type) {
                         KeyEventType.KeyDown -> {
                             if (volumeKeyDownAt == 0L) volumeKeyDownAt = System.currentTimeMillis()
@@ -2627,6 +2630,14 @@ private const val EdgeSwipeBrightnessStart = 50
 private const val EdgeSwipeMinBrightness = 5
 private const val ReturnRecapVisibleMillis = 10_000L
 private const val TtsSettingsAction = "com.android.settings.TTS_SETTINGS"
+
+internal fun shouldInterceptReaderVolumeKey(
+    readAloudPlaying: Boolean,
+    volumeKeysTurnPages: Boolean,
+    chromeVisible: Boolean,
+): Boolean = !readAloudPlaying && (volumeKeysTurnPages || chromeVisible)
+
+internal fun shouldPauseReaderWebView(readAloudPlaying: Boolean): Boolean = !readAloudPlaying
 private val ReaderSyncDotSize = Sizes.syncDot
 
 private val ReaderSyncDotEinkSize = Sizes.syncDotEink
