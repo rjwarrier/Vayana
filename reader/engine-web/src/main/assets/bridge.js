@@ -226,7 +226,8 @@ async function open(bookUrl, lastLocatorCfi) {
             if (obj?.doc && hasOpened) queueDocumentEnhancements(obj.doc, index)
         })
         view.addEventListener('draw-annotation', e => {
-            const { draw, annotation } = e.detail
+            // foliate hands over the section's document too; the count badge measures its page width from it.
+            const { draw, annotation, doc } = e.detail
             const color = annotation.color ?? '#6366f1'
             if (annotation.type === 'underline') {
                 draw((rects, options) => {
@@ -1023,6 +1024,8 @@ function matchTextAnnotationsForDoc(doc, index) {
             value: match.cfi,
             type: match.ann.type || 'underline',
             color: match.ann.color || '#6366f1',
+            // Without this the draw handler never shows the popularity count beside a community quote.
+            popular: match.ann.popular === true,
             note: match.ann.note,
         })).then(() => {
             renderedAnnotations.add(match.cfi)
