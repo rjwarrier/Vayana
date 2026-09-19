@@ -17,6 +17,10 @@ internal data class SpeechVoiceOption(
     val localeLabel: String,
     val requiresNetwork: Boolean,
     val isSystemDefault: Boolean,
+    /** Male or female where the voice is on a published list; null when unknown. */
+    val gender: VoiceGender? = null,
+    /** False when the engine lists the voice but its data is not downloaded on this phone. */
+    val installed: Boolean = true,
 )
 
 internal data class SpeechLanguageOption(val tag: String, val label: String)
@@ -128,6 +132,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                     _voices.value = created.installedVoices()
                         .sortedWith(
                             compareBy<Voice> { it.locale.getDisplayName(Locale.getDefault()) }
+                                .thenBy { !it.isInstalled() }
                                 .thenBy { it.isNetworkConnectionRequired }
                                 .thenByDescending { it.quality }
                                 .thenBy { it.name },
@@ -139,6 +144,8 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                                 localeLabel = voice.locale.getDisplayName(Locale.getDefault()),
                                 requiresNetwork = voice.isNetworkConnectionRequired,
                                 isSystemDefault = voice.name == systemDefaultVoice?.name,
+                                gender = googleVoiceGender(voice.name),
+                                installed = voice.isInstalled(),
                             )
                         }
                     applySelectedVoice(created)
@@ -176,6 +183,9 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
         val selected = selectedVoiceName?.let { name -> engine.installedVoices().firstOrNull { it.name == name } }
         (selected ?: systemDefaultVoice)?.let(engine::setVoice)
     }
+
+    private fun Voice.isInstalled(): Boolean =
+        TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in features.orEmpty()
 
     /** Some engines throw or return null from `getVoices()`; treat that as "no voices" rather than crashing. */
     private fun TextToSpeech.installedVoices(): Set<Voice> = runCatching { voices }.getOrNull().orEmpty()

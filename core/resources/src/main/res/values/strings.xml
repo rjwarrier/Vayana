@@ -908,9 +908,12 @@
     <string name="settings_read_aloud_pitch_subtitle">Lower values sound deeper; higher values sound brighter. The available voice still depends on your phone.</string>
     <string name="settings_read_aloud_language_title">Language</string>
     <string name="settings_read_aloud_voice_title">Voice</string>
-    <string name="settings_read_aloud_voice_subtitle">Choose an available voice. Android does not consistently identify voices as male or female.</string>
+    <string name="settings_read_aloud_voice_subtitle">Choose an available voice. Male and female labels come from a published list of Google voices; a voice that is not on it has no label.</string>
+    <string name="settings_read_aloud_voice_female">Female</string>
+    <string name="settings_read_aloud_voice_male">Male</string>
     <string name="settings_read_aloud_voice_default">System default</string>
     <string name="settings_read_aloud_voice_network">Requires internet</string>
+    <string name="settings_read_aloud_voice_not_installed">Not downloaded on this phone (add it in Google Speech Services)</string>
     <string name="settings_read_aloud_voice_empty">No voices are available from the current text-to-speech engine.</string>
     <string name="settings_reader_brightness_title">Reader brightness</string>
     <string name="settings_reader_brightness_subtitle">Screen brightness while reading. 0 follows the system setting.</string>

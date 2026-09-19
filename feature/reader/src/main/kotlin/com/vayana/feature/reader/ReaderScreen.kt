@@ -2624,7 +2624,17 @@ private fun ReadAloudSettingsPage(
     val rateSetting = SettingsRegistry.ReadAloudRate
     val pitchSetting = SettingsRegistry.ReadAloudPitch
     val networkVoiceLabel = stringResource(R.string.settings_read_aloud_voice_network)
+    val notInstalledVoiceLabel = stringResource(R.string.settings_read_aloud_voice_not_installed)
     val defaultVoiceLabel = stringResource(R.string.settings_read_aloud_voice_default)
+    val femaleVoiceLabel = stringResource(R.string.settings_read_aloud_voice_female)
+    val maleVoiceLabel = stringResource(R.string.settings_read_aloud_voice_male)
+    val voiceLabel = { voice: SpeechVoiceOption ->
+        when (voice.gender) {
+            VoiceGender.FEMALE -> "$femaleVoiceLabel · ${voice.name}"
+            VoiceGender.MALE -> "$maleVoiceLabel · ${voice.name}"
+            null -> voice.name
+        }
+    }
     val languageOptions = remember(voices) { speechLanguageOptions(voices) }
     val defaultVoice = voices.firstOrNull(SpeechVoiceOption::isSystemDefault)
     var pendingRate by remember { mutableFloatStateOf(settings.readAloudRate) }
@@ -2728,7 +2738,7 @@ private fun ReadAloudSettingsPage(
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = selectedVoice?.name ?: defaultVoiceLabel,
+                        text = selectedVoice?.let(voiceLabel) ?: defaultVoiceLabel,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.align(Alignment.CenterStart),
@@ -2760,7 +2770,14 @@ private fun ReadAloudSettingsPage(
                     DropdownMenuItem(
                         text = {
                             Column {
-                                Text(voice.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(voiceLabel(voice), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (!voice.installed) {
+                                    Text(
+                                        text = notInstalledVoiceLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 if (voice.requiresNetwork) {
                                     Text(
                                         text = networkVoiceLabel,
