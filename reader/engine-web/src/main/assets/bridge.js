@@ -164,6 +164,7 @@ async function open(bookUrl, lastLocatorCfi) {
         pendingTextAnnotations.clear()
         authoritativeSourceForCfi.clear()
         standardAnnotationFingerprints.clear()
+        cfiSectionIndex.clear()
         hasOpened = false
         phase = 'fetching book'
         post('log', { step: 'fetching', bookUrl })
@@ -190,6 +191,7 @@ async function open(bookUrl, lastLocatorCfi) {
         tocSectionIndexCache = null
         resetPageEstimate()
         view.addEventListener('relocate', e => {
+            scheduleBadgeLayout()
             const { cfi, fraction, tocItem, section, time } = e.detail
             const pageStats = bookPageStats(section?.current ?? 0)
             post('relocate', {
@@ -226,8 +228,7 @@ async function open(bookUrl, lastLocatorCfi) {
             if (obj?.doc && hasOpened) queueDocumentEnhancements(obj.doc, index)
         })
         view.addEventListener('draw-annotation', e => {
-            // foliate hands over the section's document too; the count badge measures its page width from it.
-            const { draw, annotation, doc } = e.detail
+            const { draw, annotation } = e.detail
             const color = annotation.color ?? '#6366f1'
             if (annotation.type === 'underline') {
                 draw((rects, options) => {
@@ -246,13 +247,10 @@ async function open(bookUrl, lastLocatorCfi) {
                         line.setAttribute('stroke-linecap', 'round')
                         g.append(line)
                     }
-                    const countMatch = annotation.popular && annotation.note
-                        ? String(annotation.note).match(/\d+/)
-                        : null
-                    const countText = countMatch ? countMatch[0] : (annotation.note || '')
-                    if (countMatch && rects.length > 0) appendPopularCountBadge(g, rects, countText, color, doc)
                     return g
                 })
+                // The overlay redraws whenever the page is re-paginated; the pills beside it must follow.
+                scheduleBadgeLayout()
             } else {
                 draw((rects, options) => {
                     const g = Overlayer.highlight(rects, options)
@@ -306,51 +304,129 @@ async function open(bookUrl, lastLocatorCfi) {
     }
 }
 
-/** Draws the popularity count as a high-contrast pill in the closest margin of its page/column. */
-function appendPopularCountBadge(group, rects, countText, color, doc) {
-    const firstRect = rects[0]
-    const pageWidth = Math.max(
-        1,
-        doc?.documentElement?.getBoundingClientRect?.().width ||
-            doc?.documentElement?.clientWidth ||
-            doc?.defaultView?.innerWidth ||
-            firstRect.right,
-    )
-    // Paginated chapters are one wide document made from page-width columns. Locate the column
-    // containing the first quote line so later pages do not send their badge back to page one.
-    const pageStart = Math.floor(firstRect.left / pageWidth) * pageWidth
-    const pageEnd = pageStart + pageWidth
-    const badgeWidth = Math.max(20, String(countText).length * 7 + 10)
-    const badgeHeight = 18
-    const edgeInset = 4
-    const quoteCenter = firstRect.left + firstRect.width / 2
-    const centerX = quoteCenter < pageStart + pageWidth / 2
-        ? pageStart + edgeInset + badgeWidth / 2
-        : pageEnd - edgeInset - badgeWidth / 2
-    const centerY = firstRect.top + firstRect.height / 2
-
-    const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-    background.setAttribute('x', centerX - badgeWidth / 2)
-    background.setAttribute('y', centerY - badgeHeight / 2)
-    background.setAttribute('width', badgeWidth)
-    background.setAttribute('height', badgeHeight)
-    background.setAttribute('rx', badgeHeight / 2)
-    background.setAttribute('fill', color)
-    background.setAttribute('opacity', '0.95')
-    group.append(background)
-
-    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-    label.setAttribute('x', centerX)
-    label.setAttribute('y', centerY)
-    label.setAttribute('text-anchor', 'middle')
-    label.setAttribute('dominant-baseline', 'central')
-    label.setAttribute('fill', '#ffffff')
-    label.setAttribute('font-size', '11px')
-    label.setAttribute('font-weight', '700')
-    label.setAttribute('font-family', 'sans-serif')
-    label.textContent = countText
-    group.append(label)
+/**
+ * Where a popularity pill goes: in the blank margin beside the page, level with the first line of its quote. The page
+ * overlay is clipped at the text edge and that edge sits only a half-gap from the text, so a pill drawn there covers
+ * letters; the margin outside the page has the room. Null when the quote does not start on the visible page.
+ */
+function popularBadgePlacement({ rectLeft, rectTop, rectHeight, pageStart, pageSize, iframeLeft, iframeTop, badgeWidth, badgeHeight, viewportWidth }) {
+    if (!(rectLeft >= pageStart && rectLeft < pageStart + pageSize)) return null
+    const pageLeft = iframeLeft + pageStart
+    const onLeft = rectLeft - pageStart < pageSize / 2
+    const gap = 3
+    const wanted = onLeft ? pageLeft - badgeWidth - gap : pageLeft + pageSize + gap
+    return {
+        x: Math.max(0, Math.min(viewportWidth - badgeWidth, wanted)),
+        y: iframeTop + rectTop + rectHeight / 2 - badgeHeight / 2,
+        onLeft,
+    }
 }
+
+const popularBadgeLayer = document.createElement('div')
+Object.assign(popularBadgeLayer.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '20' })
+document.body.append(popularBadgeLayer)
+const cfiSectionIndex = new Map()
+let badgeLayoutQueued = false
+
+function scheduleBadgeLayout() {
+    if (badgeLayoutQueued) return
+    badgeLayoutQueued = true
+    requestAnimationFrame(() => {
+        badgeLayoutQueued = false
+        try {
+            layoutPopularBadges()
+        } catch (error) {
+            post('log', { step: 'layoutPopularBadges', message: String(error) })
+        }
+    })
+}
+
+/** Rebuilds the count pills of the community quotes on the visible page, from the annotation list. */
+function layoutPopularBadges() {
+    popularBadgeLayer.replaceChildren()
+    const renderer = view?.renderer
+    // Scrolled layouts have no pages, and so no page margin to put a pill in.
+    if (!renderer || renderer.scrolled || !activeAnnotationsList.length) return
+    // Quotes that resolve to the same passage share one underline; its pill shows the largest count.
+    const byCfi = new Map()
+    for (const ann of activeAnnotationsList) {
+        if (!ann.popular) continue
+        const cfi = resolvedTextAnnotations.get(ann.value) ?? (ann.value?.startsWith?.('epubcfi(') ? ann.value : null)
+        if (!cfi) continue
+        const count = highlightCount(ann.note)
+        if (count <= 0) continue
+        const best = byCfi.get(cfi)
+        if (!best || count > best.count) byCfi.set(cfi, { count, color: ann.color ?? '#6366f1' })
+    }
+    if (!byCfi.size) return
+    const contents = renderer.getContents()
+    const pageSize = renderer.size
+    // The paginator scrolls a spare page-width of padding ahead of the chapter, so the visible page begins at
+    // `start - size` in the chapter document's own coordinates (the ones quote rects use).
+    const pageStart = Math.max(0, renderer.start - pageSize)
+    const badgeHeight = 18
+    for (const [cfi, { count, color }] of byCfi) {
+        let index = cfiSectionIndex.get(cfi)
+        let resolved = null
+        if (index === undefined) {
+            try {
+                resolved = view.resolveCFI(cfi)
+                index = resolved.index
+            } catch (_) {
+                index = -1
+            }
+            cfiSectionIndex.set(cfi, index)
+        }
+        const content = contents.find(c => c.index === index)
+        const frame = content?.doc?.defaultView?.frameElement
+        if (!frame) continue
+        let range = null
+        try {
+            range = (resolved ?? view.resolveCFI(cfi)).anchor(content.doc)
+        } catch (_) {}
+        const rect = range?.getClientRects?.()[0]
+        if (!rect) continue
+        const frameRect = frame.getBoundingClientRect()
+        const text = String(count)
+        const badgeWidth = Math.max(22, text.length * 7 + 12)
+        const place = popularBadgePlacement({
+            rectLeft: rect.left,
+            rectTop: rect.top,
+            rectHeight: rect.height,
+            pageStart,
+            pageSize,
+            iframeLeft: frameRect.left,
+            iframeTop: frameRect.top,
+            badgeWidth,
+            badgeHeight,
+            viewportWidth: window.innerWidth,
+        })
+        if (!place) continue
+        const pill = document.createElement('div')
+        pill.textContent = text
+        Object.assign(pill.style, {
+            position: 'absolute',
+            left: `${place.x}px`,
+            top: `${place.y}px`,
+            width: `${badgeWidth}px`,
+            height: `${badgeHeight}px`,
+            boxSizing: 'border-box',
+            // Flex centring puts the digits in the middle both ways; a line-height would be reset by the font shorthand.
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0',
+            borderRadius: `${badgeHeight / 2}px`,
+            background: color,
+            color: '#ffffff',
+            font: '700 11px/1 sans-serif',
+            opacity: '0.95',
+        })
+        popularBadgeLayer.append(pill)
+    }
+}
+
+window.addEventListener('resize', scheduleBadgeLayout)
 
 // 'relocate' can fire many times in a row for the same page turn (each a no-op full document
 // walk once bionic reading/annotations are already applied) - collapse repeats scheduled
@@ -918,6 +994,7 @@ let activeAnnotationsList = []
 async function renderAnnotations(annotations) {
     if (!view) return
     activeAnnotationsList = Array.isArray(annotations) ? annotations.filter(Boolean) : []
+    scheduleBadgeLayout()
     const nextByValue = new Map(activeAnnotationsList.map(annotation => [annotation.value, annotation]))
     const orphanedCfis = new Set()
     for (const [sourceValue, cfi] of resolvedTextAnnotations) {
@@ -1016,6 +1093,7 @@ function matchTextAnnotationsForDoc(doc, index) {
         if (duplicate) {
             resolvedTextAnnotations.set(match.ann.value, duplicate.cfi)
             resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
+            scheduleBadgeLayout()
             continue
         }
         accepted.push(match)
@@ -1024,14 +1102,13 @@ function matchTextAnnotationsForDoc(doc, index) {
             value: match.cfi,
             type: match.ann.type || 'underline',
             color: match.ann.color || '#6366f1',
-            // Without this the draw handler never shows the popularity count beside a community quote.
-            popular: match.ann.popular === true,
             note: match.ann.note,
         })).then(() => {
             renderedAnnotations.add(match.cfi)
             resolvedTextAnnotations.set(match.ann.value, match.cfi)
             resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
             authoritativeSourceForCfi.set(match.cfi, match.ann.value)
+            scheduleBadgeLayout()
         }).catch(error => {
             // Leave it unresolved (not marked pending, not cached as a rendered cfi) so a
             // later render pass retries it instead of silently never showing this quote again.
