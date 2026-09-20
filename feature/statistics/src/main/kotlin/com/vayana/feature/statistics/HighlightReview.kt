@@ -17,16 +17,16 @@ internal fun reviewableHighlights(annotations: List<Annotation>): List<Annotatio
  */
 internal fun dueHighlights(
     annotations: List<Annotation>,
-    reviews: Map<Long, HighlightReview>,
+    reviews: Map<String, HighlightReview>,
     now: Long,
     limit: Int = ReviewSessionSize,
 ): List<Annotation> {
     val eligible = reviewableHighlights(annotations)
     val overdue = eligible
-        .filter { annotation -> reviews[annotation.id]?.let { it.dueAt <= now } == true }
-        .sortedWith(compareBy<Annotation> { reviews.getValue(it.id).dueAt }.thenBy { it.id })
+        .filter { annotation -> reviews[annotation.syncId]?.let { it.dueAt <= now } == true }
+        .sortedWith(compareBy<Annotation> { reviews.getValue(it.syncId).dueAt }.thenBy { it.id })
     val fresh = eligible
-        .filter { annotation -> annotation.id !in reviews }
+        .filter { annotation -> annotation.syncId !in reviews }
         .sortedWith(compareBy<Annotation> { it.createdAt }.thenBy { it.id })
     return (overdue + fresh).take(limit)
 }

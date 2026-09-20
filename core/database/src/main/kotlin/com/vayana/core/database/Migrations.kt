@@ -403,9 +403,30 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
     }
 }
 
+val MIGRATION_23_24 = object : Migration(23, 24) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Review schedules move from the local annotation id to the annotation's sync id; rows whose annotation is
+        // gone are dropped by the join.
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `highlight_reviews_new` (`annotationSyncId` TEXT NOT NULL, `dueAt` INTEGER NOT NULL, " +
+                "`intervalDays` INTEGER NOT NULL DEFAULT 0, `easeFactor` REAL NOT NULL DEFAULT 2.5, " +
+                "`repetitions` INTEGER NOT NULL DEFAULT 0, `lastReviewedAt` INTEGER NOT NULL, PRIMARY KEY(`annotationSyncId`))",
+        )
+        connection.execSQL(
+            "INSERT OR IGNORE INTO `highlight_reviews_new` " +
+                "(`annotationSyncId`, `dueAt`, `intervalDays`, `easeFactor`, `repetitions`, `lastReviewedAt`) " +
+                "SELECT a.`syncId`, r.`dueAt`, r.`intervalDays`, r.`easeFactor`, r.`repetitions`, r.`lastReviewedAt` " +
+                "FROM `highlight_reviews` r JOIN `annotations` a ON a.`id` = r.`annotationId`",
+        )
+        connection.execSQL("DROP TABLE `highlight_reviews`")
+        connection.execSQL("ALTER TABLE `highlight_reviews_new` RENAME TO `highlight_reviews`")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_highlight_reviews_dueAt` ON `highlight_reviews` (`dueAt`)")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
-    MIGRATION_21_22, MIGRATION_22_23,
+    MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
 )

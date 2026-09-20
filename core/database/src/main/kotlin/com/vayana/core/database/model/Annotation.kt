@@ -17,6 +17,8 @@ data class Annotation(
     val createdAt: Long,
     val updatedAt: Long,
     val isDeleted: Boolean = false,
+    /** Stable identity across devices and edits; blank on an annotation that has not been saved yet. */
+    val syncId: String = "",
 )
 
 /** Locators of imported Goodreads quotes: `quote:` is the older form, `goodreads-quote:` the current one. */

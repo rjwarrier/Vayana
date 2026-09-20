@@ -96,7 +96,7 @@ class HighlightReviewViewModel @Inject constructor(
         val item = current?.items?.getOrNull(_index.value)
         if (current?.scheduled == true && item != null) {
             viewModelScope.launch {
-                runCatchingCancellable { highlightReviewRepository.grade(item.annotation.id, grade) }
+                runCatchingCancellable { highlightReviewRepository.grade(item.annotation.syncId, grade) }
             }
         }
         next()

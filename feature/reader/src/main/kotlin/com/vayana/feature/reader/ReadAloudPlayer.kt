@@ -37,7 +37,11 @@ internal class ReadAloudPlayer(
     val voices: StateFlow<List<SpeechVoiceOption>> = output.voices
 
     private var queue: List<SpeechUtterance> = emptyList()
+    private var indexById: Map<String, Int> = emptyMap()
     private var position = 0
+
+    /** Index in [queue] of the last utterance handed to the speech engine, which is only ever fed a few ahead. */
+    private var enqueued = -1
     private var endOfBook = false
 
     /** Set once the speech engine sends a word range; not every engine does. */
@@ -118,7 +122,9 @@ internal class ReadAloudPlayer(
         resumeOnFocusGain = false
         val wasActive = _state.value.active
         queue = emptyList()
+        indexById = emptyMap()
         position = 0
+        enqueued = -1
         _state.value = ReadAloudState(rate = _state.value.rate, pitch = _state.value.pitch)
         if (wasActive) scope.launch { engine()?.stopSpeech() }
     }
@@ -172,9 +178,10 @@ internal class ReadAloudPlayer(
 
     override fun onStart(utteranceId: String) {
         scope.launch {
-            val index = queue.indexOfFirst { it.id == utteranceId }
-            if (index < 0) return@launch
+            val index = indexById[utteranceId] ?: return@launch
             position = index
+            // The engine was fed only a few sentences ahead; keep it that far ahead as reading moves on.
+            if (_state.value.playing) enqueueAhead()
             onSpeaking()
             val utterance = queue[index]
             // Until the engine has proven it reports word timings, highlight the whole sentence: engines that never
@@ -192,7 +199,7 @@ internal class ReadAloudPlayer(
 
     override fun onRangeStart(utteranceId: String, start: Int, end: Int) {
         scope.launch {
-            val utterance = queue.firstOrNull { it.id == utteranceId } ?: return@launch
+            val utterance = indexById[utteranceId]?.let(queue::get) ?: return@launch
             reportsWordRanges = true
             val safeStart = start.coerceIn(0, utterance.text.length)
             val safeEnd = end.coerceIn(safeStart, utterance.text.length)
@@ -239,7 +246,9 @@ internal class ReadAloudPlayer(
 
     private fun load(chunk: SpeechChunk) {
         queue = chunk.sentences.flatMap { it.splitForSpeech() }
+        indexById = queue.withIndex().associate { (index, utterance) -> utterance.id to index }
         position = 0
+        enqueued = -1
         endOfBook = chunk.endOfBook
         if (queue.isEmpty()) {
             // A chapter with nothing to read (e.g. only an image): move straight on.
@@ -258,9 +267,21 @@ internal class ReadAloudPlayer(
         chunkJob = scope.launch { load(bookEngine.nextSpeechChunk()) }
     }
 
+    /** Restarts speech at [position]. Each hand-over to the engine is a binder call, so only the next few are sent. */
     private fun speakFromPosition() {
-        queue.drop(position).forEachIndexed { offset, sentence ->
-            output.speak(sentence.id, sentence.text, flush = offset == 0)
+        enqueued = position - 1
+        enqueueAhead(flush = true)
+    }
+
+    /** Tops the engine's queue up to [LookaheadUtterances] utterances from [position]; [flush] drops what it held. */
+    private fun enqueueAhead(flush: Boolean = false) {
+        val last = minOf(position + LookaheadUtterances - 1, queue.lastIndex)
+        var first = flush
+        while (enqueued < last) {
+            enqueued++
+            val utterance = queue[enqueued]
+            output.speak(utterance.id, utterance.text, flush = first)
+            first = false
         }
     }
 }
@@ -291,5 +312,6 @@ private fun firstSpokenWordRange(text: String): IntRange? = SpokenWordRegex.find
 
 private const val PartSeparator = '#'
 private const val MaxUtteranceChars = 3_000
+private const val LookaheadUtterances = 8
 private val SleepTimerSteps = listOf(0, 15, 30, 60)
 private val SpokenWordRegex = Regex("[\\p{L}\\p{N}]+(?:['’\\-][\\p{L}\\p{N}]+)*")

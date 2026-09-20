@@ -67,6 +67,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -1633,24 +1635,27 @@ private fun BookCoverCell(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    // Only a selected cell is a rounded tile; otherwise the cell is not clipped, so neither the cover nor the
+    // title's last line loses its corners.
+    val cellShape = if (selected) RoundedCornerShape(Radii.medium) else RectangleShape
     Column(
         modifier = modifier
             .background(
                 color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
-                shape = RoundedCornerShape(Radii.medium),
+                shape = cellShape,
             )
             .then(
                 if (selected) {
                     Modifier.border(
                         width = Strokes.emphasis,
                         color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(Radii.medium),
+                        shape = cellShape,
                     )
                 } else {
                     Modifier
                 },
             )
-            .clip(RoundedCornerShape(Radii.medium))
+            .clip(cellShape)
             .padding(if (selected) Spacing.sm else 0.dp)
             .vayanaPressScale(interactionSource, pressedScale = 0.975f)
             .clickable(
@@ -1661,7 +1666,7 @@ private fun BookCoverCell(
             ),
     ) {
         Box {
-            BookCover(book = book, modifier = Modifier.fillMaxWidth())
+            BookCover(book = book, modifier = Modifier.fillMaxWidth(), shape = RectangleShape)
             BookFinishedBadge(
                 book = book,
                 onMarkFinished = onMarkFinished,
@@ -1774,7 +1779,7 @@ private fun BookFinishedBadge(book: Book, onMarkFinished: () -> Unit, modifier: 
 }
 
 @Composable
-internal fun BookCover(book: Book, modifier: Modifier = Modifier) {
+internal fun BookCover(book: Book, modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(Radii.small)) {
     val coverPath = book.coverPath
     if (coverPath != null) {
         AsyncImage(
@@ -1782,23 +1787,23 @@ internal fun BookCover(book: Book, modifier: Modifier = Modifier) {
             contentDescription = stringResource(R.string.library_book_cover_content_description, book.title),
             modifier = modifier
                 .aspectRatio(Sizes.coverAspectRatio)
-                .clip(RoundedCornerShape(Radii.small)),
+                .clip(shape),
             contentScale = ContentScale.Crop,
         )
     } else {
-        GeneratedCover(title = book.title, author = book.author, modifier = modifier)
+        GeneratedCover(title = book.title, author = book.author, shape = shape, modifier = modifier)
     }
 }
 
 @Composable
-private fun GeneratedCover(title: String, author: String?, modifier: Modifier = Modifier) {
+private fun GeneratedCover(title: String, author: String?, shape: Shape, modifier: Modifier = Modifier) {
     val colors = listOf(Palette.Forest700, Palette.Teal700, Palette.Navy500, Palette.Gold700)
     val background = colors[title.hashCode().mod(colors.size)]
 
     Column(
         modifier = modifier
             .aspectRatio(Sizes.coverAspectRatio)
-            .background(background, RoundedCornerShape(Radii.small))
+            .background(background, shape)
             .padding(Spacing.sm),
         verticalArrangement = Arrangement.Bottom,
     ) {

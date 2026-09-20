@@ -11,13 +11,13 @@ interface HighlightReviewDao {
     @Query("SELECT * FROM highlight_reviews")
     fun observeAll(): Flow<List<HighlightReviewEntity>>
 
-    @Query("SELECT * FROM highlight_reviews WHERE annotationId = :annotationId")
-    suspend fun getByAnnotationId(annotationId: Long): HighlightReviewEntity?
+    @Query("SELECT * FROM highlight_reviews WHERE annotationSyncId = :annotationSyncId")
+    suspend fun getByAnnotationSyncId(annotationSyncId: String): HighlightReviewEntity?
 
     @Upsert
     suspend fun upsert(review: HighlightReviewEntity)
 
     /** Schedules of highlights that no longer exist at all (a purged book), not merely soft-deleted ones. */
-    @Query("DELETE FROM highlight_reviews WHERE annotationId NOT IN (SELECT id FROM annotations)")
+    @Query("DELETE FROM highlight_reviews WHERE annotationSyncId NOT IN (SELECT syncId FROM annotations)")
     suspend fun deleteOrphans(): Int
 }

@@ -9,6 +9,8 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.runner.RunWith
@@ -91,6 +93,26 @@ class AnnotationBatchDeleteTest {
         repository.softDelete(oldQuote)
 
         assertEquals(1, repository.observeCommunityQuoteCountForBook(bookId).first())
+    }
+
+    @Test
+    fun updatingAnAnnotationKeepsItsSyncId() = runBlocking {
+        val created = create(locator = "epubcfi(/6/2)", type = AnnotationType.HIGHLIGHT)
+        val syncId = database.annotationDao().getById(created.id)!!.syncId
+
+        repository.update(repository.getById(created.id)!!.copy(readerNote = "a thought #idea"))
+
+        assertEquals(syncId, database.annotationDao().getById(created.id)!!.syncId)
+        assertEquals("a thought #idea", database.annotationDao().getById(created.id)!!.readerNote)
+    }
+
+    @Test
+    fun aNewAnnotationGetsAGeneratedSyncIdAndTwoDifferOnes() = runBlocking {
+        val first = create(locator = "epubcfi(/6/1)", type = AnnotationType.HIGHLIGHT)
+        val second = create(locator = "epubcfi(/6/2)", type = AnnotationType.HIGHLIGHT)
+
+        assertTrue(first.syncId.isNotBlank())
+        assertNotEquals(first.syncId, second.syncId)
     }
 
     private suspend fun create(locator: String, type: AnnotationType, colorKey: String = "yellow") = repository.create(

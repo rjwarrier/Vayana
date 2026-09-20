@@ -166,6 +166,11 @@ imported into the library like any picked file.
   pause, next and previous, and a notification with previous sentence / play-pause / next sentence. Commands reach
   the reader through `ReadAloudNotificationCommands` (`ReadAloudCommand` PLAY, PAUSE, NEXT, PREVIOUS, STOP).
   `ReadAloudPlayer.skip(±n)` moves by sentence; past a chapter's end it continues into the next chapter.
+- **Queue window.** Each hand-over to the speech engine is a binder call, so the player feeds it only the next 8
+  utterances (`LookaheadUtterances`) and tops it up as each one starts, instead of the whole rest of the chapter.
+  Skips, speed, pitch and voice changes therefore cost 8 calls, not one per remaining sentence.
+- **Spoken-word mark.** `bridge.js markSpeech` draws the highlight straight onto the section's overlay from the Range it
+  already holds (`SpeechMarkKey`), not through `view.addAnnotation`, which built and re-resolved a CFI per word.
 - **From here.** The selection toolbar has a Read aloud button (hidden when audio features are off). It restarts read
   aloud at the sentence holding the selection: `BookEngine.startSpeech(fromCfi)` → `bridge.js startSpeech(requestId,
   fromCfi)` resolves the CFI and skips sentences that end before it.
@@ -176,7 +181,7 @@ imported into the library like any picked file.
 
 Statistics → the highlight card opens a review of highlights that are due, instead of a fixed set of five.
 
-- Each highlight has a schedule in `highlight_reviews` (DB v23), reusing `VocabularySchedule` (SM-2 style) with three
+- Each highlight has a schedule in `highlight_reviews` (DB v23, keyed by the annotation's `syncId` since v24), reusing `VocabularySchedule` (SM-2 style) with three
   answers: See soon (again), Got it (good), Know it well (easy).
 - `dueHighlights()` picks overdue highlights first (longest overdue first), then never-reviewed ones (oldest first),
   up to 10 per session. Only the reader's own highlights and notes count: no bookmarks, no Goodreads quotes.

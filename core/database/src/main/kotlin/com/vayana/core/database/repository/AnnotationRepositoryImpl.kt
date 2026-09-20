@@ -194,6 +194,7 @@ private fun AnnotationEntity.toDomain(): Annotation = Annotation(
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted,
+    syncId = syncId,
 )
 
 private fun Annotation.toEntity(updatedAt: Long): AnnotationEntity = AnnotationEntity(
@@ -209,6 +210,10 @@ private fun Annotation.toEntity(updatedAt: Long): AnnotationEntity = AnnotationE
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted,
-)
+).let { entity ->
+    // An annotation that already has an identity keeps it; only a new one gets the entity's generated id. Without
+    // this every update would replace the sync id, which sync and the review schedules key on.
+    if (syncId.isBlank()) entity else entity.copy(syncId = syncId)
+}
 
 private const val MaxSqlParametersPerBatch = 900

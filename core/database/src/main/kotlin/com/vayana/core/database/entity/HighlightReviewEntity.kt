@@ -7,12 +7,13 @@ import androidx.room.PrimaryKey
 
 /**
  * Where a highlight stands in spaced review (the same SM-2 style spacing as vocabulary cards). Kept per device and
- * not synced: reviewing must not touch the annotation itself, whose `updatedAt` decides sync merges. [annotationId]
- * is deliberately not a foreign key - sync merges replace annotation rows, which would silently wipe the schedule.
+ * not synced: reviewing must not touch the annotation itself, whose `updatedAt` decides sync merges. It is keyed by
+ * the annotation's `syncId`, its identity across edits and devices, and is deliberately not a foreign key - sync
+ * merges replace annotation rows, which would silently wipe the schedule.
  */
 @Entity(tableName = "highlight_reviews", indices = [Index("dueAt")])
 data class HighlightReviewEntity(
-    @PrimaryKey val annotationId: Long,
+    @PrimaryKey val annotationSyncId: String,
     val dueAt: Long,
     @ColumnInfo(defaultValue = "0") val intervalDays: Int = 0,
     @ColumnInfo(defaultValue = "2.5") val easeFactor: Float = 2.5f,

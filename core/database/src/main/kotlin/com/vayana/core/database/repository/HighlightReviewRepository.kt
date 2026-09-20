@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.map
 
 /** A highlight's spaced-review schedule. A highlight never reviewed has none and counts as new. */
 data class HighlightReview(
-    val annotationId: Long,
+    val annotationSyncId: String,
     val dueAt: Long,
     val intervalDays: Int,
     val easeFactor: Float,
@@ -17,11 +17,11 @@ data class HighlightReview(
 )
 
 interface HighlightReviewRepository {
-    /** Every schedule by annotation id. */
-    fun observeAll(): Flow<Map<Long, HighlightReview>>
+    /** Every schedule by the annotation's sync id. */
+    fun observeAll(): Flow<Map<String, HighlightReview>>
 
     /** Records how the highlight went and returns its new schedule. */
-    suspend fun grade(annotationId: Long, grade: ReviewGrade, now: Long = System.currentTimeMillis()): HighlightReview
+    suspend fun grade(annotationSyncId: String, grade: ReviewGrade, now: Long = System.currentTimeMillis()): HighlightReview
 
     /** Drops schedules whose highlight is gone for good. */
     suspend fun deleteOrphans()
@@ -30,11 +30,11 @@ interface HighlightReviewRepository {
 class HighlightReviewRepositoryImpl @Inject constructor(
     private val dao: HighlightReviewDao,
 ) : HighlightReviewRepository {
-    override fun observeAll(): Flow<Map<Long, HighlightReview>> =
-        dao.observeAll().map { rows -> rows.associate { it.annotationId to it.toDomain() } }
+    override fun observeAll(): Flow<Map<String, HighlightReview>> =
+        dao.observeAll().map { rows -> rows.associate { it.annotationSyncId to it.toDomain() } }
 
-    override suspend fun grade(annotationId: Long, grade: ReviewGrade, now: Long): HighlightReview {
-        val existing = dao.getByAnnotationId(annotationId)
+    override suspend fun grade(annotationSyncId: String, grade: ReviewGrade, now: Long): HighlightReview {
+        val existing = dao.getByAnnotationSyncId(annotationSyncId)
         val next = VocabularySchedule.next(
             repetitions = existing?.repetitions ?: 0,
             intervalDays = existing?.intervalDays ?: 0,
@@ -43,7 +43,7 @@ class HighlightReviewRepositoryImpl @Inject constructor(
             now = now,
         )
         val review = HighlightReviewEntity(
-            annotationId = annotationId,
+            annotationSyncId = annotationSyncId,
             dueAt = next.dueAt,
             intervalDays = next.intervalDays,
             easeFactor = next.easeFactor,
@@ -60,7 +60,7 @@ class HighlightReviewRepositoryImpl @Inject constructor(
 }
 
 private fun HighlightReviewEntity.toDomain() = HighlightReview(
-    annotationId = annotationId,
+    annotationSyncId = annotationSyncId,
     dueAt = dueAt,
     intervalDays = intervalDays,
     easeFactor = easeFactor,

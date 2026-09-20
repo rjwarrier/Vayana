@@ -330,6 +330,71 @@ class ReadAloudPlayerTest {
         assertEquals(2, focus.abandoned)
     }
 
+    private fun longChapter(sentences: Int) = FakeEngine(listOf((1..sentences).map { "Sentence $it." }))
+
+    @Test
+    fun handsTheEngineOnlyTheNextFewSentencesOfALongChapter() {
+        val output = FakeOutput()
+        val player = ReadAloudPlayer(output, scope, { longChapter(500) }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+
+        assertEquals((0 until 8).map { "0:$it" }, output.queued)
+    }
+
+    @Test
+    fun keepsTheEngineAFewSentencesAheadAsReadingMovesOn() {
+        val output = FakeOutput()
+        val player = ReadAloudPlayer(output, scope, { longChapter(500) }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:0")
+        output.listener!!.onStart("0:1")
+        output.listener!!.onStart("0:2")
+
+        assertEquals((0 until 10).map { "0:$it" }, output.queued)
+    }
+
+    @Test
+    fun skippingInALongChapterFlushesAndRefillsOnlyTheWindow() {
+        val output = FakeOutput()
+        val player = ReadAloudPlayer(output, scope, { longChapter(500) }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:5")
+        player.skip(1)
+
+        assertEquals((6 until 14).map { "0:$it" }, output.queued)
+    }
+
+    @Test
+    fun aRateChangeMidChapterRestartsTheCurrentSentenceWithoutResendingTheChapter() {
+        val output = FakeOutput()
+        val player = ReadAloudPlayer(output, scope, { longChapter(500) }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:40")
+        player.setRate(1.5f)
+
+        assertEquals((40 until 48).map { "0:$it" }, output.queued)
+    }
+
+    @Test
+    fun theChapterOnlyEndsAfterItsLastSentenceHasBeenSpoken() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf((1..20).map { "Sentence $it." }, listOf("Next chapter.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onDone("0:7")
+        assertEquals((0 until 8).map { "0:$it" }, output.queued)
+
+        (0..19).forEach { output.listener!!.onStart("0:$it") }
+        output.listener!!.onDone("0:19")
+
+        assertEquals(listOf("1:0"), output.queued)
+    }
+
     private class FakeFocus(private val granted: Boolean = true) : PlaybackFocus {
         private var onEvent: ((PlaybackFocusEvent) -> Unit)? = null
         var abandoned = 0

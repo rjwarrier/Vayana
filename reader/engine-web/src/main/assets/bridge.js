@@ -721,7 +721,8 @@ function selectWordAt(doc, x, y) {
 }
 
 const SpeechHighlightColor = '#5B8DEF'
-const speech = { index: -1, sentences: new Map(), marked: null, turning: false }
+const SpeechMarkKey = 'vayana-speech'
+const speech = { index: -1, sentences: new Map(), markedOverlayer: null, turning: false }
 
 // Android TTS reports UTF-16 offsets into the whitespace-normalized text it receives. Keep a boundary map back to
 // the EPUB's original text so every timed range can become an exact DOM Range even across collapsed whitespace.
@@ -863,9 +864,17 @@ async function markSpeech(id, start, end) {
     const sentence = speech.sentences.get(id)
     const range = sentence?.rangeForOffsets(start, end) ?? sentence?.range
     if (!range || !view) return
+    // Drawn straight onto the section's overlay from the Range already in hand. Going through view.addAnnotation would
+    // build a CFI for it and resolve that back to a Range, twice per word (again to remove it).
+    const overlayer = view.renderer.getContents().find(c => c.index === speech.index)?.overlayer
+    if (!overlayer) return
     clearSpeechMark()
-    speech.marked = { value: view.getCFI(speech.index, range), color: SpeechHighlightColor }
-    view.addAnnotation(speech.marked)
+    overlayer.add(SpeechMarkKey, range, rects => {
+        const g = Overlayer.highlight(rects)
+        g.style.fill = SpeechHighlightColor
+        return g
+    })
+    speech.markedOverlayer = overlayer
     // Turn the page once speech reaches text past the end of the page on screen.
     // Words arrive every few hundred ms, and the paginator queues a page turn requested mid-turn (skipping a page),
     // so only one turn is in flight at a time; the next word re-checks against the new page.
@@ -883,8 +892,8 @@ async function markSpeech(id, start, end) {
 }
 
 function clearSpeechMark() {
-    if (speech.marked) view?.addAnnotation(speech.marked, true)
-    speech.marked = null
+    speech.markedOverlayer?.remove(SpeechMarkKey)
+    speech.markedOverlayer = null
 }
 
 function stopSpeech() {

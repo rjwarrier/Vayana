@@ -42,9 +42,9 @@ class HighlightReviewRepositoryTest {
     fun gradingBuildsTheScheduleUpReviewByReview() = runBlocking {
         val day = 24L * 60 * 60 * 1000
 
-        val first = repository.grade(annotationId = 7, grade = ReviewGrade.GOOD, now = 0)
-        val second = repository.grade(annotationId = 7, grade = ReviewGrade.GOOD, now = first.dueAt)
-        val lapsed = repository.grade(annotationId = 7, grade = ReviewGrade.AGAIN, now = second.dueAt)
+        val first = repository.grade(annotationSyncId = "annotation-7", grade = ReviewGrade.GOOD, now = 0)
+        val second = repository.grade(annotationSyncId = "annotation-7", grade = ReviewGrade.GOOD, now = first.dueAt)
+        val lapsed = repository.grade(annotationSyncId = "annotation-7", grade = ReviewGrade.AGAIN, now = second.dueAt)
 
         assertEquals(1 * day, first.dueAt)
         assertEquals(1, first.repetitions)
@@ -52,19 +52,20 @@ class HighlightReviewRepositoryTest {
         assertEquals(first.dueAt + 3 * day, second.dueAt)
         assertEquals(0, lapsed.repetitions)
         assertTrue(lapsed.dueAt - second.dueAt < day)
-        assertEquals(lapsed, repository.observeAll().first().getValue(7))
+        assertEquals(lapsed, repository.observeAll().first().getValue("annotation-7"))
     }
 
     @Test
     fun deleteOrphansKeepsOnlySchedulesOfExistingAnnotations() = runBlocking {
         val bookId = database.bookDao().insert(book())
         val keptId = database.annotationDao().insert(annotation(bookId))
-        repository.grade(keptId, ReviewGrade.GOOD, now = 0)
-        repository.grade(annotationId = 9_999, grade = ReviewGrade.GOOD, now = 0)
+        val keptSyncId = database.annotationDao().getById(keptId)!!.syncId
+        repository.grade(keptSyncId, ReviewGrade.GOOD, now = 0)
+        repository.grade(annotationSyncId = "annotation-gone", grade = ReviewGrade.GOOD, now = 0)
 
         repository.deleteOrphans()
 
-        assertEquals(setOf(keptId), repository.observeAll().first().keys)
+        assertEquals(setOf(keptSyncId), repository.observeAll().first().keys)
     }
 
     private fun annotation(bookId: Long) = AnnotationEntity(

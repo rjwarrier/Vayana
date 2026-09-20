@@ -20,6 +20,7 @@ class HighlightReviewTest {
         readerNote = null,
         createdAt = id,
         updatedAt = id,
+        syncId = "sync-$id",
     )
 
     @Test
@@ -48,12 +49,12 @@ class HighlightReviewTest {
     }
 
     private fun review(id: Long, dueAt: Long) =
-        HighlightReview(annotationId = id, dueAt = dueAt, intervalDays = 1, easeFactor = 2.5f, repetitions = 1, lastReviewedAt = 0)
+        HighlightReview(annotationSyncId = "sync-$id", dueAt = dueAt, intervalDays = 1, easeFactor = 2.5f, repetitions = 1, lastReviewedAt = 0)
 
     @Test
     fun dueHighlightsListOverdueFirstThenNeverReviewed() {
         val all = listOf(highlight(1), highlight(2), highlight(3), highlight(4))
-        val reviews = mapOf(2L to review(2, dueAt = 900), 3L to review(3, dueAt = 500), 4L to review(4, dueAt = 2_000))
+        val reviews = listOf(review(2, dueAt = 900), review(3, dueAt = 500), review(4, dueAt = 2_000)).associateBy { it.annotationSyncId }
 
         val picks = dueHighlights(all, reviews, now = 1_000)
 
@@ -73,7 +74,7 @@ class HighlightReviewTest {
     @Test
     fun nothingIsDueWhenEveryReviewIsScheduledLater() {
         val all = listOf(highlight(1), highlight(2))
-        val reviews = mapOf(1L to review(1, dueAt = 5_000), 2L to review(2, dueAt = 6_000))
+        val reviews = listOf(review(1, dueAt = 5_000), review(2, dueAt = 6_000)).associateBy { it.annotationSyncId }
 
         assertEquals(emptyList(), dueHighlights(all, reviews, now = 1_000))
     }
