@@ -13,6 +13,9 @@ import com.vayana.core.database.repository.ReviewGrade
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -55,17 +58,23 @@ class HighlightReviewViewModel @Inject constructor(
     private var annotations: List<Annotation> = emptyList()
 
     init {
-        viewModelScope.launch {
-            runCatchingCancellable { highlightReviewRepository.deleteOrphans() }
-            books = bookRepository.observeAll().first().associateBy { it.id }
-            annotations = annotationRepository.observeAll().first().filter { it.bookId in books }
-            val reviews = highlightReviewRepository.observeAll().first()
+        // Mapping every book and annotation is real work; keep it off the main thread and run the reads together.
+        viewModelScope.launch(Dispatchers.Default) {
+            val (allBooks, allAnnotations, reviews) = coroutineScope {
+                val loadedBooks = async { bookRepository.observeAll().first() }
+                val loadedAnnotations = async { annotationRepository.observeAll().first() }
+                val loadedReviews = async { highlightReviewRepository.observeAll().first() }
+                Triple(loadedBooks.await(), loadedAnnotations.await(), loadedReviews.await())
+            }
+            books = allBooks.associateBy { it.id }
+            annotations = allAnnotations.filter { it.bookId in books }
             val due = dueHighlights(annotations, reviews, System.currentTimeMillis())
             _session.value = HighlightReviewSession(
                 items = due.toItems(),
                 scheduled = true,
                 reviewableCount = reviewableHighlights(annotations).size,
             )
+            runCatchingCancellable { highlightReviewRepository.deleteOrphans() }
         }
     }
 

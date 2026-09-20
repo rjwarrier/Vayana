@@ -19,8 +19,10 @@ data class Annotation(
     val isDeleted: Boolean = false,
 )
 
+/** Locators of imported Goodreads quotes: `quote:` is the older form, `goodreads-quote:` the current one. */
+fun isCommunityQuoteLocator(locator: String): Boolean =
+    locator.startsWith("quote:") || locator.startsWith("goodreads-quote:")
+
 /** A popular quote imported from Goodreads (including entries created before source-specific locators). */
 fun Annotation.isCommunityQuote(): Boolean =
-    type == AnnotationType.UNDERLINE &&
-        colorKey == "popular" &&
-        (locator.startsWith("quote:") || locator.startsWith("goodreads-quote:"))
+    type == AnnotationType.UNDERLINE && colorKey == "popular" && isCommunityQuoteLocator(locator)

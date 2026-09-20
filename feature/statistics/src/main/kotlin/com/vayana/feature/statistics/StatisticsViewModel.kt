@@ -127,9 +127,13 @@ class StatisticsViewModel @Inject constructor(
     vocabularyCardRepository: VocabularyCardRepository,
     highlightReviewRepository: HighlightReviewRepository,
 ) : ViewModel() {
+    /** One live query shared by the summary and the due-highlights list, instead of two. */
+    private val annotations = annotationRepository.observeAll()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
     private val coreInputs = combine(
         bookRepository.observeAll(),
-        annotationRepository.observeAll(),
+        annotations,
         wordLookupStatRepository.observeTop(TopLookedUpWordsLimit),
         readingSessionRepository.observeAll(),
         settingsRepository.snapshot,
@@ -161,7 +165,7 @@ class StatisticsViewModel @Inject constructor(
 
     /** Highlights whose review has come round, or that were never reviewed, ready for the review screen. */
     val highlightsDue: StateFlow<List<Annotation>> = combine(
-        annotationRepository.observeAll(),
+        annotations,
         highlightReviewRepository.observeAll(),
     ) { annotations, reviews -> dueHighlights(annotations, reviews, System.currentTimeMillis()) }
         .flowOn(Dispatchers.Default)

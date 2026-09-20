@@ -3,7 +3,6 @@ package com.vayana.feature.library
 import android.graphics.BitmapFactory
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.runCatchingCancellable
-import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.Inet6Address
@@ -60,22 +59,7 @@ class CoverImageFetcher @Inject constructor(
                         val declaredExtension = SupportedImageMimeTypes[mime] ?: return null
                         val declaredLength = connection.contentLengthLong
                         if (declaredLength > MaxCoverBytes) return null
-                        val bytes = connection.inputStream.use { input ->
-                            val initialCapacity = declaredLength
-                                .takeIf { it > 0L }
-                                ?.coerceAtMost(MaxInitialBufferBytes.toLong())
-                                ?.toInt()
-                                ?: BufferBytes
-                            val output = ByteArrayOutputStream(initialCapacity)
-                            val buffer = ByteArray(BufferBytes)
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                output.write(buffer, 0, read)
-                                if (output.size() > MaxCoverBytes) return null
-                            }
-                            output.toByteArray()
-                        }
+                        val bytes = connection.inputStream.use { it.readAtMost(MaxCoverBytes, declaredLength) } ?: return null
                         return DownloadedCoverImage(bytes, declaredExtension)
                     }
                     in 300..399 -> {
@@ -167,8 +151,6 @@ private const val MaxDataImageMetadataChars = 128
 private const val MaxCoverPixels = 80_000_000L
 private const val MaxRedirects = 3
 private const val TimeoutMillis = 15_000
-private const val BufferBytes = 16 * 1024
-private const val MaxInitialBufferBytes = 256 * 1024
 private const val MaxHostChars = 253
 private const val MaxUserAgentChars = 512
 private const val MaxCookieChars = 8 * 1024

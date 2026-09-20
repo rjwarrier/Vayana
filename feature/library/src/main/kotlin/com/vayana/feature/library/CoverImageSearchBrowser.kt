@@ -6,7 +6,6 @@ import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -199,9 +198,7 @@ private fun WebView.configureCoverSearchBrowser(
     settings.domStorageEnabled = true
     settings.allowFileAccess = false
     settings.allowContentAccess = false
-    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-    settings.safeBrowsingEnabled = true
-    CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
+    hardenForBrowsing()
     webChromeClient = object : WebChromeClient() {
         override fun onProgressChanged(view: WebView?, newProgress: Int) = onProgress(newProgress)
     }

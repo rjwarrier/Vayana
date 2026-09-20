@@ -2400,11 +2400,7 @@ class LibraryViewModel @Inject constructor(
             texts = communityQuotes.map(Annotation::selectedText),
             acceptsQuote = ::isEligibleGoodreadsQuote,
         )
-        val removedIds = buildSet {
-            communityQuotes.forEachIndexed { index, annotation ->
-                if (!eligible[index]) add(annotation.id)
-            }
-        }
+        val removedIds = communityQuotes.zip(eligible).filterNot { (_, keep) -> keep }.mapTo(HashSet()) { (annotation, _) -> annotation.id }
         annotationRepository.softDeleteAll(removedIds)
 
         val known = annotations.asSequence()

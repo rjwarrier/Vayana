@@ -1,12 +1,13 @@
 package com.vayana.feature.statistics
 
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.isCommunityQuoteLocator
 import com.vayana.core.database.repository.HighlightReview
 import java.time.LocalDate
 
 /** The reader's own highlights and notes with text: not bookmarks, and not popular quotes imported from Goodreads. */
 internal fun reviewableHighlights(annotations: List<Annotation>): List<Annotation> = annotations.filter { annotation ->
-    annotation.selectedText.isNotBlank() && CommunityQuotePrefixes.none(annotation.locator::startsWith)
+    annotation.selectedText.isNotBlank() && !isCommunityQuoteLocator(annotation.locator)
 }
 
 /**
@@ -44,6 +45,3 @@ internal fun dailyHighlights(annotations: List<Annotation>, today: LocalDate, co
 
 internal const val DailyHighlightCount = 5
 internal const val ReviewSessionSize = 10
-
-/** Locator prefixes of imported Goodreads quotes; `quote:` is the older form, `goodreads-quote:` the current one. */
-private val CommunityQuotePrefixes = listOf("quote:", "goodreads-quote:")

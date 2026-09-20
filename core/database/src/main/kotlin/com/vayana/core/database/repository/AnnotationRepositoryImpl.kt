@@ -87,15 +87,7 @@ class AnnotationRepositoryImpl @Inject constructor(
         annotationDao.update(annotation.toEntity(updatedAt = System.currentTimeMillis()))
     }
 
-    override suspend fun softDelete(id: Long) {
-        val now = System.currentTimeMillis()
-        database.withTransaction {
-            annotationDao.getById(id)?.let { annotation ->
-                tombstoneDao.upsert(TombstoneEntity(syncId = annotation.syncId, entityType = TombstoneEntityType.ANNOTATION.value, deletedAt = now))
-            }
-            annotationDao.softDelete(id, now)
-        }
-    }
+    override suspend fun softDelete(id: Long) = softDeleteAll(listOf(id))
 
     override suspend fun softDeleteAll(ids: Collection<Long>) {
         if (ids.isEmpty()) return

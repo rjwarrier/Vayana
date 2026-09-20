@@ -12,6 +12,7 @@ import com.vayana.core.backup.portableSnapshotSliceDataEquals
 import com.vayana.core.backup.portableSnapshotSlicePaths
 import com.vayana.core.backup.repointPortableSnapshotSlices
 import com.vayana.core.backup.toSlicedJsonDocuments
+import com.vayana.core.database.model.isCommunityQuoteLocator
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.GitHubAssetStoreException
@@ -453,10 +454,7 @@ private data class SnapshotSliceUpload(
 internal fun PortableSnapshot.hasLargeGoodreadsQuoteSet(): Boolean {
     val countsByBook = HashMap<String, Int>()
     annotations.forEach { annotation ->
-        if (
-            !annotation.isDeleted &&
-            (annotation.locator.startsWith("goodreads-quote:") || annotation.locator.startsWith("quote:"))
-        ) {
+        if (!annotation.isDeleted && isCommunityQuoteLocator(annotation.locator)) {
             val count = (countsByBook[annotation.bookSyncId] ?: 0) + 1
             if (count > CompressedAnnotationsQuoteThreshold) return true
             countsByBook[annotation.bookSyncId] = count

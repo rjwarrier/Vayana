@@ -867,11 +867,9 @@
     <string name="reader_footer_time_left_book">%1$s left in book</string>
     <string name="reader_duration_hours_minutes">%1$dh %2$dm</string>
     <string name="reader_duration_minutes">%1$dm</string>
-    <string name="reader_read_aloud_content_description">Read aloud</string>
     <string name="reader_read_aloud_play">Play</string>
     <string name="reader_read_aloud_pause">Pause</string>
     <string name="reader_read_aloud_stop">Stop reading aloud</string>
-    <string name="reader_read_aloud_rate">%1$s×</string>
     <string name="reader_read_aloud_speed_control">Speed</string>
     <string name="reader_read_aloud_pitch_control">Pitch</string>
     <string name="reader_read_aloud_sleep_off">Sleep</string>
@@ -902,7 +900,6 @@
     <string name="settings_read_aloud_rate_title">Read aloud speed</string>
     <string name="settings_read_aloud_rate_subtitle">How fast the reader reads aloud. Uses the phone\'s text-to-speech voice.</string>
     <string name="settings_read_aloud_section_title">Read aloud</string>
-    <string name="settings_read_aloud_section_subtitle">Voice speed and pitch</string>
     <string name="settings_read_aloud_start">Start Reading</string>
     <string name="settings_read_aloud_pitch_title">Voice pitch</string>
     <string name="settings_read_aloud_pitch_subtitle">Lower values sound deeper; higher values sound brighter. The available voice still depends on your phone.</string>

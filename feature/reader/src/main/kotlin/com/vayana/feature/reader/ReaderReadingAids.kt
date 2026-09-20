@@ -73,6 +73,10 @@ internal fun ReadAloudBar(
     modifier: Modifier = Modifier,
 ) {
     val adjustment = remember { mutableStateOf<ReadAloudAdjustment?>(null) }
+    val toggleAdjustment = { target: ReadAloudAdjustment ->
+        adjustment.value = if (adjustment.value == target) null else target
+    }
+    val sliderModifier = Modifier.padding(horizontal = Paddings.screenHorizontal).padding(top = Spacing.sm)
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
@@ -87,12 +91,14 @@ internal fun ReadAloudBar(
                     value = state.rate,
                     setting = SettingsRegistry.ReadAloudRate,
                     onValueChangeFinished = onRateChange,
+                    modifier = sliderModifier,
                 )
                 ReadAloudAdjustment.PITCH -> ReadAloudAdjustmentSlider(
                     label = stringResource(R.string.reader_read_aloud_pitch_control),
                     value = state.pitch,
                     setting = SettingsRegistry.ReadAloudPitch,
                     onValueChangeFinished = onPitchChange,
+                    modifier = sliderModifier,
                 )
                 null -> Unit
             }
@@ -115,19 +121,15 @@ internal fun ReadAloudBar(
                 }
                 ReadAloudSettingButton(
                     label = stringResource(R.string.reader_read_aloud_speed_control),
-                    value = "${RateFormat.format(state.rate)}×",
+                    value = state.rate.asMultiplier(),
                     selected = adjustment.value == ReadAloudAdjustment.SPEED,
-                    onClick = {
-                        adjustment.value = if (adjustment.value == ReadAloudAdjustment.SPEED) null else ReadAloudAdjustment.SPEED
-                    },
+                    onClick = { toggleAdjustment(ReadAloudAdjustment.SPEED) },
                 )
                 ReadAloudSettingButton(
                     label = stringResource(R.string.reader_read_aloud_pitch_control),
-                    value = "${RateFormat.format(state.pitch)}×",
+                    value = state.pitch.asMultiplier(),
                     selected = adjustment.value == ReadAloudAdjustment.PITCH,
-                    onClick = {
-                        adjustment.value = if (adjustment.value == ReadAloudAdjustment.PITCH) null else ReadAloudAdjustment.PITCH
-                    },
+                    onClick = { toggleAdjustment(ReadAloudAdjustment.PITCH) },
                 )
                 TextButton(onClick = onCycleSleepTimer) {
                     Icon(imageVector = Icons.Outlined.Bedtime, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
@@ -148,37 +150,32 @@ internal fun ReadAloudBar(
     }
 }
 
+/** A labelled slider that snaps to [setting]'s step while dragging and reports the value once, when released. */
 @Composable
-private fun ReadAloudAdjustmentSlider(
+internal fun ReadAloudAdjustmentSlider(
     label: String,
     value: Float,
     setting: FloatSetting,
     onValueChangeFinished: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
 ) {
     val pendingValue = remember(value, setting) { mutableFloatStateOf(value) }
-    val steps = remember(setting) {
-        (((setting.range.endInclusive - setting.range.start) / setting.step).roundToInt() - 1).coerceAtLeast(0)
-    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Paddings.screenHorizontal)
-            .padding(top = Spacing.sm),
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = label, style = MaterialTheme.typography.labelLarge)
-            Text(text = "${RateFormat.format(pendingValue.floatValue)}×", style = MaterialTheme.typography.labelLarge)
+            Text(text = pendingValue.floatValue.asMultiplier(), style = MaterialTheme.typography.labelLarge)
+        }
+        subtitle?.let {
+            Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Slider(
             value = pendingValue.floatValue,
-            onValueChange = { raw ->
-                pendingValue.floatValue = ((raw / setting.step).roundToInt() * setting.step)
-                    .coerceIn(setting.range.start, setting.range.endInclusive)
-            },
+            onValueChange = { raw -> pendingValue.floatValue = raw.roundToStep(setting) },
             onValueChangeFinished = { onValueChangeFinished(pendingValue.floatValue) },
             valueRange = setting.range,
-            steps = steps,
+            steps = setting.sliderSteps(),
         )
     }
 }
@@ -390,3 +387,6 @@ internal fun LightLevelIndicator(text: String, modifier: Modifier = Modifier) {
 }
 
 private val RateFormat = DecimalFormat("0.##")
+
+/** "1×", "1.5×": how a speed or pitch multiplier reads. */
+internal fun Float.asMultiplier(): String = "${RateFormat.format(this)}×"

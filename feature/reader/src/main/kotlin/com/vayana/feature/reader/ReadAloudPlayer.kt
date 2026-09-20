@@ -30,7 +30,7 @@ internal class ReadAloudPlayer(
     private val scope: CoroutineScope,
     private val engine: () -> BookEngine?,
     private val onSpeaking: () -> Unit,
-    private val focus: PlaybackFocus = PlaybackFocus.Unmanaged,
+    private val focus: PlaybackFocus,
 ) : SpeechOutput.Listener {
     private val _state = MutableStateFlow(ReadAloudState())
     val state: StateFlow<ReadAloudState> = _state
@@ -147,6 +147,8 @@ internal class ReadAloudPlayer(
 
     fun setVoice(name: String) {
         output.setVoice(name)
+        // A different voice may come from an engine that does (or does not) report word ranges; learn it again.
+        reportsWordRanges = false
         if (_state.value.playing) speakFromPosition()
     }
 

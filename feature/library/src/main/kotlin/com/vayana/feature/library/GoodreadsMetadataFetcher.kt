@@ -5,7 +5,6 @@ import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.common.quoteMatchKey
 import com.vayana.core.common.runCatchingCancellable
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -197,7 +196,8 @@ class GoodreadsMetadataFetcher @Inject constructor(
                 }
                 val declaredLength = connection.contentLengthLong
                 if (declaredLength > maxBytes) throw GoodreadsHttpException(PolicyViolation)
-                val bytes = connection.inputStream.use { it.readCapped(maxBytes, declaredLength) }
+                val bytes = connection.inputStream.use { it.readAtMost(maxBytes, declaredLength) }
+                    ?: throw GoodreadsHttpException(PolicyViolation)
                 // The same challenge can also arrive as a 200; it's tiny and carries the WAF's own markers.
                 if (!expectImage && bytes.size < ChallengePageMaxBytes && bytes.decodeToString().looksLikeGoodreadsChallenge()) {
                     throw GoodreadsHttpException(BotChallenge)
@@ -436,23 +436,6 @@ private fun String.isHostOrSubdomainOf(domain: String): Boolean {
     return host == domain || host.endsWith(".$domain")
 }
 
-private fun InputStream.readCapped(maxBytes: Int, declaredLength: Long): ByteArray {
-    val initialCapacity = declaredLength
-        .takeIf { it > 0L }
-        ?.coerceAtMost(MaxInitialBufferBytes.toLong())
-        ?.toInt()
-        ?: BufferBytes
-    val out = ByteArrayOutputStream(initialCapacity)
-    val buffer = ByteArray(BufferBytes)
-    while (true) {
-        val read = read(buffer)
-        if (read < 0) break
-        out.write(buffer, 0, read)
-        if (out.size() > maxBytes) throw GoodreadsHttpException(PolicyViolation)
-    }
-    return out.toByteArray()
-}
-
 private fun JSONObject.optStringOrNull(name: String): String? =
     if (has(name) && !isNull(name)) optString(name).trim().takeIf { it.isNotEmpty() } else null
 
@@ -517,7 +500,5 @@ private const val ChallengePageMaxBytes = 16 * 1024
 private const val TimeoutMillis = 15_000
 private const val MaxPageBytes = 8 * 1024 * 1024
 private const val MaxCoverBytes = 10 * 1024 * 1024
-private const val BufferBytes = 16 * 1024
-private const val MaxInitialBufferBytes = 256 * 1024
 private const val UserAgent =
     "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"

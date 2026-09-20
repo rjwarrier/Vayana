@@ -933,12 +933,17 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             combine(readAloud, uiState) { playback, readerState ->
                 val loaded = readerState as? ReaderUiState.Loaded
-                ReadAloudNotificationSnapshot(
-                    active = playback.active,
-                    playing = playback.playing,
-                    bookTitle = loaded?.bookTitle,
-                    progressPercent = readAloudProgressPercent(loaded?.currentLocator?.progression),
-                )
+                // Progress only matters while reading aloud; when idle the snapshot must not change with every page.
+                if (!playback.active) {
+                    ReadAloudNotificationSnapshot.Inactive
+                } else {
+                    ReadAloudNotificationSnapshot(
+                        active = true,
+                        playing = playback.playing,
+                        bookTitle = loaded?.bookTitle,
+                        progressPercent = readAloudProgressPercent(loaded?.currentLocator?.progression),
+                    )
+                }
             }
                 .distinctUntilChanged()
                 .collectLatest { notification ->
@@ -1199,7 +1204,7 @@ class ReaderViewModel @Inject constructor(
                         readerNote = notes.joinToString("\n\n").ifEmpty { null },
                     ),
                 )
-                swallowed.filter { it.id != kept.id }.forEach { annotationRepository.softDelete(it.id) }
+                annotationRepository.softDeleteAll(swallowed.map { it.id } - kept.id)
             } else {
                 annotationRepository.create(
                     bookId = bookId,
@@ -1374,7 +1379,11 @@ private data class ReadAloudNotificationSnapshot(
     val playing: Boolean,
     val bookTitle: String?,
     val progressPercent: Int?,
-)
+) {
+    companion object {
+        val Inactive = ReadAloudNotificationSnapshot(active = false, playing = false, bookTitle = null, progressPercent = null)
+    }
+}
 
 internal fun readAloudProgressPercent(progression: Float?): Int? =
     progression?.times(100)?.roundToInt()?.coerceIn(0, 100)

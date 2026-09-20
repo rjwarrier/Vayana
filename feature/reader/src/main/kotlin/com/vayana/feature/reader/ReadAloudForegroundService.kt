@@ -84,9 +84,12 @@ class ReadAloudForegroundService : Service() {
         super.onDestroy()
     }
 
+    private fun displayTitle(): String =
+        bookTitle?.takeIf(String::isNotBlank) ?: getString(R.string.read_aloud_notification_title)
+
     private fun publishSessionState() {
         val session = mediaSession ?: return
-        val title = bookTitle?.takeIf(String::isNotBlank) ?: getString(R.string.read_aloud_notification_title)
+        val title = displayTitle()
         session.setMetadata(
             MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title)
@@ -116,7 +119,7 @@ class ReadAloudForegroundService : Service() {
         mediaSession?.let { style.setMediaSession(it.sessionToken) }
         val builder = Notification.Builder(this, NotificationChannelId)
             .setSmallIcon(R.drawable.ic_notification_read_aloud)
-            .setContentTitle(bookTitle?.takeIf(String::isNotBlank) ?: getString(R.string.read_aloud_notification_title))
+            .setContentTitle(displayTitle())
             .setContentText(
                 progressPercent?.let { getString(R.string.read_aloud_notification_progress, it) }
                     ?: getString(R.string.read_aloud_notification_text),

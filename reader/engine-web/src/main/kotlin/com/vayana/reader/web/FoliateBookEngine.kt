@@ -597,7 +597,8 @@ private fun JSONObject.toSelectionOrNull(): ReaderSelection? {
         cfi = cfi,
         selectedText = selectedText,
         chapterTitle = optStringOrNull("tocLabel"),
-        verticalPosition = optDoubleOrNull("verticalPosition")?.toFloat()?.coerceIn(0f, 1f),
+        top = optDoubleOrNull("top")?.toFloat()?.coerceIn(0f, 1f),
+        bottom = optDoubleOrNull("bottom")?.toFloat()?.coerceIn(0f, 1f),
         isWordLookup = optBoolean("wordLookup"),
     )
 }

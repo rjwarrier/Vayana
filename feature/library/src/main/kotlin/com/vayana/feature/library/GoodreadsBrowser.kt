@@ -2,10 +2,8 @@ package com.vayana.feature.library
 
 import android.annotation.SuppressLint
 import android.net.Uri
-import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -283,10 +281,8 @@ private fun WebView.configureForGoodreads(
     settings.domStorageEnabled = true
     settings.allowFileAccess = false
     settings.allowContentAccess = false
-    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
     settings.setSupportMultipleWindows(false)
-    settings.safeBrowsingEnabled = true
-    CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
+    hardenForBrowsing()
     webViewClient = object : WebViewClient() {
         // Only the top-level page is kept on goodreads.com; its own images and scripts load from wherever they like.
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =

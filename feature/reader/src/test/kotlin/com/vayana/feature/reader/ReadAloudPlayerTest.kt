@@ -30,7 +30,7 @@ class ReadAloudPlayerTest {
     fun readsChapterThenMovesToTheNextAndStopsAtTheEnd() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two."), listOf("Three.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         assertEquals(listOf("0:0", "0:1"), output.queued)
@@ -51,7 +51,7 @@ class ReadAloudPlayerTest {
     fun resumesFromTheSentenceThatWasBeingSpoken() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.", "Three.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:1")
@@ -67,7 +67,7 @@ class ReadAloudPlayerTest {
     fun missingVoiceAsksForOneInsteadOfReading() {
         val output = FakeOutput(available = false)
         val engine = FakeEngine(listOf(listOf("One.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
 
@@ -81,7 +81,7 @@ class ReadAloudPlayerTest {
         val output = FakeOutput()
         // One engine for the whole test, as in the reader: the player asks it for each next chapter in turn.
         val engine = FakeEngine(listOf(listOf("A."), emptyList(), listOf("B.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onDone("0:0")
@@ -93,7 +93,7 @@ class ReadAloudPlayerTest {
     fun highlightsTheTimedWordRangeReportedByTts() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("Hello world.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onRangeStart("0:0", 6, 11)
@@ -105,7 +105,7 @@ class ReadAloudPlayerTest {
     fun highlightsTheWholeSentenceWhileTheEngineSendsNoWordRanges() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("Hello world.", "Second one.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:0")
@@ -118,7 +118,7 @@ class ReadAloudPlayerTest {
     fun narrowsToTheFirstWordOnceTheEngineHasSentWordRanges() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("Hello world.", "Second one.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:0")
@@ -135,7 +135,7 @@ class ReadAloudPlayerTest {
     fun timedRangeInSplitUtteranceMapsBackToTheSentence() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("a".repeat(3_001))))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onRangeStart("0:0#1", 0, 1)
@@ -147,7 +147,7 @@ class ReadAloudPlayerTest {
     fun appliesPitchAndRestartsTheCurrentSentenceWhenItChanges() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 0.8f, voiceName = "")
         output.listener!!.onStart("0:1")
@@ -162,7 +162,7 @@ class ReadAloudPlayerTest {
     fun appliesRateAndRestartsTheCurrentSentenceWhenItChanges() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:1")
@@ -177,7 +177,7 @@ class ReadAloudPlayerTest {
     fun appliesSelectedVoiceAndRestartsTheCurrentSentenceWhenItChanges() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "voice-a")
         output.listener!!.onStart("0:1")
@@ -191,7 +191,7 @@ class ReadAloudPlayerTest {
     fun startsAtTheGivenPositionWhenReadingFromASelection() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "", fromCfi = "epubcfi(/6/4!/4/2)")
 
@@ -202,7 +202,7 @@ class ReadAloudPlayerTest {
     fun skipsToTheNextAndPreviousSentence() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.", "Three.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:0")
@@ -218,7 +218,7 @@ class ReadAloudPlayerTest {
     fun skippingBackFromTheFirstSentenceRestartsIt() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:0")
@@ -231,7 +231,7 @@ class ReadAloudPlayerTest {
     fun skippingPastTheLastSentenceMovesToTheNextChapter() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two."), listOf("Three.")))
-        val player = ReadAloudPlayer(output, scope, { engine }, {})
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
         output.listener!!.onStart("0:1")

@@ -23,6 +23,7 @@ import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -71,6 +73,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.FormatUnderlined
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -85,6 +88,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -115,6 +119,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
@@ -125,6 +130,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -221,8 +228,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         viewModel.startReadAloud(fromSelection = readAloudFromSelectionPending)
     }
     val startReadAloud = { fromSelection: Boolean ->
-        val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val permissionGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         if (needsNotificationPermission(Build.VERSION.SDK_INT, permissionGranted)) {
             readAloudFromSelectionPending = fromSelection
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -740,6 +746,7 @@ private fun ReaderScreen(
 
     val readAloudPanelVisible = audioFeaturesEnabled && readAloud.active && !chromeVisible
     var readAloudPanelHeightPx by remember { mutableIntStateOf(0) }
+    var webViewBounds by remember { mutableStateOf<Rect?>(null) }
     val readAloudPanelHeight = with(LocalDensity.current) { readAloudPanelHeightPx.toDp() }
     Box(
         modifier = modifier
@@ -799,7 +806,8 @@ private fun ReaderScreen(
                             } else {
                                 WindowInsets.safeDrawing
                             },
-                        ),
+                        )
+                        .onGloballyPositioned { webViewBounds = it.boundsInRoot() },
                 factory = { context ->
                     val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
                     var downX = 0f
@@ -1055,23 +1063,27 @@ private fun ReaderScreen(
         val loadedState = uiState as? ReaderUiState.Loaded
         val selection = loadedState?.selection
         val dictionaryWord = dictionaryLookup.wordOrNull()
-        val placeSelectionCardAtBottom = selection?.verticalPosition?.let { it < 0.5f } == true
+        // The card sits just above the selection (below it when there is no room above); a word looked up from
+        // elsewhere has no selection to sit beside, so it goes at the bottom. It keeps its last spot while fading out.
+        val selectionAnchor = selection?.anchorIn(webViewBounds)
+        val lastSelectionAnchor = remember { mutableStateOf<SelectionAnchor?>(null) }
+        LaunchedEffect(selectionAnchor) { if (selectionAnchor != null) lastSelectionAnchor.value = selectionAnchor }
+        AnchoredToSelection(
+            anchor = when {
+                selection != null -> selectionAnchor
+                dictionaryWord != null -> null
+                else -> lastSelectionAnchor.value
+            },
+            reservedBottomPx = if (readAloudPanelVisible) readAloudPanelHeightPx else 0,
+            modifier = Modifier.fillMaxSize(),
+        ) {
         AnimatedVisibility(
             visible = selection != null || dictionaryWord != null,
-            modifier = Modifier.align(
-                if (placeSelectionCardAtBottom) Alignment.BottomCenter else Alignment.TopCenter,
-            ),
             enter = vayanaScaleIn() + vayanaFadeIn(),
             exit = vayanaScaleOut() + vayanaFadeOut(),
         ) {
             if (selection != null || dictionaryWord != null) {
                 SelectionActions(
-                    modifier = if (placeSelectionCardAtBottom) {
-                        Modifier.navigationBarsPadding()
-                    } else {
-                        Modifier.statusBarsPadding()
-                    },
-                    selectedText = selection?.selectedText ?: dictionaryWord.orEmpty(),
                     selectionActionsEnabled = selection != null,
                     readAloudAvailable = audioFeaturesEnabled,
                     onReadAloud = onReadAloudFromSelection,
@@ -1106,6 +1118,7 @@ private fun ReaderScreen(
                     onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
                 )
             }
+        }
         }
         }
 
@@ -1357,6 +1370,15 @@ private fun readerHudSurfaceColor(): Color =
         MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = ReaderHudStandardAlpha)
     }
 
+/** The selection and dictionary card floats over the text, so unlike the small header chips it must not show it through. */
+@Composable
+private fun readerCardSurfaceColor(): Color =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+
 @Composable
 private fun readerHudElevation() =
     if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs
@@ -1431,7 +1453,6 @@ private fun formatMinutes(totalMinutes: Int): String {
 @Composable
 private fun SelectionActions(
     modifier: Modifier = Modifier,
-    selectedText: String,
     selectionActionsEnabled: Boolean,
     readAloudAvailable: Boolean,
     onReadAloud: () -> Unit,
@@ -1454,7 +1475,7 @@ private fun SelectionActions(
                 .fillMaxWidth()
                 .heightIn(max = maxHeight * DictionaryCardMaximumHeightFraction)
                 .padding(Paddings.screenHorizontal, Spacing.md),
-            color = readerHudSurfaceColor(),
+            color = readerCardSurfaceColor(),
             shape = MaterialTheme.shapes.extraLarge,
             tonalElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm,
             shadowElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs,
@@ -1464,14 +1485,6 @@ private fun SelectionActions(
                     .verticalScroll(rememberScrollState())
                     .padding(Spacing.md),
             ) {
-            if (dictionaryLookup !is DictionaryLookupState.Found) {
-                Text(
-                    text = selectedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
             DictionaryLookupContent(
                 state = dictionaryLookup,
                 recentLookups = recentLookups,
@@ -1482,60 +1495,54 @@ private fun SelectionActions(
                 onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
             )
             if (selectionActionsEnabled) {
+                // Highlight colours as dots and underline as an icon: one line that always fits.
                 Row(
-                    modifier = Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(top = Spacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     HighlightColor.entries.forEach { color ->
-                        FilledTonalButton(onClick = { onHighlight(color.key) }) {
+                        val label = stringResource(color.labelRes)
+                        IconButton(
+                            onClick = { onHighlight(color.key) },
+                            modifier = Modifier.semantics { contentDescription = label },
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(Sizes.swatchSmall)
+                                    .size(Sizes.iconLarge)
                                     .background(color = color.swatch, shape = CircleShape),
                             )
-                            Text(
-                                text = stringResource(color.labelRes),
-                                modifier = Modifier.padding(start = Spacing.xs),
-                            )
                         }
                     }
-                    FilledTonalButton(onClick = onUnderline) {
-                        Text(stringResource(R.string.reader_selection_underline))
-                    }
-                    FilledTonalButton(onClick = onCopy) {
+                    IconButton(onClick = onUnderline) {
                         Icon(
-                            imageVector = Icons.Outlined.ContentCopy,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconSmall),
+                            imageVector = Icons.Outlined.FormatUnderlined,
+                            contentDescription = stringResource(R.string.reader_selection_underline),
                         )
-                        Text(stringResource(R.string.reader_selection_copy))
                     }
-                    FilledTonalButton(onClick = onNote) {
-                        Text(stringResource(R.string.reader_selection_note))
-                    }
-                    FilledTonalButton(onClick = onShare) {
-                        Icon(
-                            imageVector = Icons.Outlined.Share,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconSmall),
-                        )
-                        Text(stringResource(R.string.reader_selection_share))
-                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.xs))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    SelectionActionItem(Icons.Outlined.ContentCopy, R.string.reader_selection_copy, onCopy, Modifier.weight(1f))
+                    SelectionActionItem(Icons.Outlined.EditNote, R.string.reader_selection_note, onNote, Modifier.weight(1f))
+                    SelectionActionItem(Icons.Outlined.Share, R.string.reader_selection_share, onShare, Modifier.weight(1f))
                     if (readAloudAvailable) {
-                        FilledTonalButton(onClick = onReadAloud) {
-                            Icon(
-                                imageVector = Icons.Outlined.Headphones,
-                                contentDescription = null,
-                                modifier = Modifier.size(Sizes.iconSmall),
-                            )
-                            Text(stringResource(R.string.reader_selection_read_aloud))
-                        }
+                        SelectionActionItem(Icons.Outlined.Headphones, R.string.reader_selection_read_aloud, onReadAloud, Modifier.weight(1f))
                     }
                 }
             }
             }
+        }
+    }
+}
+
+/** An icon over a short label, one of the actions on the selection card. */
+@Composable
+private fun SelectionActionItem(icon: ImageVector, @StringRes label: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    TextButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(Spacing.xs)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(Sizes.iconMedium))
+            Text(text = stringResource(label), style = MaterialTheme.typography.labelSmall, maxLines = 1)
         }
     }
 }
@@ -2637,8 +2644,6 @@ private fun ReadAloudSettingsPage(
     }
     val languageOptions = remember(voices) { speechLanguageOptions(voices) }
     val defaultVoice = voices.firstOrNull(SpeechVoiceOption::isSystemDefault)
-    var pendingRate by remember { mutableFloatStateOf(settings.readAloudRate) }
-    var pendingPitch by remember { mutableFloatStateOf(settings.readAloudPitch) }
     var pendingVoiceName by rememberSaveable { mutableStateOf(settings.readAloudVoiceName) }
     var selectedLanguageTag by rememberSaveable { mutableStateOf("") }
     var languageExpanded by remember { mutableStateOf(false) }
@@ -2651,13 +2656,6 @@ private fun ReadAloudSettingsPage(
     }
     LaunchedEffect(settings.readAloudVoiceName) {
         pendingVoiceName = settings.readAloudVoiceName
-    }
-
-    LaunchedEffect(settings.readAloudRate) {
-        pendingRate = settings.readAloudRate
-    }
-    LaunchedEffect(settings.readAloudPitch) {
-        pendingPitch = settings.readAloudPitch
     }
     LaunchedEffect(Unit) {
         onLoadVoices()
@@ -2682,44 +2680,24 @@ private fun ReadAloudSettingsPage(
         }
 
         Text(text = stringResource(R.string.settings_read_aloud_language_title), style = MaterialTheme.typography.labelLarge)
-        Box(modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
-                onClick = { languageExpanded = true },
-                enabled = languageOptions.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = selectedLanguageLabel.ifBlank { defaultVoiceLabel },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.align(Alignment.CenterStart),
-                    )
-                    Icon(
-                        imageVector = Icons.Outlined.ExpandMore,
-                        contentDescription = null,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                    )
-                }
-            }
-            DropdownMenu(
-                expanded = languageExpanded,
-                onDismissRequest = { languageExpanded = false },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                languageOptions.forEach { language ->
-                    DropdownMenuItem(
-                        text = { Text(language.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        onClick = {
-                            selectedLanguageTag = language.tag
-                            languageExpanded = false
-                            voices.firstOrNull { it.localeTag == language.tag }?.let { voice ->
-                                pendingVoiceName = voice.name
-                                onVoiceChange(voice.name)
-                            }
-                        },
-                    )
-                }
+        ReaderSelectField(
+            text = selectedLanguageLabel.ifBlank { defaultVoiceLabel },
+            enabled = languageOptions.isNotEmpty(),
+            expanded = languageExpanded,
+            onExpandedChange = { languageExpanded = it },
+        ) {
+            languageOptions.forEach { language ->
+                DropdownMenuItem(
+                    text = { Text(language.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    onClick = {
+                        selectedLanguageTag = language.tag
+                        languageExpanded = false
+                        voices.firstOrNull { it.localeTag == language.tag }?.let { voice ->
+                            pendingVoiceName = voice.name
+                            onVoiceChange(voice.name)
+                        }
+                    },
+                )
             }
         }
 
@@ -2730,70 +2708,38 @@ private fun ReadAloudSettingsPage(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val visibleVoices = voices.filter { it.localeTag == selectedLanguageTag }
-        Box(modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
-                onClick = { voiceExpanded = true },
-                enabled = languageOptions.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = selectedVoice?.let(voiceLabel) ?: defaultVoiceLabel,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.align(Alignment.CenterStart),
-                    )
-                    Icon(
-                        imageVector = Icons.Outlined.ExpandMore,
-                        contentDescription = null,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                    )
-                }
+        ReaderSelectField(
+            text = selectedVoice?.let(voiceLabel) ?: defaultVoiceLabel,
+            enabled = languageOptions.isNotEmpty(),
+            expanded = voiceExpanded,
+            onExpandedChange = { voiceExpanded = it },
+        ) {
+            if (defaultVoice?.localeTag == selectedLanguageTag) {
+                DropdownMenuItem(
+                    text = { Text(defaultVoiceLabel) },
+                    onClick = {
+                        pendingVoiceName = ""
+                        selectedLanguageTag = defaultVoice.localeTag
+                        onVoiceChange("")
+                        voiceExpanded = false
+                    },
+                )
             }
-            DropdownMenu(
-                expanded = voiceExpanded,
-                onDismissRequest = { voiceExpanded = false },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (defaultVoice?.localeTag == selectedLanguageTag) {
-                    DropdownMenuItem(
-                        text = { Text(defaultVoiceLabel) },
-                        onClick = {
-                            pendingVoiceName = ""
-                            selectedLanguageTag = defaultVoice.localeTag
-                            onVoiceChange("")
-                            voiceExpanded = false
-                        },
-                    )
-                }
-                visibleVoices.forEach { voice ->
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(voiceLabel(voice), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (!voice.installed) {
-                                    Text(
-                                        text = notInstalledVoiceLabel,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                if (voice.requiresNetwork) {
-                                    Text(
-                                        text = networkVoiceLabel,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        },
-                        onClick = {
-                            pendingVoiceName = voice.name
-                            onVoiceChange(voice.name)
-                            voiceExpanded = false
-                        },
-                    )
-                }
+            visibleVoices.forEach { voice ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(voiceLabel(voice), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (!voice.installed) MutedCaption(notInstalledVoiceLabel)
+                            if (voice.requiresNetwork) MutedCaption(networkVoiceLabel)
+                        }
+                    },
+                    onClick = {
+                        pendingVoiceName = voice.name
+                        onVoiceChange(voice.name)
+                        voiceExpanded = false
+                    },
+                )
             }
         }
         if (voices.isEmpty()) {
@@ -2804,40 +2750,64 @@ private fun ReadAloudSettingsPage(
             )
         }
 
-        ReaderStyleLabel(
-            title = stringResource(R.string.settings_read_aloud_rate_title),
-            value = "${pendingRate}x",
+        ReadAloudAdjustmentSlider(
+            label = stringResource(R.string.settings_read_aloud_rate_title),
+            value = settings.readAloudRate,
+            setting = rateSetting,
+            onValueChangeFinished = onRateChange,
+            subtitle = stringResource(R.string.settings_read_aloud_rate_subtitle),
         )
-        Text(
-            text = stringResource(R.string.settings_read_aloud_rate_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Slider(
-            value = pendingRate,
-            onValueChange = { pendingRate = it.roundToStep(rateSetting) },
-            onValueChangeFinished = { onRateChange(pendingRate) },
-            valueRange = rateSetting.range,
-            steps = rateSetting.sliderSteps(),
-        )
-
-        ReaderStyleLabel(
-            title = stringResource(R.string.settings_read_aloud_pitch_title),
-            value = "${pendingPitch.roundToTenth()}x",
-        )
-        Text(
-            text = stringResource(R.string.settings_read_aloud_pitch_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Slider(
-            value = pendingPitch,
-            onValueChange = { pendingPitch = it.roundToStep(pitchSetting) },
-            onValueChangeFinished = { onPitchChange(pendingPitch) },
-            valueRange = pitchSetting.range,
-            steps = pitchSetting.sliderSteps(),
+        ReadAloudAdjustmentSlider(
+            label = stringResource(R.string.settings_read_aloud_pitch_title),
+            value = settings.readAloudPitch,
+            setting = pitchSetting,
+            onValueChangeFinished = onPitchChange,
+            subtitle = stringResource(R.string.settings_read_aloud_pitch_subtitle),
         )
     }
+}
+
+/** An outlined button showing [text] that opens a full-width dropdown holding [content]. */
+@Composable
+private fun ReaderSelectField(
+    text: String,
+    enabled: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { onExpandedChange(true) },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.CenterStart),
+                )
+                Icon(
+                    imageVector = Icons.Outlined.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.fillMaxWidth(),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun MutedCaption(text: String) {
+    Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -3003,11 +2973,11 @@ private fun IntSetting.sliderRange(): ClosedFloatingPointRange<Float> = range.fi
 
 private fun IntSetting.sliderSteps(): Int = ((range.last - range.first) / step - 1).coerceAtLeast(0)
 
-private fun FloatSetting.sliderSteps(): Int = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
+internal fun FloatSetting.sliderSteps(): Int = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
 
 private fun Float.roundToStep(setting: IntSetting): Int = ((this / setting.step).roundToInt() * setting.step).coerceIn(setting.range)
 
-private fun Float.roundToStep(setting: FloatSetting): Float =
+internal fun Float.roundToStep(setting: FloatSetting): Float =
     ((this / setting.step).roundToInt() * setting.step).coerceIn(setting.range.start, setting.range.endInclusive)
 
 private fun Float.roundToTenth(): Float = (this * 10).roundToInt() / 10f

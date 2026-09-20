@@ -4,6 +4,8 @@
 import './foliate/view.js'
 import { Overlayer } from './foliate/overlayer.js'
 
+const DefaultAnnotationColor = '#6366f1'
+
 let view = null
 const renderedAnnotations = new Set()
 const resolvedTextAnnotations = new Map()
@@ -164,7 +166,7 @@ async function open(bookUrl, lastLocatorCfi) {
         pendingTextAnnotations.clear()
         authoritativeSourceForCfi.clear()
         standardAnnotationFingerprints.clear()
-        cfiSectionIndex.clear()
+        resolvedBadgeCfis.clear()
         hasOpened = false
         phase = 'fetching book'
         post('log', { step: 'fetching', bookUrl })
@@ -229,7 +231,7 @@ async function open(bookUrl, lastLocatorCfi) {
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
-            const color = annotation.color ?? '#6366f1'
+            const color = annotation.color ?? DefaultAnnotationColor
             if (annotation.type === 'underline') {
                 draw((rects, options) => {
                     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -325,7 +327,7 @@ function popularBadgePlacement({ rectLeft, rectTop, rectHeight, pageStart, pageS
 const popularBadgeLayer = document.createElement('div')
 Object.assign(popularBadgeLayer.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '20' })
 document.body.append(popularBadgeLayer)
-const cfiSectionIndex = new Map()
+const resolvedBadgeCfis = new Map()
 let badgeLayoutQueued = false
 
 function scheduleBadgeLayout() {
@@ -356,7 +358,7 @@ function layoutPopularBadges() {
         const count = highlightCount(ann.note)
         if (count <= 0) continue
         const best = byCfi.get(cfi)
-        if (!best || count > best.count) byCfi.set(cfi, { count, color: ann.color ?? '#6366f1' })
+        if (!best || count > best.count) byCfi.set(cfi, { count, color: ann.color ?? DefaultAnnotationColor })
     }
     if (!byCfi.size) return
     const contents = renderer.getContents()
@@ -366,23 +368,22 @@ function layoutPopularBadges() {
     const pageStart = Math.max(0, renderer.start - pageSize)
     const badgeHeight = 18
     for (const [cfi, { count, color }] of byCfi) {
-        let index = cfiSectionIndex.get(cfi)
-        let resolved = null
-        if (index === undefined) {
+        let resolved = resolvedBadgeCfis.get(cfi)
+        if (resolved === undefined) {
             try {
                 resolved = view.resolveCFI(cfi)
-                index = resolved.index
             } catch (_) {
-                index = -1
+                resolved = null
             }
-            cfiSectionIndex.set(cfi, index)
+            resolvedBadgeCfis.set(cfi, resolved)
         }
-        const content = contents.find(c => c.index === index)
+        if (!resolved) continue
+        const content = contents.find(c => c.index === resolved.index)
         const frame = content?.doc?.defaultView?.frameElement
         if (!frame) continue
         let range = null
         try {
-            range = (resolved ?? view.resolveCFI(cfi)).anchor(content.doc)
+            range = resolved.anchor(content.doc)
         } catch (_) {}
         const rect = range?.getClientRects?.()[0]
         if (!rect) continue
@@ -609,7 +610,10 @@ function postSelection(doc, index) {
     }
     const range = selection.getRangeAt(0).cloneRange()
     const rect = range.getBoundingClientRect()
-    const viewportHeight = Math.max(doc.documentElement?.clientHeight ?? 0, doc.defaultView?.innerHeight ?? 0)
+    // The section sits in an iframe scrolled inside the reader view; edges are reported against the view (the WebView).
+    const frameTop = doc.defaultView?.frameElement?.getBoundingClientRect().top ?? 0
+    const viewHeight = window.innerHeight
+    const fractionOfView = y => viewHeight > 0 ? Math.max(0, Math.min(1, (frameTop + y) / viewHeight)) : null
     const wordLookup = wordLookupSelection
     wordLookupSelection = false
     post('selection', {
@@ -617,9 +621,8 @@ function postSelection(doc, index) {
         selectedText,
         wordLookup,
         tocLabel: view.getProgressOf(index, range)?.tocItem?.label?.trim?.() ?? null,
-        verticalPosition: viewportHeight > 0
-            ? Math.max(0, Math.min(1, (rect.top + rect.bottom) / 2 / viewportHeight))
-            : null,
+        top: fractionOfView(rect.top),
+        bottom: fractionOfView(rect.bottom),
     })
 }
 
@@ -786,15 +789,14 @@ function speechSentencesFor(doc, index, fromRange) {
     }
     const sentences = []
     for (const { segment, index: segmentStart } of segmenterFor(doc, 'sentence').segment(text)) {
+        if (!/[\p{L}\p{N}]/u.test(segment)) continue
+        // The sentence spans its first to last non-space character. Skip those that end before the page on screen
+        // before doing any per-character work or building a Range for them.
+        const start = segmentStart + segment.length - segment.trimStart().length
+        const endPoint = pointAt(segmentStart + segment.trimEnd().length)
+        if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
         const normalized = normalizeSpeechSegment(segment)
         const sentenceText = normalized.text
-        if (!/[\p{L}\p{N}]/u.test(sentenceText)) continue
-        const sentenceSourceRange = normalized.sourceRange(0, sentenceText.length)
-        if (!sentenceSourceRange) continue
-        const start = segmentStart + sentenceSourceRange[0]
-        const endPoint = pointAt(segmentStart + sentenceSourceRange[1])
-        // Skip sentences that end before the page on screen without building a Range for them.
-        if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
         const range = doc.createRange()
         range.setStart(...pointAt(start))
         range.setEnd(...endPoint)
@@ -1101,7 +1103,7 @@ function matchTextAnnotationsForDoc(doc, index) {
         Promise.resolve(view.addAnnotation({
             value: match.cfi,
             type: match.ann.type || 'underline',
-            color: match.ann.color || '#6366f1',
+            color: match.ann.color || DefaultAnnotationColor,
             note: match.ann.note,
         })).then(() => {
             renderedAnnotations.add(match.cfi)

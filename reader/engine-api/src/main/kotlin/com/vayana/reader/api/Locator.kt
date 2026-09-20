@@ -85,8 +85,10 @@ data class ReaderSelection(
     val cfi: String,
     val selectedText: String,
     val chapterTitle: String?,
-    /** Vertical center of the selection in its rendered page, from 0 (top) to 1 (bottom). */
-    val verticalPosition: Float? = null,
+    /** Top edge of the selection as a fraction of the reader view's height, 0 (top) to 1 (bottom). */
+    val top: Float? = null,
+    /** Bottom edge of the selection, in the same fractions as [top]. */
+    val bottom: Float? = null,
     /** The word was selected by a double tap to look it up, not by the reader marking text. */
     val isWordLookup: Boolean = false,
 )

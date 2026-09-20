@@ -80,6 +80,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
     private var pitch = 1f
     private var selectedVoiceName: String? = null
     private var systemDefaultVoice: Voice? = null
+    private var engineVoices: Set<Voice> = emptySet()
     private var preparing = false
     private val readinessCallbacks = mutableListOf<(Boolean) -> Unit>()
     private val _voices = MutableStateFlow<List<SpeechVoiceOption>>(emptyList())
@@ -129,25 +130,29 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                     created.setPitch(pitch)
                     created.setAudioAttributes(SpeechAudioAttributes)
                     systemDefaultVoice = created.defaultVoice
-                    _voices.value = created.installedVoices()
-                        .sortedWith(
-                            compareBy<Voice> { it.locale.getDisplayName(Locale.getDefault()) }
-                                .thenBy { !it.isInstalled() }
-                                .thenBy { it.isNetworkConnectionRequired }
-                                .thenByDescending { it.quality }
-                                .thenBy { it.name },
-                        )
+                    engineVoices = created.installedVoices()
+                    val defaultVoiceName = systemDefaultVoice?.name
+                    val displayLocale = Locale.getDefault()
+                    _voices.value = engineVoices
                         .map { voice ->
-                            SpeechVoiceOption(
+                            voice to SpeechVoiceOption(
                                 name = voice.name,
                                 localeTag = voice.locale.toLanguageTag(),
-                                localeLabel = voice.locale.getDisplayName(Locale.getDefault()),
+                                localeLabel = voice.locale.getDisplayName(displayLocale),
                                 requiresNetwork = voice.isNetworkConnectionRequired,
-                                isSystemDefault = voice.name == systemDefaultVoice?.name,
+                                isSystemDefault = voice.name == defaultVoiceName,
                                 gender = googleVoiceGender(voice.name),
                                 installed = voice.isInstalled(),
                             )
                         }
+                        .sortedWith(
+                            compareBy<Pair<Voice, SpeechVoiceOption>> { it.second.localeLabel }
+                                .thenBy { !it.second.installed }
+                                .thenBy { it.second.requiresNetwork }
+                                .thenByDescending { it.first.quality }
+                                .thenBy { it.first.name },
+                        )
+                        .map { it.second }
                     applySelectedVoice(created)
                 }
                 preparing = false
@@ -180,7 +185,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
     }
 
     private fun applySelectedVoice(engine: TextToSpeech) {
-        val selected = selectedVoiceName?.let { name -> engine.installedVoices().firstOrNull { it.name == name } }
+        val selected = selectedVoiceName?.let { name -> engineVoices.firstOrNull { it.name == name } }
         (selected ?: systemDefaultVoice)?.let(engine::setVoice)
     }
 
@@ -201,6 +206,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
         preparing = false
         readinessCallbacks.clear()
         systemDefaultVoice = null
+        engineVoices = emptySet()
         _voices.value = emptyList()
     }
 }
