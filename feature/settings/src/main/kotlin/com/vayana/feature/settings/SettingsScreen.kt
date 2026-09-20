@@ -83,6 +83,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.designsystem.theme.PagedLazyColumn
 import com.vayana.core.datastore.settings.ImportedFont
 import com.vayana.core.datastore.settings.Setting
 import com.vayana.core.datastore.settings.SettingsGroup
@@ -575,7 +576,7 @@ private fun SettingsHub(
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
 ) {
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = SettingsPagePadding,
@@ -653,7 +654,7 @@ private fun SettingsGroupDetail(
     val groupSettings = remember(group, settings.displayProfile) {
         SettingsRegistry.all.filter { it.group == group && it.isVisibleFor(settings) }
     }
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = SettingsPagePadding,
@@ -1198,6 +1199,9 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderShowFooter -> readerShowFooter
     SettingsRegistry.ReaderAutoMarkSelection -> readerAutoMarkSelection
     SettingsRegistry.ReaderBionicReading -> readerBionicReading
+    SettingsRegistry.ReaderBolderText -> readerBolderText
+    SettingsRegistry.ReaderTextAlign -> readerTextAlign
+    SettingsRegistry.ReaderHyphenation -> readerHyphenation
     SettingsRegistry.ReaderFullScreen -> readerFullScreen
     SettingsRegistry.ReaderPageTurnAnimation -> readerPageTurnAnimation
     SettingsRegistry.EinkRefreshEveryPages -> einkRefreshEveryPages
@@ -1261,6 +1265,9 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
         SettingsRegistry.ReaderAutoMarkSelection -> "highlight select selection auto mark color"
         SettingsRegistry.ReaderBionicReading -> "bionic bold word lead focus text"
+        SettingsRegistry.ReaderBolderText -> "bolder text bold weight thicker heavier contrast crisp eink e ink thin"
+        SettingsRegistry.ReaderTextAlign -> "text align alignment justify justified left ragged paragraph"
+        SettingsRegistry.ReaderHyphenation -> "hyphenation hyphens break words syllables line end"
         SettingsRegistry.ReaderFullScreen -> "full screen immersive hide navigation bar status bar"
         SettingsRegistry.ReaderPageTurnAnimation -> "page turn animation slide transition swipe"
         SettingsRegistry.EinkRefreshEveryPages -> "eink e ink refresh flash ghosting pages"

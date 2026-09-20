@@ -344,6 +344,8 @@
     <string name="library_recently_deleted_content_description">Recently deleted books</string>
     <string name="library_shelves_content_description">Shelves</string>
     <string name="library_shelves_title">Shelves</string>
+    <string name="eink_page_previous">Previous page</string>
+    <string name="eink_page_next">Next page</string>
     <string name="library_shelves_create">New shelf</string>
     <string name="library_shelves_name_label">Shelf name</string>
     <string name="library_shelves_book_count">%1$d books</string>
@@ -751,6 +753,18 @@
     <string name="settings_reader_auto_mark_selection_subtitle">Selecting text immediately highlights it in your last-used color.</string>
     <string name="settings_reader_bionic_reading_title">Bionic reading</string>
     <string name="settings_reader_bionic_reading_subtitle">Bolds the lead of each word to help guide your eyes.</string>
+    <string name="settings_reader_bolder_text_title">Bolder text</string>
+    <string name="settings_reader_bolder_text_subtitle">Thickens every letter a little. Thin serifs stay crisp on E-Ink and low-contrast screens.</string>
+    <string name="settings_reader_text_align_title">Text alignment</string>
+    <string name="settings_reader_text_align_subtitle">Justified gives straight edges on both sides; left leaves the right edge ragged.</string>
+    <string name="settings_reader_text_align_book">Book\'s own</string>
+    <string name="settings_reader_text_align_justified">Justified</string>
+    <string name="settings_reader_text_align_left">Left</string>
+    <string name="settings_reader_hyphenation_title">Hyphenation</string>
+    <string name="settings_reader_hyphenation_subtitle">Breaks long words at the end of a line. Off keeps every word whole, at the cost of uneven lines.</string>
+    <string name="settings_reader_hyphenation_book">Book\'s own</string>
+    <string name="settings_reader_hyphenation_on">On</string>
+    <string name="settings_reader_hyphenation_off">Off</string>
     <string name="settings_reader_full_screen_title">Full screen</string>
     <string name="settings_reader_full_screen_subtitle">Also hide the navigation bar while reading. Swipe in from the edge to show it.</string>
     <string name="settings_reader_page_turn_animation_title">Slide page turns</string>
@@ -904,6 +918,9 @@
     <string name="settings_read_aloud_pitch_title">Voice pitch</string>
     <string name="settings_read_aloud_pitch_subtitle">Lower values sound deeper; higher values sound brighter. The available voice still depends on your phone.</string>
     <string name="settings_read_aloud_language_title">Language</string>
+    <string name="settings_read_aloud_engine_title">Speech engine</string>
+    <string name="settings_read_aloud_engine_subtitle">Which text-to-speech engine reads to you. Install another one, such as SherpaTTS or HayaiTTS for natural offline voices, then choose it here.</string>
+    <string name="settings_read_aloud_engine_default">System default</string>
     <string name="settings_read_aloud_voice_title">Voice</string>
     <string name="settings_read_aloud_voice_subtitle">Choose an available voice. Male and female labels come from a published list of Google voices; a voice that is not on it has no label.</string>
     <string name="settings_read_aloud_voice_female">Female</string>

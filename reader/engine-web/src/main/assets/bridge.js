@@ -231,7 +231,7 @@ async function open(bookUrl, lastLocatorCfi) {
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
-            const color = annotation.color ?? DefaultAnnotationColor
+            const color = markColor(annotation.color ?? DefaultAnnotationColor)
             if (annotation.type === 'underline') {
                 draw((rects, options) => {
                     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -254,11 +254,16 @@ async function open(bookUrl, lastLocatorCfi) {
                 // The overlay redraws whenever the page is re-paginated; the pills beside it must follow.
                 scheduleBadgeLayout()
             } else {
-                draw((rects, options) => {
-                    const g = Overlayer.highlight(rects, options)
-                    g.style.fill = color
-                    return g
-                })
+                const inkStyle = inkStyleFor(annotation.color ?? DefaultAnnotationColor)
+                if (inkStyle && inkStyle !== 'highlight') {
+                    draw(Overlayer[inkStyle], { color, width: 2.5 })
+                } else {
+                    draw((rects, options) => {
+                        const g = Overlayer.highlight(rects, options)
+                        g.style.fill = color
+                        return g
+                    })
+                }
             }
         })
         // Note references open as a popup instead of jumping away from the page being read.
@@ -418,7 +423,7 @@ function layoutPopularBadges() {
             justifyContent: 'center',
             padding: '0',
             borderRadius: `${badgeHeight / 2}px`,
-            background: color,
+            background: markColor(color),
             color: '#ffffff',
             font: '700 11px/1 sans-serif',
             opacity: '0.95',
@@ -536,11 +541,19 @@ function setPageTurnAnimation(enabled) {
     view?.renderer?.toggleAttribute('animated', Boolean(enabled))
 }
 
+// Documents currently carrying bionic markup. Applied on every page turn, so a document already in the wanted
+// state must be left alone: reverting walks it, and the invalidation below would throw away its text index and
+// its record of quotes known to be absent, which both exist to make page turns cheap.
+const bionicAppliedDocs = new WeakSet()
+
 function applyBionicReadingToDoc(doc) {
     if (!doc || !doc.body) return
+    if (bionicReadingEnabled === bionicAppliedDocs.has(doc)) return
     if (bionicReadingEnabled) {
+        bionicAppliedDocs.add(doc)
         transformBionicWords(doc)
     } else {
+        bionicAppliedDocs.delete(doc)
         revertBionicWords(doc)
     }
     // Restructuring text nodes invalidates any cached (text -> DOM node) mapping for this doc.
@@ -722,6 +735,29 @@ function selectWordAt(doc, x, y) {
 
 const SpeechHighlightColor = '#5B8DEF'
 const SpeechMarkKey = 'vayana-speech'
+
+// A tinted mark on an E-Ink page comes out as a pale grey (yellow all but disappears), so every mark - highlights,
+// underlines, the read-aloud sentence, the community pills - is drawn in black there: dark grey at the overlay's
+// default opacity, still a clear shape on 16 grey levels. The book document's own CSS cannot restyle these, the
+// overlay sits outside its iframe.
+let inkMarks = false
+
+function setInkMarks(enabled) {
+    inkMarks = Boolean(enabled)
+}
+
+function markColor(color) {
+    return inkMarks ? '#000000' : color
+}
+
+// With every mark black the highlight colours can no longer tell themselves apart, so on E-Ink each colour gets its
+// own shape instead: shaded, underlined, wavy, boxed. Anything else (the default colour) is shaded.
+const InkStyleByColor = { '#f6c453': 'highlight', '#7bae7f': 'underline', '#5b8def': 'squiggly', '#d77fa1': 'outline' }
+
+function inkStyleFor(color) {
+    if (!inkMarks) return null
+    return InkStyleByColor[String(color).toLowerCase()] ?? 'highlight'
+}
 const speech = { index: -1, sentences: new Map(), markedOverlayer: null, turning: false }
 
 // Android TTS reports UTF-16 offsets into the whitespace-normalized text it receives. Keep a boundary map back to
@@ -871,7 +907,7 @@ async function markSpeech(id, start, end) {
     clearSpeechMark()
     overlayer.add(SpeechMarkKey, range, rects => {
         const g = Overlayer.highlight(rects)
-        g.style.fill = SpeechHighlightColor
+        g.style.fill = markColor(SpeechHighlightColor)
         return g
     })
     speech.markedOverlayer = overlayer
@@ -1456,6 +1492,6 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
+window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
 addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
 post('ready', {})

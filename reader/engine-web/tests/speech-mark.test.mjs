@@ -83,3 +83,31 @@ test('a sentence of an unloaded section is ignored without touching any overlay'
 
     assert.equal(overlayer.element.querySelectorAll('rect').length, 0)
 })
+
+test('on E-Ink the speech mark is drawn in black, and back in the speech colour otherwise', async () => {
+    const { context, overlayer } = setup()
+    registerSentence(context, rangeAt(10))
+    const fill = () => overlayer.element.querySelector('g').style.fill
+
+    vm.runInContext('setInkMarks(true)', context)
+    await vm.runInContext("markSpeech('3:0', 0, 3)", context)
+    assert.match(fill(), /#000000|rgb\(0, 0, 0\)/i)
+
+    vm.runInContext('setInkMarks(false)', context)
+    await vm.runInContext("markSpeech('3:0', 0, 3)", context)
+    assert.match(fill(), /#5b8def|rgb\(91, 141, 239\)/i)
+})
+
+test('on E-Ink each highlight colour gets its own shape, and other screens keep plain colours', () => {
+    const { context } = setup()
+    const styleOf = color => vm.runInContext(`inkStyleFor(${JSON.stringify(color)})`, context)
+
+    assert.equal(styleOf('#F6C453'), null, 'colour screens draw the colour itself')
+
+    vm.runInContext('setInkMarks(true)', context)
+    assert.equal(styleOf('#F6C453'), 'highlight')
+    assert.equal(styleOf('#7BAE7F'), 'underline')
+    assert.equal(styleOf('#5B8DEF'), 'squiggly')
+    assert.equal(styleOf('#D77FA1'), 'outline')
+    assert.equal(styleOf('#6366f1'), 'highlight', 'the default colour is shaded')
+})

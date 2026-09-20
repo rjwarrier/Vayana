@@ -50,6 +50,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
@@ -222,7 +224,7 @@ private fun SearchResultsList(
     onOpenReader: (Long, String?) -> Unit,
     contentPadding: PaddingValues,
 ) {
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
@@ -399,6 +401,7 @@ private fun BookCover(book: Book) {
             model = book.coverPath,
             contentDescription = stringResource(R.string.library_book_cover_content_description, book.title),
             contentScale = ContentScale.Crop,
+            colorFilter = rememberCoverColorFilter(),
             modifier = coverModifier,
         )
     } else {
@@ -430,7 +433,7 @@ private fun SearchEmptyState(
         )
         return
     }
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,

@@ -50,6 +50,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
+import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.Shelf
 import com.vayana.core.designsystem.tokens.Elevations
@@ -120,7 +123,7 @@ private fun ShelvesScreen(
         if (shelves.isEmpty() && readNextQueue.isEmpty()) {
             ShelvesEmptyState(contentPadding = innerPadding)
         } else {
-            LazyColumn(
+            PagedLazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = Paddings.screenHorizontal,
@@ -214,7 +217,7 @@ private fun ShelvesScreen(
 @Composable
 private fun ShelfRow(shelf: Shelf, onClick: () -> Unit, onDelete: () -> Unit) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val bookCount by viewModel.observeShelfBookCount(shelf.id).collectAsState()
+    val bookCount by remember(shelf.id) { viewModel.observeShelfBookCount(shelf.id) }.collectAsState()
 
     Surface(
         modifier = Modifier
@@ -295,6 +298,7 @@ private fun ReadNextRow(book: Book, onClick: () -> Unit, onRemove: () -> Unit) {
                         contentDescription = book.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
+                        colorFilter = rememberCoverColorFilter(),
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -318,8 +322,8 @@ private fun ReadNextRow(book: Book, onClick: () -> Unit, onRemove: () -> Unit) {
 @Composable
 fun ShelfDetailRoute(shelfId: Long, onBack: () -> Unit, onBookClick: (Long) -> Unit, modifier: Modifier = Modifier) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val shelf by viewModel.observeShelf(shelfId).collectAsState()
-    val books by viewModel.observeBooksForShelf(shelfId).collectAsState()
+    val shelf by remember(shelfId) { viewModel.observeShelf(shelfId) }.collectAsState()
+    val books by remember(shelfId) { viewModel.observeBooksForShelf(shelfId) }.collectAsState()
 
     ShelfDetailScreen(
         modifier = modifier,
@@ -363,7 +367,7 @@ private fun ShelfDetailScreen(
                 )
             }
         } else {
-            LazyVerticalGrid(
+            PagedLazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
@@ -393,6 +397,7 @@ private fun ShelfDetailScreen(
                                     contentDescription = book.title,
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop,
+                                    colorFilter = rememberCoverColorFilter(),
                                 )
                             } else {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

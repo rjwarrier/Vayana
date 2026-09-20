@@ -132,8 +132,10 @@ object Palette {
     val EinkContainer = Color(0xFFF0F0F0)
     val EinkContainerHigh = Color(0xFFE8E8E8)
     val EinkContainerHighest = Color(0xFFE0E0E0)
-    val EinkOutline = Color(0x99000000)
-    val EinkOutlineVariant = Color(0x4D000000)
+    // Solid, not translucent black: a see-through line is a dithered grey on an E-Ink panel, fuzzy and near-invisible
+    // over the light containers. Black borders and #767676 dividers (4.5:1 on white) stay crisp at any refresh mode.
+    val EinkOutline = Amoled
+    val EinkOutlineVariant = Color(0xFF767676)
 
     /**
      * Reader sync-status dot. Mid-tone and saturated so a single value reads on every reader surface,

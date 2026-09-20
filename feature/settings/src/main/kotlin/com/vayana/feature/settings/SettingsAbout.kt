@@ -59,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.FileProvider
+import com.vayana.core.designsystem.theme.PagedLazyColumn
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.tokens.Elevations
@@ -139,7 +140,7 @@ internal fun HelpAndAboutDetail(
     onHelpClick: () -> Unit,
     onDiagnosticsClick: () -> Unit,
 ) {
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = SettingsPagePadding,

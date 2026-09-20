@@ -2880,32 +2880,25 @@ private fun LibrarySortDirection.toggled(): LibrarySortDirection = when (this) {
     LibrarySortDirection.DESCENDING -> LibrarySortDirection.ASCENDING
 }
 
-private fun List<Book>.sortedBy(sort: LibrarySort, direction: LibrarySortDirection): List<Book> = when (sort) {
-    LibrarySort.IMPORT_DATE -> if (direction == LibrarySortDirection.ASCENDING) {
-        sortedWith(compareBy<Book> { it.createdAt }.thenBy { it.title.lowercase() })
-    } else {
-        sortedWith(compareByDescending<Book> { it.createdAt }.thenBy { it.title.lowercase() })
+/** A book with its text sort keys lower-cased once, instead of on every comparison of the sort. */
+private class SortEntry(val book: Book) {
+    val title: String = book.title.lowercase()
+    val author: String = book.author.orEmpty().lowercase()
+}
+
+private fun List<Book>.sortedBy(sort: LibrarySort, direction: LibrarySortDirection): List<Book> {
+    if (size < 2) return this
+    val ascending = direction == LibrarySortDirection.ASCENDING
+    fun <T : Comparable<T>> primary(selector: (SortEntry) -> T): Comparator<SortEntry> =
+        if (ascending) compareBy(selector) else compareByDescending(selector)
+    val comparator = when (sort) {
+        LibrarySort.IMPORT_DATE -> primary { it.book.createdAt }.thenBy { it.title }
+        LibrarySort.TITLE -> primary { it.title }.thenByDescending { it.book.createdAt }
+        LibrarySort.AUTHOR -> primary { it.author }.thenBy { it.title }
+        LibrarySort.LAST_READ -> primary { it.book.lastReadAt ?: 0L }.thenBy { it.title }
+        LibrarySort.PROGRESS -> primary { it.book.readingPercent }.thenBy { it.title }
     }
-    LibrarySort.TITLE -> if (direction == LibrarySortDirection.ASCENDING) {
-        sortedWith(compareBy<Book> { it.title.lowercase() }.thenByDescending { it.createdAt })
-    } else {
-        sortedWith(compareByDescending<Book> { it.title.lowercase() }.thenByDescending { it.createdAt })
-    }
-    LibrarySort.AUTHOR -> if (direction == LibrarySortDirection.ASCENDING) {
-        sortedWith(compareBy<Book> { it.author.orEmpty().lowercase() }.thenBy { it.title.lowercase() })
-    } else {
-        sortedWith(compareByDescending<Book> { it.author.orEmpty().lowercase() }.thenBy { it.title.lowercase() })
-    }
-    LibrarySort.LAST_READ -> if (direction == LibrarySortDirection.ASCENDING) {
-        sortedWith(compareBy<Book> { it.lastReadAt ?: 0L }.thenBy { it.title.lowercase() })
-    } else {
-        sortedWith(compareByDescending<Book> { it.lastReadAt ?: 0L }.thenBy { it.title.lowercase() })
-    }
-    LibrarySort.PROGRESS -> if (direction == LibrarySortDirection.ASCENDING) {
-        sortedWith(compareBy<Book> { it.readingPercent }.thenBy { it.title.lowercase() })
-    } else {
-        sortedWith(compareByDescending<Book> { it.readingPercent }.thenBy { it.title.lowercase() })
-    }
+    return map(::SortEntry).sortedWith(comparator).map { it.book }
 }
 
 /** Only for spotting a synced status change worth a prompt; library filters use the user's finished percent. */

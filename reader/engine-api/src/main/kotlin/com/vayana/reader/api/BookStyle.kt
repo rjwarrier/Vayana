@@ -14,7 +14,17 @@ data class BookStyle(
     val bionicReading: Boolean = false,
     /** Slide pages when turning instead of switching instantly. */
     val pageTurnAnimation: Boolean = false,
+    /** Thickens every letter a little; thin strokes stay crisp on E-Ink and other low-contrast panels. */
+    val boldText: Boolean = false,
+    val textAlign: BookTextAlign = BookTextAlign.BOOK,
+    val hyphenation: BookHyphenation = BookHyphenation.BOOK,
 )
+
+/** Paragraph alignment; [BOOK] leaves it to the book's own styles. */
+enum class BookTextAlign { BOOK, JUSTIFIED, LEFT }
+
+/** Whether words may break with a hyphen at a line end; [BOOK] leaves it to the book's own styles. */
+enum class BookHyphenation { BOOK, ON, OFF }
 
 data class ReadTheme(
     val backgroundColorArgb: Int,

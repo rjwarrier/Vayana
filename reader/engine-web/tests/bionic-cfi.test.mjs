@@ -19,7 +19,12 @@ function fixture() {
         unmatchedInDoc: new WeakMap(),
     })
     vm.runInContext(formatting, context)
-    return { doc: window.document, format: context.transformBionicWords, revert: context.revertBionicWords }
+    return {
+        doc: window.document,
+        context,
+        format: context.transformBionicWords,
+        revert: context.revertBionicWords,
+    }
 }
 
 test('an original highlight resolves to the same text after enabling and disabling bionic reading', () => {
@@ -61,4 +66,29 @@ test('a collapsed reading position keeps its original offset across formatting',
     const restored = CFI.toRange(doc, CFI.parse(cfi))
     assert.equal(restored.startOffset, 9)
     assert.equal(restored.startContainer, doc.querySelector('p').firstChild)
+})
+
+test('applying bionic reading on every page turn leaves a document already in the wanted state alone', () => {
+    const { doc, context } = fixture()
+    const index = { cached: true }
+    const missing = new Set(['quote'])
+    const cachesSurvive = () => {
+        context.documentTextIndexes.set(doc, index)
+        context.unmatchedInDoc.set(doc, missing)
+        context.applyBionicReadingToDoc(doc)
+        return context.documentTextIndexes.get(doc) === index && context.unmatchedInDoc.get(doc) === missing
+    }
+
+    assert.ok(cachesSurvive(), 'bionic off, nothing to revert')
+
+    vm.runInContext('bionicReadingEnabled = true', context)
+    assert.ok(!cachesSurvive(), 'turning it on restructures the text, so the caches must go')
+    const markup = doc.body.innerHTML
+    assert.ok(cachesSurvive(), 'already formatted')
+    assert.equal(doc.body.innerHTML, markup)
+
+    vm.runInContext('bionicReadingEnabled = false', context)
+    assert.ok(!cachesSurvive(), 'turning it off restructures the text again')
+    assert.equal(doc.querySelectorAll('b').length, 0)
+    assert.ok(cachesSurvive(), 'already reverted')
 })

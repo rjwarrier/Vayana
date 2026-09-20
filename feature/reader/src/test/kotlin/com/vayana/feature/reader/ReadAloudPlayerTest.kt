@@ -395,6 +395,62 @@ class ReadAloudPlayerTest {
         assertEquals(listOf("1:0"), output.queued)
     }
 
+    @Test
+    fun startsWithTheChosenSpeechEngine() {
+        val output = FakeOutput()
+        val player = ReadAloudPlayer(output, scope, { longChapter(3) }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "", speechEngine = "org.example.tts")
+
+        assertEquals("org.example.tts", output.engineName)
+    }
+
+    @Test
+    fun changingTheEngineEndsTheReadingInProgressAndRelearnsWordRanges() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hello world.", "Second one.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onRangeStart("0:0", 0, 5)
+
+        player.useEngine("org.example.tts")
+
+        assertFalse(player.state.value.active)
+        assertEquals("org.example.tts", output.engineName)
+
+        // A new engine has to prove it reports word ranges again: the first sentence is marked whole.
+        engine.marked.clear()
+        player.start(rate = 1f, pitch = 1f, voiceName = "", speechEngine = "org.example.tts")
+        output.listener!!.onStart("0:0")
+        assertEquals(MarkedSpeech("0:0", 0, 12), engine.marked.last())
+    }
+
+    @Test
+    fun selectingTheEngineAlreadyInUseChangesNothing() {
+        val output = FakeOutput()
+        val player = ReadAloudPlayer(output, scope, { longChapter(3) }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+
+        player.useEngine("")
+
+        assertTrue(player.state.value.active)
+    }
+
+    @Test
+    fun withoutWordHighlightEachSentenceIsMarkedWholeAndWordRangesAreIgnored() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hello world.", "Second one.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "", wordHighlight = false)
+
+        output.listener!!.onStart("0:0")
+        output.listener!!.onRangeStart("0:0", 6, 11)
+        output.listener!!.onStart("0:1")
+        output.listener!!.onRangeStart("0:1", 0, 6)
+
+        assertEquals(listOf(MarkedSpeech("0:0", 0, 12), MarkedSpeech("0:1", 0, 11)), engine.marked)
+    }
+
     private class FakeFocus(private val granted: Boolean = true) : PlaybackFocus {
         private var onEvent: ((PlaybackFocusEvent) -> Unit)? = null
         var abandoned = 0
@@ -414,6 +470,8 @@ class ReadAloudPlayerTest {
     private class FakeOutput(private val available: Boolean = true) : SpeechOutput {
         override var listener: SpeechOutput.Listener? = null
         override val voices: StateFlow<List<SpeechVoiceOption>> = MutableStateFlow(emptyList())
+        override val engines: StateFlow<List<SpeechEngineOption>> = MutableStateFlow(emptyList())
+        var engineName: String? = null
 
         /** What the engine has queued since the last flush. */
         val queued = mutableListOf<String>()
@@ -438,6 +496,13 @@ class ReadAloudPlayerTest {
 
         override fun setVoice(name: String?) {
             voiceNames += name
+        }
+
+        override fun setEngine(name: String?): Boolean {
+            val next = name?.takeIf { it.isNotBlank() }
+            if (next == engineName) return false
+            engineName = next
+            return true
         }
 
         override fun stop() = Unit

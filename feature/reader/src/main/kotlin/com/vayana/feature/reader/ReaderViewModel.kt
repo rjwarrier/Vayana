@@ -16,6 +16,8 @@ import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.ReaderFontFamily
+import com.vayana.core.datastore.settings.ReaderHyphenation
+import com.vayana.core.datastore.settings.ReaderTextAlign
 import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
@@ -31,8 +33,10 @@ import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.DictionaryPackState
 import com.vayana.dictionary.api.DictionaryRepository
 import com.vayana.reader.api.BookEngine
+import com.vayana.reader.api.BookHyphenation
 import com.vayana.reader.api.BookStyle
 import com.vayana.reader.api.BookSource
+import com.vayana.reader.api.BookTextAlign
 import com.vayana.reader.api.Locator
 import com.vayana.reader.api.NavTarget
 import com.vayana.reader.api.OpenBook
@@ -221,6 +225,7 @@ class ReaderViewModel @Inject constructor(
     private var lastSpeechInteractionAt = 0L
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
     internal val readAloudVoices: StateFlow<List<SpeechVoiceOption>> = readAloudPlayer.voices
+    internal val readAloudEngines: StateFlow<List<SpeechEngineOption>> = readAloudPlayer.engines
 
     private val _chapterWords = MutableStateFlow<ChapterWordsState>(ChapterWordsState.Idle)
     val chapterWords: StateFlow<ChapterWordsState> = _chapterWords
@@ -366,9 +371,15 @@ class ReaderViewModel @Inject constructor(
         }
 
         engineJobs += viewModelScope.launch {
-            effectiveSettings.debounce(StyleUpdateDebounceMillis).collectLatest { snapshot ->
-                if (bookOpen) applyReaderStyle(engine, snapshot)
-            }
+            // Only what the page is drawn from: a brightness swipe or a read-aloud speed change rewrites the settings too,
+            // and re-applying an identical style still re-lays-out the whole chapter.
+            effectiveSettings
+                .map { snapshot -> snapshot.toBookStyle() to snapshot.readTheme }
+                .distinctUntilChanged()
+                .debounce(StyleUpdateDebounceMillis)
+                .collectLatest { (style, theme) ->
+                    if (bookOpen) engine.applyStyle(style, theme)
+                }
         }
     }
 
@@ -632,6 +643,8 @@ class ReaderViewModel @Inject constructor(
             pitch = settings.value.readAloudPitch,
             voiceName = settings.value.readAloudVoiceName,
             fromCfi = selectionCfi,
+            speechEngine = settings.value.readAloudEngine,
+            wordHighlight = settings.value.displayProfile != DisplayProfile.E_INK,
         )
         if (selectionCfi != null) clearSelection()
     }
@@ -658,7 +671,21 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReadAloudPitch, next) }
     }
 
-    fun loadReadAloudVoices() = readAloudPlayer.loadVoices()
+    fun loadReadAloudVoices() {
+        // The panel may open before anything has been read: make sure the voices listed are the chosen engine's.
+        readAloudPlayer.useEngine(settings.value.readAloudEngine)
+        readAloudPlayer.loadVoices()
+    }
+
+    fun updateReadAloudEngine(name: String) {
+        readAloudPlayer.useEngine(name)
+        readAloudPlayer.loadVoices()
+        viewModelScope.launch {
+            settingsRepository.update(SettingsRegistry.ReadAloudEngine, name)
+            // Voice names belong to their engine; the new engine starts on its own default voice.
+            settingsRepository.update(SettingsRegistry.ReadAloudVoiceName, "")
+        }
+    }
 
     fun updateReadAloudVoice(name: String) {
         readAloudPlayer.setVoice(name)
@@ -845,18 +872,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     private suspend fun applyReaderStyle(engine: BookEngine, snapshot: SettingsSnapshot) {
-        engine.applyStyle(
-            style = BookStyle(
-                fontSizePercent = snapshot.readerFontSizePercent,
-                lineHeight = snapshot.readerLineHeight,
-                fontFamily = snapshot.readerFontFamilyCss,
-                customFontFileName = snapshot.selectedImportedFont?.fileName,
-                sideMarginPercent = snapshot.readerSideMarginPercent,
-                bionicReading = snapshot.readerBionicReading,
-                pageTurnAnimation = snapshot.readerPageTurnAnimation,
-            ),
-            theme = snapshot.readTheme,
-        )
+        engine.applyStyle(style = snapshot.toBookStyle(), theme = snapshot.readTheme)
     }
 
     private fun observeAnnotations(engine: BookEngine) {
@@ -1278,6 +1294,28 @@ private val SettingsSnapshot.selectedImportedFont
 
 private val SettingsSnapshot.readerFontFamilyCss: String
     get() = if (selectedImportedFont != null) "'VayanaImportedReaderFont', serif" else readerFontFamily.cssFamily
+
+private fun SettingsSnapshot.toBookStyle(): BookStyle = BookStyle(
+    fontSizePercent = readerFontSizePercent,
+    lineHeight = readerLineHeight,
+    fontFamily = readerFontFamilyCss,
+    customFontFileName = selectedImportedFont?.fileName,
+    sideMarginPercent = readerSideMarginPercent,
+    bionicReading = readerBionicReading,
+    boldText = readerBolderText,
+    textAlign = when (readerTextAlign) {
+        ReaderTextAlign.BOOK -> BookTextAlign.BOOK
+        ReaderTextAlign.JUSTIFIED -> BookTextAlign.JUSTIFIED
+        ReaderTextAlign.LEFT -> BookTextAlign.LEFT
+    },
+    hyphenation = when (readerHyphenation) {
+        ReaderHyphenation.BOOK -> BookHyphenation.BOOK
+        ReaderHyphenation.ON -> BookHyphenation.ON
+        ReaderHyphenation.OFF -> BookHyphenation.OFF
+    },
+    // A sliding page is a run of partial refreshes on E-Ink: all ghosting, and slower than a plain flip.
+    pageTurnAnimation = readerPageTurnAnimation && displayProfile != DisplayProfile.E_INK,
+)
 
 private val ReaderFontFamily.cssFamily: String
     get() = when (this) {

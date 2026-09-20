@@ -2,9 +2,12 @@ package com.vayana.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.vayana.core.designsystem.theme.EinkPageKeys
+import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.feature.library.IncomingBookFiles
 import com.vayana.feature.library.incomingBookUris
 import dagger.hilt.android.AndroidEntryPoint
@@ -22,6 +25,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             VayanaAppRoot()
         }
+    }
+
+    // The hardware page buttons of an e-reader page the list on screen. Only while such a list exists: the reader turns
+    // its own pages and gets the key untouched.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val direction = pageKeyDirection(event.keyCode)
+        if (direction == null || !EinkPageKeys.hasHandler) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) EinkPageKeys.dispatch(direction)
+        return true
     }
 
     override fun onNewIntent(intent: Intent) {

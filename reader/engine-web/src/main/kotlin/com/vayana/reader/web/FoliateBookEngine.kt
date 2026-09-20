@@ -14,8 +14,10 @@ import android.webkit.WebView
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import com.vayana.reader.api.BookEngine
+import com.vayana.reader.api.BookHyphenation
 import com.vayana.reader.api.BookSource
 import com.vayana.reader.api.BookStyle
+import com.vayana.reader.api.BookTextAlign
 import com.vayana.reader.api.EngineEvent
 import com.vayana.reader.api.Footnote
 import com.vayana.reader.api.FootnoteOpened
@@ -53,6 +55,28 @@ private const val IMPORTED_FONT_FAMILY = "VayanaImportedReaderFont"
 private const val ReaderOpenTimeoutMillis = 60_000L
 private const val EinkBackgroundArgb = -0x1
 private const val EinkForegroundArgb = -0x1000000
+
+/** Width of the outline added to every letter for bolder text: enough to thicken a hairline serif, not to blur a letter. */
+internal const val BoldTextStrokePx = "0.4px"
+
+/**
+ * Paragraphs only, and not those the book itself centres or aligns by hand (poems, epigraphs, signatures): forcing
+ * them into the chosen alignment would wreck their layout.
+ */
+private const val ParagraphSelector =
+    "body p:not([align]):not([style*='text-align']):not(.center):not(.centre):not(.centered):not(.right):not(.poem)"
+
+internal fun textAlignCss(align: BookTextAlign): String? = when (align) {
+    BookTextAlign.BOOK -> null
+    BookTextAlign.JUSTIFIED -> "$ParagraphSelector,body li,body blockquote p{text-align:justify !important;}"
+    BookTextAlign.LEFT -> "$ParagraphSelector,body li,body blockquote p{text-align:left !important;}"
+}
+
+internal fun hyphenationCss(hyphenation: BookHyphenation): String? = when (hyphenation) {
+    BookHyphenation.BOOK -> null
+    BookHyphenation.ON -> "body,body *{-webkit-hyphens:auto !important;hyphens:auto !important;}"
+    BookHyphenation.OFF -> "body,body *{-webkit-hyphens:none !important;hyphens:none !important;}"
+}
 
 /**
  * `:reader:engine-api`'s default implementation: foliate-js running inside a [WebView], driven
@@ -293,6 +317,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             append("body p,body div,body span,body li,body blockquote,body dd,body dt,body a,body em,body strong{")
             append("line-height:inherit !important;")
             append("}")
+            if (style.boldText) {
+                // Inherited, so the body alone reaches every letter; each keeps its own colour.
+                append("body{-webkit-text-stroke:$BoldTextStrokePx currentColor !important;}")
+            }
+            textAlignCss(style.textAlign)?.let(::append)
+            hyphenationCss(style.hyphenation)?.let(::append)
             if (isEinkTheme) {
                 append("*,*::before,*::after{")
                 append("animation:none !important;")
@@ -308,20 +338,15 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 append("img,svg,video,canvas{")
                 append("filter:grayscale(1) contrast(1.15) !important;")
                 append("}")
-                // Highlight fills render at 0.3 opacity by default (overlayer.js); once the rule
-                // above grayscales them, a tinted highlight color washes out to a barely-visible
-                // pale grey. Multiply + higher opacity keeps it legible without hardware color.
-                append(":root{")
-                append("--overlayer-highlight-opacity:0.55;")
-                append("--overlayer-highlight-blend-mode:multiply;")
-                append("}")
             }
         }
         // One trip across the bridge for the whole style.
         webView.evaluateJavascript(
             "window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin);" +
                 "window.VayanaReader.setBionicReading(${style.bionicReading});" +
-                "window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation})",
+                "window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation});" +
+                // Highlights live in an overlay outside the book's document, so the CSS above cannot reach them.
+                "window.VayanaReader.setInkMarks($isEinkTheme)",
             null,
         )
     }

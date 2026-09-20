@@ -79,6 +79,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.common.HighlightTags
 import com.vayana.core.common.shareFile
 import com.vayana.core.database.model.Annotation
@@ -514,7 +516,7 @@ private fun BooksWithNotesList(
     booksWithNotes: List<BookNotesItem>,
     onBookClick: (BookNotesItem) -> Unit,
 ) {
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
@@ -747,6 +749,7 @@ private fun BookCoverThumbnail(
                 contentDescription = title,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
+                colorFilter = rememberCoverColorFilter(),
             )
         } else {
             Box(
@@ -776,7 +779,7 @@ private fun BookNotesDetailList(
     onShare: (Annotation) -> Unit,
     onTagClick: (String) -> Unit,
 ) {
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,

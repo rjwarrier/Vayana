@@ -113,6 +113,9 @@ data class SettingsSnapshot(
     val readerShowFooter: Boolean = true,
     val readerAutoMarkSelection: Boolean = false,
     val readerBionicReading: Boolean = false,
+    val readerBolderText: Boolean = false,
+    val readerTextAlign: ReaderTextAlign = ReaderTextAlign.BOOK,
+    val readerHyphenation: ReaderHyphenation = ReaderHyphenation.BOOK,
     val readerFullScreen: Boolean = false,
     val readerPageTurnAnimation: Boolean = false,
     val einkRefreshEveryPages: Int = 6,
@@ -138,6 +141,8 @@ data class SettingsSnapshot(
     val readAloudRate: Float = 1f,
     val readAloudPitch: Float = 1f,
     val readAloudVoiceName: String = "",
+    /** Package of the text-to-speech engine to read with; blank uses the phone's default engine. */
+    val readAloudEngine: String = "",
     /** 0 follows the system brightness. */
     val readerBrightnessPercent: Int = 0,
     val readerWarmLightPercent: Int = 0,
@@ -152,6 +157,12 @@ data class SettingsSnapshot(
 }
 
 enum class ReaderFontFamily { SERIF, SANS, MONO }
+
+/** How paragraphs are aligned; [BOOK] leaves it to the book. */
+enum class ReaderTextAlign { BOOK, JUSTIFIED, LEFT }
+
+/** Whether words break at line ends with a hyphen; [BOOK] leaves it to the book. */
+enum class ReaderHyphenation { BOOK, ON, OFF }
 
 enum class ReaderTheme { SYSTEM, LIGHT, PAPER, SEPIA, MINT, SKY, ROSE, DARK, OLED }
 
@@ -374,6 +385,39 @@ object SettingsRegistry {
         subtitleRes = R.string.settings_reader_bionic_reading_subtitle,
         group = SettingsGroup.READER_TEXT,
     )
+    val ReaderBolderText: BooleanSetting = BooleanSetting(
+        key = "reader.bolder_text",
+        defaultValue = false,
+        titleRes = R.string.settings_reader_bolder_text_title,
+        subtitleRes = R.string.settings_reader_bolder_text_subtitle,
+        group = SettingsGroup.READER_TEXT,
+    )
+    val ReaderTextAlign: ChoiceSetting<com.vayana.core.datastore.settings.ReaderTextAlign> =
+        ChoiceSetting<com.vayana.core.datastore.settings.ReaderTextAlign>(
+        key = "reader.text_align",
+        defaultValue = com.vayana.core.datastore.settings.ReaderTextAlign.BOOK,
+        titleRes = R.string.settings_reader_text_align_title,
+        subtitleRes = R.string.settings_reader_text_align_subtitle,
+        group = SettingsGroup.READER_TEXT,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.ReaderTextAlign>>(
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.BOOK, R.string.settings_reader_text_align_book),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.JUSTIFIED, R.string.settings_reader_text_align_justified),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.LEFT, R.string.settings_reader_text_align_left),
+        ),
+    )
+    val ReaderHyphenation: ChoiceSetting<com.vayana.core.datastore.settings.ReaderHyphenation> =
+        ChoiceSetting<com.vayana.core.datastore.settings.ReaderHyphenation>(
+        key = "reader.hyphenation",
+        defaultValue = com.vayana.core.datastore.settings.ReaderHyphenation.BOOK,
+        titleRes = R.string.settings_reader_hyphenation_title,
+        subtitleRes = R.string.settings_reader_hyphenation_subtitle,
+        group = SettingsGroup.READER_TEXT,
+        options = listOf<ChoiceOption<com.vayana.core.datastore.settings.ReaderHyphenation>>(
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderHyphenation.BOOK, R.string.settings_reader_hyphenation_book),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderHyphenation.ON, R.string.settings_reader_hyphenation_on),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderHyphenation.OFF, R.string.settings_reader_hyphenation_off),
+        ),
+    )
 
     val ReaderFullScreen: BooleanSetting = BooleanSetting(
         key = "reader.full_screen",
@@ -440,6 +484,14 @@ object SettingsRegistry {
         defaultValue = "",
         titleRes = R.string.settings_read_aloud_voice_title,
         subtitleRes = R.string.settings_read_aloud_voice_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+        maxLength = 255,
+    )
+    val ReadAloudEngine: StringSetting = StringSetting(
+        key = "reader.read_aloud_engine",
+        defaultValue = "",
+        titleRes = R.string.settings_read_aloud_engine_title,
+        subtitleRes = R.string.settings_read_aloud_engine_subtitle,
         group = SettingsGroup.READER_CONTROLS,
         maxLength = 255,
     )
@@ -646,6 +698,9 @@ object SettingsRegistry {
         ReaderLineHeight,
         ReaderPublisherStyles,
         ReaderBionicReading,
+        ReaderBolderText,
+        ReaderTextAlign,
+        ReaderHyphenation,
         ReaderTheme,
         ReaderBrightness,
         ReaderWarmLight,
@@ -677,6 +732,6 @@ object SettingsRegistry {
     )
 
     /** Persisted and backed up, but edited only by purpose-built feature UI. */
-    val internal: List<Setting<out Any>> = listOf(ReadAloudVoiceName)
+    val internal: List<Setting<out Any>> = listOf(ReadAloudVoiceName, ReadAloudEngine)
     val persisted: List<Setting<out Any>> = all + internal
 }

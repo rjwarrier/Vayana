@@ -42,6 +42,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -103,7 +105,7 @@ private fun RecentlyDeletedScreen(
         if (deletedBooks.isEmpty()) {
             RecentlyDeletedEmptyState(contentPadding = innerPadding)
         } else {
-            LazyColumn(
+            PagedLazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = Paddings.screenHorizontal,
@@ -170,6 +172,7 @@ private fun DeletedBookCard(
                         contentDescription = book.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
+                        colorFilter = rememberCoverColorFilter(),
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

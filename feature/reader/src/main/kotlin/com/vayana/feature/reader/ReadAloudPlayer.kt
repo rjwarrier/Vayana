@@ -35,6 +35,7 @@ internal class ReadAloudPlayer(
     private val _state = MutableStateFlow(ReadAloudState())
     val state: StateFlow<ReadAloudState> = _state
     val voices: StateFlow<List<SpeechVoiceOption>> = output.voices
+    val engines: StateFlow<List<SpeechEngineOption>> = output.engines
 
     private var queue: List<SpeechUtterance> = emptyList()
     private var indexById: Map<String, Int> = emptyMap()
@@ -46,6 +47,9 @@ internal class ReadAloudPlayer(
 
     /** Set once the speech engine sends a word range; not every engine does. */
     private var reportsWordRanges = false
+
+    /** Off for E-Ink: a highlight that moves every word is a partial panel refresh every few hundred ms. */
+    private var wordHighlight = true
     private var sleepJob: Job? = null
     private var chunkJob: Job? = null
 
@@ -56,9 +60,19 @@ internal class ReadAloudPlayer(
         output.listener = this
     }
 
-    fun start(rate: Float, pitch: Float, voiceName: String, fromCfi: String? = null) {
+    /** With [wordHighlight] off the page marks the sentence being read instead of following each word. */
+    fun start(
+        rate: Float,
+        pitch: Float,
+        voiceName: String,
+        fromCfi: String? = null,
+        speechEngine: String = "",
+        wordHighlight: Boolean = true,
+    ) {
         if (_state.value.active) return
         val bookEngine = engine() ?: return
+        this.wordHighlight = wordHighlight
+        output.setEngine(speechEngine)
         _state.value = ReadAloudState(active = true, rate = rate, pitch = pitch)
         output.setRate(rate)
         output.setPitch(pitch)
@@ -147,6 +161,13 @@ internal class ReadAloudPlayer(
         if (_state.value.playing) speakFromPosition()
     }
 
+    /** Reads with the text-to-speech engine of package [name] (blank: default). A different engine ends any reading in progress. */
+    fun useEngine(name: String) {
+        if (!output.setEngine(name)) return
+        if (_state.value.active) stop()
+        reportsWordRanges = false
+    }
+
     fun loadVoices() {
         output.prepare { }
     }
@@ -186,7 +207,7 @@ internal class ReadAloudPlayer(
             val utterance = queue[index]
             // Until the engine has proven it reports word timings, highlight the whole sentence: engines that never
             // send them would otherwise show only the first word. Word timings then narrow it as they arrive.
-            val range = if (reportsWordRanges) firstSpokenWordRange(utterance.text) else 0 until utterance.text.length
+            val range = if (wordHighlight && reportsWordRanges) firstSpokenWordRange(utterance.text) else 0 until utterance.text.length
             if (range != null && !range.isEmpty()) {
                 engine()?.markSpeech(
                     utterance.sourceId,
@@ -198,6 +219,7 @@ internal class ReadAloudPlayer(
     }
 
     override fun onRangeStart(utteranceId: String, start: Int, end: Int) {
+        if (!wordHighlight) return
         scope.launch {
             val utterance = indexById[utteranceId]?.let(queue::get) ?: return@launch
             reportsWordRanges = true

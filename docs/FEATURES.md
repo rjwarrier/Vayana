@@ -169,6 +169,12 @@ imported into the library like any picked file.
 - **Queue window.** Each hand-over to the speech engine is a binder call, so the player feeds it only the next 8
   utterances (`LookaheadUtterances`) and tops it up as each one starts, instead of the whole rest of the chapter.
   Skips, speed, pitch and voice changes therefore cost 8 calls, not one per remaining sentence.
+- **Speech engine.** The Read Aloud panel lists every text-to-speech engine installed on the phone
+  (`TextToSpeech.getEngines`, visible thanks to the manifest's `TTS_SERVICE` query) and reads with the chosen one
+  (`reader.read_aloud_engine`, blank = default). That is how a free neural engine such as SherpaTTS or HayaiTTS
+  (Piper, Kokoro) gives more natural voices without Vayana embedding a model. Voice names belong to their engine, so
+  changing the engine resets the voice; an engine that is no longer installed falls back to the default one, and
+  word-by-word highlighting is relearned (engines that send no word ranges highlight the whole sentence).
 - **Spoken-word mark.** `bridge.js markSpeech` draws the highlight straight onto the section's overlay from the Range it
   already holds (`SpeechMarkKey`), not through `view.addAnnotation`, which built and re-resolved a CFI per word.
 - **From here.** The selection toolbar has a Read aloud button (hidden when audio features are off). It restarts read
@@ -190,3 +196,24 @@ Statistics → the highlight card opens a review of highlights that are due, ins
 - Schedules are **per device and not synced** (see `docs/DATABASE_CHANGELOG.md`, version 23).
 
 **Tests:** `HighlightReviewTest`, `feature/library/.../HighlightReviewRepositoryTest.kt`.
+
+## E-Ink mode
+
+Everything here applies when Appearance → Display profile is E-Ink; the reader settings under Text also help other screens.
+
+- **Page keys.** Hardware page buttons (`KEYCODE_PAGE_UP/DOWN`, `NAVIGATE_PREVIOUS/NEXT`) turn pages in the reader (first press only,
+  no auto-repeat) and page the list on screen elsewhere (`MainActivity.dispatchKeyEvent` -> `EinkPageKeys`, registered by `PagedLazyColumn` / `PagedLazyVerticalGrid`).
+  Mapping lives in `core/designsystem/.../PageKeys.kt`.
+- **Paged lists.** Library, Notes, Search, Settings, Shelves, Recently deleted, Statistics and the diagnostics/learn lists show two corner buttons that move one
+  screen (90% of the viewport) at a time. Other displays get the plain list.
+- **Marks in black.** Highlights, underlines, the read-aloud mark and the community-count pills are black (`setInkMarks` in `bridge.js`); a tint comes out as a pale grey.
+  Highlight colours become shapes: yellow shaded, green underlined, blue wavy, pink boxed (`InkStyleByColor`).
+- **Read aloud** marks the whole sentence instead of each word (`ReadAloudPlayer.start(wordHighlight = false)`), page turn animation is forced off.
+- **Refresh.** Besides every N pages (Appearance setting), the panel does a clean refresh when the reader menu closes and on entering a new chapter.
+  The reader clock updates on page turns only, not on a timer.
+- **Covers** are drawn greyscale with more contrast (`rememberCoverColorFilter`). Outline colours are solid (black borders, `#767676` dividers).
+- **Text settings** (all screens): Bolder text (`-webkit-text-stroke`), Text alignment (book / justified / left), Hyphenation (book / on / off).
+  Alignment and hyphenation are portable in backups; bolder text is per device.
+- Not done: vendor refresh modes (Onyx SDK); needs the SDK dependency and a Boox device to test.
+
+**Tests:** `PageKeyTest`, `ReadAloudPlayerTest` (sentence highlight), `reader/engine-web/tests` (ink marks, bionic idempotence).

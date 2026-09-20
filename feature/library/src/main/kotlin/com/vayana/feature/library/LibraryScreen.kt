@@ -87,6 +87,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
 import com.vayana.core.designsystem.dialog.ConfirmActionDialog
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
@@ -112,6 +114,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
@@ -1115,7 +1118,7 @@ private fun LibraryGrid(
     val sections = displayBooks.rows.toGroupSections(groupBy)
     val placementSpec = rememberLazyItemPlacementSpec()
 
-    LazyVerticalGrid(
+    PagedLazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = Sizes.libraryGridCoverWidthMin),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -1214,7 +1217,7 @@ private fun LibraryList(
     val sections = displayBooks.rows.toGroupSections(groupBy)
     val placementSpec = rememberLazyItemPlacementSpec()
 
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
@@ -1789,6 +1792,7 @@ internal fun BookCover(book: Book, modifier: Modifier = Modifier, shape: Shape =
                 .aspectRatio(Sizes.coverAspectRatio)
                 .clip(shape),
             contentScale = ContentScale.Crop,
+            colorFilter = rememberCoverColorFilter(),
         )
     } else {
         GeneratedCover(title = book.title, author = book.author, shape = shape, modifier = modifier)

@@ -25,6 +25,9 @@ internal data class SpeechVoiceOption(
 
 internal data class SpeechLanguageOption(val tag: String, val label: String)
 
+/** A text-to-speech engine installed on the phone (Google, Samsung, RHVoice, SherpaTTS, ...). */
+internal data class SpeechEngineOption(val name: String, val label: String, val isSystemDefault: Boolean)
+
 internal fun speechLanguageOptions(voices: List<SpeechVoiceOption>): List<SpeechLanguageOption> =
     voices
         .distinctBy(SpeechVoiceOption::localeTag)
@@ -46,6 +49,9 @@ internal interface SpeechOutput {
 
     val voices: StateFlow<List<SpeechVoiceOption>>
 
+    /** Every engine installed on the phone; filled once an engine has started. */
+    val engines: StateFlow<List<SpeechEngineOption>>
+
     /** Starts the speech engine if needed, then reports whether a voice can speak. */
     fun prepare(onReady: (Boolean) -> Unit)
 
@@ -56,6 +62,12 @@ internal interface SpeechOutput {
     fun setPitch(pitch: Float)
 
     fun setVoice(name: String?)
+
+    /**
+     * Speaks with the engine of package [name] (blank: the phone's default). Returns whether that changed the choice, in
+     * which case the running engine and its voices are dropped and the next [prepare] starts the new one.
+     */
+    fun setEngine(name: String?): Boolean
 
     fun stop()
 
@@ -79,12 +91,15 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
     private var rate = 1f
     private var pitch = 1f
     private var selectedVoiceName: String? = null
+    private var enginePackage: String? = null
     private var systemDefaultVoice: Voice? = null
     private var engineVoices: Set<Voice> = emptySet()
     private var preparing = false
     private val readinessCallbacks = mutableListOf<(Boolean) -> Unit>()
     private val _voices = MutableStateFlow<List<SpeechVoiceOption>>(emptyList())
     override val voices: StateFlow<List<SpeechVoiceOption>> = _voices.asStateFlow()
+    private val _engines = MutableStateFlow<List<SpeechEngineOption>>(emptyList())
+    override val engines: StateFlow<List<SpeechEngineOption>> = _engines.asStateFlow()
 
     override var listener: SpeechOutput.Listener? = null
 
@@ -117,11 +132,20 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
         preparing = true
         tts?.shutdown()
         var engine: TextToSpeech? = null
-        engine = TextToSpeech(appContext) { status ->
+        engine = TextToSpeech(appContext, { status ->
             // Posted so the callback never runs before `engine` is assigned, even if the engine initialises at once.
             mainHandler.post {
                 val created = engine
                 if (tts !== created) return@post
+                if (status != TextToSpeech.SUCCESS && enginePackage != null) {
+                    // The chosen engine is gone (an uninstalled app, a setting restored from another phone): use the default.
+                    enginePackage = null
+                    created?.shutdown()
+                    tts = null
+                    preparing = false
+                    prepare { }
+                    return@post
+                }
                 ready = status == TextToSpeech.SUCCESS && created != null &&
                     runCatching { created.defaultVoice != null }.getOrDefault(false)
                 if (ready && created != null) {
@@ -153,6 +177,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                                 .thenBy { it.first.name },
                         )
                         .map { it.second }
+                    _engines.value = created.installedEngines()
                     applySelectedVoice(created)
                 }
                 preparing = false
@@ -160,7 +185,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                 readinessCallbacks.clear()
                 callbacks.forEach { it(ready) }
             }
-        }
+        }, enginePackage)
         tts = engine
     }
 
@@ -184,9 +209,24 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
         tts?.takeIf { ready }?.let(::applySelectedVoice)
     }
 
+    override fun setEngine(name: String?): Boolean {
+        val next = name?.takeIf { it.isNotBlank() }
+        if (next == enginePackage) return false
+        enginePackage = next
+        releaseEngine()
+        return true
+    }
+
     private fun applySelectedVoice(engine: TextToSpeech) {
         val selected = selectedVoiceName?.let { name -> engineVoices.firstOrNull { it.name == name } }
         (selected ?: systemDefaultVoice)?.let(engine::setVoice)
+    }
+
+    private fun TextToSpeech.installedEngines(): List<SpeechEngineOption> {
+        val defaultEngine = runCatching { defaultEngine }.getOrNull()
+        return runCatching { engines }.getOrNull().orEmpty()
+            .map { SpeechEngineOption(name = it.name, label = it.label, isSystemDefault = it.name == defaultEngine) }
+            .sortedBy { it.label.lowercase() }
     }
 
     private fun Voice.isInstalled(): Boolean =
@@ -199,7 +239,10 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
         tts?.stop()
     }
 
-    override fun shutdown() {
+    override fun shutdown() = releaseEngine()
+
+    /** Drops the running engine, its voices and anyone waiting for it; the engine list stays, it is about the phone. */
+    private fun releaseEngine() {
         tts?.shutdown()
         tts = null
         ready = false

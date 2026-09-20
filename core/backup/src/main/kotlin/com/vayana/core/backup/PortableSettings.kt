@@ -17,6 +17,8 @@ object PortableSettings {
         SettingsRegistry.ReaderTapZoneMode.key,
         SettingsRegistry.ReaderAutoMarkSelection.key,
         SettingsRegistry.ReaderBionicReading.key,
+        SettingsRegistry.ReaderTextAlign.key,
+        SettingsRegistry.ReaderHyphenation.key,
         SettingsRegistry.DailyReadingGoalMinutes.key,
         SettingsRegistry.YearlyBooksGoal.key,
         SettingsRegistry.DefaultCoverSource.key,

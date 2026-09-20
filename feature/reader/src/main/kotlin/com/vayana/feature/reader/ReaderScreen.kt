@@ -127,6 +127,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
@@ -165,6 +166,8 @@ import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.PageKeyDirection
+import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
@@ -214,6 +217,16 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsState()
     val engineGeneration by viewModel.engineGeneration.collectAsState()
     val readAloudVoices by viewModel.readAloudVoices.collectAsState()
+    val readAloudEngines by viewModel.readAloudEngines.collectAsState()
+    val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines) {
+        ReadAloudVoiceControls(
+            voices = readAloudVoices,
+            engines = readAloudEngines,
+            onLoad = viewModel::loadReadAloudVoices,
+            onVoiceChange = viewModel::updateReadAloudVoice,
+            onEngineChange = viewModel::updateReadAloudEngine,
+        )
+    }
     val context = LocalContext.current
     val dictionaryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
@@ -315,9 +328,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onBionicReadingChange = viewModel::updateBionicReading,
                 onReadAloudRateChange = viewModel::updateReadAloudRate,
                 onReadAloudPitchChange = viewModel::updateReadAloudPitch,
-                readAloudVoices = readAloudVoices,
-                onLoadReadAloudVoices = viewModel::loadReadAloudVoices,
-                onReadAloudVoiceChange = viewModel::updateReadAloudVoice,
+                readAloudVoiceControls = readAloudVoiceControls,
                 onPause = viewModel::onPause,
                 onResume = viewModel::onResume,
                 footnote = footnote,
@@ -425,9 +436,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onBionicReadingChange = viewModel::updateBionicReading,
         onReadAloudRateChange = viewModel::updateReadAloudRate,
         onReadAloudPitchChange = viewModel::updateReadAloudPitch,
-        readAloudVoices = readAloudVoices,
-        onLoadReadAloudVoices = viewModel::loadReadAloudVoices,
-        onReadAloudVoiceChange = viewModel::updateReadAloudVoice,
+        readAloudVoiceControls = readAloudVoiceControls,
         onPause = viewModel::onPause,
         onResume = viewModel::onResume,
         footnote = footnote,
@@ -517,9 +526,7 @@ private fun ReaderScreen(
     onBionicReadingChange: (Boolean) -> Unit,
     onReadAloudRateChange: (Float) -> Unit,
     onReadAloudPitchChange: (Float) -> Unit,
-    readAloudVoices: List<SpeechVoiceOption>,
-    onLoadReadAloudVoices: () -> Unit,
-    onReadAloudVoiceChange: (String) -> Unit,
+    readAloudVoiceControls: ReadAloudVoiceControls,
     onPause: () -> Unit,
     onResume: () -> Unit,
     footnote: Footnote?,
@@ -587,7 +594,19 @@ private fun ReaderScreen(
         }
     }
     val onHardwarePageKeyState = rememberUpdatedState<(Int, Int, Long) -> Boolean> { keyCode, action, heldMillis ->
-        if (keyCode == AndroidKeyEvent.KEYCODE_VOLUME_UP || keyCode == AndroidKeyEvent.KEYCODE_VOLUME_DOWN) {
+        val pageKey = pageKeyDirection(keyCode)
+        if (pageKey != null) {
+            // Only the first press turns the page: a held button would repeat and race through the book on a slow panel.
+            if (chromeVisible) {
+                false
+            } else {
+                if (action == AndroidKeyEvent.ACTION_DOWN && heldMillis == 0L) {
+                    onReaderInteraction()
+                    if (pageKey == PageKeyDirection.PREVIOUS) onTapPrevious() else onTapNext()
+                }
+                true
+            }
+        } else if (keyCode == AndroidKeyEvent.KEYCODE_VOLUME_UP || keyCode == AndroidKeyEvent.KEYCODE_VOLUME_DOWN) {
             if (!shouldInterceptReaderVolumeKey(readAloud.playing, settings.readerVolumeKeys, chromeVisible)) {
                 false
             } else if (chromeVisible) {
@@ -714,28 +733,54 @@ private fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    val isEink = settings.displayProfile == DisplayProfile.E_INK
+    val currentLocator = (uiState as? ReaderUiState.Loaded)?.currentLocator
+    val currentLocatorCfi = currentLocator?.cfi
+    LaunchedEffect(isEink) {
+        // A clock that ticks on its own is a partial panel refresh in the middle of a page nobody turned: on E-Ink it
+        // only catches up when the page changes (below).
+        if (isEink) return@LaunchedEffect
         while (true) {
             nowMillis = System.currentTimeMillis()
             delay(30_000)
         }
     }
+    LaunchedEffect(currentLocatorCfi) {
+        if (isEink) nowMillis = System.currentTimeMillis()
+    }
 
     // Successive partial E-Ink refreshes accumulate ghosting; periodically forcing one
     // maximal-area repaint (a brief full-black flash) makes the panel's controller do a clean
     // full update, the same trick Kindle/Boox readers use ("refresh every N pages").
+    // Panels and menus leave the most ghosting behind, so closing one and entering a new chapter refresh too.
     var einkPageTurnCount by remember { mutableIntStateOf(0) }
     var einkFlashTrigger by remember { mutableIntStateOf(0) }
     var einkFlashVisible by remember { mutableStateOf(false) }
-    val currentLocatorCfi = (uiState as? ReaderUiState.Loaded)?.currentLocator?.cfi
+    val einkRefreshEnabled = isEink && settings.einkRefreshEveryPages > 0
     LaunchedEffect(currentLocatorCfi) {
         val refreshEveryPages = settings.einkRefreshEveryPages
-        if (currentLocatorCfi != null && settings.displayProfile == DisplayProfile.E_INK && refreshEveryPages > 0) {
+        if (currentLocatorCfi != null && einkRefreshEnabled) {
             einkPageTurnCount++
             if (einkPageTurnCount % refreshEveryPages == 0) {
                 einkFlashTrigger++
             }
         }
+    }
+    var chromeWasShown by remember { mutableStateOf(false) }
+    LaunchedEffect(chromeVisible) {
+        if (chromeVisible) {
+            chromeWasShown = true
+        } else if (chromeWasShown) {
+            chromeWasShown = false
+            if (einkRefreshEnabled) einkFlashTrigger++
+        }
+    }
+    val chapterKey = currentLocator?.href?.substringBefore('#')
+    var lastChapterKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(chapterKey) {
+        val previous = lastChapterKey
+        lastChapterKey = chapterKey
+        if (previous != null && chapterKey != null && chapterKey != previous && einkRefreshEnabled) einkFlashTrigger++
     }
     LaunchedEffect(einkFlashTrigger) {
         if (einkFlashTrigger == 0) return@LaunchedEffect
@@ -754,7 +799,15 @@ private fun ReaderScreen(
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
-                if (event.key == Key.VolumeUp || event.key == Key.VolumeDown) {
+                val pageKey = pageKeyDirection(event.key.nativeKeyCode)
+                if (pageKey != null) {
+                    if (chromeVisible) return@onPreviewKeyEvent false
+                    if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0) {
+                        onReaderInteraction()
+                        if (pageKey == PageKeyDirection.PREVIOUS) onTapPrevious() else onTapNext()
+                    }
+                    true
+                } else if (event.key == Key.VolumeUp || event.key == Key.VolumeDown) {
                     if (!shouldInterceptReaderVolumeKey(readAloud.playing, settings.readerVolumeKeys, chromeVisible)) {
                         return@onPreviewKeyEvent false
                     }
@@ -998,9 +1051,7 @@ private fun ReaderScreen(
                 onBionicReadingChange = onBionicReadingChange,
                 onReadAloudRateChange = onReadAloudRateChange,
                 onReadAloudPitchChange = onReadAloudPitchChange,
-                readAloudVoices = readAloudVoices,
-                onLoadReadAloudVoices = onLoadReadAloudVoices,
-                onReadAloudVoiceChange = onReadAloudVoiceChange,
+                readAloudVoiceControls = readAloudVoiceControls,
                 onCreateBookmark = onCreateBookmark,
                 onRefreshScreen = { einkFlashTrigger++ },
                 searchResults = searchResults,
@@ -1834,9 +1885,7 @@ private fun ReaderChrome(
     onBionicReadingChange: (Boolean) -> Unit,
     onReadAloudRateChange: (Float) -> Unit,
     onReadAloudPitchChange: (Float) -> Unit,
-    readAloudVoices: List<SpeechVoiceOption>,
-    onLoadReadAloudVoices: () -> Unit,
-    onReadAloudVoiceChange: (String) -> Unit,
+    readAloudVoiceControls: ReadAloudVoiceControls,
     onCreateBookmark: () -> Unit,
     onRefreshScreen: () -> Unit,
     searchResults: List<com.vayana.reader.api.SearchResult>,
@@ -2001,10 +2050,8 @@ private fun ReaderChrome(
                     )
                     ReaderPanel.READ_ALOUD -> ReadAloudSettingsPage(
                         settings = settings,
-                        voices = readAloudVoices,
+                        controls = readAloudVoiceControls,
                         onStartReading = onStartReadAloud,
-                        onLoadVoices = onLoadReadAloudVoices,
-                        onVoiceChange = onReadAloudVoiceChange,
                         onRateChange = onReadAloudRateChange,
                         onPitchChange = onReadAloudPitchChange,
                     )
@@ -2621,15 +2668,19 @@ private fun StylePanel(
 @Composable
 private fun ReadAloudSettingsPage(
     settings: SettingsSnapshot,
-    voices: List<SpeechVoiceOption>,
+    controls: ReadAloudVoiceControls,
     onStartReading: () -> Unit,
-    onLoadVoices: () -> Unit,
-    onVoiceChange: (String) -> Unit,
     onRateChange: (Float) -> Unit,
     onPitchChange: (Float) -> Unit,
 ) {
+    val voices = controls.voices
+    val onLoadVoices = controls.onLoad
+    val onVoiceChange = controls.onVoiceChange
     val rateSetting = SettingsRegistry.ReadAloudRate
     val pitchSetting = SettingsRegistry.ReadAloudPitch
+    val defaultEngineLabel = stringResource(R.string.settings_read_aloud_engine_default)
+    var engineExpanded by remember { mutableStateOf(false) }
+    val selectedEngineLabel = controls.engines.firstOrNull { it.name == settings.readAloudEngine }?.label ?: defaultEngineLabel
     val networkVoiceLabel = stringResource(R.string.settings_read_aloud_voice_network)
     val notInstalledVoiceLabel = stringResource(R.string.settings_read_aloud_voice_not_installed)
     val defaultVoiceLabel = stringResource(R.string.settings_read_aloud_voice_default)
@@ -2677,6 +2728,34 @@ private fun ReadAloudSettingsPage(
                 text = stringResource(R.string.settings_read_aloud_start),
                 modifier = Modifier.padding(start = Spacing.sm),
             )
+        }
+
+        Text(text = stringResource(R.string.settings_read_aloud_engine_title), style = MaterialTheme.typography.labelLarge)
+        MutedCaption(stringResource(R.string.settings_read_aloud_engine_subtitle))
+        ReaderSelectField(
+            text = selectedEngineLabel,
+            enabled = true,
+            expanded = engineExpanded,
+            onExpandedChange = { engineExpanded = it },
+        ) {
+            DropdownMenuItem(
+                text = { Text(defaultEngineLabel) },
+                onClick = {
+                    engineExpanded = false
+                    pendingVoiceName = ""
+                    controls.onEngineChange("")
+                },
+            )
+            controls.engines.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    onClick = {
+                        engineExpanded = false
+                        pendingVoiceName = ""
+                        controls.onEngineChange(option.name)
+                    },
+                )
+            }
         }
 
         Text(text = stringResource(R.string.settings_read_aloud_language_title), style = MaterialTheme.typography.labelLarge)

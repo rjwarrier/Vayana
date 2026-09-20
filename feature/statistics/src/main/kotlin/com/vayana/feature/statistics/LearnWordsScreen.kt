@@ -32,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.designsystem.theme.PagedLazyColumn
 import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -73,7 +74,7 @@ fun LearnWordsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSummary, onHideKnownChange: (Boolean) -> Unit) {
-    LazyColumn(
+    PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
