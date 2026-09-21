@@ -1,6 +1,11 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -11,6 +16,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -24,17 +30,31 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
-import com.vayana.core.designsystem.tokens.Elevations
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import kotlin.math.roundToInt
 
+/**
+ * Where the reader is with a started book. While [finished] is false it leads with progress (a bar and the percent
+ * read) and counts time so far; once finished it becomes a highlighted summary headed by the finish date. [action]
+ * (reading-progress sync) sits at the end of the heading.
+ */
 @Composable
-internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
+internal fun ReadingStatsCard(
+    book: Book,
+    finished: Boolean,
+    modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
+    /** Set to let the reader correct the start date; the Started pill then opens it. */
+    onEditStarted: (() -> Unit)? = null,
+    /** As [onEditStarted], for the finish date of a finished book. */
+    onEditFinished: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val startedAt = book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
-    val isFinished = book.isFinished()
     val daysTaken = remember(startedAt, book.finishedReadingAt) {
         calculateDaysTaken(startedAt = startedAt, finishedAt = book.finishedReadingAt)
     }
@@ -44,24 +64,51 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
     val daysTakenText = remember(daysTaken, context) {
         formatDaysTaken(daysTaken, context)
     }
+    val finishedAt = book.finishedReadingAt
     val stats = buildList {
-        add(stringResource(R.string.library_stat_started) to startedAt.formatDate())
-        if (isFinished) {
+        add(
+            ReadingStat(
+                label = stringResource(R.string.library_stat_started),
+                value = startedAt.formatDate(),
+                onClick = onEditStarted,
+                clickLabel = stringResource(R.string.library_edit_started_date),
+            ),
+        )
+        if (finished) {
             add(
-                stringResource(R.string.library_stat_finished) to
-                    (book.finishedReadingAt ?: book.updatedAt).formatDate(),
+                ReadingStat(
+                    label = stringResource(R.string.library_status_finished),
+                    value = (finishedAt ?: book.updatedAt).formatDate(),
+                    onClick = onEditFinished,
+                    clickLabel = stringResource(R.string.library_edit_finished_date),
+                ),
             )
         }
-        add(stringResource(R.string.library_stat_time_taken) to timeTakenText)
-        add(stringResource(R.string.library_stat_days_taken) to daysTakenText)
+        add(
+            ReadingStat(
+                label = stringResource(if (finished) R.string.library_stat_time_taken else R.string.library_stat_time_so_far),
+                value = timeTakenText,
+            ),
+        )
+        add(
+            ReadingStat(
+                label = stringResource(if (finished) R.string.library_stat_days_taken else R.string.library_stat_days_so_far),
+                value = daysTakenText,
+            ),
+        )
+    }
+    // Finished: the date is one of the (editable) stats, so the heading just says so.
+    val title = if (finished) {
+        stringResource(R.string.library_status_finished)
+    } else {
+        stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
     }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.extraLarge),
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        tonalElevation = Elevations.level1,
+        color = if (finished) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = if (finished) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
             modifier = Modifier.padding(Spacing.lg),
@@ -74,19 +121,26 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                    color = if (finished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = if (finished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Timer,
+                        imageVector = if (finished) Icons.Outlined.TaskAlt else Icons.Outlined.Timer,
                         contentDescription = null,
                         modifier = Modifier.padding(Spacing.sm),
                     )
                 }
                 Text(
-                    text = stringResource(R.string.library_reading_stats_title),
-                    style = MaterialTheme.typography.titleLarge,
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
+                )
+                action?.invoke()
+            }
+            if (!finished) {
+                VayanaLinearProgressIndicator(
+                    progress = { book.readingPercent.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
 
@@ -98,12 +152,8 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        stats.forEach { (label, value) ->
-                            ReadingStatPill(
-                                label = label,
-                                value = value,
-                                modifier = Modifier.weight(1f),
-                            )
+                        stats.forEach { stat ->
+                            ReadingStatPill(stat = stat, modifier = Modifier.weight(1f))
                         }
                     }
                 } else {
@@ -112,8 +162,8 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        stats.forEach { (label, value) ->
-                            ReadingStatPill(label = label, value = value)
+                        stats.forEach { stat ->
+                            ReadingStatPill(stat = stat)
                         }
                     }
                 }
@@ -122,11 +172,30 @@ internal fun ReadingStatsCard(book: Book, modifier: Modifier = Modifier) {
     }
 }
 
+/** One figure on the reading card; [onClick] makes it editable (the reading dates). */
+private class ReadingStat(
+    val label: String,
+    val value: String,
+    val onClick: (() -> Unit)? = null,
+    val clickLabel: String? = null,
+)
+
 @Composable
-private fun ReadingStatPill(label: String, value: String, modifier: Modifier = Modifier) {
+private fun ReadingStatPill(stat: ReadingStat, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(Radii.large)
+    val onClick = stat.onClick
     Surface(
-        modifier = modifier.widthIn(min = Sizes.chipMinWidth),
-        shape = RoundedCornerShape(Radii.large),
+        modifier = modifier
+            .widthIn(min = Sizes.chipMinWidth)
+            .clip(shape)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClickLabel = stat.clickLabel, role = Role.Button, onClick = onClick)
+                } else {
+                    Modifier
+                },
+            ),
+        shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.72f),
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
@@ -134,15 +203,26 @@ private fun ReadingStatPill(label: String, value: String, modifier: Modifier = M
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(
+                    text = stat.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (onClick != null) {
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(Sizes.iconXSmall),
+                    )
+                }
+            }
             Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = value,
+                text = stat.value,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,

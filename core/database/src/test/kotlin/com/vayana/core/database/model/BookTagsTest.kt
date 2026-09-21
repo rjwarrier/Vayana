@@ -17,4 +17,19 @@ class BookTagsTest {
         assertNull(" , ,".normalizedBookTagsCsv())
         assertNull(null.normalizedBookTagsCsv())
     }
+
+    @Test
+    fun literalNullTagIsDropped() {
+        assertEquals("", " NULL ".normalizedBookTag())
+        assertEquals("Mystery, Science Fiction", "null, Mystery,Science Fiction".normalizedBookTagsCsv())
+        assertNull("null".normalizedBookTagsCsv())
+        assertEquals("Nullification", "Nullification".normalizedBookTagsCsv())
+    }
+
+    @Test
+    fun detectsOnlyAWholeNullTag() {
+        assertEquals(true, hasNullBookTag("Mystery, null"))
+        assertEquals(false, hasNullBookTag("Nullification, Mystery"))
+        assertEquals(false, hasNullBookTag(null))
+    }
 }

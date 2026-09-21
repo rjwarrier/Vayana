@@ -44,15 +44,21 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,15 +92,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.outlined.PhonelinkErase
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
-import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
+import com.vayana.core.designsystem.component.VayanaDropdownMenu
+import com.vayana.core.designsystem.component.VayanaMenuGroup
+import com.vayana.core.designsystem.component.VayanaMenuItem
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -110,6 +123,8 @@ fun BookDetailRoute(
     bookId: Long,
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
+    onOpenNotes: ((Long) -> Unit)? = null,
+    onReadFromStart: ((Long) -> Unit)? = null,
     useWideActions: Boolean = false,
     onReadableSourceChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -171,10 +186,13 @@ fun BookDetailRoute(
         readNextBumped = viewModel.readNextBumped,
         onBack = onBack,
         onContinueReading = onContinueReading,
+        onOpenNotes = onOpenNotes,
+        onReadFromStart = onReadFromStart,
         useWideActions = useWideActions,
         onUpdateMetadata = { title, author, series, seriesNumber, description, tagsCsv ->
             viewModel.updateMetadata(bookId, title, author, series, seriesNumber, description, tagsCsv)
         },
+        onUpdateReadingDates = { started, finished -> viewModel.updateReadingDates(bookId, started, finished) },
         onUpdateRating = { rating ->
             viewModel.updateRating(bookId, rating)
         },
@@ -242,6 +260,7 @@ internal data class BookShareImageOptions(
     val theme: ShareCardTheme = ShareCardTheme.LIGHT,
     val showCover: Boolean = true,
     val showAuthor: Boolean = true,
+    val showSeries: Boolean = true,
     val showStatus: Boolean = true,
     val showProgress: Boolean = true,
     val showReadTime: Boolean = true,
@@ -250,7 +269,18 @@ internal data class BookShareImageOptions(
     /** Mutually exclusive with [showTags]; the options panel keeps at most one of them on. */
     val showImportedDate: Boolean = false,
     val showTagline: Boolean = true,
-)
+) {
+    companion object {
+        /**
+         * [current] with the stats a book in [state] can fill in: an unread book has no progress or reading time,
+         * so they start off rather than printing "0%" and "0h 0m" on the card.
+         */
+        fun forState(state: BookReadingState, current: BookShareImageOptions): BookShareImageOptions {
+            val hasProgress = state != BookReadingState.NOT_STARTED
+            return current.copy(showProgress = hasProgress, showReadTime = hasProgress)
+        }
+    }
+}
 
 @Composable
 private fun BookDetailScreen(
@@ -273,8 +303,11 @@ private fun BookDetailScreen(
     readNextBumped: Flow<List<Book>>,
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
+    onOpenNotes: ((Long) -> Unit)?,
+    onReadFromStart: ((Long) -> Unit)?,
     useWideActions: Boolean,
     onUpdateMetadata: (String, String, String, String, String, String) -> Unit,
+    onUpdateReadingDates: (startedAt: Long?, finishedAt: Long?) -> Unit,
     onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
@@ -317,6 +350,7 @@ private fun BookDetailScreen(
     var readNextSeriesBreakWarning by remember { mutableStateOf<ReadNextSeriesBreakWarning?>(null) }
     var actionsExpanded by remember { mutableStateOf(false) }
     var shareImageOptions by remember { mutableStateOf(BookShareImageOptions()) }
+    var editingReadingDate by remember { mutableStateOf<ReadingDateField?>(null) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onReplaceSource(context.contentResolver, uri)
@@ -358,6 +392,57 @@ private fun BookDetailScreen(
     }
 
     val cleanedDescription = remember(book?.description) { book?.description?.cleanHtml() }
+
+    /** A finished book's read button starts it over ("Read again"); any other book resumes where it was left. */
+    fun openForReading(book: Book) {
+        if (book.readingState() == BookReadingState.FINISHED && onReadFromStart != null) {
+            onReadFromStart(book.id)
+        } else {
+            onContinueReading(book.id, null)
+        }
+    }
+
+    fun syncReadingProgress() {
+        if (syncReadingProgressRunning) return
+        coroutineScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val startedSnackbar = launch {
+                snackbarHostState.showSnackbar(syncStartedMessage)
+            }
+            when (val result = onSyncReadingProgress()) {
+                is GitHubSyncNowResult.Complete -> {
+                    startedSnackbar.cancel()
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val message = when {
+                        result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage.orEmpty())
+                        result.conflicts > 0 -> syncProgressOnlyConflictsMessage.format(
+                            result.progressUpdated,
+                            result.progressUploaded,
+                            result.conflicts,
+                        )
+                        else -> syncProgressOnlyCompleteMessage.format(result.progressUpdated, result.progressUploaded)
+                    }
+                    snackbarHostState.showSnackbar(message)
+                }
+                is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
+                    startedSnackbar.cancel()
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(syncProgressOnlyFailedMessage.format(result.message))
+                }
+                GitHubSyncNowResult.SyncDisabled -> {
+                    startedSnackbar.cancel()
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(syncDisabledMessage)
+                }
+                GitHubSyncNowResult.ConfigIncomplete -> {
+                    startedSnackbar.cancel()
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(syncConfigMissingMessage)
+                }
+            }
+        }
+    }
+
     val floatingNavigationInset = LocalFloatingNavigationInset.current
     val usesFloatingNavigation = floatingNavigationInset.value > 0f
     Scaffold(
@@ -391,13 +476,13 @@ private fun BookDetailScreen(
                     }
                     if (useWideActions) {
                         if (book.hasLocalReadableSource()) {
-                            Button(onClick = { onContinueReading(book.id, null) }) {
+                            Button(onClick = { openForReading(book) }) {
                                 Icon(
                                     imageVector = Icons.Outlined.AutoStories,
                                     contentDescription = null,
                                 )
                                 Spacer(modifier = Modifier.width(Spacing.sm))
-                                Text(stringResource(R.string.library_continue_reading))
+                                Text(book.readingState().readActionLabel())
                             }
                         }
                     }
@@ -408,113 +493,119 @@ private fun BookDetailScreen(
                                 contentDescription = stringResource(R.string.library_book_actions_content_description),
                             )
                         }
-                        DropdownMenu(
+                        VayanaDropdownMenu(
                             expanded = actionsExpanded,
                             onDismissRequest = { actionsExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_goodreads_import)) },
-                                leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
-                                onClick = {
-                                    actionsExpanded = false
-                                    onDismissGoodreads()
-                                    goodreadsBrowserUrl = goodreadsSearchUrl(
-                                        listOf(book.title, book.author.orEmpty())
-                                            .filter(String::isNotBlank)
-                                            .joinToString(" "),
-                                    )
-                                },
-                            )
-                            book.goodreadsUrl?.takeIf { it.isNotBlank() }?.let { goodreadsUrl ->
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_goodreads_refresh)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
-                                    onClick = {
-                                        actionsExpanded = false
-                                        onDismissGoodreads()
-                                        showGoodreadsDialog = true
-                                        onImportGoodreads(goodreadsUrl)
+                            groups = listOf(
+                                VayanaMenuGroup(
+                                    buildList {
+                                        add(
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_goodreads_import),
+                                                icon = Icons.Outlined.Link,
+                                                onClick = {
+                                                    onDismissGoodreads()
+                                                    goodreadsBrowserUrl = goodreadsSearchUrl(
+                                                        listOf(book.title, book.author.orEmpty())
+                                                            .filter(String::isNotBlank)
+                                                            .joinToString(" "),
+                                                    )
+                                                },
+                                            ),
+                                        )
+                                        book.goodreadsUrl?.takeIf { it.isNotBlank() }?.let { goodreadsUrl ->
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_goodreads_refresh),
+                                                    icon = Icons.Outlined.Sync,
+                                                    onClick = {
+                                                        onDismissGoodreads()
+                                                        showGoodreadsDialog = true
+                                                        onImportGoodreads(goodreadsUrl)
+                                                    },
+                                                ),
+                                            )
+                                        }
                                     },
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_import_quotes)) },
-                                leadingIcon = { Icon(Icons.Outlined.EditNote, contentDescription = null) },
-                                onClick = {
-                                    actionsExpanded = false
-                                    showImportQuotesDialog = true
-                                },
-                            )
-                            if (book.hasLocalReadableSource()) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_share_file)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
-                                    onClick = {
-                                        actionsExpanded = false
-                                        context.shareBookFile(book)
+                                ),
+                                VayanaMenuGroup(
+                                    buildList {
+                                        add(
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_import_quotes),
+                                                icon = Icons.Outlined.EditNote,
+                                                onClick = { showImportQuotesDialog = true },
+                                            ),
+                                        )
+                                        if (book.hasLocalReadableSource()) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_share_file),
+                                                    icon = Icons.Outlined.Share,
+                                                    onClick = { context.shareBookFile(book) },
+                                                ),
+                                            )
+                                        }
+                                        if (book.format != BookFormat.PHYSICAL) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_replace_source_file),
+                                                    icon = Icons.Outlined.AutoStories,
+                                                    onClick = {
+                                                        sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*"))
+                                                    },
+                                                ),
+                                            )
+                                        }
                                     },
-                                )
-                            }
-                            if (book.canRemoveLocalFileFromDevice()) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_remove_from_device)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
-                                    onClick = {
-                                        actionsExpanded = false
-                                        showRemoveFromDeviceDialog = true
+                                ),
+                                // Reading state. While reading, finishing is a quick action under the title; here it
+                                // covers books read elsewhere. An empty group (finished, no stats) is left out.
+                                VayanaMenuGroup(
+                                    buildList {
+                                        if (book.readingState() == BookReadingState.NOT_STARTED) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_mark_finished),
+                                                    icon = Icons.Outlined.Check,
+                                                    onClick = onMarkFinished,
+                                                ),
+                                            )
+                                        }
+                                        if (book.hasReadingStats()) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_reset_reading_stats),
+                                                    icon = Icons.Outlined.RestartAlt,
+                                                    onClick = { showResetStatsDialog = true },
+                                                ),
+                                            )
+                                        }
                                     },
-                                )
-                            }
-                            if (book.format != BookFormat.PHYSICAL) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_replace_source_file)) },
-                                    leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
-                                    onClick = {
-                                        actionsExpanded = false
-                                        sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*"))
+                                ),
+                                VayanaMenuGroup(
+                                    buildList {
+                                        if (book.canRemoveLocalFileFromDevice()) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_remove_from_device),
+                                                    icon = Icons.Outlined.PhonelinkErase,
+                                                    onClick = { showRemoveFromDeviceDialog = true },
+                                                ),
+                                            )
+                                        }
+                                        add(
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_delete_book),
+                                                icon = Icons.Outlined.Delete,
+                                                destructive = true,
+                                                onClick = { deleteStep = DeleteStep.CHOICE },
+                                            ),
+                                        )
                                     },
-                                )
-                            }
-                            if (book.hasReadingStats()) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_reset_reading_stats)) },
-                                    leadingIcon = { Icon(Icons.Outlined.RestartAlt, contentDescription = null) },
-                                    onClick = {
-                                        actionsExpanded = false
-                                        showResetStatsDialog = true
-                                    },
-                                )
-                            }
-                            if (book.finishedReadingAt == null && book.readingPercent < 1f) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_mark_finished)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Check, contentDescription = null) },
-                                    onClick = {
-                                        actionsExpanded = false
-                                        onMarkFinished()
-                                    },
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = stringResource(R.string.library_delete_book),
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Delete,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                onClick = {
-                                    actionsExpanded = false
-                                    deleteStep = DeleteStep.CHOICE
-                                },
-                            )
-                        }
+                                ),
+                            ),
+                        )
                     }
                 }
             }
@@ -522,7 +613,7 @@ private fun BookDetailScreen(
         floatingActionButton = {
             if (book?.hasLocalReadableSource() == true && !useWideActions && !usesFloatingNavigation) {
                 FloatingActionButton(
-                    onClick = { onContinueReading(book.id, null) },
+                    onClick = { openForReading(book) },
                     modifier = Modifier
                         .padding(bottom = floatingNavigationInset)
                         .size(Sizes.fab),
@@ -533,7 +624,7 @@ private fun BookDetailScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.AutoStories,
-                        contentDescription = stringResource(R.string.library_continue_reading),
+                        contentDescription = book.readingState().readActionLabel(),
                         modifier = Modifier.size(Sizes.iconLarge),
                     )
                 }
@@ -575,18 +666,25 @@ private fun BookDetailScreen(
                                         .size(width = Sizes.coverWidthDetail, height = Sizes.coverWidthDetail / Sizes.coverAspectRatio)
                                         .clickable { showCoverPreview = true },
                                 )
-                                TextButton(
+                                AssistChip(
                                     onClick = { showEditCoverDialog = true },
-                                    contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Edit,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(Sizes.iconSmall),
-                                    )
-                                    Spacer(modifier = Modifier.width(Spacing.xs))
-                                    Text(stringResource(R.string.library_edit_cover), style = MaterialTheme.typography.labelMedium)
-                                }
+                                    label = { Text(stringResource(R.string.library_edit_cover), style = MaterialTheme.typography.labelMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Edit,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                        )
+                                    },
+                                    modifier = Modifier.padding(top = Spacing.sm),
+                                    shape = RoundedCornerShape(Radii.full),
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        leadingIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    ),
+                                    border = null,
+                                )
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -611,6 +709,7 @@ private fun BookDetailScreen(
                                         modifier = Modifier.padding(top = Spacing.xs),
                                     )
                                 }
+                                BookStatusLine(book = book, modifier = Modifier.padding(top = Spacing.xs))
                                 GoodreadsInfoLine(
                                     book = book,
                                     communityQuoteCount = communityQuoteCount,
@@ -618,115 +717,71 @@ private fun BookDetailScreen(
                                 )
                             }
                         }
+                        BookQuickActions(
+                            book = book,
+                            state = book.readingState(),
+                            notesCount = highlightCount ?: 0,
+                            onMarkFinished = onMarkFinished,
+                            onReadAgain = onReadFromStart
+                                ?.takeIf { book.hasLocalReadableSource() && book.finishedLongAgo(System.currentTimeMillis()) }
+                                ?.let { read -> { read(book.id) } },
+                            onToggleReadNext = {
+                                if (book.readNextAddedAt != null) {
+                                    onSetReadNext(book.id, false)
+                                } else {
+                                    val warning = libraryBooks.readNextSeriesBreakWarningFor(book)
+                                    if (warning == null) {
+                                        onSetReadNext(book.id, true)
+                                    } else {
+                                        readNextSeriesBreakWarning = warning
+                                    }
+                                }
+                            },
+                            onOpenNotes = onOpenNotes?.let { open -> { open(book.id) } },
+                            onShare = {
+                                shareImageOptions = BookShareImageOptions.forState(book.readingState(), shareImageOptions)
+                                showShareBookDialog = true
+                            },
+                        )
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            BookRatingRow(
-                                rating = book.rating,
-                                onRatingChange = onUpdateRating,
-                            )
+                            val state = book.readingState()
+                            // A book not started yet has nothing to rate - unless it was rated anyway (e.g. read before).
+                            if (state != BookReadingState.NOT_STARTED || book.rating > 0f) {
+                                BookRatingRow(
+                                    rating = book.rating,
+                                    onRatingChange = onUpdateRating,
+                                    promptToRate = state == BookReadingState.FINISHED,
+                                )
+                            }
                             BookTagsRow(
                                 tags = book.tags(),
                                 modifier = Modifier.padding(top = Spacing.sm),
                             )
-                            Surface(
-                                modifier = Modifier.padding(top = Spacing.md),
-                                shape = MaterialTheme.shapes.small,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            ) {
-                                Text(
-                                    text = book.format.name,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                                )
-                            }
                         }
                     }
                 }
-                item {
-                    VayanaLinearProgressIndicator(
-                        progress = { book.readingPercent.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Spacing.xs),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt()),
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (showSyncReadingProgress) {
-                            TextButton(
-                                onClick = {
-                                    if (syncReadingProgressRunning) return@TextButton
-                                    coroutineScope.launch {
-                                        snackbarHostState.currentSnackbarData?.dismiss()
-                                        val startedSnackbar = launch {
-                                            snackbarHostState.showSnackbar(syncStartedMessage)
-                                        }
-                                        when (val result = onSyncReadingProgress()) {
-                                            is GitHubSyncNowResult.Complete -> {
-                                                startedSnackbar.cancel()
-                                                snackbarHostState.currentSnackbarData?.dismiss()
-                                                val message = when {
-                                                    result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage.orEmpty())
-                                                    result.conflicts > 0 -> syncProgressOnlyConflictsMessage.format(
-                                                        result.progressUpdated,
-                                                        result.progressUploaded,
-                                                        result.conflicts,
-                                                    )
-                                                    else -> syncProgressOnlyCompleteMessage.format(result.progressUpdated, result.progressUploaded)
-                                                }
-                                                snackbarHostState.showSnackbar(message)
-                                            }
-                                            is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
-                                                startedSnackbar.cancel()
-                                                snackbarHostState.currentSnackbarData?.dismiss()
-                                                snackbarHostState.showSnackbar(syncProgressOnlyFailedMessage.format(result.message))
-                                            }
-                                            GitHubSyncNowResult.SyncDisabled -> {
-                                                startedSnackbar.cancel()
-                                                snackbarHostState.currentSnackbarData?.dismiss()
-                                                snackbarHostState.showSnackbar(syncDisabledMessage)
-                                            }
-                                            GitHubSyncNowResult.ConfigIncomplete -> {
-                                                startedSnackbar.cancel()
-                                                snackbarHostState.currentSnackbarData?.dismiss()
-                                                snackbarHostState.showSnackbar(syncConfigMissingMessage)
-                                            }
-                                        }
-                                    }
-                                },
-                                enabled = !syncReadingProgressRunning,
-                                contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs),
-                            ) {
-                                if (syncReadingProgressRunning) {
-                                    VayanaCircularProgressIndicator(
-                                        modifier = Modifier.size(Sizes.iconSmall),
-                                        strokeWidth = Spacing.xs,
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Sync,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(Sizes.iconSmall),
-                                    )
-                                }
-                                Text(
-                                    text = stringResource(R.string.library_sync_progress_button),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.padding(start = Spacing.xs),
-                                )
-                            }
+                val readingState = book.readingState()
+                val syncAction: (@Composable () -> Unit)? = if (showSyncReadingProgress) {
+                    { SyncProgressButton(running = syncReadingProgressRunning, onClick = ::syncReadingProgress) }
+                } else {
+                    null
+                }
+                if (readingState == BookReadingState.NOT_STARTED) {
+                    // Nothing read here yet, but another device may have started it: keep just the sync button.
+                    if (syncAction != null) {
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { syncAction() }
                         }
                     }
-                }
-                if (book.hasStartedReading()) {
+                } else {
                     item {
-                        ReadingStatsCard(book = book)
+                        ReadingStatsCard(
+                            book = book,
+                            finished = readingState == BookReadingState.FINISHED,
+                            action = syncAction,
+                            onEditStarted = { editingReadingDate = ReadingDateField.STARTED },
+                            onEditFinished = { editingReadingDate = ReadingDateField.FINISHED },
+                        )
                     }
                 }
                 item {
@@ -797,45 +852,6 @@ private fun BookDetailScreen(
                         onRemoveFromShelf = onRemoveFromShelf,
                     )
                 }
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        if (book.format != BookFormat.PHYSICAL) {
-                            val isQueued = book.readNextAddedAt != null
-                            ElevatedButton(
-                                onClick = {
-                                    if (isQueued) {
-                                        onSetReadNext(book.id, false)
-                                    } else {
-                                        val warning = libraryBooks.readNextSeriesBreakWarningFor(book)
-                                        if (warning == null) {
-                                            onSetReadNext(book.id, true)
-                                        } else {
-                                            readNextSeriesBreakWarning = warning
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Icon(if (isQueued) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.PlaylistAdd, contentDescription = null)
-                                Text(
-                                    text = stringResource(if (isQueued) R.string.library_read_next_remove else R.string.library_read_next_add),
-                                    modifier = Modifier.padding(start = Spacing.sm),
-                                )
-                            }
-                        }
-                        ElevatedButton(
-                            onClick = { showImportQuotesDialog = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Outlined.EditNote, contentDescription = null)
-                            Text(text = stringResource(R.string.library_import_quotes), modifier = Modifier.padding(start = Spacing.sm))
-                        }
-                        ElevatedButton(onClick = { showShareBookDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.Share, contentDescription = null)
-                            Text(text = stringResource(R.string.library_share_book), modifier = Modifier.padding(start = Spacing.sm))
-                        }
-                    }
-                }
                 item { Spacer(modifier = Modifier.height(Sizes.bottomNavHeight)) }
             }
         }
@@ -863,6 +879,19 @@ private fun BookDetailScreen(
             )
         }
         null -> Unit
+    }
+
+    val editingDate = editingReadingDate
+    if (editingDate != null && book != null) {
+        ReadingDatePickerDialog(
+            field = editingDate,
+            book = book,
+            onConfirm = { started, finished ->
+                editingReadingDate = null
+                onUpdateReadingDates(started, finished)
+            },
+            onDismiss = { editingReadingDate = null },
+        )
     }
 
     readNextSeriesBreakWarning?.let { warning ->
@@ -1060,6 +1089,7 @@ private fun BookDetailScreen(
                 BookShareImageOptionsPanel(
                     options = shareImageOptions,
                     hasRating = book.rating > 0f,
+                    hasSeries = !book.series.isNullOrBlank() || !book.seriesNumber.isNullOrBlank(),
                     hasTags = book.tags().isNotEmpty(),
                     onOptionsChange = { shareImageOptions = it },
                 )
@@ -1069,6 +1099,7 @@ private fun BookDetailScreen(
             BookShareCard(
                 title = book.title,
                 author = book.author,
+                series = book.seriesDisplay(),
                 statusLabel = if (book.finishedReadingAt != null) {
                     stringResource(R.string.share_card_status_finished)
                 } else {
@@ -1087,6 +1118,7 @@ private fun BookDetailScreen(
                 theme = shareImageOptions.theme,
                 showCover = shareImageOptions.showCover,
                 showAuthor = shareImageOptions.showAuthor,
+                showSeries = shareImageOptions.showSeries,
                 showStatus = shareImageOptions.showStatus,
                 showProgress = shareImageOptions.showProgress,
                 showReadTime = shareImageOptions.showReadTime,
@@ -1104,11 +1136,238 @@ private fun BookDetailScreen(
     }
 }
 
+/**
+ * The book's everyday actions as a row of labelled icon buttons under its title, so they are in view without
+ * scrolling; the rarer ones stay in the overflow menu. What is offered follows [state]: Read next is for books not
+ * started (or already queued, so they can come off), finishing is for the book being read, and notes only show when
+ * there are some (the Notes screen would have nothing to show).
+ */
+@Composable
+private fun BookQuickActions(
+    book: Book,
+    state: BookReadingState,
+    notesCount: Int,
+    onToggleReadNext: () -> Unit,
+    onMarkFinished: () -> Unit,
+    /** Set for a book finished long enough ago to be worth reading again; it takes Read next's place. */
+    onReadAgain: (() -> Unit)?,
+    onOpenNotes: (() -> Unit)?,
+    onShare: () -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        val queued = book.readNextAddedAt != null
+        if (onReadAgain != null && !queued) {
+            BookQuickAction(
+                icon = Icons.Outlined.Replay,
+                label = stringResource(R.string.library_read_again),
+                onClick = onReadAgain,
+                modifier = Modifier.weight(1f),
+            )
+        } else if (book.format != BookFormat.PHYSICAL && (state == BookReadingState.NOT_STARTED || queued)) {
+            BookQuickAction(
+                icon = if (queued) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.PlaylistAdd,
+                label = stringResource(if (queued) R.string.library_quick_read_next_queued else R.string.library_quick_read_next),
+                selected = queued,
+                onClick = onToggleReadNext,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (state == BookReadingState.READING) {
+            BookQuickAction(
+                icon = Icons.Outlined.TaskAlt,
+                label = stringResource(R.string.library_quick_mark_finished),
+                onClick = onMarkFinished,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (onOpenNotes != null && notesCount > 0) {
+            BookQuickAction(
+                icon = Icons.AutoMirrored.Outlined.Notes,
+                label = pluralStringResource(R.plurals.library_quick_notes, notesCount, notesCount),
+                onClick = onOpenNotes,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        BookQuickAction(
+            icon = Icons.Outlined.Share,
+            label = stringResource(R.string.library_quick_share),
+            onClick = onShare,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun BookQuickAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radii.large))
+            .clickable(onClick = onClick)
+            .padding(vertical = Spacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(Spacing.md)
+                    .size(Sizes.icon),
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/** Format and where the reader is with the book, e.g. "EPUB · 18% read". */
+@Composable
+private fun BookStatusLine(book: Book, modifier: Modifier = Modifier) {
+    val status = when (book.readingState()) {
+        BookReadingState.NOT_STARTED -> stringResource(R.string.library_status_not_started)
+        BookReadingState.READING -> stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
+        BookReadingState.FINISHED -> book.finishedReadingAt?.let { stringResource(R.string.library_status_finished_on, it.formatDate()) }
+            ?: stringResource(R.string.library_status_finished)
+    }
+    Text(
+        text = stringResource(R.string.library_status_line, book.format.name, status),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun SyncProgressButton(running: Boolean, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        enabled = !running,
+        contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs),
+    ) {
+        if (running) {
+            VayanaCircularProgressIndicator(
+                modifier = Modifier.size(Sizes.iconSmall),
+                strokeWidth = Spacing.xs,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Outlined.Sync,
+                contentDescription = null,
+                modifier = Modifier.size(Sizes.iconSmall),
+            )
+        }
+        Text(
+            text = stringResource(R.string.library_sync_progress_button),
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun BookReadingState.readActionLabel(): String = stringResource(
+    when (this) {
+        BookReadingState.NOT_STARTED -> R.string.library_start_reading
+        BookReadingState.READING -> R.string.library_continue_reading
+        BookReadingState.FINISHED -> R.string.library_read_again
+    },
+)
+
+/**
+ * Material date picker for correcting when reading started or finished. Future days, a start after the finish and a
+ * finish before the start can't be picked; the chosen day keeps the stored time of day.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReadingDatePickerDialog(
+    field: ReadingDateField,
+    book: Book,
+    onConfirm: (startedAt: Long?, finishedAt: Long?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val now = remember { System.currentTimeMillis() }
+    // What the reading card shows as the start when none was recorded.
+    val shownStart = book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
+    val current = when (field) {
+        ReadingDateField.STARTED -> shownStart
+        ReadingDateField.FINISHED -> book.finishedReadingAt ?: book.updatedAt
+    }
+    val otherStart = shownStart.takeIf { field == ReadingDateField.FINISHED }
+    val otherFinish = book.finishedReadingAt.takeIf { field == ReadingDateField.STARTED }
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = ReadingDates.toPickerMillis(current),
+        yearRange = ReadingDatesMinYear..ReadingDates.pickerDate(ReadingDates.toPickerMillis(now)).year,
+        selectableDates = remember(field, otherStart, otherFinish, now) {
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    ReadingDates.isSelectable(field, utcTimeMillis, otherStart, otherFinish, now)
+            }
+        },
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val picked = state.selectedDateMillis ?: return@TextButton onDismiss()
+                    val chosen = ReadingDates.resolve(field, picked, current, otherStart, otherFinish, now)
+                    when (field) {
+                        ReadingDateField.STARTED -> onConfirm(chosen, book.finishedReadingAt)
+                        ReadingDateField.FINISHED -> onConfirm(book.startedReadingAt ?: shownStart, chosen)
+                    }
+                },
+                enabled = state.selectedDateMillis != null,
+            ) {
+                Text(stringResource(R.string.library_reading_date_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.library_edit_metadata_cancel)) }
+        },
+    ) {
+        DatePicker(
+            state = state,
+            title = {
+                Text(
+                    text = stringResource(
+                        when (field) {
+                            ReadingDateField.STARTED -> R.string.library_reading_date_started_title
+                            ReadingDateField.FINISHED -> R.string.library_reading_date_finished_title
+                        },
+                    ),
+                    modifier = Modifier.padding(start = Spacing.lg, end = Spacing.md, top = Spacing.md),
+                )
+            },
+        )
+    }
+}
+
+/** Earliest year the reading-date picker offers. */
+private const val ReadingDatesMinYear = 1900
+
 @Composable
 private fun BookRatingRow(
     rating: Float,
     onRatingChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    /** A finished, unrated book asks for a rating instead of just labelling the stars. */
+    promptToRate: Boolean = false,
 ) {
     val normalizedRating = ((rating * 2f).roundToInt() / 2f).coerceIn(0f, 5f)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -1116,20 +1375,21 @@ private fun BookRatingRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val asking = promptToRate && normalizedRating == 0f
             Text(
-                text = stringResource(R.string.library_rating_label),
+                text = stringResource(if (asking) R.string.library_rating_prompt else R.string.library_rating_label),
                 style = MaterialTheme.typography.titleSmall,
+                color = if (asking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = if (normalizedRating > 0f) {
-                    stringResource(R.string.library_rating_value, normalizedRating)
-                } else {
-                    stringResource(R.string.library_rating_unrated)
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Empty stars already say "unrated"; only a given rating needs spelling out.
+            if (normalizedRating > 0f) {
+                Text(
+                    text = stringResource(R.string.library_rating_value, normalizedRating),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,

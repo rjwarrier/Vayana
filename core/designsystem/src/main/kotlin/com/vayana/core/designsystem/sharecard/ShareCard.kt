@@ -1,6 +1,15 @@
 package com.vayana.core.designsystem.sharecard
 
 import android.graphics.Bitmap
+import android.os.Build
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.res.painterResource
+import com.vayana.core.designsystem.theme.ColorSchemes
+import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.LocalDarkVariant
+import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.LocalDynamicColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,7 +32,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShortText
-import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
@@ -53,8 +61,6 @@ import androidx.compose.ui.window.Dialog
 import com.vayana.core.common.ShareImageFormat
 import androidx.compose.ui.res.stringResource
 import com.vayana.core.resources.R
-import com.vayana.core.common.shareText
-import com.vayana.core.common.QuoteCitation
 import com.vayana.core.common.shareBitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.scale
@@ -207,132 +213,35 @@ fun ShareCardDialog(
     }
 }
 
-/** A quote in the [QuoteShareCard] preview, shared as an image or as a cited text quote. */
+/** Brand lockup on every share card: the launcher icon, as it looks on the home screen, beside the "vayana" wordmark. */
 @Composable
-fun QuoteShareDialog(
-    text: String,
-    author: String?,
-    bookTitle: String?,
-    chapterTitle: String?,
-    onDismiss: () -> Unit,
-) {
-    val context = LocalContext.current
-    val textChooserTitle = stringResource(R.string.share_card_share_text)
-    ShareCardDialog(
-        onDismiss = onDismiss,
-        onShareText = {
-            context.shareText(
-                QuoteCitation.format(text = text, author = author, bookTitle = bookTitle, chapterTitle = chapterTitle),
-                textChooserTitle,
-            )
-            onDismiss()
-        },
-        chooserTitle = stringResource(R.string.share_card_image_chooser_title),
-        shareTextLabel = textChooserTitle,
-        shareImageLabel = stringResource(R.string.share_card_share_image),
-    ) {
-        QuoteShareCard(
-            text = text,
-            author = author,
-            bookTitle = bookTitle,
-            pageLabel = chapterTitle,
-            watermark = stringResource(R.string.share_card_watermark),
-            footerRight = stringResource(R.string.share_card_tagline),
-        )
-    }
-}
-
-/** Small brand lockup ("vayana", optionally led by a book glyph) printed on every share card, fixed brand colors. */
-@Composable
-private fun ShareCardWordmark(tint: Color, wordmark: String, showGlyph: Boolean = true) {
+internal fun ShareCardWordmark(tint: Color, wordmark: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (showGlyph) {
-            Icon(
-                imageVector = Icons.Outlined.AutoStories,
+        Box(
+            modifier = Modifier
+                .size(Sizes.icon)
+                .clip(RoundedCornerShape(Radii.extraSmall))
+                .background(Palette.LauncherCream),
+        ) {
+            // The mark is drawn on the adaptive icon's 108dp canvas, of which a launcher shows the middle two
+            // thirds; scale it up by the same amount so it fills the tile the way it fills the app icon.
+            Image(
+                painter = painterResource(R.drawable.vayana_app_mark),
                 contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(Sizes.icon),
+                modifier = Modifier
+                    .matchParentSize()
+                    .scale(AdaptiveIconVisibleScale),
             )
-            Spacer(modifier = Modifier.width(Spacing.xs))
         }
+        Spacer(modifier = Modifier.width(Spacing.sm))
         Text(text = wordmark, style = ShareCardTypography.wordmark, color = tint)
     }
 }
 
 /** Small letter-spaced caps label, matching the share-card handoff's eyebrow style. */
 @Composable
-private fun ShareCardCaption(text: String, color: Color) {
+internal fun ShareCardCaption(text: String, color: Color) {
     Text(text = text, style = ShareCardTypography.caption, color = color)
-}
-
-/** A quote/highlight/note rendered as a shareable dark image card (handoff "Quote — dark"). */
-@Composable
-fun QuoteShareCard(
-    text: String,
-    author: String?,
-    bookTitle: String?,
-    pageLabel: String?,
-    watermark: String,
-    footerRight: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .width(Sizes.shareCardWidth)
-            .aspectRatio(1f)
-            .background(Palette.Navy900)
-            .padding(Spacing.xl),
-        verticalArrangement = Arrangement.SpaceBetween,
-    ) {
-        ShareCardWordmark(tint = Palette.Teal500, wordmark = watermark)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(text = "“", style = ShareCardTypography.quoteMark, color = Palette.Teal500)
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Text(
-                text = text,
-                style = ShareCardTypography.quoteBody,
-                color = Palette.Cream50,
-                maxLines = 8,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (!bookTitle.isNullOrBlank() || !author.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(Spacing.lg))
-                Row {
-                    Box(
-                        modifier = Modifier
-                            .width(Sizes.shareCardAccentBarWidth)
-                            .height(Sizes.shareCardQuoteMarkHeight)
-                            .background(Palette.Teal500),
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Column {
-                        bookTitle?.takeIf { it.isNotBlank() }?.let {
-                            Text(text = it, style = ShareCardTypography.cardTitleDark, color = Palette.Cream100)
-                        }
-                        val subtitle = listOfNotNull(author?.takeIf { it.isNotBlank() }, pageLabel?.takeIf { it.isNotBlank() })
-                            .joinToString(" · ")
-                        if (subtitle.isNotBlank()) {
-                            Text(text = subtitle, style = ShareCardTypography.cardSubtitleMono, color = Palette.TextMutedDark)
-                        }
-                    }
-                }
-            }
-        }
-        Column {
-            HorizontalDivider(color = Palette.Navy600)
-            Spacer(modifier = Modifier.height(Spacing.md))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                ShareCardCaption(text = "Highlighted in $watermark", color = Palette.Teal300)
-                ShareCardCaption(text = footerRight, color = Palette.TextMutedDark)
-            }
-        }
-    }
 }
 
 /** A finished/in-progress book rendered as a shareable light image card (handoff "Book — light"). */
@@ -340,6 +249,7 @@ fun QuoteShareCard(
 fun BookShareCard(
     title: String,
     author: String?,
+    series: String?,
     statusLabel: String,
     stat1Value: String,
     stat1Label: String,
@@ -355,6 +265,7 @@ fun BookShareCard(
     theme: ShareCardTheme = ShareCardTheme.LIGHT,
     showCover: Boolean = true,
     showAuthor: Boolean = true,
+    showSeries: Boolean = true,
     showStatus: Boolean = true,
     showProgress: Boolean = true,
     showReadTime: Boolean = true,
@@ -367,10 +278,11 @@ fun BookShareCard(
     progressFraction: Float? = null,
     cover: @Composable () -> Unit,
 ) {
-    val colors = theme.bookColors()
+    val colors = rememberShareCardColors(theme)
     val content = BookShareContent(
         title = title,
         author = author?.takeIf { showAuthor && it.isNotBlank() },
+        series = series?.takeIf { showSeries && it.isNotBlank() },
         status = statusLabel.takeIf { showStatus },
         tags = if (showTags) {
             tags.map { it.sanitizedShareTag() }
@@ -408,7 +320,7 @@ fun BookShareCard(
                 .padding(Spacing.xl),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            ShareCardWordmark(tint = colors.accent, wordmark = watermark, showGlyph = false)
+            ShareCardWordmark(tint = colors.accent, wordmark = watermark)
             val bodyModifier = Modifier.weight(1f)
             when (layout) {
                 BookShareCardLayout.CLASSIC -> ClassicBookShareBody(content, colors, showCover, cover, bodyModifier)
@@ -441,7 +353,7 @@ fun BookShareCard(
 }
 
 @Composable
-private fun ShareStat(value: String, label: String, colors: BookShareCardColors, modifier: Modifier = Modifier) {
+private fun ShareStat(value: String, label: String, colors: ShareCardColors, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
             text = value,
@@ -467,7 +379,7 @@ private fun ShareStat(value: String, label: String, colors: BookShareCardColors,
 @Composable
 private fun ClassicBookShareBody(
     content: BookShareContent,
-    colors: BookShareCardColors,
+    colors: ShareCardColors,
     showCover: Boolean,
     cover: @Composable () -> Unit,
     modifier: Modifier,
@@ -501,6 +413,10 @@ private fun ClassicBookShareBody(
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(text = it, style = ShareCardTypography.bookAuthor, color = colors.mutedText)
                 }
+                content.series?.let {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    ShareSeriesText(series = it, colors = colors)
+                }
                 if (content.tags.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(Spacing.sm))
                     ShareTagsText(tags = content.tags, colors = colors, maxLines = 2)
@@ -518,7 +434,7 @@ private fun ClassicBookShareBody(
 @Composable
 private fun SpotlightBookShareBody(
     content: BookShareContent,
-    colors: BookShareCardColors,
+    colors: ShareCardColors,
     showCover: Boolean,
     cover: @Composable () -> Unit,
     modifier: Modifier,
@@ -564,6 +480,10 @@ private fun SpotlightBookShareBody(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        content.series?.let {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            ShareSeriesText(series = it, colors = colors, textAlign = TextAlign.Center)
+        }
         if (content.stats.isNotEmpty()) {
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
@@ -592,7 +512,7 @@ private fun SpotlightBookShareBody(
 @Composable
 private fun MinimalBookShareBody(
     content: BookShareContent,
-    colors: BookShareCardColors,
+    colors: ShareCardColors,
     modifier: Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.Center) {
@@ -616,6 +536,10 @@ private fun MinimalBookShareBody(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        content.series?.let {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            ShareSeriesText(series = it, colors = colors)
         }
         content.progressFraction?.let { fraction ->
             Spacer(modifier = Modifier.height(Spacing.lg))
@@ -647,7 +571,7 @@ private fun MinimalBookShareBody(
 }
 
 @Composable
-private fun ShareStatsRow(stats: List<BookShareStat>, colors: BookShareCardColors, modifier: Modifier = Modifier) {
+private fun ShareStatsRow(stats: List<BookShareStat>, colors: ShareCardColors, modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         stats.forEach { stat ->
             ShareStat(value = stat.value, label = stat.label, colors = colors, modifier = Modifier.weight(1f))
@@ -656,7 +580,19 @@ private fun ShareStatsRow(stats: List<BookShareStat>, colors: BookShareCardColor
 }
 
 @Composable
-private fun ShareTagsText(tags: List<String>, colors: BookShareCardColors, maxLines: Int) {
+private fun ShareSeriesText(series: String, colors: ShareCardColors, textAlign: TextAlign? = null) {
+    Text(
+        text = series,
+        style = ShareCardTypography.cardSubtitleMono,
+        color = colors.mutedText,
+        textAlign = textAlign,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun ShareTagsText(tags: List<String>, colors: ShareCardColors, maxLines: Int) {
     Text(
         text = tags.joinToString(", "),
         style = ShareCardTypography.cardSubtitleMono,
@@ -677,7 +613,7 @@ enum class BookShareCardLayout {
 }
 
 /** Keeps a full-bleed cover quiet enough for the card's text to stay readable on top of it. */
-private const val BackdropCoverAlpha = 0.3f
+internal const val BackdropCoverAlpha = 0.3f
 
 private data class BookShareStat(val value: String, val label: String)
 
@@ -685,6 +621,7 @@ private data class BookShareStat(val value: String, val label: String)
 private data class BookShareContent(
     val title: String,
     val author: String?,
+    val series: String?,
     val status: String?,
     val tags: List<String>,
     val stats: List<BookShareStat>,
@@ -696,7 +633,7 @@ enum class ShareCardTheme {
     DARK,
 }
 
-private data class BookShareCardColors(
+internal data class ShareCardColors(
     val background: Color,
     val primaryText: Color,
     val mutedText: Color,
@@ -704,21 +641,32 @@ private data class BookShareCardColors(
     val divider: Color,
 )
 
-private fun ShareCardTheme.bookColors(): BookShareCardColors = when (this) {
-    ShareCardTheme.LIGHT -> BookShareCardColors(
-        background = Palette.Cream100,
-        primaryText = Palette.FgPrimaryLight,
-        mutedText = Palette.TextMutedLight,
-        accent = Palette.Forest700,
-        divider = Palette.Cream300,
-    )
-    ShareCardTheme.DARK -> BookShareCardColors(
-        background = Palette.Navy900,
-        primaryText = Palette.Cream50,
-        mutedText = Palette.TextMutedDark,
-        accent = Palette.Teal300,
-        divider = Palette.Navy600,
-    )
+/**
+ * The card in the app's own Material colours - wallpaper colours when those are on - in the light or dark
+ * version [theme] asks for, whichever the app itself is showing. E-Ink's monochrome scheme has no dark
+ * version and would wash out a shared image, so that profile falls back to the standard schemes.
+ */
+@Composable
+internal fun rememberShareCardColors(theme: ShareCardTheme): ShareCardColors {
+    val context = LocalContext.current
+    val dynamicColor = LocalDynamicColor.current
+    val darkVariant = LocalDarkVariant.current
+    val profile = LocalDisplayProfile.current.takeIf { it != DisplayProfile.E_INK } ?: DisplayProfile.STANDARD
+    return remember(theme, dynamicColor, darkVariant, profile) {
+        val isDark = theme == ShareCardTheme.DARK
+        val scheme = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ColorSchemes.dynamic(context, isDark, darkVariant)
+        } else {
+            ColorSchemes.forProfile(profile, isDark, darkVariant)
+        }
+        ShareCardColors(
+            background = scheme.surfaceContainer,
+            primaryText = scheme.onSurface,
+            mutedText = scheme.onSurfaceVariant,
+            accent = scheme.primary,
+            divider = scheme.outlineVariant,
+        )
+    }
 }
 
 private fun String.sanitizedShareTag(): String =
@@ -728,6 +676,9 @@ private fun String.sanitizedShareTag(): String =
         .replace(Regex("\\s+"), " ")
         .take(MaxBookShareTagChars)
         .trim()
+
+/** How much of the adaptive icon's canvas a launcher crops away: it shows the middle 72 of 108dp. */
+private const val AdaptiveIconVisibleScale = 108f / 72f
 
 private const val MaxBookShareTags = 3
 private const val MaxBookShareTagChars = 24

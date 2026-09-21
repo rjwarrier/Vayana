@@ -26,6 +26,9 @@ data class HighlightReviewItem(
     val annotation: Annotation,
     val bookTitle: String,
     val bookAuthor: String?,
+    val bookCoverPath: String?,
+    val bookSeries: String?,
+    val bookSeriesNumber: String?,
     /** Physical books have no text to open. */
     val canOpen: Boolean,
 )
@@ -112,6 +115,9 @@ class HighlightReviewViewModel @Inject constructor(
             annotation = annotation,
             bookTitle = book.title,
             bookAuthor = book.author,
+            bookCoverPath = book.coverPath,
+            bookSeries = book.series,
+            bookSeriesNumber = book.seriesNumber,
             canOpen = book.format != BookFormat.PHYSICAL,
         )
     }

@@ -4,6 +4,7 @@ import androidx.compose.ui.unit.dp
 
 object Sizes {
     val swatchSmall = 12.dp
+    val iconXSmall = 14.dp
     val iconSmall = 18.dp
     val icon = 24.dp
     val iconLarge = 32.dp
@@ -54,6 +55,7 @@ object Sizes {
     val shareCardSpotlightCoverWidth = 60.dp
     val shareCardProgressBarHeight = 6.dp
     val shareCardQuoteMarkHeight = 40.dp
+    val shareCardQuoteCoverHeight = 56.dp
     val shareCardAccentBarWidth = 2.dp
 
     val iconMedium = 22.dp

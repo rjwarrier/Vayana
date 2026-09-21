@@ -211,6 +211,9 @@ private fun HighlightReviewCard(
             bookTitle = item.bookTitle,
             chapterTitle = annotation.chapterTitle,
             onDismiss = { sharing = false },
+            coverPath = item.bookCoverPath,
+            series = item.bookSeries,
+            seriesNumber = item.bookSeriesNumber,
         )
     }
 }

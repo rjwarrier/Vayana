@@ -3,6 +3,8 @@ package com.vayana.core.database
 import androidx.room.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
+import com.vayana.core.database.model.hasNullBookTag
+import com.vayana.core.database.model.normalizedBookTagsCsv
 import com.vayana.core.database.search.BookSearchIndex
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -424,9 +426,31 @@ val MIGRATION_23_24 = object : Migration(23, 24) {
     }
 }
 
+val MIGRATION_24_25 = object : Migration(24, 25) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Earlier builds could store the text "null" as a tag (a JSON null read back as text, then merged with
+        // Goodreads genres); rewrite just those tag lists through the normaliser, which now drops it.
+        val repairs = connection.prepare("SELECT `id`, `tagsCsv` FROM `books` WHERE `tagsCsv` LIKE '%null%'").use { statement ->
+            buildList {
+                while (statement.step()) {
+                    val tagsCsv = statement.getText(1)
+                    if (hasNullBookTag(tagsCsv)) add(statement.getLong(0) to tagsCsv.normalizedBookTagsCsv())
+                }
+            }
+        }
+        repairs.forEach { (id, tagsCsv) ->
+            connection.prepare("UPDATE `books` SET `tagsCsv` = ? WHERE `id` = ?").use { statement ->
+                if (tagsCsv == null) statement.bindNull(1) else statement.bindText(1, tagsCsv)
+                statement.bindLong(2, id)
+                statement.step()
+            }
+        }
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
-    MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
+    MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
 )

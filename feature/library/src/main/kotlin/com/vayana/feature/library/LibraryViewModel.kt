@@ -36,6 +36,7 @@ import com.vayana.core.common.ParsedQuote
 import com.vayana.core.common.QuoteParser
 import com.vayana.core.common.quoteMatchKey
 import com.vayana.core.common.runCatchingCancellable
+import com.vayana.core.database.model.normalizedBookTag
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
@@ -748,6 +749,10 @@ class LibraryViewModel @Inject constructor(
             )
             _bookDetailMessage.value = BookDetailMessage.METADATA_SAVED
         }
+    }
+
+    fun updateReadingDates(bookId: Long, startedAt: Long?, finishedAt: Long?) {
+        viewModelScope.launch { bookRepository.updateReadingDates(bookId, startedAt, finishedAt) }
     }
 
     fun updateRating(bookId: Long, rating: Float) {
@@ -2439,7 +2444,7 @@ class LibraryViewModel @Inject constructor(
         withMergedTags(genres.take(GoodreadsMaxGenreTags))
 
     private fun String?.withMergedTags(tags: List<String>): String =
-        (orEmpty().split(",").map { it.trim() } + tags)
+        (orEmpty().split(",").map { it.normalizedBookTag() } + tags)
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase() }
             .joinToString(",")

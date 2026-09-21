@@ -28,3 +28,12 @@ fun isCommunityQuoteLocator(locator: String): Boolean =
 /** A popular quote imported from Goodreads (including entries created before source-specific locators). */
 fun Annotation.isCommunityQuote(): Boolean =
     type == AnnotationType.UNDERLINE && colorKey == "popular" && isCommunityQuoteLocator(locator)
+
+/**
+ * How many Goodreads readers highlighted this community quote, from the "N highlights" note its import writes;
+ * null for anything else, or a quote whose note has since been edited away from that form.
+ */
+fun Annotation.communityHighlightCount(): Int? =
+    if (!isCommunityQuote()) null else CommunityHighlightCountRegex.find(readerNote.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+
+private val CommunityHighlightCountRegex = Regex("""^\s*(\d+)\s+highlights?\b""", RegexOption.IGNORE_CASE)

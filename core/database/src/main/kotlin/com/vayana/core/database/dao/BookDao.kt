@@ -65,6 +65,9 @@ interface BookDao {
     @Query("UPDATE books SET rating = :rating, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateRating(id: Long, rating: Float, updatedAt: Long)
 
+    @Query("UPDATE books SET startedReadingAt = :startedAt, finishedReadingAt = :finishedAt, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?, updatedAt: Long)
+
     @Query(
         """
         UPDATE books

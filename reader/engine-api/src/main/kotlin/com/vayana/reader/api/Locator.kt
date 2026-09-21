@@ -70,6 +70,13 @@ sealed interface EngineEvent {
     data class SearchCompleted(val query: String, val results: List<SearchResult>) : EngineEvent
     data class Error(val message: String) : EngineEvent
 
+    /**
+     * The reader got to the end of the story: the last page of its final chapter or epilogue, or paged on past it into
+     * back matter (other books by the author, acknowledgements, an excerpt of the next book). Sent at most once per
+     * opened book.
+     */
+    data object StoryEndReached : EngineEvent
+
     /** The engine's rendering process crashed or was killed; the engine is unusable and must be replaced. */
     data object RendererGone : EngineEvent
 }

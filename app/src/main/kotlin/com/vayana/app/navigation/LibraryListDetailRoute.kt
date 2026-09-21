@@ -129,6 +129,8 @@ fun LibraryListDetailRoute(
                             bookId = content.id,
                             onBack = { scope.launch { navigator.navigateBack() } },
                             onContinueReading = onContinueReading,
+                            onOpenNotes = { bookId -> navController.navigate(BookNotesRoute(bookId)) },
+                            onReadFromStart = { bookId -> navController.navigate(ReaderRoute(bookId = bookId, fromStart = true)) },
                             useWideActions = true,
                         )
                         LibraryDetailContent.Placeholder -> LibraryDetailPlaceholder()

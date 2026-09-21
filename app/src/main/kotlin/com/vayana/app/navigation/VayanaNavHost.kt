@@ -174,6 +174,18 @@ fun VayanaNavHost(
                 onContinueReading = { bookId, locator ->
                     navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
                 },
+                onOpenNotes = { bookId -> navController.navigate(BookNotesRoute(bookId)) },
+                onReadFromStart = { bookId -> navController.navigate(ReaderRoute(bookId = bookId, fromStart = true)) },
+            )
+        }
+        composable<BookNotesRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<BookNotesRoute>()
+            NotesRoute(
+                onOpenReader = { bookId, locator ->
+                    navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
+                },
+                bookId = route.bookId,
+                onBack = { navController.popBackStack() },
             )
         }
         composable<ReaderRoute> {

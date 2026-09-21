@@ -541,6 +541,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val text = payload.optStringOrNull("text")?.takeIf { it.isNotBlank() } ?: return
                 _events.tryEmit(FootnoteOpened(Footnote(text = text, href = payload.optString("href"))))
             }
+            "storyEnd" -> _events.tryEmit(EngineEvent.StoryEndReached)
             "reply" -> bridgeRequests.remove(payload.optLong("requestId"))?.complete(payload)
             "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {

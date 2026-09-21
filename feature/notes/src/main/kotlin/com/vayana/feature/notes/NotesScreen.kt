@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
@@ -64,6 +65,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,6 +86,7 @@ import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.common.HighlightTags
 import com.vayana.core.common.shareFile
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.communityHighlightCount
 import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
@@ -106,6 +109,9 @@ import kotlinx.coroutines.launch
 fun NotesRoute(
     onOpenReader: (Long, String?) -> Unit,
     modifier: Modifier = Modifier,
+    /** Opens straight on this book's notes; its back arrow then leaves the screen through [onBack]. */
+    bookId: Long? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val viewModel: NotesViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -124,6 +130,8 @@ fun NotesRoute(
         onSoftDeleteAnnotation = viewModel::softDeleteAnnotation,
         onUndoDeleteAnnotation = viewModel::undoDeleteAnnotation,
         onPurgeAnnotation = viewModel::purgeAnnotation,
+        initialBookId = bookId,
+        onBack = onBack,
     )
 }
 
@@ -141,11 +149,13 @@ private fun NotesScreen(
     onSoftDeleteAnnotation: (Long) -> Unit,
     onUndoDeleteAnnotation: (Long) -> Unit,
     onPurgeAnnotation: (Long) -> Unit,
+    initialBookId: Long? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var selectedBookId by remember { mutableStateOf<Long?>(null) }
+    var selectedBookId by remember { mutableStateOf(initialBookId) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(NotesFilter.ALL) }
     var sourceFilter by remember { mutableStateOf(NotesSourceFilter.ALL) }
@@ -210,7 +220,14 @@ private fun NotesScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        if (activeBookItem != null && !useTwoPane) {
+                        if (onBack != null) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                    contentDescription = stringResource(R.string.notes_back_content_description),
+                                )
+                            }
+                        } else if (activeBookItem != null && !useTwoPane) {
                             IconButton(onClick = { selectedBookId = null }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -506,6 +523,9 @@ private fun NotesScreen(
             bookTitle = book?.title,
             chapterTitle = annotation.chapterTitle,
             onDismiss = { sharingAnnotation = null },
+            coverPath = book?.coverPath,
+            series = book?.series,
+            seriesNumber = book?.seriesNumber,
         )
     }
 }
@@ -779,6 +799,10 @@ private fun BookNotesDetailList(
     onShare: (Annotation) -> Unit,
     onTagClick: (String) -> Unit,
 ) {
+    var communitySort by rememberSaveable { mutableStateOf(CommunityQuoteSort.BOOK_ORDER) }
+    val communityAnnotations = remember(annotations, communitySort) {
+        annotations.filter { it.isCommunityQuote() }.sortedForCommunity(communitySort)
+    }
     PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -793,7 +817,6 @@ private fun BookNotesDetailList(
             BookNotesHero(bookItem = bookItem, onOpenBook = onOpenBook)
         }
         val userAnnotations = annotations.filterNot { it.isCommunityQuote() }
-        val communityAnnotations = annotations.filter { it.isCommunityQuote() }
         if (userAnnotations.isNotEmpty()) {
             item {
                 Text(
@@ -816,11 +839,30 @@ private fun BookNotesDetailList(
         }
         if (communityAnnotations.isNotEmpty()) {
             item {
-                Text(
-                    text = stringResource(R.string.notes_section_community, communityAnnotations.size),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = Spacing.sm),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.sm),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.notes_section_community, communityAnnotations.size),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    // Cycles book order → most highlighted → least highlighted on Goodreads.
+                    TextButton(onClick = { communitySort = communitySort.next() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.Sort,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                        Text(
+                            text = communitySort.label(),
+                            modifier = Modifier.padding(start = Spacing.xs),
+                        )
+                    }
+                }
             }
             items(communityAnnotations, key = { it.id }) { annotation ->
                 AnnotationCard(
@@ -1078,6 +1120,26 @@ private fun NotesFilter.label(): String = when (this) {
 }
 
 private enum class NotesSourceFilter { ALL, MINE, COMMUNITY }
+
+/** Order of a book's community quotes: as imported, or by how many Goodreads readers highlighted each. */
+internal enum class CommunityQuoteSort { BOOK_ORDER, MOST_HIGHLIGHTED, LEAST_HIGHLIGHTED }
+
+private fun CommunityQuoteSort.next(): CommunityQuoteSort =
+    CommunityQuoteSort.entries[(ordinal + 1) % CommunityQuoteSort.entries.size]
+
+@Composable
+private fun CommunityQuoteSort.label(): String = when (this) {
+    CommunityQuoteSort.BOOK_ORDER -> stringResource(R.string.notes_community_sort_book_order)
+    CommunityQuoteSort.MOST_HIGHLIGHTED -> stringResource(R.string.notes_community_sort_most)
+    CommunityQuoteSort.LEAST_HIGHLIGHTED -> stringResource(R.string.notes_community_sort_least)
+}
+
+/** Stable sorts, so quotes with equal (or unknown, counted as 0) highlights keep their book order. */
+internal fun List<Annotation>.sortedForCommunity(sort: CommunityQuoteSort): List<Annotation> = when (sort) {
+    CommunityQuoteSort.BOOK_ORDER -> this
+    CommunityQuoteSort.MOST_HIGHLIGHTED -> sortedByDescending { it.communityHighlightCount() ?: 0 }
+    CommunityQuoteSort.LEAST_HIGHLIGHTED -> sortedBy { it.communityHighlightCount() ?: 0 }
+}
 
 @Composable
 private fun NotesSourceFilter.label(): String = when (this) {

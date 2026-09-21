@@ -45,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
+import com.vayana.core.database.model.normalizedBookTag
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
@@ -382,7 +383,7 @@ private fun GoodreadsPreviewRow(
 }
 
 private fun String?.withGoodreadsGenresPreview(genres: List<String>): List<String> =
-    (orEmpty().split(",").map { it.trim() } + genres.take(GoodreadsMaxGenreTags))
+    (orEmpty().split(",").map { it.normalizedBookTag() } + genres.take(GoodreadsMaxGenreTags))
         .filter { it.isNotEmpty() }
         .distinctBy { it.lowercase() }
 

@@ -10,3 +10,7 @@ formats or features are implemented — see docs/DECISIONS.md).
 Local patch: `epubcfi.js` defaults both CFI generation and resolution to a filter
 that flattens elements marked `data-foliate-cfi-transparent`. The reader marks its
 bionic-reading wrappers this way so formatting does not change saved locations.
+
+Local patch: `paginator.js` `animate()` finishes on a timer when animation frames stop
+arriving (screen off, app in background), so a page turn in flight never leaves the
+paginator locked. Read-aloud relies on this to keep turning pages with the screen off.

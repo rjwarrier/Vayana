@@ -149,6 +149,10 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.updateRating(id, rating.coerceIn(0f, 5f), System.currentTimeMillis())
     }
 
+    override suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?) {
+        bookDao.updateReadingDates(id, startedAt, finishedAt, System.currentTimeMillis())
+    }
+
     override suspend fun updateCover(id: Long, coverPath: String?) {
         bookDao.updateCover(id, coverPath, System.currentTimeMillis())
     }

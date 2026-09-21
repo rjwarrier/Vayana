@@ -19,8 +19,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +44,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.VocabularyCard
+import com.vayana.core.designsystem.component.VayanaDropdownMenu
+import com.vayana.core.designsystem.component.VayanaMenuGroup
+import com.vayana.core.designsystem.component.VayanaMenuItem
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.tokens.Elevations
@@ -83,19 +84,24 @@ fun VocabularyReviewRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     IconButton(onClick = { exportMenuOpen = true }) {
                         Icon(Icons.Outlined.Share, contentDescription = chooserTitle)
                     }
-                    DropdownMenu(expanded = exportMenuOpen, onDismissRequest = { exportMenuOpen = false }) {
-                        VocabularyExportFormat.entries.forEach { format ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(format.labelRes)) },
-                                onClick = {
-                                    exportMenuOpen = false
-                                    viewModel.export(format, markdownTitle, otherWordsHeading) { content ->
-                                        context.shareFile(content, format.fileName, format.mimeType, chooserTitle)
-                                    }
+                    VayanaDropdownMenu(
+                        expanded = exportMenuOpen,
+                        onDismissRequest = { exportMenuOpen = false },
+                        groups = listOf(
+                            VayanaMenuGroup(
+                                VocabularyExportFormat.entries.map { format ->
+                                    VayanaMenuItem(
+                                        label = stringResource(format.labelRes),
+                                        onClick = {
+                                            viewModel.export(format, markdownTitle, otherWordsHeading) { content ->
+                                                context.shareFile(content, format.fileName, format.mimeType, chooserTitle)
+                                            }
+                                        },
+                                    )
                                 },
-                            )
-                        }
-                    }
+                            ),
+                        ),
+                    )
                 },
             )
         },

@@ -132,6 +132,9 @@ interface BookRepository {
 
     suspend fun updateRating(id: Long, rating: Float)
 
+    /** Corrects when reading started and finished (null leaves the book unstarted or unfinished). */
+    suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?)
+
     suspend fun updateCover(id: Long, coverPath: String?)
 
     /** Goodreads import extras. Saving them does not disturb reading-position conflict detection. */

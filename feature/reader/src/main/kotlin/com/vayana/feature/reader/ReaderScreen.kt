@@ -81,6 +81,9 @@ import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -262,6 +265,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     // costs a full-screen refresh), so the outcome shows as a standing dot beside the clock instead.
     val syncStatus by viewModel.syncStatus.collectAsState()
     val footnote by viewModel.footnote.collectAsState()
+    val bookFinishedPrompt by viewModel.bookFinishedPrompt.collectAsState()
     val readAloud by viewModel.readAloud.collectAsState()
     val returnRecap by viewModel.returnRecap.collectAsState()
     val chapterWords by viewModel.chapterWords.collectAsState()
@@ -460,11 +464,76 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onBack = onBack,
     )
     }
+    bookFinishedPrompt?.let { prompt ->
+        BookFinishedDialog(
+            initialRating = prompt.rating,
+            onConfirm = viewModel::confirmBookFinished,
+            onDismiss = viewModel::dismissBookFinishedPrompt,
+        )
+    }
     }
 }
 
+/**
+ * Asked when the story ends (before any back matter): mark the book completed, with an optional star rating. The
+ * stars start at the book's current rating; tapping the lit last star again clears it.
+ */
+@Composable
+private fun BookFinishedDialog(
+    initialRating: Float,
+    onConfirm: (Float) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var rating by rememberSaveable { mutableFloatStateOf(initialRating.roundToInt().toFloat().coerceIn(0f, 5f)) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Outlined.TaskAlt, contentDescription = null) },
+        title = { Text(stringResource(R.string.reader_book_finished_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                Text(stringResource(R.string.reader_book_finished_body))
+                Text(
+                    text = stringResource(R.string.reader_book_finished_rating_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    for (star in 1..5) {
+                        val lit = star <= rating
+                        IconButton(onClick = { rating = if (rating == star.toFloat()) 0f else star.toFloat() }) {
+                            Icon(
+                                imageVector = if (lit) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                contentDescription = stringResource(R.string.reader_book_finished_rate_star, star),
+                                tint = if (lit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(rating) }) {
+                Text(stringResource(R.string.reader_book_finished_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.reader_book_finished_dismiss))
+            }
+        },
+    )
+}
+
 /** A selection captured for the quote card, so the selection itself can be cleared while the card is open. */
-private data class SelectionShare(val text: String, val chapterTitle: String?, val author: String?, val bookTitle: String?)
+private data class SelectionShare(
+    val text: String,
+    val chapterTitle: String?,
+    val author: String?,
+    val bookTitle: String?,
+    val coverPath: String?,
+    val series: String?,
+    val seriesNumber: String?,
+)
 
 private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, READ_ALOUD, SEARCH, WORDS }
 
@@ -1159,6 +1228,9 @@ private fun ReaderScreen(
                             chapterTitle = selection?.chapterTitle,
                             author = loadedState?.bookAuthor,
                             bookTitle = loadedState?.bookTitle,
+                            coverPath = loadedState?.bookCoverPath,
+                            series = loadedState?.bookSeries,
+                            seriesNumber = loadedState?.bookSeriesNumber,
                         )
                         onClearSelection()
                     },
@@ -1205,6 +1277,9 @@ private fun ReaderScreen(
             bookTitle = share.bookTitle,
             chapterTitle = share.chapterTitle,
             onDismiss = { sharingSelection = null },
+            coverPath = share.coverPath,
+            series = share.series,
+            seriesNumber = share.seriesNumber,
         )
     }
 

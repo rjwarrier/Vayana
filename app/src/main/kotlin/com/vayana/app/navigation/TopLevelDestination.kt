@@ -60,6 +60,10 @@ data class ShelfDetailRoute(val shelfId: Long)
 @Serializable
 data class BookDetailRoute(val bookId: Long)
 
+/** The Notes screen opened straight on one book's notes, from that book's details. */
+@Serializable
+data class BookNotesRoute(val bookId: Long)
+
 enum class TopLevelDestination(
     val route: TopLevelRoute,
     val routeClass: KClass<out TopLevelRoute>,

@@ -24,21 +24,30 @@ const lerp = (min, max, x) => x * (max - min) + min
 const easeOutQuad = x => 1 - (1 - x) * (1 - x)
 const animate = (a, b, duration, ease, render) => new Promise(resolve => {
     let start
+    let done = false
+    const finish = () => {
+        if (done) return
+        done = true
+        clearTimeout(fallback)
+        render(lerp(a, b, 1))
+        resolve()
+    }
+    // Vayana patch: frames stop coming once the screen goes off or the app is
+    // backgrounded, and `document.hidden` does not always say so first. Without
+    // this the turn never settles, the paginator stays locked and read-aloud
+    // stops turning pages until the screen is back on.
+    const fallback = setTimeout(finish, duration + 200)
     const step = now => {
-        if (document.hidden) {
-            render(lerp(a, b, 1))
-            return resolve()
-        }
+        if (done) return
+        if (document.hidden) return finish()
         start ??= now
         const fraction = Math.min(1, (now - start) / duration)
-        render(lerp(a, b, ease(fraction)))
-        if (fraction < 1) requestAnimationFrame(step)
-        else resolve()
+        if (fraction < 1) {
+            render(lerp(a, b, ease(fraction)))
+            requestAnimationFrame(step)
+        } else finish()
     }
-    if (document.hidden) {
-        render(lerp(a, b, 1))
-        return resolve()
-    }
+    if (document.hidden) return finish()
     requestAnimationFrame(step)
 })
 

@@ -111,6 +111,129 @@ function tocSectionIndexes() {
     return indexes
 }
 
+// ---- End of the story ------------------------------------------------------------------------------------------
+// Many books carry pages after the last chapter or epilogue: other books by the author, acknowledgements, an excerpt
+// of the next book. The reader asks whether the book is finished when the story itself ends, so this finds the last
+// section of the story: the book's own back-matter landmarks when it declares them, else the trailing run of contents
+// entries whose titles read as back matter.
+
+// Titles that are back matter wherever they appear in the trailing run of contents entries.
+const BackMatterTitle = /acknowledge?ments?|about the (author|authors|translator|illustrator|publisher)|also (by|available)|other (books|titles|works)|by the same author|more (books|from|by)|books by|bibliograph|excerpt|preview|sneak peek|read on|coming soon|reading group|discussion|book club|reader'?s guide|endnotes|glossary|copyright|praise for|newsletter|sign up|a conversation with|interview|q ?(&|and) ?a\b|bonus|teaser|credits|colophon|permissions|further reading|afterword|author'?s note|historical note|a note (on|from)|a preview/i
+// Short generic titles that only count when they are the whole title (a chapter may well be called "Field Notes").
+const BackMatterWholeTitle = /^(notes|index|extras?|references|appendix( [a-z0-9]+)?|appendices|sources|glossary)$/i
+// EPUB 3 landmark types (and EPUB 2 guide types) that open the back matter.
+const BackMatterLandmarkTypes = new Set([
+    'backmatter', 'afterword', 'appendix', 'bibliography', 'colophon', 'endnotes', 'glossary', 'index',
+    'acknowledgments', 'acknowledgements', 'notes', 'rearnotes',
+])
+const BodyMatterLandmarkTypes = new Set(['bodymatter', 'text'])
+
+let storyEndIndexCache = undefined
+let storyEndPosted = false
+let previousRelocateSection = null
+
+function isBackMatterTitle(label) {
+    const title = String(label ?? '').trim()
+    return title.length > 0 && (BackMatterTitle.test(title) || BackMatterWholeTitle.test(title))
+}
+
+function sectionIndexOfHref(href) {
+    if (!href) return null
+    try {
+        const index = view.book.resolveHref(href)?.index
+        return Number.isInteger(index) && index >= 0 ? index : null
+    } catch (_) {
+        return null
+    }
+}
+
+// First section of the back matter per the book's landmarks (EPUB 3 nav or EPUB 2 guide), or null.
+function landmarkBackMatterStart() {
+    let bodyStart = null
+    let backStart = null
+    for (const item of view.book.landmarks ?? []) {
+        const types = [].concat(item.type ?? item.getAttribute?.('type') ?? [])
+            .flatMap(type => String(type).toLowerCase().split(/\s+/))
+        const index = sectionIndexOfHref(item.href ?? item.getAttribute?.('href'))
+        if (index == null) continue
+        if (types.some(type => BodyMatterLandmarkTypes.has(type))) bodyStart = Math.min(bodyStart ?? index, index)
+        if (types.some(type => BackMatterLandmarkTypes.has(type))) {
+            // Notes or an index before the story starts are front matter, not the end of the book.
+            if (bodyStart == null || index > bodyStart) backStart = Math.min(backStart ?? index, index)
+        }
+    }
+    return backStart
+}
+
+// First section of the trailing run of back-matter contents entries, or null when the contents end on the story.
+function tocBackMatterStart() {
+    const entries = []
+    const walk = items => {
+        for (const item of items ?? []) {
+            const index = sectionIndexOfHref(item.href)
+            if (index != null) entries.push({ label: item.label, index })
+            walk(item.subitems)
+        }
+    }
+    walk(view.book.toc)
+    let backStart = null
+    for (let i = entries.length - 1; i >= 0; i--) {
+        if (!isBackMatterTitle(entries[i].label)) {
+            // Back matter sharing the story's last file can't be told apart from it by section.
+            return backStart != null && backStart > entries[i].index ? backStart : null
+        }
+        backStart = entries[i].index
+    }
+    return null
+}
+
+// Index of the last section of the story itself.
+function storyEndIndex() {
+    if (storyEndIndexCache !== undefined) return storyEndIndexCache
+    const sections = view.book.sections ?? []
+    const lastLinearBefore = index => {
+        let i = index
+        while (i >= 0 && sections[i]?.linear === 'no') i--
+        return i
+    }
+    const lastLinear = lastLinearBefore(sections.length - 1)
+    let end = lastLinear
+    let backStart = null
+    try {
+        backStart = landmarkBackMatterStart() ?? tocBackMatterStart()
+    } catch (error) {
+        post('log', { step: 'storyEnd', message: String(error) })
+    }
+    if (backStart != null && backStart > 0) {
+        const candidate = lastLinearBefore(backStart - 1)
+        // "Back matter" starting in the first half of the book is a misreading of the contents; keep the whole book.
+        if (candidate >= lastLinear / 2) end = candidate
+    }
+    storyEndIndexCache = end
+    return end
+}
+
+// Tells the app once per opened book when the reader reaches the story's last page, or pages on past it. A jump
+// straight into the back matter (from the contents, say) is not reading to the end, so it doesn't count.
+function checkStoryEnd(index) {
+    if (storyEndPosted || !Number.isInteger(index)) return
+    try {
+        const end = storyEndIndex()
+        const renderer = view.renderer
+        const onLastPage = renderer.scrolled
+            ? renderer.viewSize - renderer.end <= 2
+            : Number.isFinite(renderer.page) && renderer.page >= renderer.pages - 2
+        const reached = (index === end && onLastPage) || (index > end && previousRelocateSection === end)
+        previousRelocateSection = index
+        if (reached) {
+            storyEndPosted = true
+            post('storyEnd', { sectionIndex: index })
+        }
+    } catch (error) {
+        post('log', { step: 'checkStoryEnd', message: String(error) })
+    }
+}
+
 function post(type, payload) {
     if (window.AndroidBridge) window.AndroidBridge.onEvent(type, JSON.stringify(payload ?? {}))
 }
@@ -191,6 +314,9 @@ async function open(bookUrl, lastLocatorCfi) {
         }
         sectionByteSizes = null
         tocSectionIndexCache = null
+        storyEndIndexCache = undefined
+        storyEndPosted = false
+        previousRelocateSection = null
         resetPageEstimate()
         view.addEventListener('relocate', e => {
             scheduleBadgeLayout()
@@ -210,6 +336,7 @@ async function open(bookUrl, lastLocatorCfi) {
                 bookMinutesLeft: Number.isFinite(time?.total) ? time.total : null,
             })
             markFirstRender('relocate')
+            checkStoryEnd(section?.current)
             if (hasOpened) {
                 for (const { doc, index } of view.renderer.getContents()) {
                     if (doc) queueDocumentEnhancements(doc, index)

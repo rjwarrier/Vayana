@@ -96,6 +96,9 @@ sealed interface ReaderUiState {
     data class Loaded(
         val bookTitle: String,
         val bookAuthor: String? = null,
+        val bookCoverPath: String? = null,
+        val bookSeries: String? = null,
+        val bookSeriesNumber: String? = null,
         val toc: List<com.vayana.reader.api.TocEntry>,
         val currentLocator: Locator?,
         val annotations: List<Annotation> = emptyList(),
@@ -105,6 +108,9 @@ sealed interface ReaderUiState {
     ) : ReaderUiState
     data class Failed(val message: String) : ReaderUiState
 }
+
+/** The end-of-story question: finished? and, optionally, a rating ([rating] is the book's current one, 0 if none). */
+data class BookFinishedPrompt(val rating: Float)
 
 /** Shown when a book is reopened after a while: how long since it was last read, and the reader's latest highlight in it. */
 data class ReaderRecap(val awayMillis: Long, val highlight: String?, val dueWords: Int = 0)
@@ -130,7 +136,7 @@ sealed interface DictionaryLookupState {
 
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val bookRepository: BookRepository,
     private val annotationRepository: AnnotationRepository,
     private val storageRoots: StorageRoots,
@@ -147,6 +153,9 @@ class ReaderViewModel @Inject constructor(
 
     val bookId: Long = checkNotNull(savedStateHandle["bookId"])
     val targetLocator: String? = savedStateHandle["targetLocator"]
+
+    /** Consumed by the first open, so a restore after process death resumes where the reader got to instead. */
+    private var openFromStart: Boolean = savedStateHandle[FromStartKey] ?: false
 
     private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Loading)
     val uiState: StateFlow<ReaderUiState> = _uiState
@@ -212,6 +221,17 @@ class ReaderViewModel @Inject constructor(
     private val _footnote = MutableStateFlow<Footnote?>(null)
     val footnote: StateFlow<Footnote?> = _footnote
 
+    private val _bookFinishedPrompt = MutableStateFlow<BookFinishedPrompt?>(null)
+
+    /** Asks whether the book is finished once the story ends; null while there is nothing to ask. */
+    val bookFinishedPrompt: StateFlow<BookFinishedPrompt?> = _bookFinishedPrompt
+
+    /** Only a book that wasn't finished when it was opened is asked about; a reread doesn't finish it again. */
+    private var unfinishedWhenOpened = false
+
+    /** Asked at most once while the reader is open, whatever the answer. */
+    private var bookFinishedPromptOffered = false
+
     private val _returnRecap = MutableStateFlow<ReaderRecap?>(null)
     val returnRecap: StateFlow<ReaderRecap?> = _returnRecap
 
@@ -254,6 +274,7 @@ class ReaderViewModel @Inject constructor(
 
         engineJobs += viewModelScope.launch {
             val book = bookRepository.getById(bookId)
+            unfinishedWhenOpened = book != null && book.finishedReadingAt == null && book.readingPercent < 1f
             if (book == null) {
                 _uiState.value = ReaderUiState.Failed("Book not found")
                 return@launch
@@ -263,7 +284,13 @@ class ReaderViewModel @Inject constructor(
             val restoredCfi = restartCfi?.takeIf { it.isNotBlank() }
             restartCfi = null
             val openTarget = restoredCfi ?: targetLocator
-            val previousReadAt = book.lastReadAt.takeIf { openTarget.isNullOrBlank() && book.readingPercent > 0f }
+            val fromStart = openFromStart && openTarget.isNullOrBlank()
+            if (openFromStart) {
+                openFromStart = false
+                savedStateHandle[FromStartKey] = false
+            }
+            // Reading again from the start is not a return to where the reader left off.
+            val previousReadAt = book.lastReadAt.takeIf { openTarget.isNullOrBlank() && !fromStart && book.readingPercent > 0f }
             if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
                 _uiState.value = ReaderUiState.Failed("This book is in your cloud library. Download support is being wired next.")
                 return@launch
@@ -296,6 +323,9 @@ class ReaderViewModel @Inject constructor(
                     _uiState.value = ReaderUiState.Loaded(
                         bookTitle = openBook.title,
                         bookAuthor = book.author,
+                        bookCoverPath = book.coverPath,
+                        bookSeries = book.series,
+                        bookSeriesNumber = book.seriesNumber,
                         toc = openBook.toc,
                         currentLocator = resumeLocator,
                     )
@@ -303,7 +333,7 @@ class ReaderViewModel @Inject constructor(
                     showReturnRecap(previousReadAt)
                     if (!openTarget.isNullOrBlank()) {
                         engine.goTo(NavTarget.ToLocator(Locator(cfi = openTarget, href = null, progression = 0f, chapterTitle = null)))
-                    } else if (savedLocator != null && book.readingPercent > 0.001f) {
+                    } else if (!fromStart && savedLocator != null && book.readingPercent > 0.001f) {
                         engine.goTo(NavTarget.ToFraction(book.readingPercent.coerceIn(0f, 0.999f)))
                     }
                     observeRemoteReadingProgress()
@@ -362,6 +392,7 @@ class ReaderViewModel @Inject constructor(
                         if (event.query == lastSearchQuery) _searchResults.value = event.results
                     }
                     is FootnoteOpened -> _footnote.value = event.footnote
+                    com.vayana.reader.api.EngineEvent.StoryEndReached -> offerBookFinishedPrompt()
                     com.vayana.reader.api.EngineEvent.RendererGone -> onRendererGone()
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
@@ -602,6 +633,32 @@ class ReaderViewModel @Inject constructor(
         if (!settings.value.readerAutoMarkSelection || selection.isWordLookup || selection.cfi == autoMarkedSelectionCfi) return
         autoMarkedSelectionCfi = selection.cfi
         createHighlight(lastUsedHighlightColor)
+    }
+
+    private fun offerBookFinishedPrompt() {
+        if (!unfinishedWhenOpened || bookFinishedPromptOffered) return
+        bookFinishedPromptOffered = true
+        viewModelScope.launch {
+            val book = bookRepository.getById(bookId) ?: return@launch
+            // Finished meanwhile (from another device, or the book's end crossing the "finished" threshold) still gets
+            // asked for a rating, unless it already has one.
+            if (book.finishedReadingAt != null && book.rating > 0f) return@launch
+            _bookFinishedPrompt.value = BookFinishedPrompt(rating = book.rating)
+        }
+    }
+
+    /** Marks the book finished and, when [rating] is given (above zero) and new, saves it as the book's rating. */
+    fun confirmBookFinished(rating: Float) {
+        val prompt = _bookFinishedPrompt.value ?: return
+        _bookFinishedPrompt.value = null
+        applicationScope.launch {
+            bookRepository.markFinished(bookId)
+            if (rating > 0f && rating != prompt.rating) bookRepository.updateRating(bookId, rating)
+        }
+    }
+
+    fun dismissBookFinishedPrompt() {
+        _bookFinishedPrompt.value = null
     }
 
     fun dismissFootnote() {
@@ -1425,3 +1482,5 @@ private data class ReadAloudNotificationSnapshot(
 
 internal fun readAloudProgressPercent(progression: Float?): Int? =
     progression?.times(100)?.roundToInt()?.coerceIn(0, 100)
+
+private const val FromStartKey = "fromStart"

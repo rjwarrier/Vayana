@@ -43,7 +43,6 @@ import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -60,11 +59,8 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.graphics.RectangleShape
@@ -127,6 +123,9 @@ import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
+import com.vayana.core.designsystem.component.VayanaDropdownMenu
+import com.vayana.core.designsystem.component.VayanaMenuGroup
+import com.vayana.core.designsystem.component.VayanaMenuItem
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -730,25 +729,26 @@ private fun LibraryTopBar(
                                     )
                                 }
                             }
-                            DropdownMenu(
+                            VayanaDropdownMenu(
                                 expanded = syncExpanded,
                                 onDismissRequest = { syncExpanded = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_sync_all)) },
-                                    onClick = {
-                                        syncExpanded = false
-                                        onSyncNow(GitHubSyncMode.FULL)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_sync_reading_progress_only)) },
-                                    onClick = {
-                                        syncExpanded = false
-                                        onSyncNow(GitHubSyncMode.READING_PROGRESS_ONLY)
-                                    },
-                                )
-                            }
+                                groups = listOf(
+                                    VayanaMenuGroup(
+                                        listOf(
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_sync_all),
+                                                icon = Icons.Outlined.Sync,
+                                                onClick = { onSyncNow(GitHubSyncMode.FULL) },
+                                            ),
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_sync_reading_progress_only),
+                                                icon = Icons.Outlined.AutoStories,
+                                                onClick = { onSyncNow(GitHubSyncMode.READING_PROGRESS_ONLY) },
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            )
                         }
                     }
                     if (showAddAction) {
@@ -760,27 +760,26 @@ private fun LibraryTopBar(
                                     modifier = Modifier.size(Sizes.icon),
                                 )
                             }
-                            DropdownMenu(
+                            VayanaDropdownMenu(
                                 expanded = addExpanded,
                                 onDismissRequest = { addExpanded = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_import_files)) },
-                                    leadingIcon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
-                                    onClick = {
-                                        addExpanded = false
-                                        onImportFiles()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_import_folder)) },
-                                    leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null) },
-                                    onClick = {
-                                        addExpanded = false
-                                        onImportFolder()
-                                    },
-                                )
-                            }
+                                groups = listOf(
+                                    VayanaMenuGroup(
+                                        listOf(
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_import_files),
+                                                icon = Icons.Outlined.AutoStories,
+                                                onClick = onImportFiles,
+                                            ),
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_import_folder),
+                                                icon = Icons.Outlined.CreateNewFolder,
+                                                onClick = onImportFolder,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            )
                         }
                     }
                     LibraryTopBarIconButton(onClick = onSearchClick) {
@@ -798,29 +797,11 @@ private fun LibraryTopBar(
                                 modifier = Modifier.size(Sizes.icon),
                             )
                         }
-                        DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
-                            LibrarySort.entries.forEach { sort ->
-                                val selected = controls.sort == sort
-                                DropdownMenuItem(
-                                    text = { Text(sort.label()) },
-                                    trailingIcon = if (selected) {
-                                        {
-                                            Icon(
-                                                imageVector = controls.sortDirection.icon(),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(Sizes.iconSmall),
-                                            )
-                                        }
-                                    } else {
-                                        null
-                                    },
-                                    onClick = {
-                                        filterExpanded = false
-                                        onSortChange(sort)
-                                    },
-                                )
-                            }
-                        }
+                        VayanaDropdownMenu(
+                            expanded = filterExpanded,
+                            onDismissRequest = { filterExpanded = false },
+                            groups = listOf(librarySortMenuGroup(controls, onSortChange)),
+                        )
                         LibraryTopBarIconButton(
                             onClick = { onViewModeChange(controls.viewMode.toggled()) },
                         ) {
@@ -839,92 +820,57 @@ private fun LibraryTopBar(
                                 modifier = Modifier.size(Sizes.icon),
                             )
                         }
-                        DropdownMenu(
+                        VayanaDropdownMenu(
                             expanded = moreExpanded,
                             onDismissRequest = { moreExpanded = false },
-                        ) {
-                            if (useCompactActions) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_filter_content_description)) },
-                                    enabled = false,
-                                    onClick = {},
-                                )
-                                LibrarySort.entries.forEach { sort ->
-                                    val selected = controls.sort == sort
-                                    DropdownMenuItem(
-                                        text = { Text(sort.label()) },
-                                        leadingIcon = {
-                                            if (selected) Icon(Icons.Outlined.Check, contentDescription = null)
-                                        },
-                                        trailingIcon = if (selected) {
-                                            {
-                                                Icon(
-                                                    imageVector = controls.sortDirection.icon(),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(Sizes.iconSmall),
-                                                )
-                                            }
-                                        } else {
-                                            null
-                                        },
-                                        onClick = {
-                                            moreExpanded = false
-                                            onSortChange(sort)
-                                        },
+                            groups = buildList {
+                                // Narrow layouts have no room for the sort and view buttons, so they move in here.
+                                if (useCompactActions) {
+                                    add(librarySortMenuGroup(controls, onSortChange))
+                                    add(
+                                        VayanaMenuGroup(
+                                            listOf(
+                                                VayanaMenuItem(
+                                                    label = stringResource(controls.viewMode.toggleLabelRes()),
+                                                    icon = controls.viewMode.toggleIcon(),
+                                                    onClick = { onViewModeChange(controls.viewMode.toggled()) },
+                                                ),
+                                            ),
+                                        ),
                                     )
                                 }
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(controls.viewMode.toggleLabelRes())) },
-                                    leadingIcon = {
-                                        Icon(controls.viewMode.toggleIcon(), contentDescription = null)
-                                    },
-                                    onClick = {
-                                        moreExpanded = false
-                                        onViewModeChange(controls.viewMode.toggled())
-                                    },
+                                add(
+                                    VayanaMenuGroup(
+                                        label = stringResource(R.string.library_group_content_description),
+                                        items = LibraryGroupBy.entries.map { groupBy ->
+                                            VayanaMenuItem(
+                                                label = groupBy.label(),
+                                                selected = controls.groupBy == groupBy,
+                                                onClick = { onGroupByChange(groupBy) },
+                                            )
+                                        },
+                                    ),
                                 )
-                                HorizontalDivider()
-                            }
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.library_group_content_description)) },
-                                leadingIcon = { Icon(Icons.Outlined.Category, contentDescription = null) },
-                                enabled = false,
-                                onClick = {},
-                            )
-                            LibraryGroupBy.entries.forEach { groupBy ->
-                                DropdownMenuItem(
-                                    text = { Text(groupBy.label()) },
-                                    leadingIcon = {
-                                        if (controls.groupBy == groupBy) {
-                                            Icon(Icons.Outlined.Check, contentDescription = null)
-                                        }
-                                    },
-                                    onClick = {
-                                        moreExpanded = false
-                                        onGroupByChange(groupBy)
-                                    },
-                                )
-                            }
-                            HorizontalDivider()
-                            if (showSettingsAction) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_shelves_title)) },
-                                    leadingIcon = { Icon(Icons.Outlined.CollectionsBookmark, contentDescription = null) },
-                                    onClick = {
-                                        moreExpanded = false
-                                        onShelvesClick()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.library_recently_deleted_title)) },
-                                    leadingIcon = { Icon(Icons.Outlined.RestoreFromTrash, contentDescription = null) },
-                                    onClick = {
-                                        moreExpanded = false
-                                        onRecentlyDeletedClick()
-                                    },
-                                )
-                            }
-                        }
+                                if (showSettingsAction) {
+                                    add(
+                                        VayanaMenuGroup(
+                                            listOf(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_shelves_title),
+                                                    icon = Icons.Outlined.CollectionsBookmark,
+                                                    onClick = onShelvesClick,
+                                                ),
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_recently_deleted_title),
+                                                    icon = Icons.Outlined.RestoreFromTrash,
+                                                    onClick = onRecentlyDeletedClick,
+                                                ),
+                                            ),
+                                        ),
+                                    )
+                                }
+                            },
+                        )
                     }
                     if (showSettingsAction) {
                         LibraryTopBarIconButton(onClick = onSettingsClick) {
@@ -1926,6 +1872,22 @@ internal fun Book.hasLocalReadableSource(): Boolean =
         fileAvailability == BookFileAvailability.LOCAL &&
         filePath.isNotBlank()
 
+/** The library's sort orders as a pick-one menu group; the current one also shows its direction. */
+@Composable
+private fun librarySortMenuGroup(controls: LibraryControls, onSortChange: (LibrarySort) -> Unit): VayanaMenuGroup =
+    VayanaMenuGroup(
+        label = stringResource(R.string.library_filter_content_description),
+        items = LibrarySort.entries.map { sort ->
+            val selected = controls.sort == sort
+            VayanaMenuItem(
+                label = sort.label(),
+                selected = selected,
+                trailingIcon = if (selected) controls.sortDirection.icon() else null,
+                onClick = { onSortChange(sort) },
+            )
+        },
+    )
+
 internal fun Book.tags(): List<String> = tagsCsv.orEmpty().tags()
 
 internal fun Book.seriesDisplayOrNone(): String =
@@ -1955,6 +1917,27 @@ internal fun Book.hasStartedReading(): Boolean =
     startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
 
 internal fun Book.isFinished(): Boolean = finishedReadingAt != null || readingPercent >= 1f
+
+/** Where the reader is with a book, which decides what its details screen offers and shows. */
+internal enum class BookReadingState { NOT_STARTED, READING, FINISHED }
+
+internal fun Book.readingState(): BookReadingState = when {
+    isFinished() -> BookReadingState.FINISHED
+    hasStartedReading() -> BookReadingState.READING
+    else -> BookReadingState.NOT_STARTED
+}
+
+/**
+ * Finished at least [ReadAgainAfterMillis] before [now], counting from the finish date or, for a book finished only by
+ * reaching the end, when it was last read.
+ */
+internal fun Book.finishedLongAgo(now: Long): Boolean {
+    if (readingState() != BookReadingState.FINISHED) return false
+    val finishedAt = finishedReadingAt ?: lastReadAt ?: return false
+    return now - finishedAt >= ReadAgainAfterMillis
+}
+
+internal const val ReadAgainAfterMillis = 365L * 24 * 60 * 60 * 1000
 
 internal const val MetadataSuggestionLimit = 5
 internal const val TagSuggestionLimit = 6
