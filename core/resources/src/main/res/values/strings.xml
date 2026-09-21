@@ -168,12 +168,12 @@
     <string name="library_rating_clear">Clear</string>
     <string name="library_rating_saved">Rating saved</string>
     <string name="library_rating_set_content_description">Set rating to %1$.1f stars</string>
-    <string name="library_description">Description</string>
     <string name="library_description_empty">No description added yet.</string>
     <string name="library_edit_description">Edit description</string>
     <string name="library_imported_on">Imported %1$s</string>
     <string name="library_last_read_on">Last read %1$s</string>
-    <string name="library_stat_started">Started reading</string>
+    <string name="library_stat_started">Started</string>
+    <string name="library_stat_last_read">Last read</string>
     <string name="library_stat_time_taken">Time taken</string>
     <string name="library_stat_days_taken">Days taken</string>
     <string name="reading_time_hours_and_minutes">%1$d hrs %2$d mts</string>
@@ -190,6 +190,7 @@
     <string name="library_status_finished">Finished</string>
     <string name="library_status_finished_on">Finished %1$s</string>
     <string name="library_stat_time_so_far">Time so far</string>
+    <string name="library_about_book">About this book</string>
     <string name="library_edit_started_date">Change start date</string>
     <string name="library_edit_finished_date">Change finish date</string>
     <string name="library_reading_date_started_title">When did you start reading?</string>

@@ -1,19 +1,19 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -38,9 +38,9 @@ import com.vayana.core.resources.R
 import kotlin.math.roundToInt
 
 /**
- * Where the reader is with a started book. While [finished] is false it leads with progress (a bar and the percent
- * read) and counts time so far; once finished it becomes a highlighted summary headed by the finish date. [action]
- * (reading-progress sync) sits at the end of the heading.
+ * Where the reader is with a started book: a heading ([action], reading-progress sync, at its end), the progress bar
+ * while still reading, then four equal tiles - start and last read (or finish) dates, time spent and days taken. The
+ * date tiles open a date picker when [onEditStarted] / [onEditFinished] are set.
  */
 @Composable
 internal fun ReadingStatsCard(
@@ -48,7 +48,7 @@ internal fun ReadingStatsCard(
     finished: Boolean,
     modifier: Modifier = Modifier,
     action: (@Composable () -> Unit)? = null,
-    /** Set to let the reader correct the start date; the Started pill then opens it. */
+    /** Set to let the reader correct the start date; the Started tile then opens it. */
     onEditStarted: (() -> Unit)? = null,
     /** As [onEditStarted], for the finish date of a finished book. */
     onEditFinished: (() -> Unit)? = null,
@@ -64,108 +64,68 @@ internal fun ReadingStatsCard(
     val daysTakenText = remember(daysTaken, context) {
         formatDaysTaken(daysTaken, context)
     }
-    val finishedAt = book.finishedReadingAt
-    val stats = buildList {
-        add(
+    val started = ReadingStat(
+        label = stringResource(R.string.library_stat_started),
+        value = startedAt.formatDate(),
+        onClick = onEditStarted,
+        clickLabel = stringResource(R.string.library_edit_started_date),
+    )
+    val stats = if (finished) {
+        listOf(
+            started,
             ReadingStat(
-                label = stringResource(R.string.library_stat_started),
-                value = startedAt.formatDate(),
-                onClick = onEditStarted,
-                clickLabel = stringResource(R.string.library_edit_started_date),
+                label = stringResource(R.string.library_status_finished),
+                value = (book.finishedReadingAt ?: book.updatedAt).formatDate(),
+                onClick = onEditFinished,
+                clickLabel = stringResource(R.string.library_edit_finished_date),
             ),
+            ReadingStat(stringResource(R.string.library_stat_time_taken), timeTakenText),
+            ReadingStat(stringResource(R.string.library_stat_days_taken), daysTakenText),
         )
-        if (finished) {
-            add(
-                ReadingStat(
-                    label = stringResource(R.string.library_status_finished),
-                    value = (finishedAt ?: book.updatedAt).formatDate(),
-                    onClick = onEditFinished,
-                    clickLabel = stringResource(R.string.library_edit_finished_date),
-                ),
+    } else {
+        listOf(
+            started,
+            ReadingStat(stringResource(R.string.library_stat_last_read), (book.lastReadAt ?: startedAt).formatDate()),
+            ReadingStat(stringResource(R.string.library_stat_time_so_far), timeTakenText),
+            ReadingStat(stringResource(R.string.library_stat_days_so_far), daysTakenText),
+        )
+    }
+
+    BookDetailSection(
+        icon = if (finished) Icons.Outlined.TaskAlt else Icons.Outlined.Timer,
+        title = if (finished) {
+            stringResource(R.string.library_status_finished)
+        } else {
+            stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
+        },
+        modifier = modifier,
+        action = action,
+    ) {
+        if (!finished) {
+            VayanaLinearProgressIndicator(
+                progress = { book.readingPercent.coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-        add(
-            ReadingStat(
-                label = stringResource(if (finished) R.string.library_stat_time_taken else R.string.library_stat_time_so_far),
-                value = timeTakenText,
-            ),
-        )
-        add(
-            ReadingStat(
-                label = stringResource(if (finished) R.string.library_stat_days_taken else R.string.library_stat_days_so_far),
-                value = daysTakenText,
-            ),
-        )
-    }
-    // Finished: the date is one of the (editable) stats, so the heading just says so.
-    val title = if (finished) {
-        stringResource(R.string.library_status_finished)
-    } else {
-        stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
-    }
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.extraLarge),
-        color = if (finished) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = if (finished) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-    ) {
-        Column(
-            modifier = Modifier.padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (finished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = if (finished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+        // Equal tiles in a fixed two-column grid: each row takes its tallest tile's height, every tile its share
+        // of the width, so the grid never wraps into uneven rows.
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            stats.chunked(ReadingStatColumns).forEach { row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    Icon(
-                        imageVector = if (finished) Icons.Outlined.TaskAlt else Icons.Outlined.Timer,
-                        contentDescription = null,
-                        modifier = Modifier.padding(Spacing.sm),
-                    )
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                action?.invoke()
-            }
-            if (!finished) {
-                VayanaLinearProgressIndicator(
-                    progress = { book.readingPercent.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val minimumRowWidth = (Sizes.chipMinWidth * stats.size) +
-                    (Spacing.sm * (stats.size - 1).coerceAtLeast(0))
-                if (maxWidth >= minimumRowWidth) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        stats.forEach { stat ->
-                            ReadingStatPill(stat = stat, modifier = Modifier.weight(1f))
-                        }
+                    row.forEach { stat ->
+                        ReadingStatTile(
+                            stat = stat,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                        )
                     }
-                } else {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        stats.forEach { stat ->
-                            ReadingStatPill(stat = stat)
-                        }
-                    }
+                    repeat(ReadingStatColumns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                 }
             }
         }
@@ -181,12 +141,11 @@ private class ReadingStat(
 )
 
 @Composable
-private fun ReadingStatPill(stat: ReadingStat, modifier: Modifier = Modifier) {
+private fun ReadingStatTile(stat: ReadingStat, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(Radii.large)
     val onClick = stat.onClick
     Surface(
         modifier = modifier
-            .widthIn(min = Sizes.chipMinWidth)
             .clip(shape)
             .then(
                 if (onClick != null) {
@@ -196,41 +155,47 @@ private fun ReadingStatPill(stat: ReadingStat, modifier: Modifier = Modifier) {
                 },
             ),
         shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.72f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
                 Text(
                     text = stat.label,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
                 )
-                if (onClick != null) {
-                    Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(Sizes.iconXSmall),
-                    )
-                }
+                Text(
+                    text = stat.value,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Text(
-                text = stat.value,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // At the tile's end rather than beside the label, so editable tiles are exactly as tall as the others.
+            if (onClick != null) {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(start = Spacing.xs)
+                        .size(Sizes.iconSmall),
+                )
+            }
         }
     }
 }
+
+private const val ReadingStatColumns = 2
 
 internal fun formatReadingDuration(totalSeconds: Long, context: android.content.Context): String {
     if (totalSeconds < 60L) {

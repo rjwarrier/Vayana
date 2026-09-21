@@ -4,7 +4,6 @@ import androidx.compose.ui.unit.dp
 
 object Sizes {
     val swatchSmall = 12.dp
-    val iconXSmall = 14.dp
     val iconSmall = 18.dp
     val icon = 24.dp
     val iconLarge = 32.dp
@@ -49,6 +48,9 @@ object Sizes {
     val chartBarMaxHeight = 72.dp
     val chartBarMinWidth = 28.dp
     val chartBarMaxWidth = 56.dp
+
+    /** Tallest the book description gets on the details screen before it scrolls. */
+    val bookDescriptionMaxHeight = 200.dp
 
     val shareCardWidth = 320.dp
     val shareCardCoverWidth = 96.dp

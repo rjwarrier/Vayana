@@ -92,6 +92,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.DisplayProfile
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.outlined.PhonelinkErase
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -785,62 +797,39 @@ private fun BookDetailScreen(
                     }
                 }
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.library_description),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        IconButton(onClick = { showEditDescriptionDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = stringResource(R.string.library_edit_description),
-                            )
-                        }
-                    }
-                    if (!cleanedDescription.isNullOrBlank()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = Spacing.xs)
-                                .heightIn(max = Sizes.coverWidthMax)
-                                .clip(RoundedCornerShape(Radii.medium)),
-                            shape = RoundedCornerShape(Radii.medium),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            tonalElevation = Elevations.none,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = Sizes.coverWidthMax)
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(Spacing.md),
-                            ) {
-                                Text(
-                                    text = cleanedDescription,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                    BookDetailSection(
+                        icon = Icons.Outlined.Description,
+                        title = stringResource(R.string.library_about_book),
+                        action = {
+                            IconButton(onClick = { showEditDescriptionDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = stringResource(R.string.library_edit_description),
                                 )
                             }
+                        },
+                    ) {
+                        if (!cleanedDescription.isNullOrBlank()) {
+                            ScrollableDescription(text = cleanedDescription)
+                        } else {
+                            Text(
+                                text = stringResource(R.string.library_description_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                    } else {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = SectionDividerAlpha))
+                        val footer = buildList {
+                            add(stringResource(R.string.library_imported_on, book.createdAt.formatDate()))
+                            if (!book.hasStartedReading()) {
+                                book.lastReadAt?.let { add(stringResource(R.string.library_last_read_on, it.formatDate())) }
+                            }
+                        }
                         Text(
-                            text = stringResource(R.string.library_description_empty),
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = footer.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = Spacing.xs),
                         )
-                    }
-                }
-                item {
-                    Text(text = stringResource(R.string.library_imported_on, book.createdAt.formatDate()), style = MaterialTheme.typography.bodyMedium)
-                    if (!book.hasStartedReading()) {
-                        book.lastReadAt?.let {
-                            Text(text = stringResource(R.string.library_last_read_on, it.formatDate()), style = MaterialTheme.typography.bodyMedium)
-                        }
                     }
                 }
                 item {
@@ -1361,6 +1350,74 @@ private fun ReadingDatePickerDialog(
 /** Earliest year the reading-date picker offers. */
 private const val ReadingDatesMinYear = 1900
 
+/**
+ * The book's description in a fixed-height scroll area with a scrollbar in the theme's colours; edges fade where
+ * there is more text to scroll to (not on E-Ink, where a gradient only dithers). Both appear only when it overflows.
+ */
+@Composable
+private fun ScrollableDescription(text: String) {
+    val scrollState = rememberScrollState()
+    val thumbColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = ScrollbarTrackAlpha)
+    val fadeColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val fades = LocalDisplayProfile.current != DisplayProfile.E_INK
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = Sizes.bookDescriptionMaxHeight)
+            .drawWithContent {
+                drawContent()
+                val overflow = scrollState.maxValue
+                if (overflow <= 0 || overflow == Int.MAX_VALUE) return@drawWithContent
+                val fadeHeight = DescriptionFadeHeight.toPx()
+                if (fades && scrollState.value > 0) {
+                    drawRect(
+                        brush = Brush.verticalGradient(listOf(fadeColor, Color.Transparent), endY = fadeHeight),
+                        size = Size(size.width, fadeHeight),
+                    )
+                }
+                if (fades && scrollState.value < overflow) {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            listOf(Color.Transparent, fadeColor),
+                            startY = size.height - fadeHeight,
+                            endY = size.height,
+                        ),
+                        topLeft = Offset(0f, size.height - fadeHeight),
+                        size = Size(size.width, fadeHeight),
+                    )
+                }
+                val barWidth = ScrollbarWidth.toPx()
+                val radius = CornerRadius(barWidth / 2)
+                val x = size.width - barWidth
+                drawRoundRect(color = trackColor, topLeft = Offset(x, 0f), size = Size(barWidth, size.height), cornerRadius = radius)
+                val viewport = size.height
+                val thumbHeight = (viewport * viewport / (viewport + overflow)).coerceAtLeast(ScrollbarMinThumb.toPx())
+                val thumbTop = (viewport - thumbHeight) * scrollState.value / overflow
+                drawRoundRect(
+                    color = thumbColor,
+                    topLeft = Offset(x, thumbTop),
+                    size = Size(barWidth, thumbHeight),
+                    cornerRadius = radius,
+                )
+            },
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .verticalScroll(scrollState)
+                .padding(end = Spacing.lg),
+        )
+    }
+}
+
+private const val SectionDividerAlpha = 0.5f
+private const val ScrollbarTrackAlpha = 0.35f
+private val ScrollbarWidth = 4.dp
+private val ScrollbarMinThumb = 24.dp
+private val DescriptionFadeHeight = 24.dp
+
 @Composable
 private fun BookRatingRow(
     rating: Float,
@@ -1493,17 +1550,15 @@ private fun BookShelvesSection(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = stringResource(R.string.library_shelves_section_title), style = MaterialTheme.typography.titleMedium)
+    BookDetailSection(
+        icon = Icons.Outlined.CollectionsBookmark,
+        title = stringResource(R.string.library_shelves_section_title),
+        action = {
             IconButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.library_shelves_add_to_shelf))
             }
-        }
+        },
+    ) {
         if (shelvesForBook.isEmpty()) {
             Text(
                 text = stringResource(R.string.library_shelves_none_yet),
@@ -1511,10 +1566,7 @@ private fun BookShelvesSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 shelvesForBook.forEach { shelf ->
                     InputChip(
                         selected = false,
