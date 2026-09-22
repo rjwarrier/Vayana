@@ -278,6 +278,8 @@
     <string name="library_goodreads_rating">★ %1$.2f on Goodreads</string>
     <string name="library_goodreads_rating_with_count">★ %1$.2f on Goodreads (%2$s ratings)</string>
     <string name="library_goodreads_rating_chip">%1$.2f Goodreads</string>
+    <string name="library_goodreads_rating_value">%1$.2f</string>
+    <string name="library_goodreads_view">View on Goodreads</string>
     <string name="library_goodreads_first_published">First published %1$d</string>
     <plurals name="library_community_quotes_count">
         <item quantity="one">%d community quote</item>

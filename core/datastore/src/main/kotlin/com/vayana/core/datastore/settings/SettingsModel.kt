@@ -495,6 +495,15 @@ object SettingsRegistry {
         group = SettingsGroup.READER_CONTROLS,
         maxLength = 255,
     )
+    val LibraryViewMode: StringSetting = StringSetting(
+        key = "library.view_mode",
+        defaultValue = "THUMBNAILS",
+        titleRes = R.string.settings_start_screen_title,
+        subtitleRes = null,
+        group = SettingsGroup.LIBRARY,
+        maxLength = 20,
+        exportable = false,
+    )
     val ReaderBrightness: IntSetting = IntSetting(
         key = "reader.brightness_percent",
         defaultValue = 0,
@@ -732,6 +741,6 @@ object SettingsRegistry {
     )
 
     /** Persisted and backed up, but edited only by purpose-built feature UI. */
-    val internal: List<Setting<out Any>> = listOf(ReadAloudVoiceName, ReadAloudEngine)
+    val internal: List<Setting<out Any>> = listOf(ReadAloudVoiceName, ReadAloudEngine, LibraryViewMode)
     val persisted: List<Setting<out Any>> = all + internal
 }

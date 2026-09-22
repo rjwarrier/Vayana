@@ -78,6 +78,7 @@ import com.vayana.core.database.repository.appliesOver
 import com.vayana.core.datastore.settings.DefaultCoverSource
 import com.vayana.core.datastore.settings.LaunchReadingProgressCheckMarker
 import com.vayana.core.datastore.settings.SettingsRepository
+import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
@@ -484,6 +485,13 @@ class LibraryViewModel @Inject constructor(
     private val controls = MutableStateFlow(LibraryControls())
 
     init {
+        viewModelScope.launch {
+            settingsRepository.observe(SettingsRegistry.LibraryViewMode).collect { storedMode ->
+                val viewMode = runCatching { LibraryViewMode.valueOf(storedMode) }
+                    .getOrDefault(LibraryViewMode.THUMBNAILS)
+                controls.update { it.copy(viewMode = viewMode) }
+            }
+        }
         // Books other apps opened or shared into Vayana are imported like any picked file, as soon as the library exists.
         viewModelScope.launch {
             incomingBookFiles.pending.filter { it.isNotEmpty() }.collect {
@@ -620,6 +628,9 @@ class LibraryViewModel @Inject constructor(
 
     fun updateViewMode(viewMode: LibraryViewMode) {
         controls.update { it.copy(viewMode = viewMode) }
+        viewModelScope.launch {
+            settingsRepository.update(SettingsRegistry.LibraryViewMode, viewMode.name)
+        }
     }
 
     /** Moves a book to Recently deleted. Finishes even when the calling screen closes straight away. */
@@ -1918,11 +1929,18 @@ class LibraryViewModel @Inject constructor(
         reference: CloudAssetReference,
         store: GitHubContentsAssetStore,
     ): Int {
+        val localCoverMatchesCloud = book.coverPath
+            ?.let(storageRoots::resolve)
+            ?.takeIf { it.isFile && it.length() == reference.sizeBytes }
+            ?.let { coverFile ->
+                runCatchingCancellable { Hashing.sha256(coverFile.readBytes()) == reference.sha256 }
+                    .getOrDefault(false)
+            } == true
         val localCoverIsCurrent = book.coverAssetId == reference.id &&
             book.coverAssetSha256 == reference.sha256 &&
             book.coverAssetSizeBytes == reference.sizeBytes &&
             book.coverAssetUploadedAt == reference.uploadedAt &&
-            book.coverPath?.let { storageRoots.resolve(it).isFile } == true
+            localCoverMatchesCloud
         if (localCoverIsCurrent) return 0
 
         val passphrase = settingsRepository.snapshot.first().githubSyncPassphrase.toCharArray()

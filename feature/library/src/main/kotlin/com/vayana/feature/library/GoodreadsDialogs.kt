@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedButton
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.normalizedBookTag
@@ -71,30 +73,72 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
     val year = book.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) }
     if (rating == null && year == null && book.goodreadsUrl == null && (communityQuoteCount ?: 0) == 0) return
     val uriHandler = LocalUriHandler.current
-    val url = book.goodreadsUrl
+    val url = book.goodreadsUrl?.takeIf { it.isNotBlank() }
     Column(modifier = modifier) {
         rating?.let { value ->
-            Surface(
-                shape = RoundedCornerShape(Radii.full),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier,
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = null,
-                        tint = Palette.Gold500,
-                        modifier = Modifier.size(Sizes.iconSmall),
-                    )
-                    Text(
-                        text = stringResource(R.string.library_goodreads_rating_chip, value),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                Box(modifier = Modifier.height(Sizes.touchTarget), contentAlignment = Alignment.Center) {
+                    Surface(
+                        modifier = Modifier.height(GoodreadsChipHeight),
+                        shape = RoundedCornerShape(Radii.full),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = Palette.Gold500,
+                                modifier = Modifier.size(Sizes.iconSmall),
+                            )
+                            Text(
+                                text = stringResource(
+                                    if (url == null) R.string.library_goodreads_rating_chip else R.string.library_goodreads_rating_value,
+                                    value,
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+                }
+                if (url != null) {
+                    Box(
+                        modifier = Modifier
+                            .height(Sizes.touchTarget)
+                            .clickable { uriHandler.openUri(url) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Surface(
+                            modifier = Modifier.height(GoodreadsChipHeight),
+                            shape = RoundedCornerShape(Radii.full),
+                            color = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outline),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = Spacing.sm),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.library_goodreads_view),
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                                Icon(
+                                    imageVector = Icons.Outlined.OpenInNew,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(Sizes.iconSmall),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -123,6 +167,8 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
         }
     }
 }
+
+private val GoodreadsChipHeight = 32.dp
 
 /** Progress/error surface for refreshing an already-linked book; first-time imports start in the browser. */
 @Composable
