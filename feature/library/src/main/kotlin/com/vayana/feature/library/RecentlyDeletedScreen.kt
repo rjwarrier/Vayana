@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.VayanaSnackbarHost
 import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.tokens.Elevations
@@ -87,7 +87,7 @@ private fun RecentlyDeletedScreen(
 
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VayanaSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_recently_deleted_title)) },

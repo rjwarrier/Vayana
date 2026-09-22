@@ -66,7 +66,6 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -124,6 +123,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
+import com.vayana.core.designsystem.theme.VayanaSnackbarHost
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
@@ -459,7 +459,7 @@ private fun BookDetailScreen(
     val usesFloatingNavigation = floatingNavigationInset.value > 0f
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VayanaSnackbarHost(snackbarHostState) },
         topBar = {
             Row(
                 modifier = Modifier

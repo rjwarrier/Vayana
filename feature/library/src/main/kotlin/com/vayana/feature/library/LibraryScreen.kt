@@ -71,7 +71,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.core.text.HtmlCompat
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -94,6 +93,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -116,6 +116,7 @@ import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
+import com.vayana.core.designsystem.theme.VayanaSnackbarHost
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
@@ -246,6 +247,7 @@ private fun LibraryScreen(
     onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     val context = LocalContext.current
+    val rootView = LocalView.current
     val searchFocusRequester = remember { FocusRequester() }
     val snackbarHostState = remember { SnackbarHostState() }
     PermanentDeletionNoticeEffect(deletionNotice, snackbarHostState, onDeletionNoticeShown)
@@ -338,7 +340,14 @@ private fun LibraryScreen(
         val startedSnackbar = coroutineScope.launch {
             snackbarHostState.showSnackbar(syncStartedMessage)
         }
-        when (val result = onSyncNow(allowInitialSync, mode)) {
+        val keepScreenOnBeforeSync = rootView.keepScreenOn
+        if (mode == GitHubSyncMode.FULL) rootView.keepScreenOn = true
+        val result = try {
+            onSyncNow(allowInitialSync, mode)
+        } finally {
+            if (mode == GitHubSyncMode.FULL) rootView.keepScreenOn = keepScreenOnBeforeSync
+        }
+        when (result) {
             is GitHubSyncNowResult.Complete -> {
                 syncBadge = if (result.pullFailed || !result.metadataSynced || result.failed > 0) {
                     LibrarySyncBadge.FAILED
@@ -465,7 +474,7 @@ private fun LibraryScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VayanaSnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         if (uiState.books.isEmpty()) {
             LibraryEmptyState(

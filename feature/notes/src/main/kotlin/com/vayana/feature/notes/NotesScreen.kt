@@ -53,7 +53,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -100,6 +99,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
+import com.vayana.core.designsystem.theme.VayanaSnackbarHost
 import com.vayana.core.resources.R
 import java.io.File
 import com.vayana.core.designsystem.theme.asAppDate
@@ -202,13 +202,13 @@ private fun NotesScreen(
 
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = { VayanaSnackbarHost(hostState = snackbarHostState) },
         topBar = {
             Surface(color = MaterialTheme.colorScheme.background) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.sm),
+                    .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Row(
@@ -274,7 +274,7 @@ private fun NotesScreen(
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
                         singleLine = true,
                         shape = RoundedCornerShape(Radii.full),
                         colors = OutlinedTextFieldDefaults.colors(
