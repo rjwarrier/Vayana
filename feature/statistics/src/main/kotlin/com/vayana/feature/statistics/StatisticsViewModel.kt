@@ -133,12 +133,23 @@ class StatisticsViewModel @Inject constructor(
     private val annotations = annotationRepository.observeAll()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
+    private val summarySettings = settingsRepository.snapshot
+        .map { settings ->
+            SummarySettings(
+                dailyGoalMinutes = settings.dailyReadingGoalMinutes,
+                yearlyGoalBooks = settings.yearlyBooksGoal,
+                finishedThreshold = settings.finishedFraction,
+                firstDayOfWeek = settings.weekStart.day,
+            )
+        }
+        .distinctUntilChanged()
+
     private val coreInputs = combine(
         bookRepository.observeAll(),
         annotations,
         wordLookupStatRepository.observeTop(TopLookedUpWordsLimit),
         readingSessionRepository.observeAll(),
-        settingsRepository.snapshot,
+        summarySettings,
     ) { books, annotations, topWords, sessions, settings -> CoreInputs(books, annotations, topWords, sessions, settings) }
 
     /** One live query shared by the summary and the card count, instead of two. */
@@ -154,10 +165,10 @@ class StatisticsViewModel @Inject constructor(
             topWords = inputs.topWords,
             sessions = inputs.sessions,
             vocabularyCards = vocabularyCards,
-            dailyGoalMinutes = inputs.settings.dailyReadingGoalMinutes,
-            yearlyGoalBooks = inputs.settings.yearlyBooksGoal,
-            finishedThreshold = inputs.settings.finishedFraction,
-            firstDayOfWeek = inputs.settings.weekStart.day,
+            dailyGoalMinutes = inputs.settings.dailyGoalMinutes,
+            yearlyGoalBooks = inputs.settings.yearlyGoalBooks,
+            finishedThreshold = inputs.settings.finishedThreshold,
+            firstDayOfWeek = inputs.settings.firstDayOfWeek,
         )
     }
         // Summarising every book and session re-runs on each change to any of them; keep it off the main thread.
@@ -192,7 +203,14 @@ private data class CoreInputs(
     val annotations: List<Annotation>,
     val topWords: List<WordLookupStat>,
     val sessions: List<ReadingSession>,
-    val settings: com.vayana.core.datastore.settings.SettingsSnapshot,
+    val settings: SummarySettings,
+)
+
+private data class SummarySettings(
+    val dailyGoalMinutes: Int,
+    val yearlyGoalBooks: Int,
+    val finishedThreshold: Float,
+    val firstDayOfWeek: DayOfWeek,
 )
 
 private fun List<Book>.toSummary(

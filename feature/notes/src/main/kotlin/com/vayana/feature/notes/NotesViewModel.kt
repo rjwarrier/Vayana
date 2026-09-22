@@ -15,7 +15,7 @@ import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
-import com.vayana.core.filesystem.StorageRoots
+import com.vayana.core.filesystem.ResolvedBooks
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,6 +42,33 @@ data class NotesUiState(
     val tags: List<String> = emptyList(),
 )
 
+internal data class NotesAnnotationIndex(
+    val annotations: List<Annotation>,
+    val byBook: Map<Long, List<Annotation>>,
+    val latestByBook: Map<Long, Long>,
+    val tags: List<String>,
+)
+
+internal fun indexNotesAnnotations(annotations: List<Annotation>): NotesAnnotationIndex {
+    val byBook = HashMap<Long, MutableList<Annotation>>()
+    val latestByBook = HashMap<Long, Long>()
+    val tagCounts = HashMap<String, Int>()
+    annotations.forEach { annotation ->
+        byBook.getOrPut(annotation.bookId) { mutableListOf() }.add(annotation)
+        latestByBook[annotation.bookId] = maxOf(latestByBook[annotation.bookId] ?: Long.MIN_VALUE, annotation.updatedAt)
+        HighlightTags.parse(annotation.readerNote).forEach { tag ->
+            tagCounts[tag] = (tagCounts[tag] ?: 0) + 1
+        }
+    }
+    return NotesAnnotationIndex(
+        annotations = annotations,
+        byBook = byBook,
+        latestByBook = latestByBook,
+        tags = tagCounts.entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key },
+    )
+}
+
 /** Outcome of a Kindle clippings import; all zero means the file had no clippings. */
 data class KindleImportResult(val added: Int, val duplicates: Int, val unmatchedBooks: Int)
 
@@ -48,41 +76,35 @@ data class KindleImportResult(val added: Int, val duplicates: Int, val unmatched
 class NotesViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val bookRepository: BookRepository,
-    private val storageRoots: StorageRoots,
+    resolvedBooks: ResolvedBooks,
     private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
+    private val annotationIndex = annotationRepository.observeAll()
+        .map(::indexNotesAnnotations)
+        .flowOn(dispatchers.default)
+
     val uiState: StateFlow<NotesUiState> = combine(
-        bookRepository.observeAll(),
-        annotationRepository.observeAll(),
-    ) { rawBooks, annotations ->
-        val books = rawBooks.map { book ->
-            book.copy(
-                coverPath = book.coverPath?.let { storageRoots.resolve(it).absolutePath },
-                filePath = storageRoots.resolve(book.filePath).absolutePath,
-            )
-        }
-        val annotationsByBook = annotations.groupBy { it.bookId }
+        resolvedBooks.all,
+        annotationIndex,
+    ) { books, index ->
         val booksWithNotes = books.mapNotNull { book ->
-            val bookAnnotations = annotationsByBook[book.id]
+            val bookAnnotations = index.byBook[book.id]
             if (!bookAnnotations.isNullOrEmpty()) {
                 BookNotesItem(book = book, annotations = bookAnnotations)
             } else {
                 null
             }
         }.sortedByDescending { item ->
-            item.annotations.maxOfOrNull { it.updatedAt } ?: 0L
+            index.latestByBook[item.book.id] ?: 0L
         }
 
         NotesUiState(
             booksWithNotes = booksWithNotes,
-            allAnnotations = annotations,
-            tags = annotations.flatMap { HighlightTags.parse(it.readerNote) }
-                .groupingBy { it }.eachCount()
-                .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
-                .map { it.key },
+            allAnnotations = index.annotations,
+            tags = index.tags,
         )
     }
-        // Grouping every annotation by book re-runs on each book or annotation change; keep it off the main thread.
+        // Book progress updates only rebuild the book join; annotation grouping and tag parsing run on annotation changes.
         .flowOn(dispatchers.default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotesUiState())
 

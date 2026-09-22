@@ -178,6 +178,7 @@ private fun NotesScreen(
             }
         }
     }
+    val visibleBookItems = remember(taggedBooks, query) { taggedBooks.filterBooksByQuery(query) }
 
     val activeBookItem = remember(selectedBookId, taggedBooks) {
         taggedBooks.firstOrNull { it.book.id == selectedBookId }
@@ -237,7 +238,11 @@ private fun NotesScreen(
                         }
                         Text(
                             text = if (activeBookItem != null && !useTwoPane) activeBookItem.book.title else stringResource(R.string.notes_title),
-                            style = MaterialTheme.typography.titleLarge,
+                            style = if (activeBookItem != null && !useTwoPane) {
+                                MaterialTheme.typography.titleLarge
+                            } else {
+                                MaterialTheme.typography.headlineMedium
+                            },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -363,7 +368,6 @@ private fun NotesScreen(
         Row(modifier = Modifier.fillMaxSize()) {
             if (useTwoPane) {
                 Box(modifier = Modifier.weight(0.38f)) {
-                    val visibleBookItems = remember(taggedBooks, query) { taggedBooks.filterBooksByQuery(query) }
                     when {
                         booksWithNotes.isEmpty() -> NotesEmptyState(contentPadding = innerPadding)
                         visibleBookItems.isEmpty() -> NotesNoMatchesState(contentPadding = innerPadding)
@@ -382,7 +386,6 @@ private fun NotesScreen(
             label = "NotesBookNav",
         ) { bookItem ->
             if (bookItem == null) {
-                val visibleBookItems = remember(taggedBooks, query) { taggedBooks.filterBooksByQuery(query) }
                 if (useTwoPane) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
