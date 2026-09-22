@@ -64,6 +64,7 @@ class BackupManager @Inject constructor(
                 }
                 BackupOutcome.Success
             } catch (cancellation: CancellationException) {
+                runCatching { context.contentResolver.delete(destination, null, null) }
                 throw cancellation
             } catch (throwable: Throwable) {
                 runCatchingCancellable { context.contentResolver.delete(destination, null, null) }

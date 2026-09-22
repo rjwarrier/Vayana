@@ -638,6 +638,15 @@
     <string name="settings_backup_restore">Restore</string>
     <string name="settings_backup_working">Working…</string>
     <string name="settings_backup_complete">Backup saved.</string>
+    <string name="settings_auto_backup_title">Automatic backups</string>
+    <string name="settings_auto_backup_subtitle">Save a backup to your chosen folder each day. Android may run it later when needed.</string>
+    <string name="settings_auto_backup_choose_folder">Choose backup folder</string>
+    <string name="settings_auto_backup_folder">Folder: %1$s</string>
+    <string name="settings_auto_backup_keep">Keep %1$d backups</string>
+    <string name="settings_auto_backup_last_success">Last successful backup: %1$s</string>
+    <string name="settings_auto_backup_never">No automatic backup yet</string>
+    <string name="settings_auto_backup_disable">Turn off automatic backups</string>
+    <string name="settings_auto_backup_error">Automatic backup: %1$s</string>
     <string name="settings_backup_failed">Backup failed: %1$s</string>
     <string name="settings_restore_failed">Restore failed: %1$s</string>
     <string name="settings_restore_confirm_title">Restore this backup?</string>

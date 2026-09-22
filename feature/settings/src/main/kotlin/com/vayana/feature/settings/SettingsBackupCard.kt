@@ -18,6 +18,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,9 +35,11 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import com.vayana.core.designsystem.theme.asAppDateTime
+import com.vayana.feature.settings.backup.AutomaticBackupState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @androidx.compose.runtime.Composable
 @androidx.compose.runtime.ReadOnlyComposable
@@ -57,7 +60,11 @@ internal fun Long.formatByteSize(): String {
 @Composable
 internal fun BackupRestoreCard(
     backupState: BackupUiState,
+    automaticBackup: AutomaticBackupState,
     onCreateBackup: (Uri) -> Unit,
+    onChooseAutomaticBackupFolder: (Uri) -> Unit,
+    onSetAutomaticBackupKeepCount: (Int) -> Unit,
+    onDisableAutomaticBackup: () -> Unit,
     onPickRestoreFile: (Uri) -> Unit,
     onDismissBackupState: () -> Unit,
 ) {
@@ -69,6 +76,9 @@ internal fun BackupRestoreCard(
     }
     val pickRestoreFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(onPickRestoreFile)
+    }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let(onChooseAutomaticBackupFolder)
     }
     val working = backupState is BackupUiState.Working
 
@@ -124,6 +134,60 @@ internal fun BackupRestoreCard(
                 ) {
                     Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
                     Text(stringResource(R.string.settings_backup_restore), modifier = Modifier.padding(start = Spacing.xs))
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(stringResource(R.string.settings_auto_backup_title), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.settings_auto_backup_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FilledTonalButton(onClick = { folderPicker.launch(automaticBackup.folderUri?.let(Uri::parse)) }) {
+                    Text(
+                        automaticBackup.folderName?.let { stringResource(R.string.settings_auto_backup_folder, it) }
+                            ?: stringResource(R.string.settings_auto_backup_choose_folder),
+                    )
+                }
+                if (automaticBackup.folderUri != null) {
+                    Text(
+                        stringResource(R.string.settings_auto_backup_keep, automaticBackup.keepCount),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Slider(
+                        value = automaticBackup.keepCount.toFloat(),
+                        onValueChange = { onSetAutomaticBackupKeepCount(it.roundToInt()) },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                    )
+                    FilledTonalButton(onClick = onDisableAutomaticBackup) {
+                        Text(stringResource(R.string.settings_auto_backup_disable))
+                    }
+                }
+                Text(
+                    if (automaticBackup.lastSuccessAt > 0L) {
+                        stringResource(
+                            R.string.settings_auto_backup_last_success,
+                            automaticBackup.lastSuccessAt.formatBackupDate(),
+                        )
+                    } else stringResource(R.string.settings_auto_backup_never),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                automaticBackup.lastFileName?.let { name ->
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                automaticBackup.lastError?.let { error ->
+                    Text(
+                        stringResource(R.string.settings_auto_backup_error, error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
 

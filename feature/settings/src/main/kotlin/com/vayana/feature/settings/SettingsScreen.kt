@@ -131,6 +131,7 @@ fun SettingsRoute(
     val viewModel: SettingsViewModel = hiltViewModel()
     val settings by viewModel.settings.collectAsState()
     val backupState by viewModel.backupState.collectAsState()
+    val automaticBackup by viewModel.automaticBackup.collectAsState()
     val restorePreview by viewModel.restorePreview.collectAsState()
     val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
     val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsState()
@@ -141,6 +142,7 @@ fun SettingsRoute(
         modifier = modifier,
         settings = settings,
         backupState = backupState,
+        automaticBackup = automaticBackup,
         restorePreview = restorePreview,
         githubSyncSettingsTransferState = githubSyncSettingsTransferState,
         githubConnectionTestState = githubConnectionTestState,
@@ -154,6 +156,9 @@ fun SettingsRoute(
         onReset = viewModel::reset,
         onResetAll = viewModel::resetAll,
         onCreateBackup = viewModel::createBackup,
+        onChooseAutomaticBackupFolder = viewModel::chooseAutomaticBackupFolder,
+        onSetAutomaticBackupKeepCount = viewModel::setAutomaticBackupKeepCount,
+        onDisableAutomaticBackup = viewModel::disableAutomaticBackup,
         onPickRestoreFile = viewModel::inspectRestoreFile,
         onConfirmRestore = viewModel::restoreBackup,
         onExportGitHubSyncSettings = viewModel::exportGitHubSyncSettings,
@@ -175,6 +180,7 @@ private fun SettingsScreen(
     modifier: Modifier = Modifier,
     settings: SettingsSnapshot,
     backupState: BackupUiState,
+    automaticBackup: com.vayana.feature.settings.backup.AutomaticBackupState,
     restorePreview: RestorePreviewState,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
@@ -188,6 +194,9 @@ private fun SettingsScreen(
     onReset: (Setting<out Any>) -> Unit,
     onResetAll: () -> Unit,
     onCreateBackup: (Uri) -> Unit,
+    onChooseAutomaticBackupFolder: (Uri) -> Unit,
+    onSetAutomaticBackupKeepCount: (Int) -> Unit,
+    onDisableAutomaticBackup: () -> Unit,
     onPickRestoreFile: (Uri) -> Unit,
     onConfirmRestore: (Uri) -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
@@ -255,9 +264,13 @@ private fun SettingsScreen(
                 pendingCloudDeletions = pendingCloudDeletions,
                 readerFontImportState = readerFontImportState,
                 backupState = backupState,
+                automaticBackup = automaticBackup,
                 onUpdate = onUpdate,
                 onReset = onReset,
                 onCreateBackup = onCreateBackup,
+                onChooseAutomaticBackupFolder = onChooseAutomaticBackupFolder,
+                onSetAutomaticBackupKeepCount = onSetAutomaticBackupKeepCount,
+                onDisableAutomaticBackup = onDisableAutomaticBackup,
                 onPickRestoreFile = onPickRestoreFile,
                 onDismissBackupState = onDismissBackupState,
                 onExportGitHubSyncSettings = onExportGitHubSyncSettings,
@@ -636,9 +649,13 @@ private fun SettingsGroupDetail(
     pendingCloudDeletions: Int,
     readerFontImportState: ReaderFontImportState,
     backupState: BackupUiState,
+    automaticBackup: com.vayana.feature.settings.backup.AutomaticBackupState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onCreateBackup: (Uri) -> Unit,
+    onChooseAutomaticBackupFolder: (Uri) -> Unit,
+    onSetAutomaticBackupKeepCount: (Int) -> Unit,
+    onDisableAutomaticBackup: () -> Unit,
     onPickRestoreFile: (Uri) -> Unit,
     onDismissBackupState: () -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
@@ -707,7 +724,11 @@ private fun SettingsGroupDetail(
                 SettingsContentContainer {
                     BackupRestoreCard(
                         backupState = backupState,
+                        automaticBackup = automaticBackup,
                         onCreateBackup = onCreateBackup,
+                        onChooseAutomaticBackupFolder = onChooseAutomaticBackupFolder,
+                        onSetAutomaticBackupKeepCount = onSetAutomaticBackupKeepCount,
+                        onDisableAutomaticBackup = onDisableAutomaticBackup,
                         onPickRestoreFile = onPickRestoreFile,
                         onDismissBackupState = onDismissBackupState,
                     )

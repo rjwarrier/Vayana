@@ -20,6 +20,8 @@ dependencies {
     implementation(project(":core:filesystem"))
     implementation(project(":core:sync"))
     implementation(libs.room.runtime)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.documentfile)
     testImplementation(kotlin("test"))
     testImplementation("org.robolectric:robolectric:4.13")
 }

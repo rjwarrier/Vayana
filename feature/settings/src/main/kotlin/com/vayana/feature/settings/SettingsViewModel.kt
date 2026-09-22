@@ -13,6 +13,7 @@ import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.feature.settings.backup.BackupInspection
 import com.vayana.feature.settings.backup.BackupManager
+import com.vayana.feature.settings.backup.AutomaticBackupSettings
 import com.vayana.feature.settings.backup.BackupOutcome
 import com.vayana.feature.settings.backup.InspectOutcome
 import com.vayana.feature.settings.backup.RestoreOutcome
@@ -77,6 +78,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
+    private val automaticBackupSettings: AutomaticBackupSettings,
     private val gitHubSyncSettingsTransfer: GitHubSyncSettingsTransfer,
     private val gitHubConnectionTester: GitHubConnectionTester,
     private val storageRoots: StorageRoots,
@@ -87,6 +89,17 @@ class SettingsViewModel @Inject constructor(
 
     private val _backupState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
     val backupState: StateFlow<BackupUiState> = _backupState
+    val automaticBackup = automaticBackupSettings.state
+
+    fun chooseAutomaticBackupFolder(uri: Uri) {
+        automaticBackupSettings.chooseFolder(uri).onFailure { throwable ->
+            automaticBackupSettings.recordError(throwable.message ?: "Could not use the selected folder")
+        }
+    }
+
+    fun setAutomaticBackupKeepCount(count: Int) = automaticBackupSettings.setKeepCount(count)
+
+    fun disableAutomaticBackup() = automaticBackupSettings.disable()
 
     private val _restorePreview = MutableStateFlow<RestorePreviewState>(RestorePreviewState.Idle)
     val restorePreview: StateFlow<RestorePreviewState> = _restorePreview
