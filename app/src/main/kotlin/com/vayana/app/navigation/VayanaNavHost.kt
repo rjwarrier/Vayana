@@ -24,6 +24,7 @@ import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenR
 import com.vayana.feature.library.LibraryAddAction
 import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
 import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
+import com.vayana.feature.library.SeriesFolderScreenRoute
 import com.vayana.feature.notes.NotesRoute
 import com.vayana.feature.help.HelpRoute as HelpScreenRoute
 import com.vayana.feature.reader.ReaderRoute as ReaderScreenRoute
@@ -159,6 +160,14 @@ fun VayanaNavHost(
             val route = backStackEntry.toRoute<ShelfDetailRoute>()
             ShelfDetailScreenRoute(
                 shelfId = route.shelfId,
+                onBack = { navController.popBackStack() },
+                onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+            )
+        }
+        composable<SeriesFolderRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<SeriesFolderRoute>()
+            SeriesFolderScreenRoute(
+                seriesKey = route.seriesKey,
                 onBack = { navController.popBackStack() },
                 onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
             )

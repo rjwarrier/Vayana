@@ -426,7 +426,7 @@ enum class LibrarySortDirection { ASCENDING, DESCENDING }
 
 enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
 
-enum class LibraryGroupBy { NONE, AUTHOR, SERIES }
+enum class LibraryGroupBy { NONE, AUTHOR, SERIES, SERIES_FOLDERS }
 
 enum class LibraryViewMode { THUMBNAILS, LIST }
 
@@ -503,6 +503,11 @@ class LibraryViewModel @Inject constructor(
     private val finishedThreshold: Flow<Float> = settingsRepository.snapshot
         .map { it.finishedFraction }
         .distinctUntilChanged()
+
+    val yearlyBooksGoal: StateFlow<Int> = settingsRepository.snapshot
+        .map { it.yearlyBooksGoal }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val uiState: StateFlow<LibraryUiState> = combine(
         libraryBooks,

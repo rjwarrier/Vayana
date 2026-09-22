@@ -58,6 +58,9 @@ data object ShelvesRoute
 data class ShelfDetailRoute(val shelfId: Long)
 
 @Serializable
+data class SeriesFolderRoute(val seriesKey: String)
+
+@Serializable
 data class BookDetailRoute(val bookId: Long)
 
 /** The Notes screen opened straight on one book's notes, from that book's details. */
@@ -105,6 +108,7 @@ internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boo
             hasRoute(RecentlyDeletedRoute::class) ||
             hasRoute(ShelvesRoute::class) ||
             hasRoute(ShelfDetailRoute::class) ||
+            hasRoute(SeriesFolderRoute::class) ||
             hasRoute(BookDetailRoute::class)
     TopLevelDestination.NOTES -> hasRoute(TopLevelRoute.Notes::class)
     TopLevelDestination.STATISTICS ->

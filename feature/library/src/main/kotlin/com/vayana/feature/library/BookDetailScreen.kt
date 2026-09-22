@@ -147,6 +147,7 @@ fun BookDetailRoute(
     val book by bookFlow.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val libraryBooks by viewModel.libraryBooks.collectAsState()
+    val yearlyBooksGoal by viewModel.yearlyBooksGoal.collectAsState()
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
     val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsState()
     val allShelves by viewModel.shelves.collectAsState()
@@ -187,6 +188,7 @@ fun BookDetailRoute(
             }
         },
         libraryBooks = libraryBooks,
+        yearlyBooksGoal = yearlyBooksGoal,
         detailMessage = detailMessage,
         coverImageDownloadInProgress = coverImageDownloadInProgress,
         allShelves = allShelves,
@@ -281,6 +283,7 @@ internal data class BookShareImageOptions(
     /** Mutually exclusive with [showTags]; the options panel keeps at most one of them on. */
     val showImportedDate: Boolean = false,
     val showTagline: Boolean = true,
+    val showYearlyGoal: Boolean = false,
 ) {
     companion object {
         /**
@@ -304,6 +307,7 @@ private fun BookDetailScreen(
     onKeepSyncedProgress: (BookProgressChange) -> Unit,
     onRevertSyncedProgress: (BookProgressChange) -> Unit,
     libraryBooks: List<Book>,
+    yearlyBooksGoal: Int,
     detailMessage: BookDetailMessage?,
     coverImageDownloadInProgress: Boolean,
     allShelves: List<com.vayana.core.database.model.Shelf>,
@@ -1080,6 +1084,7 @@ private fun BookDetailScreen(
                     hasRating = book.rating > 0f,
                     hasSeries = !book.series.isNullOrBlank() || !book.seriesNumber.isNullOrBlank(),
                     hasTags = book.tags().isNotEmpty(),
+                    hasYearlyGoal = yearlyBooksGoal > 0,
                     onOptionsChange = { shareImageOptions = it },
                 )
             },
@@ -1117,6 +1122,10 @@ private fun BookDetailScreen(
                 showTagline = shareImageOptions.showTagline,
                 layout = shareImageOptions.layout,
                 progressFraction = book.readingPercent,
+                yearlyGoalReadCount = if (shareImageOptions.showYearlyGoal && yearlyBooksGoal > 0) {
+                    yearlyBookShareProgress(libraryBooks, book, yearlyBooksGoal)?.readCount
+                } else null,
+                yearlyGoalTarget = yearlyBooksGoal.takeIf { shareImageOptions.showYearlyGoal && it > 0 },
             ) {
                 // Fill whatever box the layout gives the cover, including Backdrop's full square.
                 BookCover(book = book, modifier = Modifier.fillMaxSize())

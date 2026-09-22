@@ -41,6 +41,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +67,8 @@ import com.vayana.core.common.shareBitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
@@ -276,6 +280,8 @@ fun BookShareCard(
     layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
     /** Reading progress 0..1, drawn as a bar by [BookShareCardLayout.MINIMAL]. */
     progressFraction: Float? = null,
+    yearlyGoalReadCount: Int? = null,
+    yearlyGoalTarget: Int? = null,
     cover: @Composable () -> Unit,
 ) {
     val colors = rememberShareCardColors(theme)
@@ -320,7 +326,16 @@ fun BookShareCard(
                 .padding(Spacing.xl),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            ShareCardWordmark(tint = colors.accent, wordmark = watermark)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ShareCardWordmark(tint = colors.accent, wordmark = watermark)
+                if (yearlyGoalReadCount != null && yearlyGoalTarget != null && yearlyGoalTarget > 0) {
+                    YearlyGoalBadge(yearlyGoalReadCount, yearlyGoalTarget, colors)
+                }
+            }
             val bodyModifier = Modifier.weight(1f)
             when (layout) {
                 BookShareCardLayout.CLASSIC -> ClassicBookShareBody(content, colors, showCover, cover, bodyModifier)
@@ -349,6 +364,25 @@ fun BookShareCard(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun YearlyGoalBadge(readCount: Int, target: Int, colors: ShareCardColors) {
+    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        CircularWavyProgressIndicator(
+            progress = { (readCount.toFloat() / target).coerceIn(0f, 1f) },
+            modifier = Modifier.matchParentSize(),
+            color = colors.accent,
+            trackColor = colors.divider,
+        )
+        Text(
+            text = "$readCount/$target",
+            style = ShareCardTypography.cardSubtitleMono.copy(fontSize = 9.sp),
+            color = colors.primaryText,
+            maxLines = 1,
+        )
     }
 }
 

@@ -20,6 +20,7 @@ internal fun BookShareImageOptionsPanel(
     hasRating: Boolean,
     hasSeries: Boolean,
     hasTags: Boolean,
+    hasYearlyGoal: Boolean,
     onOptionsChange: (BookShareImageOptions) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -42,6 +43,13 @@ internal fun BookShareImageOptionsPanel(
         ShareCardThemeRow(selected = options.theme, onSelect = { onOptionsChange(options.copy(theme = it)) })
         ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_include))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            if (hasYearlyGoal) {
+                ShareCardOptionChip(
+                    selected = options.showYearlyGoal,
+                    label = stringResource(R.string.share_card_image_options_yearly_goal),
+                    onClick = { onOptionsChange(options.copy(showYearlyGoal = !options.showYearlyGoal)) },
+                )
+            }
             // Chips a layout never draws are hidden rather than left as toggles that change nothing.
             if (options.layout != BookShareCardLayout.MINIMAL) {
                 ShareCardOptionChip(

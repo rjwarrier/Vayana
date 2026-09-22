@@ -71,6 +71,7 @@ fun LibraryListDetailRoute(
     if (!useListDetailPane) {
         LibraryRoute(
             onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+            onSeriesFolderClick = { seriesKey -> navController.navigate(SeriesFolderRoute(seriesKey)) },
             onSettingsClick = onSettingsClick,
             showSettingsAction = !isTabletLandscape,
             onSearchClick = onSearchClick,
@@ -98,6 +99,7 @@ fun LibraryListDetailRoute(
                     onBookClick = { bookId ->
                         scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, bookId) }
                     },
+                    onSeriesFolderClick = { seriesKey -> navController.navigate(SeriesFolderRoute(seriesKey)) },
                     onSettingsClick = onSettingsClick,
                     showSettingsAction = false,
                     selectedBookId = navigator.currentDestination?.contentKey,

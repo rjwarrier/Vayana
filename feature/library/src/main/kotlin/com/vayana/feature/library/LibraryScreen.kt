@@ -149,6 +149,7 @@ enum class LibraryAddAction {
 @Composable
 fun LibraryRoute(
     onBookClick: (Long) -> Unit,
+    onSeriesFolderClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
     showSettingsAction: Boolean = true,
     selectedBookId: Long? = null,
@@ -190,6 +191,7 @@ fun LibraryRoute(
         addBookAction = addBookAction,
         onAddBookActionHandled = onAddBookActionHandled,
         onBookClick = onBookClick,
+        onSeriesFolderClick = onSeriesFolderClick,
         onMarkFinished = { bookId -> viewModel.markFinished(bookId, announce = false) },
         onSetReadNext = viewModel::setReadNext,
         onDownloadCloudBook = viewModel::downloadCloudBook,
@@ -230,6 +232,7 @@ private fun LibraryScreen(
     addBookAction: LibraryAddAction?,
     onAddBookActionHandled: () -> Unit,
     onBookClick: (Long) -> Unit,
+    onSeriesFolderClick: (String) -> Unit,
     onMarkFinished: (Long) -> Unit,
     onSetReadNext: (Long, Boolean) -> Unit,
     onDownloadCloudBook: suspend (Book) -> CloudBookDownloadResult,
@@ -489,12 +492,15 @@ private fun LibraryScreen(
                     books = uiState.books,
                     readNextQueue = activeReadNextQueue,
                     showReadNextSuggestions = showReadNextSuggestions,
-                    groupBy = uiState.controls.groupBy,
+                    groupBy = if (uiState.controls.groupBy == LibraryGroupBy.SERIES_FOLDERS &&
+                        (uiState.controls.query.isNotBlank() || uiState.controls.filter != LibraryFilter.ALL)
+                    ) LibraryGroupBy.NONE else uiState.controls.groupBy,
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
                     downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
                     selectedBookId = selectedBookId,
                     onBookClick = ::handleBookClick,
+                    onSeriesFolderClick = onSeriesFolderClick,
                     onMarkFinished = { book -> pendingFinishBook = book },
                     onRemoveFromReadNext = { book -> onSetReadNext(book.id, false) },
                     onViewAllReadNext = onShelvesClick,
@@ -503,12 +509,15 @@ private fun LibraryScreen(
                     books = uiState.books,
                     readNextQueue = activeReadNextQueue,
                     showReadNextSuggestions = showReadNextSuggestions,
-                    groupBy = uiState.controls.groupBy,
+                    groupBy = if (uiState.controls.groupBy == LibraryGroupBy.SERIES_FOLDERS &&
+                        (uiState.controls.query.isNotBlank() || uiState.controls.filter != LibraryFilter.ALL)
+                    ) LibraryGroupBy.NONE else uiState.controls.groupBy,
                     contentPadding = innerPadding,
                     downloadingBookId = activeDownloadBookId,
                     downloadProgress = cloudBookDownloadProgress?.takeIf { it.isRunning }?.fraction,
                     selectedBookId = selectedBookId,
                     onBookClick = ::handleBookClick,
+                    onSeriesFolderClick = onSeriesFolderClick,
                     onMarkFinished = { book -> pendingFinishBook = book },
                     onRemoveFromReadNext = { book -> onSetReadNext(book.id, false) },
                     onViewAllReadNext = onShelvesClick,
@@ -1064,13 +1073,15 @@ private fun LibraryGrid(
     downloadProgress: Float?,
     selectedBookId: Long?,
     onBookClick: (Book) -> Unit,
+    onSeriesFolderClick: (String) -> Unit,
     onMarkFinished: (Book) -> Unit,
     onRemoveFromReadNext: (Book) -> Unit,
     onViewAllReadNext: () -> Unit,
 ) {
-    val displayBooks = rememberLibraryDisplayBooks(books)
+    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) LibraryDisplayBooks(null, books) else rememberLibraryDisplayBooks(books)
     val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
+    val folderItems = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
     val placementSpec = rememberLazyItemPlacementSpec()
 
     PagedLazyVerticalGrid(
@@ -1113,7 +1124,26 @@ private fun LibraryGrid(
             }
         }
 
-        if (sections == null) {
+        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) {
+            folderItems.forEach { entry ->
+                when (entry) {
+                    is SeriesLibraryItem.Single -> item(key = "book:${entry.book.id}", contentType = "book") {
+                        val book = entry.book
+                        BookCoverCell(
+                            book = book,
+                            selected = book.id == selectedBookId,
+                            isDownloading = book.id == downloadingBookId,
+                            downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                            onMarkFinished = { onMarkFinished(book) },
+                            onClick = { onBookClick(book) },
+                        )
+                    }
+                    is SeriesLibraryItem.Folder -> item(key = "series:${entry.key}", contentType = "series") {
+                        SeriesFolderCell(entry, onClick = { onSeriesFolderClick(entry.key) })
+                    }
+                }
+            }
+        } else if (sections == null) {
             gridItems(displayBooks.rows, key = { it.id }, contentType = { "book" }) { book ->
                 BookCoverCell(
                     book = book,
@@ -1163,13 +1193,15 @@ private fun LibraryList(
     downloadProgress: Float?,
     selectedBookId: Long?,
     onBookClick: (Book) -> Unit,
+    onSeriesFolderClick: (String) -> Unit,
     onMarkFinished: (Book) -> Unit,
     onRemoveFromReadNext: (Book) -> Unit,
     onViewAllReadNext: () -> Unit,
 ) {
-    val displayBooks = rememberLibraryDisplayBooks(books)
+    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) LibraryDisplayBooks(null, books) else rememberLibraryDisplayBooks(books)
     val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
+    val folderItems = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
     val placementSpec = rememberLazyItemPlacementSpec()
 
     PagedLazyColumn(
@@ -1210,7 +1242,26 @@ private fun LibraryList(
             }
         }
 
-        if (sections == null) {
+        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) {
+            folderItems.forEach { entry ->
+                when (entry) {
+                    is SeriesLibraryItem.Single -> item(key = "book:${entry.book.id}") {
+                        val book = entry.book
+                        LibraryListRow(
+                            book = book,
+                            selected = book.id == selectedBookId,
+                            isDownloading = book.id == downloadingBookId,
+                            downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
+                            onClick = { onBookClick(book) },
+                            onMarkFinished = { onMarkFinished(book) },
+                        )
+                    }
+                    is SeriesLibraryItem.Folder -> item(key = "series:${entry.key}") {
+                        SeriesFolderListRow(entry, onClick = { onSeriesFolderClick(entry.key) })
+                    }
+                }
+            }
+        } else if (sections == null) {
             items(displayBooks.rows, key = { it.id }) { book ->
                 LibraryListRow(
                     book = book,
@@ -1554,16 +1605,18 @@ private fun LibraryHeroCard(
 /** Null when [mode] is [LibraryGroupBy.NONE] — callers fall back to the flat, ungrouped grid. */
 @Composable
 private fun List<Book>.toGroupSections(mode: LibraryGroupBy): List<LibraryGroupSection>? {
-    if (mode == LibraryGroupBy.NONE) return null
+    if (mode == LibraryGroupBy.NONE || mode == LibraryGroupBy.SERIES_FOLDERS) return null
     val unknownLabel = when (mode) {
         LibraryGroupBy.AUTHOR -> stringResource(R.string.library_group_unknown_author)
         LibraryGroupBy.SERIES -> stringResource(R.string.library_group_unknown_series)
+        LibraryGroupBy.SERIES_FOLDERS -> ""
         LibraryGroupBy.NONE -> ""
     }
     return remember(this, mode, unknownLabel) {
         val keyOf: (Book) -> String? = when (mode) {
             LibraryGroupBy.AUTHOR -> { book -> book.author }
             LibraryGroupBy.SERIES -> { book -> book.series }
+            LibraryGroupBy.SERIES_FOLDERS -> { _ -> null }
             LibraryGroupBy.NONE -> { _ -> null }
         }
         groupBy { book -> keyOf(book)?.trim()?.takeIf(String::isNotBlank) }
@@ -1634,6 +1687,7 @@ private fun BookCoverCell(
         Text(
             text = book.title,
             style = MaterialTheme.typography.labelLarge,
+            minLines = 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.xs),
@@ -1866,6 +1920,7 @@ internal fun LibraryGroupBy.label(): String = when (this) {
     LibraryGroupBy.NONE -> stringResource(R.string.library_group_none)
     LibraryGroupBy.AUTHOR -> stringResource(R.string.library_group_author)
     LibraryGroupBy.SERIES -> stringResource(R.string.library_group_series)
+    LibraryGroupBy.SERIES_FOLDERS -> stringResource(R.string.library_group_series_folders)
 }
 
 @Composable

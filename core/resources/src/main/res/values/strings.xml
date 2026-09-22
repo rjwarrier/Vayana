@@ -417,6 +417,10 @@
     <string name="library_group_none">No grouping</string>
     <string name="library_group_author">Author</string>
     <string name="library_group_series">Series</string>
+    <string name="library_group_series_folders">Series folders</string>
+    <string name="library_series_folder_count">%1$d books</string>
+    <string name="library_series_folder_description">%1$s series, %2$d books</string>
+    <string name="library_series_folder_empty">This series has no books in your library.</string>
     <string name="library_group_unknown_author">Unknown author</string>
     <string name="library_group_unknown_series">No series</string>
 
@@ -478,6 +482,7 @@
     <string name="share_card_image_options_caption">“Highlighted in”</string>
     <string name="share_card_image_options_status">Reading status</string>
     <string name="share_card_image_options_progress">Progress</string>
+    <string name="share_card_image_options_yearly_goal">Yearly book goal</string>
     <string name="share_card_image_options_read_time">Reading time</string>
     <string name="share_card_image_options_rating">Rating</string>
     <string name="share_card_image_options_tags">Tags</string>
