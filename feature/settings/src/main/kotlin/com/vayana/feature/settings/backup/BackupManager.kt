@@ -15,12 +15,15 @@ import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -51,6 +54,7 @@ class BackupManager @Inject constructor(
         operationMutex.withLock {
             try {
                 checkpointDatabase()
+                check(context.getDatabasePath(DatabaseFileName).isFile) { "Could not find the app database" }
                 val output = context.contentResolver.openOutputStream(destination)
                     ?: return@withContext BackupOutcome.Failed("Could not open the selected location")
                 output.use {
@@ -84,14 +88,17 @@ class BackupManager @Inject constructor(
                 var fileBookCount = 0
                 var sawDatabase = false
                 var totalBytes = 0L
+                val seenEntries = HashSet<String>()
                 val input = context.contentResolver.openInputStream(source)
                     ?: return@withContext InspectOutcome.Failed("Could not open the selected file")
                 ZipInputStream(BufferedInputStream(input)).use { zip ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var entryCount = 0
                     while (true) {
+                        currentCoroutineContext().ensureActive()
                         val entry = zip.nextEntry ?: break
                         check(++entryCount <= MaxBackupEntries) { "Backup archive contains too many entries" }
+                        validateEntryName(entry.name, seenEntries)
                         if (!entry.isDirectory) {
                             when (entry.name) {
                                 "manifest.json" -> manifest = parseManifestJson(readBounded(zip, MaxMetadataBytes))
@@ -99,11 +106,11 @@ class BackupManager @Inject constructor(
                                 "database/$DatabaseFileName" -> {
                                     sawDatabase = true
                                     tempDb.parentFile?.mkdirs()
-                                    FileOutputStream(tempDb).use { output -> totalBytes += copyCounting(zip, buffer, output) }
+                                    FileOutputStream(tempDb).use { output -> totalBytes = consumeEntry(zip, buffer, totalBytes, output) }
                                 }
                                 else -> {
                                     if (entry.name.startsWith("books/")) fileBookCount++
-                                    totalBytes += skipCounting(zip, buffer)
+                                    totalBytes = consumeEntry(zip, buffer, totalBytes)
                                 }
                             }
                         }
@@ -139,23 +146,27 @@ class BackupManager @Inject constructor(
 
     private fun countRows(dbFile: File, fallbackBookCount: Int): Pair<Int, Int> {
         if (!dbFile.isFile) return fallbackBookCount to 0
-        return runCatching {
-            SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-                val books = countTable(db, "SELECT COUNT(*) FROM books WHERE isDeleted = 0") ?: fallbackBookCount
-                val annotations = countTable(db, "SELECT COUNT(*) FROM annotations") ?: 0
-                books to annotations
+        return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                check(cursor.moveToFirst() && cursor.getString(0) == "ok" && !cursor.moveToNext()) {
+                    "Backup database is damaged"
+                }
             }
-        }.getOrDefault(fallbackBookCount to 0)
+            val books = countTable(db, "SELECT COUNT(*) FROM books WHERE isDeleted = 0") ?: fallbackBookCount
+            val annotations = countTable(db, "SELECT COUNT(*) FROM annotations") ?: 0
+            books to annotations
+        }
     }
 
     private fun countTable(db: SQLiteDatabase, query: String): Int? = runCatching {
         db.rawQuery(query, null).use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else null }
     }.getOrNull()
 
-    private fun readBounded(zip: ZipInputStream, limit: Int): String {
+    private suspend fun readBounded(zip: ZipInputStream, limit: Int): String {
         val output = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(8192)
         while (true) {
+            currentCoroutineContext().ensureActive()
             val count = zip.read(buffer)
             if (count < 0) break
             output.write(buffer, 0, count)
@@ -164,23 +175,15 @@ class BackupManager @Inject constructor(
         return output.toString("UTF-8")
     }
 
-    private fun skipCounting(zip: ZipInputStream, buffer: ByteArray): Long {
-        var total = 0L
+    private suspend fun consumeEntry(zip: ZipInputStream, buffer: ByteArray, initialBytes: Long, output: OutputStream? = null): Long {
+        var total = initialBytes
         while (true) {
+            currentCoroutineContext().ensureActive()
             val count = zip.read(buffer)
             if (count < 0) break
+            check(total <= MaxRestoreTotalBytes - count) { "This backup is unexpectedly large" }
             total += count
-        }
-        return total
-    }
-
-    private fun copyCounting(zip: ZipInputStream, buffer: ByteArray, output: FileOutputStream): Long {
-        var total = 0L
-        while (true) {
-            val count = zip.read(buffer)
-            if (count < 0) break
-            total += count
-            output.write(buffer, 0, count)
+            output?.write(buffer, 0, count)
         }
         return total
     }
@@ -290,9 +293,9 @@ class BackupManager @Inject constructor(
     private fun checkpointDatabase() {
         val dbFile = context.getDatabasePath(DatabaseFileName)
         if (!dbFile.isFile) return
-        runCatching {
-            SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
-                db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() }
+        SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+            db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { cursor ->
+                check(cursor.moveToFirst() && cursor.getInt(0) == 0) { "Could not save pending database changes" }
             }
         }
     }
@@ -336,20 +339,27 @@ class BackupManager @Inject constructor(
         val destinationRoot = destination.canonicalPath + File.separator
         var entryCount = 0
         var cumulativeBytes = 0L
+        val seenEntries = HashSet<String>()
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         while (true) {
             val entry = zip.nextEntry ?: break
             check(++entryCount <= MaxBackupEntries) { "Backup archive contains too many entries" }
+            validateEntryName(entry.name, seenEntries)
             if (!entry.isDirectory) {
                 val outFile = File(destination, entry.name).canonicalFile
                 check(outFile.path.startsWith(destinationRoot)) { "Backup archive contains an invalid entry" }
                 outFile.parentFile?.mkdirs()
                 FileOutputStream(outFile).use { output ->
+                    var entryBytes = 0L
                     while (true) {
                         val count = zip.read(buffer)
                         if (count < 0) break
+                        check(cumulativeBytes <= MaxRestoreTotalBytes - count) { "This backup is unexpectedly large" }
                         cumulativeBytes += count
-                        check(cumulativeBytes <= MaxRestoreTotalBytes) { "This backup is unexpectedly large" }
+                        entryBytes += count
+                        if (entry.name == "manifest.json" || entry.name == "settings.json") {
+                            check(entryBytes <= MaxMetadataBytes) { "Backup metadata is unexpectedly large" }
+                        }
                         output.write(buffer, 0, count)
                     }
                 }
@@ -365,6 +375,9 @@ class BackupManager @Inject constructor(
 
     private fun parseManifestJson(text: String): BackupManifest {
         val json = JSONObject(text)
+        check(json.optInt("backupFormatVersion", 1) > 0 && json.optInt("databaseVersion", 0) > 0) {
+            "Backup manifest has invalid version information"
+        }
         return BackupManifest(
             appVersion = json.optString("appVersion", ""),
             backupFormatVersion = json.optInt("backupFormatVersion", 1),
@@ -396,4 +409,12 @@ class BackupManager @Inject constructor(
         const val MaxRestoreTotalBytes = 20L * 1024L * 1024L * 1024L
         const val MaxMetadataBytes = 1024 * 1024
     }
+}
+
+internal fun validateEntryName(name: String, seenEntries: MutableSet<String>) {
+    val path = name.removeSuffix("/")
+    check(path.isNotEmpty() && '\\' !in path && path.split('/').all { it.isNotEmpty() && it != "." && it != ".." }) {
+        "Backup archive contains an invalid entry"
+    }
+    check(seenEntries.add(path)) { "Backup archive contains duplicate entries" }
 }

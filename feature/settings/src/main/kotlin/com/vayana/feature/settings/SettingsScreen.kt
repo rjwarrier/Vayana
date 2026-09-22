@@ -132,6 +132,7 @@ fun SettingsRoute(
     val settings by viewModel.settings.collectAsState()
     val backupState by viewModel.backupState.collectAsState()
     val automaticBackup by viewModel.automaticBackup.collectAsState()
+    val backupFolderFiles by viewModel.backupFolderFiles.collectAsState()
     val restorePreview by viewModel.restorePreview.collectAsState()
     val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
     val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsState()
@@ -143,6 +144,7 @@ fun SettingsRoute(
         settings = settings,
         backupState = backupState,
         automaticBackup = automaticBackup,
+        backupFolderFiles = backupFolderFiles,
         restorePreview = restorePreview,
         githubSyncSettingsTransferState = githubSyncSettingsTransferState,
         githubConnectionTestState = githubConnectionTestState,
@@ -158,7 +160,9 @@ fun SettingsRoute(
         onCreateBackup = viewModel::createBackup,
         onChooseAutomaticBackupFolder = viewModel::chooseAutomaticBackupFolder,
         onSetAutomaticBackupKeepCount = viewModel::setAutomaticBackupKeepCount,
+        onSetAutomaticBackupFrequency = viewModel::setAutomaticBackupFrequency,
         onDisableAutomaticBackup = viewModel::disableAutomaticBackup,
+        onRefreshBackupFolderFiles = viewModel::refreshBackupFolderFiles,
         onPickRestoreFile = viewModel::inspectRestoreFile,
         onConfirmRestore = viewModel::restoreBackup,
         onExportGitHubSyncSettings = viewModel::exportGitHubSyncSettings,
@@ -181,6 +185,7 @@ private fun SettingsScreen(
     settings: SettingsSnapshot,
     backupState: BackupUiState,
     automaticBackup: com.vayana.feature.settings.backup.AutomaticBackupState,
+    backupFolderFiles: BackupFolderFilesState,
     restorePreview: RestorePreviewState,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
@@ -196,7 +201,9 @@ private fun SettingsScreen(
     onCreateBackup: (Uri) -> Unit,
     onChooseAutomaticBackupFolder: (Uri) -> Unit,
     onSetAutomaticBackupKeepCount: (Int) -> Unit,
+    onSetAutomaticBackupFrequency: (com.vayana.feature.settings.backup.AutomaticBackupFrequency) -> Unit,
     onDisableAutomaticBackup: () -> Unit,
+    onRefreshBackupFolderFiles: () -> Unit,
     onPickRestoreFile: (Uri) -> Unit,
     onConfirmRestore: (Uri) -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
@@ -258,6 +265,7 @@ private fun SettingsScreen(
             else -> SettingsGroupDetail(
                 contentPadding = contentPadding,
                 group = destination.group,
+                showBackupGroupHeader = useTwoPane,
                 settings = settings,
                 githubSyncSettingsTransferState = githubSyncSettingsTransferState,
                 githubConnectionTestState = githubConnectionTestState,
@@ -265,12 +273,15 @@ private fun SettingsScreen(
                 readerFontImportState = readerFontImportState,
                 backupState = backupState,
                 automaticBackup = automaticBackup,
+                backupFolderFiles = backupFolderFiles,
                 onUpdate = onUpdate,
                 onReset = onReset,
                 onCreateBackup = onCreateBackup,
                 onChooseAutomaticBackupFolder = onChooseAutomaticBackupFolder,
                 onSetAutomaticBackupKeepCount = onSetAutomaticBackupKeepCount,
+                onSetAutomaticBackupFrequency = onSetAutomaticBackupFrequency,
                 onDisableAutomaticBackup = onDisableAutomaticBackup,
+                onRefreshBackupFolderFiles = onRefreshBackupFolderFiles,
                 onPickRestoreFile = onPickRestoreFile,
                 onDismissBackupState = onDismissBackupState,
                 onExportGitHubSyncSettings = onExportGitHubSyncSettings,
@@ -322,11 +333,13 @@ private fun SettingsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showResetAllDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Outlined.RestartAlt,
-                            contentDescription = stringResource(R.string.settings_reset_all_content_description),
-                        )
+                    if (selectedGroup != SettingsGroup.BACKUP) {
+                        IconButton(onClick = { showResetAllDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = stringResource(R.string.settings_reset_all_content_description),
+                            )
+                        }
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -442,6 +455,26 @@ private fun SettingsScreen(
         )
     }
 
+    if (backupState == BackupUiState.Restoring) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.settings_restore_working_title)) },
+            text = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.settings_restore_working))
+                }
+            },
+            confirmButton = {},
+            shape = RoundedCornerShape(Radii.extraLargeIncreased),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = Elevations.shadowLarge,
+        )
+    }
+
     when (restorePreview) {
         is RestorePreviewState.Loading -> {
             AlertDialog(
@@ -473,7 +506,7 @@ private fun SettingsScreen(
                         Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.padding(Spacing.md))
                     }
                 },
-                title = { Text(stringResource(R.string.settings_restore_confirm_title)) },
+                title = { Text(stringResource(R.string.settings_restore_read_error_title)) },
                 text = { Text(restorePreview.message) },
                 confirmButton = {
                     Button(onClick = onDismissRestorePreview, shape = RoundedCornerShape(Radii.full)) {
@@ -506,7 +539,7 @@ private fun SettingsScreen(
                         Icon(imageVector = Icons.Outlined.Restore, contentDescription = null, modifier = Modifier.padding(Spacing.md))
                     }
                 },
-                title = { Text(stringResource(R.string.settings_restore_confirm_title)) },
+                title = { Text(stringResource(R.string.settings_restore_review_title)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         if (!inspection.isCompatible) {
@@ -643,6 +676,7 @@ private fun SettingsHub(
 private fun SettingsGroupDetail(
     contentPadding: PaddingValues,
     group: SettingsGroup?,
+    showBackupGroupHeader: Boolean,
     settings: SettingsSnapshot,
     githubSyncSettingsTransferState: GitHubSyncSettingsTransferState,
     githubConnectionTestState: GitHubConnectionTestState,
@@ -650,12 +684,15 @@ private fun SettingsGroupDetail(
     readerFontImportState: ReaderFontImportState,
     backupState: BackupUiState,
     automaticBackup: com.vayana.feature.settings.backup.AutomaticBackupState,
+    backupFolderFiles: BackupFolderFilesState,
     onUpdate: (Setting<Any>, Any) -> Unit,
     onReset: (Setting<out Any>) -> Unit,
     onCreateBackup: (Uri) -> Unit,
     onChooseAutomaticBackupFolder: (Uri) -> Unit,
     onSetAutomaticBackupKeepCount: (Int) -> Unit,
+    onSetAutomaticBackupFrequency: (com.vayana.feature.settings.backup.AutomaticBackupFrequency) -> Unit,
     onDisableAutomaticBackup: () -> Unit,
+    onRefreshBackupFolderFiles: () -> Unit,
     onPickRestoreFile: (Uri) -> Unit,
     onDismissBackupState: () -> Unit,
     onExportGitHubSyncSettings: (Uri) -> Unit,
@@ -681,7 +718,7 @@ private fun SettingsGroupDetail(
         ),
         verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
     ) {
-        if (group != null) {
+        if (group != null && (group != SettingsGroup.BACKUP || showBackupGroupHeader)) {
             item {
                 SettingsContentContainer {
                     SettingsGroupHeader(group = group, settingCount = groupSettings.size)
@@ -725,10 +762,13 @@ private fun SettingsGroupDetail(
                     BackupRestoreCard(
                         backupState = backupState,
                         automaticBackup = automaticBackup,
+                        backupFolderFiles = backupFolderFiles,
                         onCreateBackup = onCreateBackup,
                         onChooseAutomaticBackupFolder = onChooseAutomaticBackupFolder,
                         onSetAutomaticBackupKeepCount = onSetAutomaticBackupKeepCount,
+                        onSetAutomaticBackupFrequency = onSetAutomaticBackupFrequency,
                         onDisableAutomaticBackup = onDisableAutomaticBackup,
+                        onRefreshBackupFolderFiles = onRefreshBackupFolderFiles,
                         onPickRestoreFile = onPickRestoreFile,
                         onDismissBackupState = onDismissBackupState,
                     )

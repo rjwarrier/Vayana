@@ -14,6 +14,8 @@ import com.vayana.core.filesystem.StorageRoots
 import com.vayana.feature.settings.backup.BackupInspection
 import com.vayana.feature.settings.backup.BackupManager
 import com.vayana.feature.settings.backup.AutomaticBackupSettings
+import com.vayana.feature.settings.backup.AutomaticBackupFrequency
+import com.vayana.feature.settings.backup.BackupFolderFile
 import com.vayana.feature.settings.backup.BackupOutcome
 import com.vayana.feature.settings.backup.InspectOutcome
 import com.vayana.feature.settings.backup.RestoreOutcome
@@ -21,9 +23,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,12 +40,19 @@ import com.vayana.core.database.dao.PendingCloudDeletionDao
 
 sealed interface BackupUiState {
     data object Idle : BackupUiState
-    data object Working : BackupUiState
+    data object Creating : BackupUiState
+    data object Restoring : BackupUiState
     data object BackupComplete : BackupUiState
     data class BackupFailed(val message: String) : BackupUiState
     data class RestoreFailed(val message: String) : BackupUiState
     data class RestoreIncompatible(val message: String) : BackupUiState
 }
+
+data class BackupFolderFilesState(
+    val loading: Boolean = false,
+    val files: List<BackupFolderFile> = emptyList(),
+    val error: String? = null,
+)
 
 sealed interface GitHubSyncSettingsTransferState {
     data object Idle : GitHubSyncSettingsTransferState
@@ -90,6 +103,32 @@ class SettingsViewModel @Inject constructor(
     private val _backupState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
     val backupState: StateFlow<BackupUiState> = _backupState
     val automaticBackup = automaticBackupSettings.state
+    private val _backupFolderFiles = MutableStateFlow(BackupFolderFilesState())
+    val backupFolderFiles: StateFlow<BackupFolderFilesState> = _backupFolderFiles
+    private var backupFolderListingJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            automaticBackup.map { it.folderUri to it.lastSuccessAt }.distinctUntilChanged().collectLatest {
+                refreshBackupFolderFiles()
+            }
+        }
+    }
+
+    fun refreshBackupFolderFiles() {
+        backupFolderListingJob?.cancel()
+        if (automaticBackup.value.folderUri == null) {
+            _backupFolderFiles.value = BackupFolderFilesState()
+            return
+        }
+        backupFolderListingJob = viewModelScope.launch {
+            _backupFolderFiles.value = BackupFolderFilesState(loading = true)
+            _backupFolderFiles.value = automaticBackupSettings.listBackupFiles().fold(
+                onSuccess = { BackupFolderFilesState(files = it) },
+                onFailure = { BackupFolderFilesState(error = it.message ?: "Could not read the backup folder") },
+            )
+        }
+    }
 
     fun chooseAutomaticBackupFolder(uri: Uri) {
         automaticBackupSettings.chooseFolder(uri).onFailure { throwable ->
@@ -99,10 +138,17 @@ class SettingsViewModel @Inject constructor(
 
     fun setAutomaticBackupKeepCount(count: Int) = automaticBackupSettings.setKeepCount(count)
 
+    fun setAutomaticBackupFrequency(frequency: AutomaticBackupFrequency) {
+        automaticBackupSettings.setFrequency(frequency).onFailure { throwable ->
+            automaticBackupSettings.recordError(throwable.message ?: "Could not update the backup schedule")
+        }
+    }
+
     fun disableAutomaticBackup() = automaticBackupSettings.disable()
 
     private val _restorePreview = MutableStateFlow<RestorePreviewState>(RestorePreviewState.Idle)
     val restorePreview: StateFlow<RestorePreviewState> = _restorePreview
+    private var restoreInspectionJob: Job? = null
 
     private val _readerFontImportState = MutableStateFlow<ReaderFontImportState>(ReaderFontImportState.Idle)
     val readerFontImportState: StateFlow<ReaderFontImportState> = _readerFontImportState
@@ -167,19 +213,25 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun createBackup(destination: Uri) {
+        if (_backupState.value == BackupUiState.Creating || _backupState.value == BackupUiState.Restoring) return
+        _backupState.value = BackupUiState.Creating
         viewModelScope.launch {
-            _backupState.value = BackupUiState.Working
             _backupState.value = when (val outcome = backupManager.createBackup(destination)) {
                 BackupOutcome.Success -> BackupUiState.BackupComplete
                 is BackupOutcome.Failed -> BackupUiState.BackupFailed(outcome.message)
             }
+            if (_backupState.value == BackupUiState.BackupComplete) refreshBackupFolderFiles()
         }
     }
 
     fun restoreBackup(source: Uri) {
+        val preview = _restorePreview.value as? RestorePreviewState.Ready ?: return
+        if (preview.uri != source || !preview.inspection.isCompatible ||
+            _backupState.value == BackupUiState.Creating || _backupState.value == BackupUiState.Restoring) return
+        restoreInspectionJob?.cancel()
         _restorePreview.value = RestorePreviewState.Idle
+        _backupState.value = BackupUiState.Restoring
         viewModelScope.launch {
-            _backupState.value = BackupUiState.Working
             when (val outcome = backupManager.restoreBackup(source)) {
                 RestoreOutcome.Success -> Unit // process restarts on success; nothing left to update
                 is RestoreOutcome.Incompatible -> _backupState.value = BackupUiState.RestoreIncompatible(outcome.message)
@@ -235,7 +287,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun inspectRestoreFile(uri: Uri) {
-        viewModelScope.launch {
+        if (_backupState.value == BackupUiState.Creating || _backupState.value == BackupUiState.Restoring) return
+        restoreInspectionJob?.cancel()
+        restoreInspectionJob = viewModelScope.launch {
             _restorePreview.value = RestorePreviewState.Loading
             _restorePreview.value = when (val outcome = backupManager.inspectBackup(uri)) {
                 is InspectOutcome.Success -> RestorePreviewState.Ready(uri, outcome.inspection)
@@ -245,6 +299,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun dismissRestorePreview() {
+        restoreInspectionJob?.cancel()
+        restoreInspectionJob = null
         _restorePreview.value = RestorePreviewState.Idle
     }
 }

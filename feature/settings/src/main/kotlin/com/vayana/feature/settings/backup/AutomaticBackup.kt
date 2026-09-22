@@ -14,20 +14,42 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import com.vayana.core.common.runCatchingCancellable
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+enum class AutomaticBackupFrequency(val intervalDays: Long) {
+    DAILY(1),
+    WEEKLY(7),
+    EVERY_30_DAYS(30);
+
+    companion object {
+        fun fromStored(value: String?): AutomaticBackupFrequency =
+            entries.firstOrNull { it.name == value } ?: DAILY
+    }
+}
 
 data class AutomaticBackupState(
     val folderUri: String? = null,
     val folderName: String? = null,
     val keepCount: Int = 5,
+    val frequency: AutomaticBackupFrequency = AutomaticBackupFrequency.DAILY,
     val lastSuccessAt: Long = 0L,
     val lastFileName: String? = null,
     val lastError: String? = null,
+)
+
+data class BackupFolderFile(
+    val uri: Uri,
+    val name: String,
+    val modifiedAt: Long,
+    val sizeBytes: Long,
 )
 
 /** Device-local schedule and SAF permission; these must not be restored onto another device. */
@@ -60,6 +82,13 @@ class AutomaticBackupSettings @Inject constructor(@ApplicationContext private va
         refresh()
     }
 
+    fun setFrequency(frequency: AutomaticBackupFrequency): Result<Unit> = runCatching {
+        if (state.value.frequency == frequency) return@runCatching
+        preferences.edit().putString("frequency", frequency.name).apply()
+        refresh()
+        if (state.value.folderUri != null) schedule()
+    }
+
     fun disable() {
         WorkManager.getInstance(context).cancelUniqueWork(WorkName)
         preferences.edit().remove("folder_uri").remove("folder_name").remove("last_error").apply()
@@ -77,8 +106,30 @@ class AutomaticBackupSettings @Inject constructor(@ApplicationContext private va
         refresh()
     }
 
+    suspend fun listBackupFiles(): Result<List<BackupFolderFile>> = withContext(Dispatchers.IO) {
+        val uri = state.value.folderUri?.let(Uri::parse) ?: return@withContext Result.success(emptyList())
+        runCatchingCancellable {
+            val folder = DocumentFile.fromTreeUri(context, uri)?.takeIf { it.isDirectory }
+                ?: error("The selected backup folder is unavailable. Choose it again in Settings.")
+            folder.listFiles().asSequence()
+                .filter { it.isFile && isBackupFolderDisplayFile(it.name) }
+                .mapNotNull { file ->
+                    file.name?.let { name ->
+                        BackupFolderFile(
+                            uri = file.uri,
+                            name = name,
+                            modifiedAt = backupFileTimestamp(name, file.lastModified()),
+                            sizeBytes = file.length(),
+                        )
+                    }
+                }
+                .sortedWith(compareByDescending<BackupFolderFile> { it.modifiedAt }.thenByDescending { it.name })
+                .toList()
+        }
+    }
+
     private fun schedule() {
-        val request = PeriodicWorkRequestBuilder<AutomaticBackupWorker>(1, TimeUnit.DAYS).build()
+        val request = PeriodicWorkRequestBuilder<AutomaticBackupWorker>(state.value.frequency.intervalDays, TimeUnit.DAYS).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(WorkName, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
@@ -88,6 +139,7 @@ class AutomaticBackupSettings @Inject constructor(@ApplicationContext private va
         folderUri = preferences.getString("folder_uri", null),
         folderName = preferences.getString("folder_name", null),
         keepCount = preferences.getInt("keep_count", 5).coerceIn(1, 10),
+        frequency = AutomaticBackupFrequency.fromStored(preferences.getString("frequency", null)),
         lastSuccessAt = preferences.getLong("last_success_at", 0L),
         lastFileName = preferences.getString("last_file_name", null),
         lastError = preferences.getString("last_error", null),
@@ -128,13 +180,14 @@ class AutomaticBackupWorker(context: Context, params: WorkerParameters) : Corout
                         file.delete()
                         error("The selected folder changed the backup file name")
                     }
-                    settings.recordSuccess(savedName)
                     val oldFiles = folder.listFiles()
                         .filter { it.isFile && isAutomaticBackupFile(it.name) }
                         .filterNot { it.uri == file.uri }
                         .sortedWith(compareByDescending<DocumentFile> { it.name })
                         .drop(settings.state.value.keepCount - 1)
-                    if (oldFiles.map { it.delete() }.any { !it }) {
+                    val pruningFailed = oldFiles.map { it.delete() }.any { !it }
+                    settings.recordSuccess(savedName)
+                    if (pruningFailed) {
                         settings.recordError("Some older backups could not be removed")
                     }
                     Result.success()
@@ -157,8 +210,17 @@ class AutomaticBackupWorker(context: Context, params: WorkerParameters) : Corout
 internal fun isAutomaticBackupFile(name: String?): Boolean =
     isAutomaticBackupName(name, ".zip")
 
+internal fun isBackupFolderDisplayFile(name: String?): Boolean =
+    name?.endsWith(".zip", ignoreCase = true) == true
+
 internal fun isAutomaticBackupPendingFile(name: String?): Boolean =
     isAutomaticBackupName(name, ".zip.pending")
+
+internal fun backupFileTimestamp(name: String, lastModified: Long): Long =
+    lastModified.takeIf { it > 0L }
+        ?: name.takeIf(::isAutomaticBackupFile)
+            ?.removePrefix("vayana-auto-")?.removeSuffix(".zip")?.toLongOrNull()
+        ?: 0L
 
 private fun isAutomaticBackupName(name: String?, extension: String): Boolean =
     name != null && name.startsWith("vayana-auto-") && name.endsWith(extension) &&
