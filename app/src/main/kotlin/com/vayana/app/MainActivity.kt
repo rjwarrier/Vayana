@@ -1,5 +1,6 @@
 package com.vayana.app
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
 
     // The hardware page buttons of an e-reader page the list on screen. Only while such a list exists: the reader turns
     // its own pages and gets the key untouched.
+    @SuppressLint("RestrictedApi") // Activity's public key dispatch override is required for hardware page keys.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val direction = pageKeyDirection(event.keyCode)
         if (direction == null || !EinkPageKeys.hasHandler) return super.dispatchKeyEvent(event)

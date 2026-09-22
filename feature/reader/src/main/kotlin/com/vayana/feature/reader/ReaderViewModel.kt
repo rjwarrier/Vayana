@@ -937,8 +937,9 @@ class ReaderViewModel @Inject constructor(
             // Room's Flow re-emits whenever the annotations table is invalidated by any write
             // (even to a different book), not just when this book's rows actually changed - skip
             // the JS round trip when the content is identical to what we last rendered.
-            annotationRepository.observeForBook(bookId).distinctUntilChanged().collect { annotations ->
-                engine.renderAnnotations(annotations.mapNotNull { it.toReaderAnnotation() })
+            annotationRepository.observeForBook(bookId).distinctUntilChanged().collectLatest { annotations ->
+                val readerAnnotations = withContext(dispatchers.default) { annotations.mapNotNull { it.toReaderAnnotation() } }
+                engine.renderAnnotations(readerAnnotations)
                 _uiState.update { current ->
                     if (current is ReaderUiState.Loaded) current.copy(annotations = annotations) else current
                 }

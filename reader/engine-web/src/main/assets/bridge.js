@@ -11,8 +11,10 @@ const renderedAnnotations = new Set()
 const resolvedTextAnnotations = new Map()
 const resolvedTextFingerprints = new Map()
 const pendingTextAnnotations = new Set()
+const pendingQuoteAdds = new Set()
 const authoritativeSourceForCfi = new Map()
 const standardAnnotationFingerprints = new Map()
+let annotationRevision = 0
 const documentTextIndexes = new WeakMap()
 const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
@@ -26,9 +28,13 @@ let hasOpened = false
 // just arithmetic over numbers the renderer already computed for the current page turn.
 let sectionByteSizes = null
 const bytesPerPage = new Map()
+let pageEstimateCache = null
+let pageEstimateRevision = 0
+let lastSentTocRevision = -1
 
 function resetPageEstimate() {
     bytesPerPage.clear()
+    pageEstimateCache = null
 }
 
 function bookPageStats(sectionIndex) {
@@ -46,46 +52,42 @@ function bookPageStats(sectionIndex) {
     const pageInSection = Math.min(pagesInSection, Math.max(1, page - 1))
 
     const sectionSize = sectionByteSizes[sectionIndex] || 0
-    if (sectionSize > 0) bytesPerPage.set(sectionIndex, sectionSize / pagesInSection)
-
-    let knownSize = 0
-    let knownPages = 0
-    for (const [i, bpp] of bytesPerPage) {
-        knownSize += sectionByteSizes[i]
-        knownPages += sectionByteSizes[i] / bpp
-    }
-    const avgBytesPerPage = knownPages > 0 ? knownSize / knownPages : (sectionSize / pagesInSection || 1600)
-
-    const estimatePages = (fromIndex, toIndex) => {
-        let total = 0
-        for (let i = fromIndex; i < toIndex; i++) {
-            const size = sectionByteSizes[i]
-            if (!size) continue
-            total += size / (bytesPerPage.get(i) ?? avgBytesPerPage)
+    if (sectionSize > 0) {
+        const density = sectionSize / pagesInSection
+        if (bytesPerPage.get(sectionIndex) !== density) {
+            bytesPerPage.set(sectionIndex, density)
+            pageEstimateCache = null
         }
-        return total
     }
 
-    const pagesBefore = Math.round(estimatePages(0, sectionIndex))
-    const pagesAfter = Math.round(estimatePages(sectionIndex + 1, sectionByteSizes.length))
-
-    // Start page of every TOC entry, numbered the same way as currentPage. Entries that share a
-    // section (anchors within one file) share its start page - placing them finer needs layout.
-    const sectionStartPages = []
-    let runningPages = 0
-    for (let i = 0; i < sectionByteSizes.length; i++) {
-        sectionStartPages.push(Math.round(runningPages) + 1)
-        runningPages += estimatePages(i, i + 1)
+    if (!pageEstimateCache) {
+        let knownSize = 0
+        let knownPages = 0
+        for (const [i, bpp] of bytesPerPage) {
+            knownSize += sectionByteSizes[i]
+            knownPages += sectionByteSizes[i] / bpp
+        }
+        const avgBytesPerPage = knownPages > 0 ? knownSize / knownPages : (sectionSize / pagesInSection || 1600)
+        const prefixPages = [0]
+        for (const [index, size] of sectionByteSizes.entries()) {
+            prefixPages.push(prefixPages[index] + (size ? size / (bytesPerPage.get(index) ?? avgBytesPerPage) : 0))
+        }
+        // Entries sharing a section use the same start page, as before.
+        const tocPages = {}
+        for (const [href, index] of tocSectionIndexes()) {
+            if (index < sectionByteSizes.length) tocPages[href] = Math.round(prefixPages[index]) + 1
+        }
+        pageEstimateCache = { prefixPages, tocPages, revision: ++pageEstimateRevision }
     }
-    const tocPages = {}
-    for (const [href, index] of tocSectionIndexes()) {
-        if (index < sectionStartPages.length) tocPages[href] = sectionStartPages[index]
-    }
+    const { prefixPages, tocPages, revision } = pageEstimateCache
+    const pagesBefore = Math.round(prefixPages[sectionIndex])
+    const pagesAfter = Math.round(prefixPages[sectionByteSizes.length] - prefixPages[sectionIndex + 1])
 
     return {
         currentPage: pagesBefore + pageInSection,
         totalPages: pagesBefore + pagesInSection + pagesAfter,
         tocPages,
+        tocRevision: revision,
     }
 }
 
@@ -287,9 +289,16 @@ async function open(bookUrl, lastLocatorCfi) {
         resolvedTextAnnotations.clear()
         resolvedTextFingerprints.clear()
         pendingTextAnnotations.clear()
+        pendingQuoteAdds.clear()
         authoritativeSourceForCfi.clear()
         standardAnnotationFingerprints.clear()
+        annotationApplyGeneration++
+        pendingAnnotations = undefined
+        annotationApplyRunning = false
         resolvedBadgeCfis.clear()
+        popularBadgesBySection.clear()
+        popularBadgeIndexDirty = true
+        annotationRevision++
         hasOpened = false
         phase = 'fetching book'
         post('log', { step: 'fetching', bookUrl })
@@ -317,11 +326,13 @@ async function open(bookUrl, lastLocatorCfi) {
         storyEndIndexCache = undefined
         storyEndPosted = false
         previousRelocateSection = null
+        lastSentTocRevision = -1
         resetPageEstimate()
         view.addEventListener('relocate', e => {
             scheduleBadgeLayout()
             const { cfi, fraction, tocItem, section, time } = e.detail
             const pageStats = bookPageStats(section?.current ?? 0)
+            const tocChanged = pageStats && pageStats.tocRevision !== lastSentTocRevision
             post('relocate', {
                 cfi,
                 fraction,
@@ -329,12 +340,13 @@ async function open(bookUrl, lastLocatorCfi) {
                 tocHref: tocItem?.href ?? null,
                 currentPage: pageStats?.currentPage ?? null,
                 totalPages: pageStats?.totalPages ?? null,
-                tocPages: pageStats?.tocPages ?? null,
+                ...(tocChanged ? { tocPages: pageStats.tocPages } : {}),
                 // Minutes remaining at foliate's fixed reading-speed assumption (chars/min) —
                 // text remaining to read, so unlike page count this is independent of font size.
                 chapterMinutesLeft: Number.isFinite(time?.section) ? time.section : null,
                 bookMinutesLeft: Number.isFinite(time?.total) ? time.total : null,
             })
+            if (tocChanged) lastSentTocRevision = pageStats.tocRevision
             markFirstRender('relocate')
             checkStoryEnd(section?.current)
             if (hasOpened) {
@@ -460,7 +472,44 @@ const popularBadgeLayer = document.createElement('div')
 Object.assign(popularBadgeLayer.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '20' })
 document.body.append(popularBadgeLayer)
 const resolvedBadgeCfis = new Map()
+const popularBadgesBySection = new Map()
+let popularBadgeIndexDirty = true
 let badgeLayoutQueued = false
+
+/** Resolve and parse annotations when they change, not on every page turn. */
+function rebuildPopularBadgeIndex() {
+    popularBadgesBySection.clear()
+    const byCfi = new Map()
+    for (const ann of activeAnnotationsList) {
+        if (!ann.popular) continue
+        const cfi = resolvedTextAnnotations.get(ann.value) ?? (ann.value?.startsWith?.('epubcfi(') ? ann.value : null)
+        if (!cfi) continue
+        const count = highlightCount(ann.note)
+        if (count <= 0) continue
+        const best = byCfi.get(cfi)
+        if (!best || count > best.count) byCfi.set(cfi, { count, color: ann.color ?? DefaultAnnotationColor })
+    }
+    for (const cachedCfi of resolvedBadgeCfis.keys()) {
+        if (!byCfi.has(cachedCfi)) resolvedBadgeCfis.delete(cachedCfi)
+    }
+    for (const [cfi, metadata] of byCfi) {
+        let resolved = resolvedBadgeCfis.get(cfi)
+        if (resolved === undefined) {
+            try {
+                resolved = view.resolveCFI(cfi)
+            } catch (_) {
+                resolved = null
+            }
+            resolvedBadgeCfis.set(cfi, resolved)
+        }
+        if (resolved) {
+            const group = popularBadgesBySection.get(resolved.index) ?? []
+            group.push({ ...metadata, resolved })
+            popularBadgesBySection.set(resolved.index, group)
+        }
+    }
+    popularBadgeIndexDirty = false
+}
 
 function scheduleBadgeLayout() {
     if (badgeLayoutQueued) return
@@ -477,64 +526,50 @@ function scheduleBadgeLayout() {
 
 /** Rebuilds the count pills of the community quotes on the visible page, from the annotation list. */
 function layoutPopularBadges() {
-    popularBadgeLayer.replaceChildren()
     const renderer = view?.renderer
     // Scrolled layouts have no pages, and so no page margin to put a pill in.
-    if (!renderer || renderer.scrolled || !activeAnnotationsList.length) return
-    // Quotes that resolve to the same passage share one underline; its pill shows the largest count.
-    const byCfi = new Map()
-    for (const ann of activeAnnotationsList) {
-        if (!ann.popular) continue
-        const cfi = resolvedTextAnnotations.get(ann.value) ?? (ann.value?.startsWith?.('epubcfi(') ? ann.value : null)
-        if (!cfi) continue
-        const count = highlightCount(ann.note)
-        if (count <= 0) continue
-        const best = byCfi.get(cfi)
-        if (!best || count > best.count) byCfi.set(cfi, { count, color: ann.color ?? DefaultAnnotationColor })
+    if (!renderer || renderer.scrolled || !activeAnnotationsList.length) {
+        popularBadgeLayer.replaceChildren()
+        return
     }
-    if (!byCfi.size) return
+    if (popularBadgeIndexDirty) rebuildPopularBadgeIndex()
     const contents = renderer.getContents()
     const pageSize = renderer.size
     // The paginator scrolls a spare page-width of padding ahead of the chapter, so the visible page begins at
     // `start - size` in the chapter document's own coordinates (the ones quote rects use).
     const pageStart = Math.max(0, renderer.start - pageSize)
     const badgeHeight = 18
-    for (const [cfi, { count, color }] of byCfi) {
-        let resolved = resolvedBadgeCfis.get(cfi)
-        if (resolved === undefined) {
-            try {
-                resolved = view.resolveCFI(cfi)
-            } catch (_) {
-                resolved = null
-            }
-            resolvedBadgeCfis.set(cfi, resolved)
-        }
-        if (!resolved) continue
-        const content = contents.find(c => c.index === resolved.index)
+    const badges = []
+    for (const content of contents) {
         const frame = content?.doc?.defaultView?.frameElement
         if (!frame) continue
-        let range = null
-        try {
-            range = resolved.anchor(content.doc)
-        } catch (_) {}
-        const rect = range?.getClientRects?.()[0]
-        if (!rect) continue
         const frameRect = frame.getBoundingClientRect()
-        const text = String(count)
-        const badgeWidth = Math.max(22, text.length * 7 + 12)
-        const place = popularBadgePlacement({
-            rectLeft: rect.left,
-            rectTop: rect.top,
-            rectHeight: rect.height,
-            pageStart,
-            pageSize,
-            iframeLeft: frameRect.left,
-            iframeTop: frameRect.top,
-            badgeWidth,
-            badgeHeight,
-            viewportWidth: window.innerWidth,
-        })
-        if (!place) continue
+        for (const { count, color, resolved } of popularBadgesBySection.get(content.index) ?? []) {
+            let range = null
+            try {
+                range = resolved.anchor(content.doc)
+            } catch (_) {}
+            const rect = range?.getClientRects?.()[0]
+            if (!rect) continue
+            const text = String(count)
+            const badgeWidth = Math.max(22, text.length * 7 + 12)
+            const place = popularBadgePlacement({
+                rectLeft: rect.left,
+                rectTop: rect.top,
+                rectHeight: rect.height,
+                pageStart,
+                pageSize,
+                iframeLeft: frameRect.left,
+                iframeTop: frameRect.top,
+                badgeWidth,
+                badgeHeight,
+                viewportWidth: window.innerWidth,
+            })
+            if (place) badges.push({ text, badgeWidth, badgeHeight, place, color })
+        }
+    }
+    const fragment = document.createDocumentFragment()
+    for (const { text, badgeWidth, badgeHeight, place, color } of badges) {
         const pill = document.createElement('div')
         pill.textContent = text
         Object.assign(pill.style, {
@@ -555,8 +590,9 @@ function layoutPopularBadges() {
             font: '700 11px/1 sans-serif',
             opacity: '0.95',
         })
-        popularBadgeLayer.append(pill)
+        fragment.append(pill)
     }
+    popularBadgeLayer.replaceChildren(fragment)
 }
 
 window.addEventListener('resize', scheduleBadgeLayout)
@@ -565,6 +601,7 @@ window.addEventListener('resize', scheduleBadgeLayout)
 // walk once bionic reading/annotations are already applied) - collapse repeats scheduled
 // before the first one runs into a single pass instead of stacking up redundant timeouts.
 const enhancementsPending = new WeakSet()
+const completedMatchingRevision = new WeakMap()
 function queueDocumentEnhancements(doc, index) {
     if (enhancementsPending.has(doc)) return
     enhancementsPending.add(doc)
@@ -686,6 +723,7 @@ function applyBionicReadingToDoc(doc) {
     // Restructuring text nodes invalidates any cached (text -> DOM node) mapping for this doc.
     documentTextIndexes.delete(doc)
     unmatchedInDoc.delete(doc)
+    completedMatchingRevision.delete(doc)
 }
 
 function transformBionicWords(doc) {
@@ -1164,10 +1202,47 @@ function clearSearch() {
 }
 
 let activeAnnotationsList = []
+let pendingAnnotations = undefined
+let annotationApplyRunning = false
+let annotationApplyGeneration = 0
 
-async function renderAnnotations(annotations) {
+/** Keep one annotation application in flight and retain only the newest waiting snapshot. */
+function renderAnnotations(annotations) {
     if (!view) return
-    activeAnnotationsList = Array.isArray(annotations) ? annotations.filter(Boolean) : []
+    pendingAnnotations = Array.isArray(annotations) ? annotations.filter(Boolean) : []
+    if (!annotationApplyRunning) void drainAnnotationUpdates()
+}
+
+async function drainAnnotationUpdates() {
+    const generation = annotationApplyGeneration
+    annotationApplyRunning = true
+    try {
+        while (pendingAnnotations !== undefined && generation === annotationApplyGeneration) {
+            const next = pendingAnnotations
+            pendingAnnotations = undefined
+            try {
+                await applyAnnotations(next, generation)
+            } catch (error) {
+                post('log', { step: 'renderAnnotations', message: String(error) })
+            }
+        }
+    } finally {
+        if (generation === annotationApplyGeneration) {
+            annotationApplyRunning = false
+            if (pendingAnnotations !== undefined) void drainAnnotationUpdates()
+        }
+    }
+}
+
+async function applyAnnotations(annotations, generation) {
+    if (generation !== annotationApplyGeneration) return
+    // Quote matches started by a document load also use view.addAnnotation. Finish those
+    // writes before diffing a newer snapshot, so a late add cannot restore a deleted quote.
+    if (pendingQuoteAdds.size) await Promise.allSettled(Array.from(pendingQuoteAdds))
+    if (generation !== annotationApplyGeneration) return
+    activeAnnotationsList = annotations
+    annotationRevision++
+    popularBadgeIndexDirty = true
     scheduleBadgeLayout()
     const nextByValue = new Map(activeAnnotationsList.map(annotation => [annotation.value, annotation]))
     const orphanedCfis = new Set()
@@ -1195,6 +1270,7 @@ async function renderAnnotations(annotations) {
     for (const cfi of orphanedCfis) {
         if (!retainedCfis.has(cfi)) {
             await view.deleteAnnotation({ value: cfi })
+            if (generation !== annotationApplyGeneration) return
             renderedAnnotations.delete(cfi)
         }
     }
@@ -1202,6 +1278,7 @@ async function renderAnnotations(annotations) {
         const next = nextByValue.get(value)
         if (!next || annotationFingerprint(next) !== fingerprint) {
             await view.deleteAnnotation({ value })
+            if (generation !== annotationApplyGeneration) return
             renderedAnnotations.delete(value)
             standardAnnotationFingerprints.delete(value)
         }
@@ -1211,13 +1288,17 @@ async function renderAnnotations(annotations) {
             !isTextAnnotationValue(annotation.value) &&
             !standardAnnotationFingerprints.has(annotation.value)) {
             await view.addAnnotation(annotation)
+            if (generation !== annotationApplyGeneration) return
             renderedAnnotations.add(annotation.value)
             standardAnnotationFingerprints.set(annotation.value, annotationFingerprint(annotation))
         }
     }
     // Also match any active documents in view
     for (const { doc, index } of view.renderer.getContents()) {
-        if (doc) matchTextAnnotationsForDoc(doc, index)
+        if (doc) {
+            unmatchedInDoc.delete(doc)
+            matchTextAnnotationsForDoc(doc, index)
+        }
     }
 }
 
@@ -1233,12 +1314,14 @@ function annotationFingerprint(annotation) {
 
 function matchTextAnnotationsForDoc(doc, index) {
     if (!activeAnnotationsList || !activeAnnotationsList.length || !view) return
+    if (completedMatchingRevision.get(doc) === annotationRevision) return
     let missing = unmatchedInDoc.get(doc)
     if (!missing) {
         missing = new Set()
         unmatchedInDoc.set(doc, missing)
     }
     const matches = []
+    const generation = annotationApplyGeneration
     for (const ann of activeAnnotationsList) {
         if (!ann.value || resolvedTextAnnotations.has(ann.value) || pendingTextAnnotations.has(ann.value)) continue
         const textToFind = ann.text
@@ -1272,25 +1355,32 @@ function matchTextAnnotationsForDoc(doc, index) {
         }
         accepted.push(match)
         pendingTextAnnotations.add(match.ann.value)
-        Promise.resolve(view.addAnnotation({
+        const add = Promise.resolve(view.addAnnotation({
             value: match.cfi,
             type: match.ann.type || 'underline',
             color: match.ann.color || DefaultAnnotationColor,
             note: match.ann.note,
         })).then(() => {
+            if (generation !== annotationApplyGeneration) return
             renderedAnnotations.add(match.cfi)
             resolvedTextAnnotations.set(match.ann.value, match.cfi)
             resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
             authoritativeSourceForCfi.set(match.cfi, match.ann.value)
+            popularBadgeIndexDirty = true
             scheduleBadgeLayout()
         }).catch(error => {
+            if (generation !== annotationApplyGeneration) return
             // Leave it unresolved (not marked pending, not cached as a rendered cfi) so a
             // later render pass retries it instead of silently never showing this quote again.
             post('log', { step: 'addQuoteAnnotation', message: String(error) })
+            completedMatchingRevision.delete(doc)
         }).finally(() => {
-            pendingTextAnnotations.delete(match.ann.value)
+            if (generation === annotationApplyGeneration) pendingTextAnnotations.delete(match.ann.value)
         })
+        pendingQuoteAdds.add(add)
+        void add.finally(() => pendingQuoteAdds.delete(add))
     }
+    completedMatchingRevision.set(doc, annotationRevision)
 }
 
 function highlightCount(note) {

@@ -27,6 +27,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * The latest snapshot pointer plus lazy access to its slices. A slice is downloaded the first time someone
@@ -45,6 +47,7 @@ class RemotePortableSnapshotDocument internal constructor(
 
     private val loadedSlices = ConcurrentHashMap(sliceJsonByKey)
     private val missingSlices: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val sliceLocks = ConcurrentHashMap<String, Mutex>()
 
     suspend fun jsonFor(slice: RemotePortableSnapshotSlice): String = sliceJsonOrNull(slice.key) ?: jsonText
 
@@ -63,9 +66,13 @@ class RemotePortableSnapshotDocument internal constructor(
         if (key in missingSlices) return null
         val loader = loadSlice ?: return null
         val path = slicePaths[key] ?: return null
-        val json = loadSnapshotSliceOrNull(path, loader)
-        if (json == null) missingSlices += key else loadedSlices[key] = json
-        return json
+        return sliceLocks.computeIfAbsent(key) { Mutex() }.withLock {
+            loadedSlices[key]?.let { return@withLock it }
+            if (key in missingSlices) return@withLock null
+            val json = loadSnapshotSliceOrNull(path, loader)
+            if (json == null) missingSlices += key else loadedSlices[key] = json
+            json
+        }
     }
 
     /** A slice already in memory, without triggering a download. */
@@ -149,11 +156,10 @@ internal fun remotePortableSnapshotDocumentFrom(
  */
 private suspend fun GitHubContentsAssetStore.getSnapshotSliceCached(path: String): String {
     val key = "$cacheScope|$path"
-    SnapshotSliceCache.get(key)?.let { return it }
-    val bytes = getSyncDocument(path)
-    val json = if (path.endsWith(".zip")) unzipSnapshotJson(bytes) else bytes.toString(Charsets.UTF_8)
-    SnapshotSliceCache.put(key, json)
-    return json
+    return SnapshotSliceCache.getOrLoad(key) {
+        val bytes = getSyncDocument(path)
+        if (path.endsWith(".zip")) unzipSnapshotJson(bytes) else bytes.toString(Charsets.UTF_8)
+    }
 }
 
 internal fun zipSnapshotJson(json: String): ByteArray {
@@ -189,10 +195,33 @@ internal object SnapshotSliceCache {
     private const val MaxTotalChars = 6 * 1024 * 1024
     private const val MaxEntryChars = 3 * 1024 * 1024
     private val entries = LinkedHashMap<String, String>(16, 0.75f, true)
+    private class ActiveLoad(val mutex: Mutex = Mutex(), var users: Int = 0, var result: String? = null)
+    private val inFlightLocks = mutableMapOf<String, ActiveLoad>()
     private var totalChars = 0
 
     @Synchronized
     fun get(key: String): String? = entries[key]
+
+    /** Concurrent readers of one immutable slice share the first successful download/decompression. */
+    suspend fun getOrLoad(key: String, load: suspend () -> String): String {
+        get(key)?.let { return it }
+        val active = synchronized(this) {
+            inFlightLocks.getOrPut(key) { ActiveLoad() }.also { it.users++ }
+        }
+        try {
+            return active.mutex.withLock {
+                get(key) ?: active.result ?: load().also {
+                    active.result = it // also share oversized slices that cannot enter the bounded LRU
+                    put(key, it)
+                }
+            }
+        } finally {
+            synchronized(this) {
+                active.users--
+                if (active.users == 0) inFlightLocks.remove(key, active)
+            }
+        }
+    }
 
     @Synchronized
     fun put(key: String, json: String) {
@@ -328,16 +357,19 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
         SnapshotSliceUpload(
             sliceKey = requireNotNull(document.sliceKey),
             path = if (zipped) "$SnapshotSlicesRoot/${snapshot.exportedAt}/annotations.zip" else document.path,
-            bytes = if (zipped) zipSnapshotJson(document.jsonText) else document.jsonText.toByteArray(Charsets.UTF_8),
+            zipped = zipped,
             jsonText = document.jsonText,
         )
     }
     val publishedPathsByKey = reusedPathsByKey + sliceUploads.associate { it.sliceKey to it.path }
     val latestBytes = repointPortableSnapshotSlices(latestDocument.jsonText, publishedPathsByKey).toByteArray(Charsets.UTF_8)
     val totalDocuments = sliceUploads.size + 2
-    val totalBytes = sliceUploads.sumOf { it.bytes.size } + latestBytes.size + latestBytes.size
+    // Encode one slice at a time to avoid retaining every slice's JSON and encoded bytes together.
+    // Exact total bytes are unknown until ZIP encoding; progress uses exact document counts.
+    val totalBytes = 0
     var completedDocuments = 0
     var completedBytes = 0
+    var sliceBytesUploaded = 0
     fun report(stage: PortableSnapshotPublishStage, path: String? = null) {
         onProgress?.invoke(
             PortableSnapshotPublishProgress(
@@ -355,10 +387,12 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
     completedBytes += latestBytes.size
     report(PortableSnapshotPublishStage.DEVICE_SNAPSHOT, deviceSnapshotPath)
     sliceUploads.forEach { upload ->
-        putNewSyncDocument(upload.path, upload.bytes)
+        val bytes = if (upload.zipped) zipSnapshotJson(upload.jsonText) else upload.jsonText.toByteArray(Charsets.UTF_8)
+        putNewSyncDocument(upload.path, bytes)
         SnapshotSliceCache.put("$cacheScope|${upload.path}", upload.jsonText)
         completedDocuments += 1
-        completedBytes += upload.bytes.size
+        completedBytes += bytes.size
+        sliceBytesUploaded += bytes.size
         report(PortableSnapshotPublishStage.SNAPSHOT_SLICE, upload.path)
     }
     putSyncDocumentIfUnchanged(
@@ -387,7 +421,7 @@ suspend fun GitHubContentsAssetStore.putPortableSnapshotDocuments(
             append(", slices=").append(sliceDocuments.size)
             append(", reusedSlices=").append(reusedPathsByKey.size)
             append(", latestBytes=").append(latestBytes.size)
-            append(", sliceBytes=").append(sliceUploads.sumOf { it.bytes.size })
+            append(", sliceBytes=").append(sliceBytesUploaded)
             append(", compressedAnnotations=").append(compressAnnotations)
             append(", prunedDirs=").append(pruneSummary.directoriesPruned)
             append(", prunedFiles=").append(pruneSummary.filesPruned)
@@ -447,7 +481,7 @@ internal data class SnapshotSlicePruneSummary(
 private data class SnapshotSliceUpload(
     val sliceKey: String,
     val path: String,
-    val bytes: ByteArray,
+    val zipped: Boolean,
     val jsonText: String,
 )
 

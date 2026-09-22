@@ -1,6 +1,6 @@
 # Handoff
 
-Status for picking this project up in a new session. Last rewritten **2026-09-13**. Check `git log` for anything
+Status for picking this project up in a new session. Last rewritten **2026-09-21**. Check `git log` for anything
 newer; this file describes structure and rules, not every change.
 
 ## Read first
@@ -39,7 +39,7 @@ are historical: useful context, not a current status.
 :core:designsystem      Tokens, theme (light/dark, softer/true-black, E-Ink profile, motion), dialogs, share cards
 :core:resources         All user-facing strings
 :core:common            DispatcherProvider, @ApplicationScope, hashing, quote parsing
-:core:database          Room (DB v21): books, annotations, sessions, shelves, vocabulary, sync identity
+:core:database          Room (DB v25): books, annotations, sessions, shelves, vocabulary, sync identity
                         (aliases, tombstones), FTS search tables; repositories
 :core:datastore         Settings registry + DataStore (settings, onboarding flag, recent searches)
 :core:filesystem        StorageRoots, SAF import copy-in, ResolvedBooks (shared absolute-path book flow)
@@ -63,7 +63,7 @@ are historical: useful context, not a current status.
 :dictionary:api/stardict Offline dictionary (downloadable English WordNet)
 ```
 
-Not built yet: format conversion, read-aloud (TTS). Note the app now makes network calls for GitHub sync,
+Not built yet: format conversion. Read aloud uses the installed Android TTS engines. Note the app now makes network calls for GitHub sync,
 Goodreads import and the dictionary download — PROMPT2's original "no network" rule no longer holds as written.
 
 ## Rules and gotchas

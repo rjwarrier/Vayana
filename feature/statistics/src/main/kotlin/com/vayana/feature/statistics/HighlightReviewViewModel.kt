@@ -6,7 +6,6 @@ import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
-import com.vayana.core.database.repository.AnnotationRepository
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.HighlightReviewRepository
 import com.vayana.core.database.repository.ReviewGrade
@@ -14,11 +13,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -45,7 +41,6 @@ data class HighlightReviewSession(
 
 @HiltViewModel
 class HighlightReviewViewModel @Inject constructor(
-    private val annotationRepository: AnnotationRepository,
     private val bookRepository: BookRepository,
     private val highlightReviewRepository: HighlightReviewRepository,
 ) : ViewModel() {
@@ -57,25 +52,14 @@ class HighlightReviewViewModel @Inject constructor(
     private val _index = MutableStateFlow(0)
     val index: StateFlow<Int> = _index
 
-    private var books: Map<Long, Book> = emptyMap()
-    private var annotations: List<Annotation> = emptyList()
-
     init {
-        // Mapping every book and annotation is real work; keep it off the main thread and run the reads together.
+        // Hold one bounded, consistent set for the sitting; grading never reshuffles it mid-session.
         viewModelScope.launch(Dispatchers.Default) {
-            val (allBooks, allAnnotations, reviews) = coroutineScope {
-                val loadedBooks = async { bookRepository.observeAll().first() }
-                val loadedAnnotations = async { annotationRepository.observeAll().first() }
-                val loadedReviews = async { highlightReviewRepository.observeAll().first() }
-                Triple(loadedBooks.await(), loadedAnnotations.await(), loadedReviews.await())
-            }
-            books = allBooks.associateBy { it.id }
-            annotations = allAnnotations.filter { it.bookId in books }
-            val due = dueHighlights(annotations, reviews, System.currentTimeMillis())
+            val due = highlightReviewRepository.session(System.currentTimeMillis(), ReviewSessionSize)
             _session.value = HighlightReviewSession(
-                items = due.toItems(),
+                items = due.annotations.toItems(),
                 scheduled = true,
-                reviewableCount = reviewableHighlights(annotations).size,
+                reviewableCount = due.reviewableCount,
             )
             runCatchingCancellable { highlightReviewRepository.deleteOrphans() }
         }
@@ -84,12 +68,13 @@ class HighlightReviewViewModel @Inject constructor(
     /** Nothing was due: go through today's fixed set anyway, without touching any schedule. */
     fun practiceAnyway() {
         _index.value = 0
-        _session.update { current ->
-            HighlightReviewSession(
-                items = dailyHighlights(annotations, LocalDate.now()).toItems(),
+        viewModelScope.launch(Dispatchers.Default) {
+            val items = highlightReviewRepository.practice(LocalDate.now().toEpochDay(), DailyHighlightCount).toItems()
+            _session.update { current -> HighlightReviewSession(
+                items = items,
                 scheduled = false,
                 reviewableCount = current?.reviewableCount ?: 0,
-            )
+            ) }
         }
     }
 
@@ -109,7 +94,9 @@ class HighlightReviewViewModel @Inject constructor(
         _index.update { it + 1 }
     }
 
-    private fun List<Annotation>.toItems(): List<HighlightReviewItem> = mapNotNull { annotation ->
+    private suspend fun List<Annotation>.toItems(): List<HighlightReviewItem> {
+        val books = map(Annotation::bookId).distinct().associateWith { bookRepository.getById(it) }
+        return mapNotNull { annotation ->
         val book = books[annotation.bookId] ?: return@mapNotNull null
         HighlightReviewItem(
             annotation = annotation,
@@ -120,5 +107,6 @@ class HighlightReviewViewModel @Inject constructor(
             bookSeriesNumber = book.seriesNumber,
             canOpen = book.format != BookFormat.PHYSICAL,
         )
+        }
     }
 }

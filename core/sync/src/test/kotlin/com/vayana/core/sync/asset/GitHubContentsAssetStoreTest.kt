@@ -19,7 +19,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 
 class GitHubContentsAssetStoreTest {
     @BeforeTest
@@ -27,6 +31,76 @@ class GitHubContentsAssetStoreTest {
         GitHubBlobCache.clear()
         GitHubMetadataCache.clear()
         SnapshotSliceCache.clear()
+    }
+
+    @Test
+    fun concurrentSliceReadsShareOneLoad() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var loads = 0
+        val first = async {
+            SnapshotSliceCache.getOrLoad("scope|slice") {
+                loads++
+                entered.complete(Unit)
+                release.await()
+                "slice-json"
+            }
+        }
+        entered.await()
+        val second = async {
+            SnapshotSliceCache.getOrLoad("scope|slice") { loads++; "duplicate" }
+        }
+        yield()
+        assertEquals(1, loads)
+        release.complete(Unit)
+        assertEquals("slice-json", first.await())
+        assertEquals("slice-json", second.await())
+        assertEquals(1, loads)
+    }
+
+    @Test
+    fun cancelledSliceLoaderLeavesWaitingReaderAbleToRetry() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val first = async {
+            SnapshotSliceCache.getOrLoad("scope|cancelled") {
+                entered.complete(Unit)
+                CompletableDeferred<String>().await()
+            }
+        }
+        entered.await()
+        val second = async {
+            SnapshotSliceCache.getOrLoad("scope|cancelled") { "recovered" }
+        }
+        yield()
+        first.cancelAndJoin()
+        assertEquals("recovered", second.await())
+        assertEquals("recovered", SnapshotSliceCache.get("scope|cancelled"))
+    }
+
+    @Test
+    fun concurrentOversizedSliceReadsStillShareTheirActiveLoad() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val largeSlice = "x".repeat(3 * 1024 * 1024 + 1)
+        var loads = 0
+        val first = async {
+            SnapshotSliceCache.getOrLoad("scope|oversized") {
+                loads++
+                entered.complete(Unit)
+                release.await()
+                largeSlice
+            }
+        }
+        entered.await()
+        val second = async {
+            SnapshotSliceCache.getOrLoad("scope|oversized") { loads++; "duplicate" }
+        }
+        yield()
+        release.complete(Unit)
+        assertTrue(first.await() === largeSlice)
+        assertTrue(second.await() === largeSlice)
+        assertEquals(1, loads)
+        assertEquals(null, SnapshotSliceCache.get("scope|oversized"))
     }
 
     @Test

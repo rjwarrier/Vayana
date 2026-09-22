@@ -181,7 +181,7 @@ class AnnotationRepositoryImpl @Inject constructor(
     }
 }
 
-private fun AnnotationEntity.toDomain(): Annotation = Annotation(
+internal fun AnnotationEntity.toDomain(): Annotation = Annotation(
     id = id,
     bookId = bookId,
     type = AnnotationType.valueOf(type),

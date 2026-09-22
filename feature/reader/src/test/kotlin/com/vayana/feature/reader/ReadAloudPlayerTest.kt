@@ -17,6 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -373,7 +374,7 @@ class ReadAloudPlayerTest {
         val player = ReadAloudPlayer(output, scope, { longChapter(500) }, {}, PlaybackFocus.Unmanaged)
 
         player.start(rate = 1f, pitch = 1f, voiceName = "")
-        output.listener!!.onStart("0:40")
+        (0..40).forEach { output.listener!!.onStart("0:$it") }
         player.setRate(1.5f)
 
         assertEquals((40 until 48).map { "0:$it" }, output.queued)
@@ -451,6 +452,49 @@ class ReadAloudPlayerTest {
         assertEquals(listOf(MarkedSpeech("0:0", 0, 12), MarkedSpeech("0:1", 0, 11)), engine.marked)
     }
 
+    @Test
+    fun obsoletePreparationAndSpeechCallbacksCannotChangeANewSession() {
+        val output = FakeOutput(deferPreparation = true)
+        val engine = FakeEngine(listOf(listOf("First sentence.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        player.stop()
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.completePreparation(0)
+        assertTrue(output.queued.isEmpty())
+        output.completePreparation(0)
+        val currentId = output.rawQueued.single()
+        output.sendRawStart(currentId)
+        assertEquals(1, engine.marked.size)
+
+        player.stop()
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.completePreparation(0)
+        engine.marked.clear()
+        output.sendRawStart(currentId)
+        assertTrue(engine.marked.isEmpty())
+        output.sendRawStart(output.rawQueued.single())
+        assertEquals(1, engine.marked.size)
+    }
+
+    @Test
+    fun repeatedChapterBoundaryCallbacksStartOnlyOneLoad() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Last sentence.", "More.")))
+        engine.nextDeferred = CompletableDeferred()
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        val lastId = output.rawQueued.last()
+        output.listener!!.onStart("0:1")
+        player.skip(1)
+        output.sendRawDone(lastId)
+        assertEquals(1, engine.nextCalls)
+        engine.nextDeferred!!.complete(SpeechChunk(listOf(SpeechSentence("1:0", "Next.")), endOfBook = false))
+        assertEquals(listOf("1:0"), output.queued)
+    }
+
     private class FakeFocus(private val granted: Boolean = true) : PlaybackFocus {
         private var onEvent: ((PlaybackFocusEvent) -> Unit)? = null
         var abandoned = 0
@@ -467,24 +511,47 @@ class ReadAloudPlayerTest {
         fun send(event: PlaybackFocusEvent) = onEvent!!.invoke(event)
     }
 
-    private class FakeOutput(private val available: Boolean = true) : SpeechOutput {
-        override var listener: SpeechOutput.Listener? = null
+    private class FakeOutput(private val available: Boolean = true, private val deferPreparation: Boolean = false) : SpeechOutput {
+        private var actualListener: SpeechOutput.Listener? = null
+        override var listener: SpeechOutput.Listener?
+            get() = actualListener?.let { target ->
+                object : SpeechOutput.Listener {
+                    override fun onStart(utteranceId: String) = target.onStart(runtimeId(utteranceId))
+                    override fun onDone(utteranceId: String) = target.onDone(runtimeId(utteranceId))
+                    override fun onRangeStart(utteranceId: String, start: Int, end: Int) =
+                        target.onRangeStart(runtimeId(utteranceId), start, end)
+                }
+            }
+            set(value) { actualListener = value }
         override val voices: StateFlow<List<SpeechVoiceOption>> = MutableStateFlow(emptyList())
         override val engines: StateFlow<List<SpeechEngineOption>> = MutableStateFlow(emptyList())
         var engineName: String? = null
 
         /** What the engine has queued since the last flush. */
-        val queued = mutableListOf<String>()
+        val rawQueued = mutableListOf<String>()
+        val queued: List<String> get() = rawQueued.map { it.substringAfter('|') }
         val rates = mutableListOf<Float>()
         val pitches = mutableListOf<Float>()
         val voiceNames = mutableListOf<String?>()
+        private val preparations = mutableListOf<(Boolean) -> Unit>()
 
-        override fun prepare(onReady: (Boolean) -> Unit) = onReady(available)
+        override fun prepare(onReady: (Boolean) -> Unit) {
+            if (deferPreparation) preparations += onReady else onReady(available)
+        }
+
+        fun completePreparation(index: Int) { preparations.removeAt(index)(available) }
+
+        fun sendRawStart(id: String) { actualListener!!.onStart(id) }
+
+        fun sendRawDone(id: String) { actualListener!!.onDone(id) }
 
         override fun speak(utteranceId: String, text: String, flush: Boolean) {
-            if (flush) queued.clear()
-            queued += utteranceId
+            if (flush) rawQueued.clear()
+            rawQueued += utteranceId
         }
+
+        private fun runtimeId(sourceId: String): String =
+            rawQueued.lastOrNull { it.substringAfter('|') == sourceId } ?: sourceId
 
         override fun setRate(rate: Float) {
             rates += rate
@@ -515,13 +582,18 @@ class ReadAloudPlayerTest {
         val marked = mutableListOf<MarkedSpeech>()
         var startedFrom: String? = null
         var stopped = false
+        var nextDeferred: CompletableDeferred<SpeechChunk>? = null
+        var nextCalls = 0
 
         override suspend fun startSpeech(fromCfi: String?): SpeechChunk {
             startedFrom = fromCfi
             return chunk(0)
         }
 
-        override suspend fun nextSpeechChunk(): SpeechChunk = chunk(++chapter)
+        override suspend fun nextSpeechChunk(): SpeechChunk {
+            nextCalls++
+            return nextDeferred?.await() ?: chunk(++chapter)
+        }
 
         override suspend fun markSpeech(id: String, start: Int, end: Int) {
             marked += MarkedSpeech(id, start, end)

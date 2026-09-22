@@ -2,6 +2,10 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 25
+
+Repairs book tag lists containing the literal `null` tag introduced by earlier JSON and Goodreads imports. Migration 24→25 normalizes only affected `books.tagsCsv` values, dropping that tag while preserving other tags. There is no schema change.
+
 ## Version 24
 `highlight_reviews` is now keyed by `annotationSyncId` (the annotation's `syncId`, its identity across edits) instead of the local `annotationId`; the migration copies existing schedules over through a join and drops rows whose annotation no longer exists. Also fixes `AnnotationRepository.update`, which used to replace an annotation's `syncId` with a fresh random one on every edit: the domain `Annotation` now carries `syncId` and `toEntity` keeps it.
 

@@ -86,6 +86,7 @@ fun StatisticsRoute(
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsState()
     val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsState()
     val highlightsDue by viewModel.highlightsDue.collectAsState()
+    LaunchedEffect(viewModel) { viewModel.refreshHighlightDue() }
 
     StatisticsScreen(
         modifier = modifier,

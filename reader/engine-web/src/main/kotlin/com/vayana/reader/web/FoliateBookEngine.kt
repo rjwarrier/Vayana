@@ -39,11 +39,13 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
 import kotlin.math.ceil
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -93,6 +95,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     private val _location = MutableStateFlow<Locator?>(null)
     override val location: StateFlow<Locator?> = _location
+    private var lastTocPages: Map<String, Int> = emptyMap()
 
     private val _events = MutableSharedFlow<EngineEvent>(extraBufferCapacity = 16)
 
@@ -245,6 +248,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     }
 
     override suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook> {
+        lastTocPages = emptyMap()
         openResult?.complete(Result.failure(IllegalStateException("Reader open was replaced by a newer request")))
         val bookFile = File(source.absoluteFilePath)
         if (!bookFile.isFile) {
@@ -352,11 +356,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     }
 
     override suspend fun renderAnnotations(annotations: List<ReaderAnnotation>) {
-        val payload = JSONArray().apply {
+        val payload = withContext(Dispatchers.Default) { JSONArray().apply {
             annotations
                 .filter { it.cfi.isNotBlank() }
                 .forEach { annotation -> put(annotation.toJson()) }
-        }
+        }.toString() }
         webView.evaluateJavascript("window.VayanaReader.renderAnnotations($payload)", null)
     }
 
@@ -413,8 +417,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val deferred = CompletableDeferred<JSONObject?>()
         bridgeRequests[id] = deferred
         val callArguments = (listOf(id.toString()) + arguments).joinToString(", ")
-        webView.evaluateJavascript("window.VayanaReader.$function($callArguments)", null)
-        return withTimeoutOrNull(BridgeRequestTimeoutMillis) { deferred.await() }.also { bridgeRequests.remove(id) }
+        try {
+            webView.evaluateJavascript("window.VayanaReader.$function($callArguments)", null)
+            return withTimeoutOrNull(BridgeRequestTimeoutMillis) { deferred.await() }
+        } finally {
+            bridgeRequests.remove(id)
+        }
     }
 
     private var closed = false
@@ -523,7 +531,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                     totalPages = payload.optIntOrNull("totalPages"),
                     chapterMinutesLeft = payload.optMinutesOrNull("chapterMinutesLeft"),
                     bookMinutesLeft = payload.optMinutesOrNull("bookMinutesLeft"),
-                    tocPages = payload.optJSONObject("tocPages")?.toIntMap() ?: emptyMap(),
+                    tocPages = payload.optJSONObject("tocPages")?.toIntMap()?.also { lastTocPages = it } ?: lastTocPages,
                 )
                 _location.value = locator
                 _events.tryEmit(EngineEvent.Relocated(locator))

@@ -183,6 +183,8 @@ imported into the library like any picked file.
 
 **Tests:** `ReadAloudPlayerTest` (focus, skip, start-from-CFI).
 
+Read aloud now rejects callbacks and delayed chapter loads from older playback or speech queues. Only one chapter transition can be pending; a restart gives queued utterances new callback IDs. Bridge requests release their pending entry on completion, timeout, or cancellation.
+
 ## Highlight review (spaced)
 
 Statistics → the highlight card opens a review of highlights that are due, instead of a fixed set of five.
@@ -194,8 +196,13 @@ Statistics → the highlight card opens a review of highlights that are due, ins
 - With nothing due the screen says so and offers today's fixed set (`dailyHighlights`) as practice; practice answers
   are not recorded.
 - Schedules are **per device and not synced** (see `docs/DATABASE_CHANGELOG.md`, version 23).
+- The repository selects at most ten due cards or five daily practice cards with bounded SQL queries. A review session keeps its chosen cards fixed while grades are recorded. Statistics uses a bounded due preview and refreshes the due cutoff when its screen is entered. The general Statistics summary still observes all annotations.
 
 **Tests:** `HighlightReviewTest`, `feature/library/.../HighlightReviewRepositoryTest.kt`.
+
+## Reader and Notes work bounds
+
+Notes partitions highlights and computes community quote counts once per annotation revision, then reuses those counts for sorting. The WebView reader indexes community badges by loaded section and skips quote matching for a document whose annotation revision is unchanged. Page estimates and the contents page map are cached until layout samples change; relocation messages omit an unchanged contents map. Annotation mapping and JSON serialization run off the UI thread, while WebView application serializes updates and keeps only the newest waiting snapshot. Sync uploads encode one changed snapshot slice at a time, and concurrent readers of an immutable slice share its load.
 
 ## E-Ink mode
 

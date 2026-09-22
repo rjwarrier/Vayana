@@ -26,6 +26,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
@@ -164,10 +166,12 @@ class StatisticsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
 
     /** Highlights whose review has come round, or that were never reviewed, ready for the review screen. */
-    val highlightsDue: StateFlow<List<Annotation>> = combine(
-        annotations,
-        highlightReviewRepository.observeAll(),
-    ) { annotations, reviews -> dueHighlights(annotations, reviews, System.currentTimeMillis()) }
+    private val highlightDueNow = MutableStateFlow(System.currentTimeMillis())
+
+    fun refreshHighlightDue() { highlightDueNow.value = System.currentTimeMillis() }
+
+    val highlightsDue: StateFlow<List<Annotation>> = highlightDueNow
+        .flatMapLatest { now -> highlightReviewRepository.observeDue(now, ReviewSessionSize) }
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

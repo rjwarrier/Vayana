@@ -800,8 +800,9 @@ private fun BookNotesDetailList(
     onTagClick: (String) -> Unit,
 ) {
     var communitySort by rememberSaveable { mutableStateOf(CommunityQuoteSort.BOOK_ORDER) }
-    val communityAnnotations = remember(annotations, communitySort) {
-        annotations.filter { it.isCommunityQuote() }.sortedForCommunity(communitySort)
+    val partitioned = remember(annotations) { partitionNotesAnnotations(annotations) }
+    val communityAnnotations = remember(partitioned, communitySort) {
+        partitioned.community.sortedForCommunity(communitySort)
     }
     PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -816,7 +817,7 @@ private fun BookNotesDetailList(
         item {
             BookNotesHero(bookItem = bookItem, onOpenBook = onOpenBook)
         }
-        val userAnnotations = annotations.filterNot { it.isCommunityQuote() }
+        val userAnnotations = partitioned.personal
         if (userAnnotations.isNotEmpty()) {
             item {
                 Text(
@@ -1124,6 +1125,26 @@ private enum class NotesSourceFilter { ALL, MINE, COMMUNITY }
 /** Order of a book's community quotes: as imported, or by how many Goodreads readers highlighted each. */
 internal enum class CommunityQuoteSort { BOOK_ORDER, MOST_HIGHLIGHTED, LEAST_HIGHLIGHTED }
 
+private data class CountedCommunityAnnotation(val annotation: Annotation, val count: Int, val position: Int)
+
+private data class PartitionedNotesAnnotations(
+    val personal: List<Annotation>,
+    val community: List<CountedCommunityAnnotation>,
+)
+
+private fun partitionNotesAnnotations(annotations: List<Annotation>): PartitionedNotesAnnotations {
+    val personal = ArrayList<Annotation>()
+    val community = ArrayList<CountedCommunityAnnotation>()
+    annotations.forEachIndexed { position, annotation ->
+        if (annotation.isCommunityQuote()) {
+            community += CountedCommunityAnnotation(annotation, annotation.communityHighlightCount() ?: 0, position)
+        } else {
+            personal += annotation
+        }
+    }
+    return PartitionedNotesAnnotations(personal, community)
+}
+
 private fun CommunityQuoteSort.next(): CommunityQuoteSort =
     CommunityQuoteSort.entries[(ordinal + 1) % CommunityQuoteSort.entries.size]
 
@@ -1134,12 +1155,12 @@ private fun CommunityQuoteSort.label(): String = when (this) {
     CommunityQuoteSort.LEAST_HIGHLIGHTED -> stringResource(R.string.notes_community_sort_least)
 }
 
-/** Stable sorts, so quotes with equal (or unknown, counted as 0) highlights keep their book order. */
-internal fun List<Annotation>.sortedForCommunity(sort: CommunityQuoteSort): List<Annotation> = when (sort) {
+/** Sorts cached counts, keeping book order for quotes with equal (or unknown) counts. */
+private fun List<CountedCommunityAnnotation>.sortedForCommunity(sort: CommunityQuoteSort): List<Annotation> = when (sort) {
     CommunityQuoteSort.BOOK_ORDER -> this
-    CommunityQuoteSort.MOST_HIGHLIGHTED -> sortedByDescending { it.communityHighlightCount() ?: 0 }
-    CommunityQuoteSort.LEAST_HIGHLIGHTED -> sortedBy { it.communityHighlightCount() ?: 0 }
-}
+    CommunityQuoteSort.MOST_HIGHLIGHTED -> sortedWith(compareByDescending<CountedCommunityAnnotation> { it.count }.thenBy { it.position })
+    CommunityQuoteSort.LEAST_HIGHLIGHTED -> sortedWith(compareBy<CountedCommunityAnnotation> { it.count }.thenBy { it.position })
+}.map(CountedCommunityAnnotation::annotation)
 
 @Composable
 private fun NotesSourceFilter.label(): String = when (this) {

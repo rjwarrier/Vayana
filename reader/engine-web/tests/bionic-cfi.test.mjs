@@ -17,6 +17,7 @@ function fixture() {
         NodeFilter: window.NodeFilter,
         documentTextIndexes: new WeakMap(),
         unmatchedInDoc: new WeakMap(),
+        completedMatchingRevision: new WeakMap(),
     })
     vm.runInContext(formatting, context)
     return {

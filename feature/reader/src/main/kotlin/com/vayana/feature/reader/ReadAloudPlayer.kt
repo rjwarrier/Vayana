@@ -4,6 +4,7 @@ import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.SpeechChunk
 import com.vayana.reader.api.SpeechSentence
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,8 +39,10 @@ internal class ReadAloudPlayer(
     val engines: StateFlow<List<SpeechEngineOption>> = output.engines
 
     private var queue: List<SpeechUtterance> = emptyList()
-    private var indexById: Map<String, Int> = emptyMap()
+    private var indexById = mutableMapOf<String, Int>()
     private var position = 0
+    private var playbackGeneration = 0L
+    private var queueGeneration = 0L
 
     /** Index in [queue] of the last utterance handed to the speech engine, which is only ever fed a few ahead. */
     private var enqueued = -1
@@ -51,7 +54,9 @@ internal class ReadAloudPlayer(
     /** Off for E-Ink: a highlight that moves every word is a partial panel refresh every few hundred ms. */
     private var wordHighlight = true
     private var sleepJob: Job? = null
+    private var initialJob: Job? = null
     private var chunkJob: Job? = null
+    private var chunkRequest: Any? = null
 
     /** Paused only because another app took audio focus for a moment, so reading picks up again when it is back. */
     private var resumeOnFocusGain = false
@@ -71,6 +76,7 @@ internal class ReadAloudPlayer(
     ) {
         if (_state.value.active) return
         val bookEngine = engine() ?: return
+        val generation = ++playbackGeneration
         this.wordHighlight = wordHighlight
         output.setEngine(speechEngine)
         _state.value = ReadAloudState(active = true, rate = rate, pitch = pitch)
@@ -78,14 +84,17 @@ internal class ReadAloudPlayer(
         output.setPitch(pitch)
         output.setVoice(voiceName)
         output.prepare { available ->
-            scope.launch {
-                if (!_state.value.active) return@launch
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                if (generation != playbackGeneration || !_state.value.active) return@launch
                 if (!available) {
                     _state.value = ReadAloudState(rate = rate, pitch = pitch, voiceMissing = true)
                     return@launch
                 }
-                load(bookEngine.startSpeech(fromCfi))
+                val chunk = bookEngine.startSpeech(fromCfi)
+                if (generation == playbackGeneration && _state.value.active) load(chunk)
             }
+            initialJob = job
+            job.start()
         }
     }
 
@@ -95,6 +104,7 @@ internal class ReadAloudPlayer(
         resumeOnFocusGain = false
         if (current.playing) {
             _state.update { it.copy(playing = false) }
+            indexById.clear()
             output.stop()
             focus.abandon()
         } else if (queue.isNotEmpty()) {
@@ -129,18 +139,27 @@ internal class ReadAloudPlayer(
     }
 
     fun stop() {
+        ++playbackGeneration
         sleepJob?.cancel()
+        initialJob?.cancel()
+        initialJob = null
         chunkJob?.cancel()
+        chunkJob = null
+        chunkRequest = null
         output.stop()
         focus.abandon()
         resumeOnFocusGain = false
         val wasActive = _state.value.active
         queue = emptyList()
-        indexById = emptyMap()
+        indexById.clear()
         position = 0
         enqueued = -1
         _state.value = ReadAloudState(rate = _state.value.rate, pitch = _state.value.pitch)
-        if (wasActive) scope.launch { engine()?.stopSpeech() }
+        if (wasActive) {
+            val stoppedGeneration = playbackGeneration
+            val bookEngine = engine()
+            scope.launch { if (stoppedGeneration == playbackGeneration) bookEngine?.stopSpeech() }
+        }
     }
 
     fun dismissVoiceMissing() {
@@ -199,6 +218,7 @@ internal class ReadAloudPlayer(
 
     override fun onStart(utteranceId: String) {
         scope.launch {
+            if (!_state.value.playing) return@launch
             val index = indexById[utteranceId] ?: return@launch
             position = index
             // The engine was fed only a few sentences ahead; keep it that far ahead as reading moves on.
@@ -221,6 +241,7 @@ internal class ReadAloudPlayer(
     override fun onRangeStart(utteranceId: String, start: Int, end: Int) {
         if (!wordHighlight) return
         scope.launch {
+            if (!_state.value.playing) return@launch
             val utterance = indexById[utteranceId]?.let(queue::get) ?: return@launch
             reportsWordRanges = true
             val safeStart = start.coerceIn(0, utterance.text.length)
@@ -236,7 +257,7 @@ internal class ReadAloudPlayer(
 
     override fun onDone(utteranceId: String) {
         scope.launch {
-            if (_state.value.playing && queue.lastOrNull()?.id == utteranceId) nextChapter()
+            if (_state.value.playing && indexById[utteranceId] == queue.lastIndex) nextChapter()
         }
     }
 
@@ -256,6 +277,7 @@ internal class ReadAloudPlayer(
             PlaybackFocusEvent.LOST_TEMPORARILY -> if (current.playing) {
                 resumeOnFocusGain = true
                 _state.update { it.copy(playing = false) }
+                indexById.clear()
                 output.stop()
             }
             PlaybackFocusEvent.LOST, PlaybackFocusEvent.BECOMING_NOISY -> if (current.playing) togglePlayback()
@@ -268,7 +290,7 @@ internal class ReadAloudPlayer(
 
     private fun load(chunk: SpeechChunk) {
         queue = chunk.sentences.flatMap { it.splitForSpeech() }
-        indexById = queue.withIndex().associate { (index, utterance) -> utterance.id to index }
+        indexById.clear()
         position = 0
         enqueued = -1
         endOfBook = chunk.endOfBook
@@ -286,11 +308,28 @@ internal class ReadAloudPlayer(
             stop()
             return
         }
-        chunkJob = scope.launch { load(bookEngine.nextSpeechChunk()) }
+        if (chunkRequest != null) return
+        val request = Any()
+        val generation = playbackGeneration
+        chunkRequest = request
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val chunk = bookEngine.nextSpeechChunk()
+                if (chunkRequest !== request || generation != playbackGeneration || !_state.value.active) return@launch
+                chunkRequest = null
+                load(chunk)
+            } finally {
+                if (chunkRequest === request) chunkRequest = null
+            }
+        }
+        chunkJob = job
+        job.start()
     }
 
     /** Restarts speech at [position]. Each hand-over to the engine is a binder call, so only the next few are sent. */
     private fun speakFromPosition() {
+        ++queueGeneration
+        indexById.clear()
         enqueued = position - 1
         enqueueAhead(flush = true)
     }
@@ -302,7 +341,9 @@ internal class ReadAloudPlayer(
         while (enqueued < last) {
             enqueued++
             val utterance = queue[enqueued]
-            output.speak(utterance.id, utterance.text, flush = first)
+            val id = "$playbackGeneration-$queueGeneration|${utterance.id}"
+            indexById[id] = enqueued
+            output.speak(id, utterance.text, flush = first)
             first = false
         }
     }

@@ -30,7 +30,7 @@ class HighlightReviewRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), VayanaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = HighlightReviewRepositoryImpl(database.highlightReviewDao())
+        repository = HighlightReviewRepositoryImpl(database.highlightReviewDao(), database)
     }
 
     @AfterTest
@@ -66,6 +66,31 @@ class HighlightReviewRepositoryTest {
         repository.deleteOrphans()
 
         assertEquals(setOf(keptSyncId), repository.observeAll().first().keys)
+    }
+
+    @Test
+    fun sessionPrioritizesDueReviewsAndPracticeWrapsWithoutLoadingAllAnnotations() = runBlocking {
+        val bookId = database.bookDao().insert(book())
+        val dao = database.annotationDao()
+        val first = dao.insert(annotation(bookId).copy(syncId = "first", selectedText = "First", createdAt = 1))
+        dao.insert(annotation(bookId).copy(syncId = "second", selectedText = "Second", createdAt = 2))
+        dao.insert(annotation(bookId).copy(syncId = "third", selectedText = "Third", createdAt = 3))
+        dao.insert(annotation(bookId).copy(syncId = "community", locator = "goodreads-quote:1", selectedText = "Popular"))
+        dao.insert(annotation(bookId).copy(syncId = "blank", selectedText = " \t\n\u2003 "))
+        val dueAt = repository.grade("second", ReviewGrade.GOOD, now = 0).dueAt
+
+        val fresh = repository.session(now = 0, limit = 2)
+        assertEquals(3, fresh.reviewableCount)
+        assertEquals(listOf("first", "third"), fresh.annotations.map { it.syncId })
+        assertEquals(listOf("first", "third"), repository.observeDue(now = 0, limit = 2).first().map { it.syncId })
+
+        val due = repository.session(now = dueAt, limit = 2)
+        assertEquals(listOf("second", "first"), due.annotations.map { it.syncId })
+        assertEquals(listOf("first", "second"), repository.practice(epochDay = 0, count = 2).map { it.syncId })
+        assertEquals(listOf("third", "first"), repository.practice(epochDay = 1, count = 2).map { it.syncId })
+
+        dao.softDelete(first, dueAt + 1)
+        assertEquals(2, repository.session(now = dueAt + 1).reviewableCount)
     }
 
     private fun annotation(bookId: Long) = AnnotationEntity(
