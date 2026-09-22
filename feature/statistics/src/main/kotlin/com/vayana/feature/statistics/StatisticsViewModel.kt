@@ -97,6 +97,7 @@ data class StatisticsSummary(
     val highlightsToRevisit: List<Annotation> = emptyList(),
     val topLookedUpWords: List<WordLookupStat> = emptyList(),
     val sessionCount: Int = 0,
+    val totalReadingSeconds: Long = 0L,
     val longestSessionSeconds: Long = 0L,
     val currentStreakDays: Int = 0,
     val todayReadingMinutes: Int = 0,
@@ -104,6 +105,7 @@ data class StatisticsSummary(
     val dailyGoalMinutes: Int = 0,
     val booksFinishedThisYear: Int = 0,
     val yearlyGoalBooks: Int = 0,
+    val yearInBooks: YearInBooks? = null,
     /** Weeks (starting on the user's first day of the week) ending this week, oldest first, sized to a whole number of 7-day
      *  columns so the UI can chunk it directly with no partial-week special-casing - a
      *  GitHub-style contribution grid. Between [MinActivityGridWeeks] and [ActivityGridWeeks]
@@ -223,7 +225,7 @@ private fun List<Book>.toSummary(
     finishedThreshold: Float,
     firstDayOfWeek: DayOfWeek,
 ): StatisticsSummary {
-    val average = if (isEmpty()) 0 else (sumOf { (it.readingPercent * 100).toDouble() } / size).toInt()
+    val average = averageActiveProgressPercent(finishedThreshold)
     val countedSessions = sessions.filter { it.durationSeconds >= MinCountedSessionSeconds }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
@@ -263,9 +265,7 @@ private fun List<Book>.toSummary(
         DailyReadingMinutes(date = date, minutes = minutes)
     }
     val recentWeekMinutes = (0 until 7).sumOf { daysAgo -> ((secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L) / 60L).toInt() }
-    val finishedThisYear = count { book ->
-        book.finishedReadingAt?.let { Instant.ofEpochMilli(it).atZone(zone).year == today.year } == true
-    }
+    val yearInBooks = yearInBooks(today, zone, yearlyGoalBooks)
     return StatisticsSummary(
         totalBooks = size,
         readingBooks = count { it.readingPercent > 0f && it.readingPercent < finishedThreshold },
@@ -276,13 +276,15 @@ private fun List<Book>.toSummary(
         highlightsToRevisit = dailyHighlights(annotations, today),
         topLookedUpWords = topWords,
         sessionCount = countedSessions.size,
+        totalReadingSeconds = countedSessions.sumOf { it.durationSeconds },
         longestSessionSeconds = countedSessions.maxOfOrNull { it.durationSeconds } ?: 0L,
         currentStreakDays = streak,
         todayReadingMinutes = ((secondsByDate[today] ?: 0L) / 60L).toInt(),
         recentWeekReadingMinutes = recentWeekMinutes,
         dailyGoalMinutes = dailyGoalMinutes,
-        booksFinishedThisYear = finishedThisYear,
+        booksFinishedThisYear = yearInBooks.finishedCount,
         yearlyGoalBooks = yearlyGoalBooks,
+        yearInBooks = yearInBooks,
         dailyReadingMinutes = dailyReadingMinutes,
         readingPace = readingPaceEstimate(secondsByDate, today, finishedThreshold),
         genreStats = genreStats(),

@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Settings
@@ -173,6 +174,7 @@ fun LibraryRoute(
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
+        allBooks = uiState.allBooks,
         readNextQueue = readNextQueue,
         deletionNotice = deletionNotice,
         onDeletionNoticeShown = viewModel::consumePermanentDeletionNotice,
@@ -214,6 +216,7 @@ fun LibraryRoute(
 private fun LibraryScreen(
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
+    allBooks: List<Book>,
     readNextQueue: List<Book>,
     deletionNotice: PermanentDeletionNotice?,
     onDeletionNoticeShown: (PermanentDeletionNotice) -> Unit,
@@ -280,6 +283,7 @@ private fun LibraryScreen(
         onAddBookActionHandled()
     }
     var pendingFinishBook by remember { mutableStateOf<Book?>(null) }
+    var showStatsShareDialog by remember { mutableStateOf(false) }
     val markedFinishedMessage = stringResource(R.string.library_marked_finished)
     var syncRunning by remember { mutableStateOf(false) }
     var syncBadge by remember { mutableStateOf<LibrarySyncBadge?>(null) }
@@ -469,6 +473,7 @@ private fun LibraryScreen(
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
+                    onStatsShareClick = { showStatsShareDialog = true },
                     onQueryChange = onQueryChange,
                     onSortChange = onSortChange,
                     onFilterChange = onFilterChange,
@@ -610,6 +615,9 @@ private fun LibraryScreen(
             }
         }
     }
+    if (showStatsShareDialog) {
+        LibraryStatsShareDialog(books = allBooks, onDismiss = { showStatsShareDialog = false })
+    }
 }
 
 @Composable
@@ -692,6 +700,7 @@ private fun LibraryTopBar(
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
+    onStatsShareClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
@@ -869,6 +878,13 @@ private fun LibraryTopBar(
                                         },
                                     ),
                                 )
+                                add(VayanaMenuGroup(listOf(
+                                    VayanaMenuItem(
+                                        label = stringResource(R.string.library_stats_share_action),
+                                        icon = Icons.Outlined.Share,
+                                        onClick = onStatsShareClick,
+                                    ),
+                                )))
                                 if (showSettingsAction) {
                                     add(
                                         VayanaMenuGroup(
@@ -1085,6 +1101,7 @@ private fun LibraryGrid(
     val placementSpec = rememberLazyItemPlacementSpec()
 
     PagedLazyVerticalGrid(
+        showPageButtons = false,
         columns = GridCells.Adaptive(minSize = Sizes.libraryGridCoverWidthMin),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -1205,6 +1222,7 @@ private fun LibraryList(
     val placementSpec = rememberLazyItemPlacementSpec()
 
     PagedLazyColumn(
+        showPageButtons = false,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,

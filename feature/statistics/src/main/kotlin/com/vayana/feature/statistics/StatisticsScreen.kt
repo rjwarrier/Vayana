@@ -30,7 +30,6 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Style
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
@@ -161,6 +160,7 @@ private fun StatisticsDashboard(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
+        item { StatisticsOverviewCard(summary) }
         item {
             ReadingActivityCard(
                 dailyMinutes = summary.dailyReadingMinutes,
@@ -173,12 +173,15 @@ private fun StatisticsDashboard(
                 ReadingPaceCard(pace = pace)
             }
         }
+        summary.yearInBooks?.takeIf { it.finishedCount > 0 || summary.yearlyGoalBooks > 0 }?.let { year ->
+            item { YearInBooksCard(year) }
+        }
         summary.readingHabits?.let { habits ->
             item {
                 ReadingHabitsCard(habits = habits)
             }
         }
-        if (summary.dailyGoalMinutes > 0 || summary.yearlyGoalBooks > 0) {
+        if (summary.dailyGoalMinutes > 0) {
             item {
                 GoalsCard(summary = summary)
             }
@@ -195,13 +198,15 @@ private fun StatisticsDashboard(
                 ),
             )
         }
-        item {
-            StatisticTile(
-                icon = Icons.Outlined.BarChart,
-                title = stringResource(R.string.statistics_average_progress_title),
-                value = stringResource(R.string.statistics_average_progress_value, summary.averageProgressPercent),
-                supportingText = stringResource(R.string.statistics_average_progress_support),
-            )
+        if (summary.readingBooks > 0) {
+            item {
+                StatisticTile(
+                    icon = Icons.Outlined.BarChart,
+                    title = stringResource(R.string.statistics_average_progress_title),
+                    value = stringResource(R.string.statistics_average_progress_value, summary.averageProgressPercent),
+                    supportingText = stringResource(R.string.statistics_average_progress_support),
+                )
+            }
         }
         item {
             StatisticTile(
@@ -210,19 +215,6 @@ private fun StatisticsDashboard(
                 value = stringResource(R.string.statistics_notes_total_value, summary.totalAnnotations),
                 supportingText = stringResource(R.string.statistics_notes_total_support, summary.notesWithText),
             )
-        }
-        if (summary.sessionCount > 0) {
-            item {
-                StatisticTile(
-                    icon = Icons.Outlined.Timer,
-                    title = stringResource(R.string.statistics_sessions_title),
-                    value = stringResource(R.string.statistics_sessions_value, summary.sessionCount),
-                    supportingText = stringResource(
-                        R.string.statistics_sessions_support,
-                        formatSessionDuration(summary.longestSessionSeconds),
-                    ),
-                )
-            }
         }
         if (summary.uniqueAuthorCount > 0 || summary.topSeries != null) {
             item {
@@ -370,6 +362,35 @@ private fun StatisticTile(icon: ImageVector, title: String, value: String, suppo
 }
 
 @Composable
+private fun StatisticsOverviewCard(summary: StatisticsSummary) {
+    val metrics = listOf(
+        summary.booksFinishedThisYear.toString() to stringResource(R.string.statistics_overview_finished),
+        (if (summary.totalReadingSeconds > 0) formatSessionDuration(summary.totalReadingSeconds)
+        else stringResource(R.string.reader_duration_minutes, 0)) to stringResource(R.string.statistics_overview_total_time),
+        summary.currentStreakDays.toString() to stringResource(R.string.statistics_overview_streak),
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Text(stringResource(R.string.statistics_overview_title), style = MaterialTheme.typography.titleMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                metrics.forEach { (value, label) ->
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(value, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(label, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun formatSessionDuration(seconds: Long): String {
     val totalMinutes = (seconds / 60L).toInt().coerceAtLeast(1)
     val hours = totalMinutes / 60
@@ -400,18 +421,6 @@ private fun GoalsCard(summary: StatisticsSummary) {
                         summary.dailyGoalMinutes,
                     ),
                     fraction = (summary.todayReadingMinutes.toFloat() / summary.dailyGoalMinutes).coerceIn(0f, 1f),
-                )
-            }
-            if (summary.yearlyGoalBooks > 0) {
-                GoalRow(
-                    modifier = Modifier.padding(top = Spacing.md),
-                    label = stringResource(R.string.statistics_goals_yearly_label),
-                    valueText = stringResource(
-                        R.string.statistics_goals_yearly_value,
-                        summary.booksFinishedThisYear,
-                        summary.yearlyGoalBooks,
-                    ),
-                    fraction = (summary.booksFinishedThisYear.toFloat() / summary.yearlyGoalBooks).coerceIn(0f, 1f),
                 )
             }
         }

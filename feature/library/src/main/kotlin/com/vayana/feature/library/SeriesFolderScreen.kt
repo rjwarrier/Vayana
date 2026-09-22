@@ -1,6 +1,7 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -37,6 +39,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
+import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -45,7 +48,8 @@ import com.vayana.core.resources.R
 @Composable
 internal fun SeriesFolderCell(folder: SeriesLibraryItem.Folder, onClick: () -> Unit) {
     val description = stringResource(R.string.library_series_folder_description, folder.title, folder.books.size)
-    Column(modifier = Modifier.clickable(onClick = onClick).semantics { contentDescription = description }) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(modifier = Modifier.vayanaPressScale(interactionSource).clickable(interactionSource = interactionSource, indication = null, onClick = onClick).semantics { contentDescription = description }) {
         SeriesCoverStack(folder.books, Modifier.fillMaxWidth())
         Text(
             text = folder.title,
@@ -65,8 +69,9 @@ internal fun SeriesFolderCell(folder: SeriesLibraryItem.Folder, onClick: () -> U
 @Composable
 internal fun SeriesFolderListRow(folder: SeriesLibraryItem.Folder, onClick: () -> Unit) {
     val description = stringResource(R.string.library_series_folder_description, folder.title, folder.books.size)
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).semantics { contentDescription = description },
+        modifier = Modifier.fillMaxWidth().vayanaPressScale(interactionSource).clickable(interactionSource = interactionSource, indication = null, onClick = onClick).semantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -173,7 +178,8 @@ private fun SeriesFolderScreen(
                     )
                 }
                 items(books, key = { it.id }) { book ->
-                    Column(modifier = Modifier.clickable { onBookClick(book.id) }) {
+                    val interactionSource = remember { MutableInteractionSource() }
+                    Column(modifier = Modifier.vayanaPressScale(interactionSource).clickable(interactionSource = interactionSource, indication = null) { onBookClick(book.id) }) {
                         BookCover(book, modifier = Modifier.fillMaxWidth())
                         book.seriesNumber?.takeIf { it.isNotBlank() }?.let { number ->
                             Text(

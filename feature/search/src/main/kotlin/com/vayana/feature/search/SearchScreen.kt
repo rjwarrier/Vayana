@@ -2,6 +2,7 @@ package com.vayana.feature.search
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,7 @@ import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.vayanaContentTransform
+import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
@@ -362,11 +364,13 @@ private fun AnnotationResultRow(result: AnnotationSearchResult, tokens: List<Str
 
 @Composable
 private fun SearchResultSurface(onClick: () -> Unit, content: @Composable () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .vayanaPressScale(interactionSource)
             .clip(RoundedCornerShape(Radii.large))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(Radii.large),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.none,

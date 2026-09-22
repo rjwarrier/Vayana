@@ -441,6 +441,7 @@ data class LibraryControls(
 
 data class LibraryUiState(
     val books: List<Book> = emptyList(),
+    val allBooks: List<Book> = emptyList(),
     val controls: LibraryControls = LibraryControls(),
     val githubSyncReady: Boolean = false,
 )
@@ -516,6 +517,7 @@ class LibraryViewModel @Inject constructor(
         finishedThreshold,
     ) { books, controls, syncReady, finishedThreshold ->
         LibraryUiState(
+            allBooks = books,
             books = books
                 .filterBy(controls.filter, finishedThreshold)
                 .filterByQuery(controls.query)

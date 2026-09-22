@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,6 +94,7 @@ import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.sharecard.QuoteShareDialog
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
+import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
@@ -565,11 +567,13 @@ private fun BookNotesCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .vayanaPressScale(interactionSource)
             .clip(RoundedCornerShape(Radii.largeIncreased))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(Radii.largeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.shadowSmall,
@@ -948,10 +952,12 @@ private fun AnnotationCard(
     onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .vayanaPressScale(interactionSource)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(Radii.largeIncreased),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = Elevations.none,

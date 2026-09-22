@@ -74,6 +74,7 @@ fun PagedLazyColumn(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    showPageButtons: Boolean = true,
     content: LazyListScope.() -> Unit,
 ) {
     val state = rememberLazyListState()
@@ -86,7 +87,7 @@ fun PagedLazyColumn(
             verticalArrangement = verticalArrangement,
             content = content,
         )
-        pager?.let { EinkPageControls(it, Modifier.align(Alignment.BottomEnd)) }
+        if (showPageButtons) pager?.let { EinkPageControls(it, Modifier.align(Alignment.BottomEnd)) }
     }
 }
 
@@ -98,6 +99,7 @@ fun PagedLazyVerticalGrid(
     contentPadding: PaddingValues = PaddingValues(),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    showPageButtons: Boolean = true,
     content: LazyGridScope.() -> Unit,
 ) {
     val state = rememberLazyGridState()
@@ -112,7 +114,7 @@ fun PagedLazyVerticalGrid(
             verticalArrangement = verticalArrangement,
             content = content,
         )
-        pager?.let { EinkPageControls(it, Modifier.align(Alignment.BottomEnd)) }
+        if (showPageButtons) pager?.let { EinkPageControls(it, Modifier.align(Alignment.BottomEnd)) }
     }
 }
 
