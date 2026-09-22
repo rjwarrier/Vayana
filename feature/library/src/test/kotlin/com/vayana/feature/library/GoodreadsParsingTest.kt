@@ -1,6 +1,7 @@
 package com.vayana.feature.library
 
 import com.vayana.core.common.quoteMatchKey
+import com.vayana.core.common.ParsedQuote
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,6 +9,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -206,13 +211,92 @@ class GoodreadsParsingTest {
     }
 
     @Test
-    fun onlyEnglishLanguageResultsAreAccepted() = runBlocking {
-        assertTrue(isEnglishGoodreadsQuote("This is an English quote.") { "en" })
-        assertTrue(isEnglishGoodreadsQuote("This is an English quote.") { "en-US" })
-        assertFalse(isEnglishGoodreadsQuote("هذا اقتباس عربي") { "ar" })
-        assertFalse(isEnglishGoodreadsQuote("Esta es una cita.") { "es" })
-        assertFalse(isEnglishGoodreadsQuote("Ambiguous text") { "und" })
-        assertFalse(isEnglishGoodreadsQuote("Detection failed") { null })
+    fun collectionRetainsLanguagesForThePreviewToChoose() = runBlocking {
+        val pages = mapOf(
+            1 to quotesPage("1", "Esta es una cita en español.", nextPage = 2),
+            2 to quotesPage("2", "This is an English quote."),
+        )
+        assertEquals(2, collectGoodreadsQuotes(loadPage = pages::get)?.size)
+    }
+
+    @Test
+    fun languageSelectionGroupsDeduplicatesAndExcludesUnknownText() = runBlocking {
+        val english = ParsedQuote("This is an English quote.")
+        val malayalam = ParsedQuote("ഇത് മലയാളത്തിലുള്ള ഒരു ഉദ്ധരണിയാണ്.")
+        val spanish = ParsedQuote("Esta es una cita en español.")
+        val unknown = ParsedQuote("An undetermined language quote.")
+        val failed = ParsedQuote("Language detection failed here.")
+        val tags = mapOf(english.quoteText to "en-US", malayalam.quoteText to "ml", spanish.quoteText to "es", unknown.quoteText to "und")
+        val calls = AtomicInteger()
+        val progress = mutableListOf<GoodreadsQuoteProgress>()
+        val detected = detectGoodreadsQuoteLanguages(
+            listOf(english, malayalam, spanish, unknown, failed, english.copy(quoteText = "“This is an English quote!”")),
+            onProgress = progress::add,
+            identifyLanguage = { calls.incrementAndGet(); tags[it] },
+        )
+        assertEquals(setOf("en", "ml", "es"), detected.quotesByLanguage.keys)
+        assertEquals("en", detected.defaultLanguageTag)
+        assertEquals(listOf(malayalam), detected.quotesFor("ml"))
+        assertEquals(listOf(english), detected.quotesFor("en"))
+        assertEquals(2, detected.undeterminedCount)
+        assertEquals(5, calls.get())
+        assertEquals(GoodreadsQuoteProgress(5, 5), progress.last())
+        assertTrue(detected.quotesFor("fr").isEmpty())
+        assertTrue(detected.quotesFor(null).isEmpty())
+    }
+
+    @Test
+    fun languageSelectionDefaultsToLargestGroupWhenEnglishIsAbsent() = runBlocking {
+        val quotes = listOf("First Malayalam quote.", "Second Malayalam quote.", "A Spanish quote.").map(::ParsedQuote)
+        val detected = detectGoodreadsQuoteLanguages(quotes) { if (it.contains("Malayalam")) "ml" else "es" }
+        assertEquals("ml", detected.defaultLanguageTag)
+        assertEquals(quotes.take(2), detected.quotesFor("ml"))
+    }
+
+    @Test
+    fun languageSelectionHandlesEmptyUnknownAndTooShortBatches() = runBlocking {
+        val empty = detectGoodreadsQuoteLanguages(emptyList()) { error("No detection should run") }
+        assertNull(empty.defaultLanguageTag)
+        val unknown = detectGoodreadsQuoteLanguages(listOf(ParsedQuote("Unknown language here."), ParsedQuote("short"))) { "und" }
+        assertNull(unknown.defaultLanguageTag)
+        assertEquals(1, unknown.undeterminedCount)
+        assertTrue(unknown.quotesFor("und").isEmpty())
+    }
+
+    @Test
+    fun detectionKeepsOrderAndBoundsConcurrentRequests() = runBlocking {
+        val quotes = (1..25).map { ParsedQuote("English quote number $it.") }
+        var active = 0
+        var peak = 0
+        val detected = detectGoodreadsQuoteLanguages(quotes) {
+            active++
+            peak = maxOf(peak, active)
+            yield()
+            active--
+            "en"
+        }
+        assertTrue(peak in 2..8)
+        assertEquals(quotes, detected.quotesFor("en"))
+    }
+
+    @Test
+    fun cancellingDetectionCancelsThePendingBatch() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        var cancelled = false
+        val detection = async {
+            detectGoodreadsQuoteLanguages(listOf(ParsedQuote("An English quote to detect."))) {
+                started.complete(Unit)
+                try {
+                    awaitCancellation()
+                } catch (exception: CancellationException) {
+                    cancelled = true
+                    throw exception
+                }
+            }
+        }
+        withTimeout(1_000) { started.await() }
+        detection.cancelAndJoin()
+        assertTrue(cancelled)
     }
 
     @Test

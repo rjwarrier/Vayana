@@ -47,7 +47,6 @@ import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
-import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
@@ -107,6 +106,7 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -765,15 +765,24 @@ class LibraryViewModel @Inject constructor(
 
     private val _goodreadsImport = MutableStateFlow<GoodreadsImportState>(GoodreadsImportState.Idle)
     val goodreadsImport: StateFlow<GoodreadsImportState> = _goodreadsImport
+    private var goodreadsImportJob: Job? = null
 
     /** Fetches [link] and pauses on a preview; applying still uses the same import path after confirmation. */
     fun importFromGoodreads(bookId: Long, link: String) {
         if (_goodreadsImport.value is GoodreadsImportState.Working) return
         _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_BOOK)
-        viewModelScope.launch {
+        goodreadsImportJob = viewModelScope.launch {
             when (val result = goodreadsMetadataFetcher.fetch(link)) {
                 is GoodreadsFetchResult.Failure -> _goodreadsImport.value = GoodreadsImportState.Failed(result.error)
-                is GoodreadsFetchResult.Success -> _goodreadsImport.value = GoodreadsImportState.Preview(result.metadata)
+                is GoodreadsFetchResult.Success -> {
+                    _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_QUOTES)
+                    val quotes = result.metadata.workId?.let { id ->
+                        goodreadsMetadataFetcher.fetchQuotes(id) { progress ->
+                            _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.FETCHING_QUOTES, progress)
+                        }
+                    }
+                    prepareGoodreadsPreview(result.metadata, quotes)
+                }
             }
         }
     }
@@ -781,27 +790,41 @@ class LibraryViewModel @Inject constructor(
     /** What the in-app Goodreads browser captured: previewed like a direct import, with the quotes it already read. */
     fun importFromGoodreadsCapture(bookId: Long, metadata: GoodreadsBookMetadata, quotes: List<ParsedQuote>?) {
         if (_goodreadsImport.value is GoodreadsImportState.Working) return
-        _goodreadsImport.value = GoodreadsImportState.Preview(metadata, quotes)
+        _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.DETECTING_LANGUAGES)
+        goodreadsImportJob = viewModelScope.launch { prepareGoodreadsPreview(metadata, quotes) }
+    }
+
+    private suspend fun prepareGoodreadsPreview(metadata: GoodreadsBookMetadata, quotes: List<ParsedQuote>?) {
+        _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.DETECTING_LANGUAGES)
+        val languages = quotes?.let {
+            withContext(dispatchers.default) {
+                detectGoodreadsQuoteLanguages(it, onProgress = { progress ->
+                    _goodreadsImport.value = GoodreadsImportState.Working(GoodreadsImportStep.DETECTING_LANGUAGES, progress)
+                })
+            }
+        }
+        _goodreadsImport.value = GoodreadsImportState.Preview(metadata, languages)
     }
 
     fun applyPendingGoodreads(bookId: Long, options: GoodreadsImportOptions = GoodreadsImportOptions()) {
         val preview = _goodreadsImport.value as? GoodreadsImportState.Preview ?: return
         if (!options.hasAnySelection) return
+        val selectedQuotes = preview.quoteLanguages?.quotesFor(options.quoteLanguageTag).orEmpty()
+        if (options.quotes && selectedQuotes.isEmpty()) return
         _goodreadsImport.value = GoodreadsImportState.Working(
             step = GoodreadsImportStep.FETCHING_COVER_AND_QUOTES,
-            quoteProgress = preview.capturedQuotes
-                ?.takeIf { options.quotes }
+            quoteProgress = selectedQuotes
+                .takeIf { options.quotes }
                 ?.size
                 ?.let { GoodreadsQuoteProgress(processed = it, total = it) },
         )
-        viewModelScope.launch {
+        goodreadsImportJob = viewModelScope.launch {
             _bookDetailMessage.value = withContext(dispatchers.io) {
                 applyGoodreadsInLibrary(
                     bookId = bookId,
                     metadata = preview.metadata,
                     options = options,
-                    capturedQuotes = preview.capturedQuotes,
-                    loadQuotes = goodreadsMetadataFetcher::fetchQuotes,
+                    selectedQuotes = selectedQuotes,
                 )
             }
             _goodreadsImport.value = GoodreadsImportState.Done
@@ -809,6 +832,8 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun dismissGoodreadsImport() {
+        goodreadsImportJob?.cancel()
+        goodreadsImportJob = null
         _goodreadsImport.value = GoodreadsImportState.Idle
     }
 
@@ -2299,8 +2324,7 @@ class LibraryViewModel @Inject constructor(
         bookId: Long,
         metadata: GoodreadsBookMetadata,
         options: GoodreadsImportOptions,
-        capturedQuotes: List<ParsedQuote>? = null,
-        loadQuotes: suspend (workId: String, onProgress: (GoodreadsQuoteProgress) -> Unit) -> List<ParsedQuote>?,
+        selectedQuotes: List<ParsedQuote>,
     ): BookDetailMessage {
         val book = bookRepository.getById(bookId) ?: return BookDetailMessage.GOODREADS_FAILED
         return runCatchingCancellable {
@@ -2327,44 +2351,17 @@ class LibraryViewModel @Inject constructor(
                     originalPublicationYear = metadata.originalPublicationYear ?: book.originalPublicationYear,
                 )
             }
-            // Cover and quotes only need the metadata already in hand, so both downloads run at once.
+            // Import the exact language batch reviewed by the user; never fetch an unfiltered replacement.
             val coverUrl = metadata.coverUrl?.takeIf { options.cover }
-            val workId = metadata.workId?.takeIf { options.quotes }
-            val capturedQuoteProgress = capturedQuotes
-                ?.takeIf { options.quotes }
-                ?.size
-                ?.let { GoodreadsQuoteProgress(processed = it, total = it) }
-            _goodreadsImport.value = GoodreadsImportState.Working(
-                GoodreadsImportStep.FETCHING_COVER_AND_QUOTES,
-                capturedQuoteProgress,
-            )
-            val (coverBytes, quotes) = coroutineScope {
-                val cover = async { coverUrl?.let { goodreadsMetadataFetcher.downloadCover(it) } }
-                val fetchedQuotes = async {
-                    capturedQuotes?.takeIf { options.quotes } ?: workId?.let { id ->
-                        loadQuotes(id) { progress ->
-                            _goodreadsImport.value = GoodreadsImportState.Working(
-                                GoodreadsImportStep.FETCHING_COVER_AND_QUOTES,
-                                progress,
-                            )
-                        }
-                    }
-                }
-                cover.await() to fetchedQuotes.await()
-            }
+            val coverBytes = coverUrl?.let { goodreadsMetadataFetcher.downloadCover(it) }
             val coverApplied = coverUrl == null || coverBytes?.let { bytes ->
                 applyGoodreadsCover(book, bytes, settingsRepository.snapshot.first().defaultCoverSource)
             } != null
-            // Null means the quotes page couldn't be read at all, as opposed to it simply having none new.
-            val quotesResult: QuoteImportResult? = when {
-                quotes != null -> refreshGoodreadsQuotes(bookId, quotes)
-                !options.quotes -> QuoteImportResult(added = 0, skipped = 0)
-                workId == null -> QuoteImportResult(added = 0, skipped = 0)
-                else -> null
-            }
+            val quotesResult = if (options.quotes) {
+                addGoodreadsQuotes(bookId, selectedQuotes, GoodreadsQuoteLocatorPrefix)
+            } else QuoteImportResult(added = 0, skipped = 0)
             when {
                 !coverApplied -> BookDetailMessage.GOODREADS_COVER_FAILED
-                quotesResult == null -> BookDetailMessage.GOODREADS_QUOTES_FAILED
                 quotesResult.added > 0 || quotesResult.skipped > 0 -> BookDetailMessage.GOODREADS_APPLIED_WITH_QUOTES(
                     quotesResult.added,
                     quotesResult.skipped,
@@ -2378,7 +2375,11 @@ class LibraryViewModel @Inject constructor(
      * Adds [quotes] exactly as a pasted-quotes import does ([importQuotes]) - popular-highlight underlines the reader
      * places in the text - minus any whose text the book already has, so importing the same link again is harmless.
      */
-    private suspend fun addGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): QuoteImportResult {
+    private suspend fun addGoodreadsQuotes(
+        bookId: Long,
+        quotes: List<ParsedQuote>,
+        locatorPrefix: String = QuoteLocatorPrefix,
+    ): QuoteImportResult {
         // Compared on letters and digits only, so curly-vs-straight quotes or spacing can't sneak a duplicate in.
         val known = annotationRepository.observeForBook(bookId).first()
             .mapTo(HashSet()) { quoteMatchKey(it.selectedText.orEmpty()) }
@@ -2388,40 +2389,7 @@ class LibraryViewModel @Inject constructor(
         }
         if (fresh.isEmpty()) return QuoteImportResult(added = 0, skipped = quotes.size)
         val now = System.currentTimeMillis()
-        annotationRepository.createAll(fresh.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now) })
-        return QuoteImportResult(added = fresh.size, skipped = quotes.size - fresh.size)
-    }
-
-    /**
-     * Refresh adds quotes exposed by pages that earlier imports never reached, and cleans old auto-imported
-     * popular quotes that no longer pass the current length/language rules. Ordinary reader annotations are
-     * never candidates. The legacy `quote:` prefix is included because older Goodreads imports predate the
-     * dedicated locator prefix.
-     */
-    private suspend fun refreshGoodreadsQuotes(bookId: Long, quotes: List<ParsedQuote>): QuoteImportResult {
-        val annotations = annotationRepository.observeForBook(bookId).first()
-        val communityQuotes = annotations.filter(Annotation::isCommunityQuote)
-        val eligible = classifyGoodreadsQuotes(
-            texts = communityQuotes.map(Annotation::selectedText),
-            acceptsQuote = ::isEligibleGoodreadsQuote,
-        )
-        val removedIds = communityQuotes.zip(eligible).filterNot { (_, keep) -> keep }.mapTo(HashSet()) { (annotation, _) -> annotation.id }
-        annotationRepository.softDeleteAll(removedIds)
-
-        val known = annotations.asSequence()
-            .filterNot { it.id in removedIds }
-            .mapTo(HashSet()) { quoteMatchKey(it.selectedText) }
-        val fresh = quotes.filter { quote ->
-            val key = quoteMatchKey(quote.quoteText)
-            key.isNotEmpty() && known.add(key)
-        }
-        if (fresh.isEmpty()) return QuoteImportResult(added = 0, skipped = quotes.size)
-        val now = System.currentTimeMillis()
-        annotationRepository.createAll(
-            fresh.mapIndexed { index, quote ->
-                quote.toPopularHighlight(bookId, index, now, GoodreadsQuoteLocatorPrefix)
-            },
-        )
+        annotationRepository.createAll(fresh.mapIndexed { index, quote -> quote.toPopularHighlight(bookId, index, now, locatorPrefix) })
         return QuoteImportResult(added = fresh.size, skipped = quotes.size - fresh.size)
     }
 

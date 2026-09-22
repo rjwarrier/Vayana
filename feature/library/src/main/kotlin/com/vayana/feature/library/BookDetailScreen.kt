@@ -955,7 +955,7 @@ private fun BookDetailScreen(
             is GoodreadsImportState.Preview -> GoodreadsPreviewDialog(
                 book = book,
                 metadata = importState.metadata,
-                capturedQuoteCount = importState.capturedQuotes?.size,
+                quoteLanguages = importState.quoteLanguages,
                 onApply = onApplyGoodreads,
                 onDismiss = {
                     showGoodreadsDialog = false

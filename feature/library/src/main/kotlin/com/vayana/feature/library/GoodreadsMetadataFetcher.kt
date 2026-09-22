@@ -46,7 +46,7 @@ sealed interface GoodreadsFetchResult {
     data class Failure(val error: GoodreadsFetchError) : GoodreadsFetchResult
 }
 
-enum class GoodreadsImportStep { FETCHING_BOOK, FETCHING_COVER_AND_QUOTES }
+enum class GoodreadsImportStep { FETCHING_BOOK, FETCHING_QUOTES, DETECTING_LANGUAGES, FETCHING_COVER_AND_QUOTES }
 
 data class GoodreadsQuoteProgress(val processed: Int, val total: Int)
 
@@ -57,7 +57,7 @@ sealed interface GoodreadsImportState {
         val quoteProgress: GoodreadsQuoteProgress? = null,
     ) : GoodreadsImportState
     data class Failed(val error: GoodreadsFetchError) : GoodreadsImportState
-    data class Preview(val metadata: GoodreadsBookMetadata, val capturedQuotes: List<ParsedQuote>? = null) : GoodreadsImportState
+    data class Preview(val metadata: GoodreadsBookMetadata, val quoteLanguages: GoodreadsQuoteLanguages? = null) : GoodreadsImportState
     /** The import landed; the dialog closes itself and the result shows as a snackbar. */
     data object Done : GoodreadsImportState
 }
@@ -69,6 +69,7 @@ data class GoodreadsImportOptions(
     val cover: Boolean = true,
     val goodreadsInfo: Boolean = true,
     val quotes: Boolean = true,
+    val quoteLanguageTag: String? = null,
 ) {
     val hasAnySelection: Boolean
         get() = series || description || genres || cover || goodreadsInfo || quotes
@@ -130,7 +131,7 @@ class GoodreadsMetadataFetcher @Inject constructor(
     }
 
     /**
-     * Every English quote Goodreads lists for [workId], following the next-page link until Goodreads stops
+     * Every eligible-length quote Goodreads lists for [workId], following the next-page link until Goodreads stops
      * advertising another page, with near-identical texts collapsed. Null only if the first page can't be read;
      * a later page failing just ends the list early.
      */
@@ -255,12 +256,12 @@ internal fun String.looksLikeGoodreadsChallenge(): Boolean =
 /**
  * Walks a work's quote pages through [loadPage] (the HTML of page N, or null if it couldn't be read), following
  * the next-page link exposed by Goodreads instead of imposing a fixed page limit. Results are keyed by quote id,
- * filtered to English, and have near-identical texts collapsed. Null only if the first page couldn't be read; a
+ * and have near-identical texts collapsed. Null only if the first page couldn't be read; a
  * later failure just ends the list early. Shared by the direct fetch and the in-app browser, which load pages
  * differently but read them the same way.
  */
 internal suspend fun collectGoodreadsQuotes(
-    acceptsQuote: suspend (String) -> Boolean = ::isEnglishGoodreadsQuote,
+    acceptsQuote: suspend (String) -> Boolean = { true },
     onProgress: (GoodreadsQuoteProgress) -> Unit = {},
     loadPage: suspend (page: Int) -> String?,
 ): List<ParsedQuote>? {
@@ -381,10 +382,10 @@ private fun parseQuoteArticles(articleFragments: List<String>): List<Pair<String
     }
 
 /** Runs ML-backed quote classification in bounded batches while retaining input order. */
-internal suspend fun classifyGoodreadsQuotes(
+internal suspend fun <T> classifyGoodreadsQuotes(
     texts: List<String>,
-    acceptsQuote: suspend (String) -> Boolean = ::isEnglishGoodreadsQuote,
-): List<Boolean> = texts.chunked(GoodreadsQuoteClassificationConcurrency).flatMap { batch ->
+    acceptsQuote: suspend (String) -> T,
+): List<T> = texts.chunked(GoodreadsQuoteClassificationConcurrency).flatMap { batch ->
     coroutineScope {
         batch.map { text -> async { acceptsQuote(text) } }.awaitAll()
     }

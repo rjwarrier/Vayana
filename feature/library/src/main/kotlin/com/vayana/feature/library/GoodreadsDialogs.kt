@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -44,10 +46,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.normalizedBookTag
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
+import com.vayana.core.designsystem.component.VayanaDropdownMenu
+import com.vayana.core.designsystem.component.VayanaMenuGroup
+import com.vayana.core.designsystem.component.VayanaMenuItem
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
@@ -56,6 +62,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /** Goodreads rating, original year, and imported community-quote count under the series line. */
 @Composable
@@ -155,6 +162,8 @@ internal fun GoodreadsImportStatusDialog(
                             text = stringResource(
                                 when (working?.step ?: GoodreadsImportStep.FETCHING_BOOK) {
                                     GoodreadsImportStep.FETCHING_BOOK -> R.string.library_goodreads_step_book
+                                    GoodreadsImportStep.FETCHING_QUOTES -> R.string.library_goodreads_step_quotes
+                                    GoodreadsImportStep.DETECTING_LANGUAGES -> R.string.library_goodreads_step_languages
                                     GoodreadsImportStep.FETCHING_COVER_AND_QUOTES -> R.string.library_goodreads_step_extras
                                 },
                             ),
@@ -213,19 +222,20 @@ internal fun GoodreadsImportStatusDialog(
 internal fun GoodreadsPreviewDialog(
     book: Book,
     metadata: GoodreadsBookMetadata,
-    capturedQuoteCount: Int?,
+    quoteLanguages: GoodreadsQuoteLanguages?,
     onApply: (GoodreadsImportOptions) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val currentGenres = book.tags()
     val proposedGenres = book.tagsCsv.withGoodreadsGenresPreview(metadata.genres)
-    val hasQuotes = metadata.workId != null || (capturedQuoteCount ?: 0) > 0
+    val hasQuotes = !quoteLanguages?.quotesByLanguage.isNullOrEmpty()
     var includeSeries by remember(metadata) { mutableStateOf(metadata.series != null) }
     var includeDescription by remember(metadata) { mutableStateOf(!metadata.description.isNullOrBlank()) }
     var includeGenres by remember(metadata) { mutableStateOf(metadata.genres.isNotEmpty()) }
     var includeCover by remember(metadata) { mutableStateOf(metadata.coverUrl != null) }
     var includeGoodreadsInfo by remember(metadata) { mutableStateOf(metadata.averageRating != null || metadata.originalPublicationYear != null) }
-    var includeQuotes by remember(metadata, capturedQuoteCount) { mutableStateOf(hasQuotes) }
+    var includeQuotes by remember(metadata, quoteLanguages) { mutableStateOf(hasQuotes) }
+    var selectedLanguage by remember(metadata, quoteLanguages) { mutableStateOf(quoteLanguages?.defaultLanguageTag) }
     val selectedOptions = GoodreadsImportOptions(
         series = includeSeries,
         description = includeDescription,
@@ -233,6 +243,7 @@ internal fun GoodreadsPreviewDialog(
         cover = includeCover,
         goodreadsInfo = includeGoodreadsInfo,
         quotes = includeQuotes,
+        quoteLanguageTag = selectedLanguage,
     )
     ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
         ExpressiveDialogHeader(
@@ -305,10 +316,27 @@ internal fun GoodreadsPreviewDialog(
                 GoodreadsPreviewRow(
                     label = stringResource(R.string.library_goodreads_preview_quotes),
                     current = stringResource(R.string.library_goodreads_preview_current_quotes),
-                    proposed = capturedQuoteCount?.let { stringResource(R.string.library_goodreads_preview_captured_quotes, it) }
-                        ?: stringResource(R.string.library_goodreads_preview_fetch_quotes),
+                    proposed = stringResource(R.string.library_goodreads_selected_quotes, quoteLanguages.quotesFor(selectedLanguage).size),
                     selected = includeQuotes,
                     onSelectedChange = { includeQuotes = it },
+                )
+                if (includeQuotes) {
+                    GoodreadsLanguageDropdown(quoteLanguages, selectedLanguage) { selectedLanguage = it }
+                }
+            } else if (metadata.workId != null || quoteLanguages != null) {
+                Text(
+                    stringResource(
+                        if (quoteLanguages == null) R.string.library_goodreads_languages_unavailable
+                        else R.string.library_goodreads_no_detected_languages,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            quoteLanguages?.undeterminedCount?.takeIf { it > 0 }?.let { count ->
+                Text(
+                    stringResource(R.string.library_goodreads_unknown_quotes, count),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -328,6 +356,44 @@ internal fun GoodreadsPreviewDialog(
                 Text(stringResource(R.string.library_goodreads_preview_apply))
             }
         }
+    }
+}
+
+@Composable
+private fun GoodreadsLanguageDropdown(
+    languages: GoodreadsQuoteLanguages,
+    selectedTag: String?,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayLocale = LocalConfiguration.current.locales[0]
+    val labels = languages.quotesByLanguage.mapValues { (tag, quotes) ->
+        stringResource(
+            R.string.library_goodreads_language_count,
+            Locale.forLanguageTag(tag).getDisplayLanguage(displayLocale).ifBlank { tag },
+            quotes.size,
+        )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Text(stringResource(R.string.library_goodreads_quote_language), style = MaterialTheme.typography.labelLarge)
+        Box {
+            FilledTonalButton(onClick = { expanded = true }, shape = Radii.buttonShape) {
+                Text(labels[selectedTag].orEmpty())
+                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+            }
+            VayanaDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                groups = listOf(VayanaMenuGroup(labels.entries.sortedBy { it.value }.map { (tag, label) ->
+                    VayanaMenuItem(label = label, selected = tag == selectedTag, onClick = { onSelect(tag) })
+                })),
+            )
+        }
+        Text(
+            stringResource(R.string.library_goodreads_language_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
