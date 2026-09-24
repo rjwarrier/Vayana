@@ -3,8 +3,17 @@ package com.vayana.feature.library
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.vayana.core.designsystem.sharecard.BookShareCardLayout
 import com.vayana.core.designsystem.sharecard.ShareCardChoiceRow
 import com.vayana.core.designsystem.sharecard.ShareCardOptionChip
@@ -12,6 +21,7 @@ import com.vayana.core.designsystem.sharecard.ShareCardOptionsLabel
 import com.vayana.core.designsystem.sharecard.ShareCardThemeRow
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import kotlin.math.roundToInt
 
 /** Inline controls under the share-card preview; each change redraws the card above immediately. */
 @Composable
@@ -38,8 +48,43 @@ internal fun BookShareImageOptionsPanel(
                     },
                 )
             },
-            onSelect = { onOptionsChange(options.copy(layout = it)) },
+            onSelect = { layout ->
+                onOptionsChange(
+                    options.copy(
+                        layout = layout,
+                        showCover = options.showCover || layout == BookShareCardLayout.BACKDROP,
+                    ),
+                )
+            },
         )
+        if (options.layout == BookShareCardLayout.BACKDROP) {
+            val coverOpacityLabel = stringResource(R.string.share_card_image_options_cover_opacity)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ShareCardOptionsLabel(coverOpacityLabel)
+                Text(
+                    text = stringResource(
+                        R.string.share_card_image_options_cover_opacity_value,
+                        (options.backdropCoverAlpha * 100).roundToInt(),
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Slider(
+                value = options.backdropCoverAlpha,
+                onValueChange = { onOptionsChange(options.copy(backdropCoverAlpha = it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = coverOpacityLabel },
+                enabled = options.showCover,
+                valueRange = 0f..1f,
+                steps = 9,
+            )
+        }
         ShareCardThemeRow(selected = options.theme, onSelect = { onOptionsChange(options.copy(theme = it)) })
         ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_include))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {

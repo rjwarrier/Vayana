@@ -34,9 +34,6 @@ object Palette {
     val Cream300 = Color(0xFFE0D8CB)
     val Cream400 = Color(0xFFC8BCAA)
 
-    /** The launcher icon's backdrop (app ic_launcher_background), behind the app mark on share cards. */
-    val LauncherCream = Color(0xFFF2E8D5)
-
     val White = Color(0xFFFFFFFF)
     val WarmWhite = Color(0xFFE8E0D0)
     val SepiaSurface = Color(0xFFFFE8BF)

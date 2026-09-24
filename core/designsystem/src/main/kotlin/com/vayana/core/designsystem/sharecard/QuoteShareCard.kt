@@ -155,7 +155,7 @@ fun QuoteShareCard(
                 coverPath = content.coverPath,
                 modifier = Modifier
                     .matchParentSize()
-                    .alpha(BackdropCoverAlpha),
+                    .alpha(DefaultBackdropCoverAlpha),
             )
         }
         Column(

@@ -81,6 +81,7 @@ import androidx.compose.runtime.setValue
 import com.vayana.core.common.shareText as shareTextWithChooser
 import com.vayana.core.designsystem.sharecard.BookShareCard
 import com.vayana.core.designsystem.sharecard.BookShareCardLayout
+import com.vayana.core.designsystem.sharecard.DefaultBackdropCoverAlpha
 import com.vayana.core.designsystem.sharecard.ShareCardDialog
 import com.vayana.core.designsystem.sharecard.ShareCardTheme
 import com.vayana.core.designsystem.dialog.ConfirmActionDialog
@@ -272,6 +273,7 @@ private enum class DeleteStep { CHOICE, CONFIRM_PERMANENT }
 internal data class BookShareImageOptions(
     val layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
     val theme: ShareCardTheme = ShareCardTheme.LIGHT,
+    val backdropCoverAlpha: Float = DefaultBackdropCoverAlpha,
     val showCover: Boolean = true,
     val showAuthor: Boolean = true,
     val showSeries: Boolean = true,
@@ -1121,6 +1123,7 @@ private fun BookDetailScreen(
                 showImportedDate = shareImageOptions.showImportedDate,
                 showTagline = shareImageOptions.showTagline,
                 layout = shareImageOptions.layout,
+                backdropCoverAlpha = shareImageOptions.backdropCoverAlpha,
                 progressFraction = book.readingPercent,
                 yearlyGoalReadCount = if (shareImageOptions.showYearlyGoal && yearlyBooksGoal > 0) {
                     yearlyBookShareProgress(libraryBooks, book, yearlyBooksGoal)?.readCount

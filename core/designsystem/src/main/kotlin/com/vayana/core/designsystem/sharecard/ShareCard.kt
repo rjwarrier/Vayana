@@ -219,14 +219,13 @@ fun ShareCardDialog(
 internal fun ShareCardWordmark(tint: Color, wordmark: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            painter = painterResource(R.drawable.vayana_app_mark),
+            painter = painterResource(R.drawable.ic_vayana_mark),
             contentDescription = null,
             tint = tint,
             modifier = Modifier
                 .size(Sizes.icon)
                 .drawWithContent {
-                    // The shared vector uses the adaptive-icon 108dp canvas. Enlarge only its
-                    // drawing so the unframed glyph fills this slot without restoring a tile.
+                    // Enlarge only the 108dp-canvas drawing so the unframed glyph fills this slot.
                     scale(AdaptiveIconVisibleScale) { this@drawWithContent.drawContent() }
                 },
         )
@@ -271,6 +270,8 @@ fun BookShareCard(
     showImportedDate: Boolean = true,
     showTagline: Boolean = true,
     layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
+    /** Opacity of the full-bleed cover used by [BookShareCardLayout.BACKDROP]. */
+    backdropCoverAlpha: Float = DefaultBackdropCoverAlpha,
     /** Reading progress 0..1, drawn as a bar by [BookShareCardLayout.MINIMAL]. */
     progressFraction: Float? = null,
     yearlyGoalReadCount: Int? = null,
@@ -308,7 +309,7 @@ fun BookShareCard(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .alpha(BackdropCoverAlpha),
+                    .alpha(backdropCoverAlpha.coerceIn(0f, 1f)),
             ) {
                 cover()
             }
@@ -635,12 +636,12 @@ enum class BookShareCardLayout {
     SPOTLIGHT,
     MINIMAL,
 
-    /** [MINIMAL]'s type over the cover stretched across the whole card, faded to [BackdropCoverAlpha]. */
+    /** [MINIMAL]'s type over the cover stretched across the whole card. */
     BACKDROP,
 }
 
 /** Keeps a full-bleed cover quiet enough for the card's text to stay readable on top of it. */
-internal const val BackdropCoverAlpha = 0.3f
+const val DefaultBackdropCoverAlpha = 0.3f
 
 private data class BookShareStat(val value: String, val label: String)
 
@@ -704,8 +705,8 @@ private fun String.sanitizedShareTag(): String =
         .take(MaxBookShareTagChars)
         .trim()
 
-/** Launchers display the middle 72dp of the mark's 108dp adaptive-icon canvas. */
-private const val AdaptiveIconVisibleScale = 108f / 72f
+/** Enlarges the supplied mark within the compact, unframed share-card slot. */
+private const val AdaptiveIconVisibleScale = 1.3f
 
 private const val MaxBookShareTags = 3
 private const val MaxBookShareTagChars = 24

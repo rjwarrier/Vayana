@@ -496,6 +496,8 @@
     <string name="share_card_image_options_layout_spotlight">Spotlight</string>
     <string name="share_card_image_options_layout_minimal">Minimal</string>
     <string name="share_card_image_options_layout_backdrop">Backdrop</string>
+    <string name="share_card_image_options_cover_opacity">Cover opacity</string>
+    <string name="share_card_image_options_cover_opacity_value">%1$d%%</string>
     <string name="share_card_image_options_layout_centered">Centered</string>
     <string name="share_card_image_options_theme">Theme</string>
     <string name="share_card_image_options_light">Light</string>

@@ -72,6 +72,7 @@ internal fun LibraryStatsShareDialog(books: List<Book>, onDismiss: () -> Unit) {
     var spineStyle by remember { mutableStateOf(LibrarySpineStyle.COLORFUL) }
     var sharing by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    val shareChooser = stringResource(R.string.library_stats_share_chooser)
     val material = MaterialTheme.colorScheme
     val materialPalette = remember(material) {
         LibrarySharePalette(
@@ -189,7 +190,7 @@ internal fun LibraryStatsShareDialog(books: List<Book>, onDismiss: () -> Unit) {
                             failed = false
                             scope.launch {
                                 try {
-                                    context.shareBitmap(image, context.getString(R.string.library_stats_share_chooser),
+                                    context.shareBitmap(image, shareChooser,
                                         "vayana_library_${format.name.lowercase(Locale.ROOT)}", ShareImageFormat.PNG)
                                     onDismiss()
                                 } catch (cancelled: CancellationException) {
@@ -274,7 +275,7 @@ internal fun renderLibraryStatsCard(
         canvas.drawText(value, x, y, paint)
     }
     val shortDate = date.format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())).uppercase(Locale.getDefault())
-    runCatching { ContextCompat.getDrawable(context, R.drawable.vayana_app_mark) }.getOrNull()?.mutate()?.let { glyph ->
+    runCatching { ContextCompat.getDrawable(context, R.drawable.ic_vayana_mark) }.getOrNull()?.mutate()?.let { glyph ->
         glyph.setTint(colors.ink)
         glyph.setBounds(27, 24, 72, 69)
         glyph.draw(canvas)
