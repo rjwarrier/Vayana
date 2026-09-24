@@ -18,8 +18,8 @@ class CloudAssetCipher(
         val cipher = Cipher.getInstance(Transformation)
         cipher.init(Cipher.ENCRYPT_MODE, deriveKey(passphrase, salt), GCMParameterSpec(GcmTagBits, nonce))
         cipher.updateAAD(aad)
-        val ciphertext = cipher.doFinal(plaintext)
-        return ByteArray(Magic.size + 1 + salt.size + nonce.size + ciphertext.size).also { envelope ->
+        val headerBytes = Magic.size + 1 + salt.size + nonce.size
+        return ByteArray(headerBytes + cipher.getOutputSize(plaintext.size)).also { envelope ->
             var offset = 0
             Magic.copyInto(envelope, offset)
             offset += Magic.size
@@ -28,7 +28,8 @@ class CloudAssetCipher(
             offset += salt.size
             nonce.copyInto(envelope, offset)
             offset += nonce.size
-            ciphertext.copyInto(envelope, offset)
+            val encryptedBytes = cipher.doFinal(plaintext, 0, plaintext.size, envelope, offset)
+            check(offset + encryptedBytes == envelope.size) { "Unexpected cloud asset envelope size" }
         }
     }
 
@@ -42,11 +43,10 @@ class CloudAssetCipher(
         offset += SaltBytes
         val nonce = envelope.copyOfRange(offset, offset + NonceBytes)
         offset += NonceBytes
-        val ciphertext = envelope.copyOfRange(offset, envelope.size)
         val cipher = Cipher.getInstance(Transformation)
         cipher.init(Cipher.DECRYPT_MODE, deriveKey(passphrase, salt), GCMParameterSpec(GcmTagBits, nonce))
         cipher.updateAAD(aad)
-        return cipher.doFinal(ciphertext)
+        return cipher.doFinal(envelope, offset, envelope.size - offset)
     }
 
     private fun deriveKey(passphrase: CharArray, salt: ByteArray): SecretKeySpec {

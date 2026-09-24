@@ -55,6 +55,17 @@ internal class RemoteReadingProgressMerger(
         var skipped = 0
         val appliedSyncIds = linkedSetOf<String>()
         val conflicts = ArrayList<PortableSyncConflict>()
+        remoteSnapshot.readNextStates.forEach { state ->
+            if (bookRepository.applySyncedReadNext(
+                    syncId = state.syncId,
+                    fileHash = state.fileHash,
+                    addedAt = state.addedAt,
+                    remoteUpdatedAt = state.updatedAt,
+                )
+            ) {
+                applied += 1
+            }
+        }
         remoteSnapshot.progresses.forEach { progress ->
             when (val mergeResult = bookRepository.applySyncedReadingProgress(
                 syncId = progress.syncId,

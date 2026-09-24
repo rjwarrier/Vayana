@@ -329,6 +329,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onKeepAwakeChange = viewModel::updateKeepAwake,
                 onShowHeadersChange = viewModel::updateShowHeaders,
                 onShowFooterChange = viewModel::updateShowFooter,
+                onOverridePublisherTypographyChange = viewModel::updateOverridePublisherTypography,
                 onBionicReadingChange = viewModel::updateBionicReading,
                 onReadAloudRateChange = viewModel::updateReadAloudRate,
                 onReadAloudPitchChange = viewModel::updateReadAloudPitch,
@@ -437,6 +438,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onKeepAwakeChange = viewModel::updateKeepAwake,
         onShowHeadersChange = viewModel::updateShowHeaders,
         onShowFooterChange = viewModel::updateShowFooter,
+        onOverridePublisherTypographyChange = viewModel::updateOverridePublisherTypography,
         onBionicReadingChange = viewModel::updateBionicReading,
         onReadAloudRateChange = viewModel::updateReadAloudRate,
         onReadAloudPitchChange = viewModel::updateReadAloudPitch,
@@ -592,6 +594,7 @@ private fun ReaderScreen(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onOverridePublisherTypographyChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
     onReadAloudRateChange: (Float) -> Unit,
     onReadAloudPitchChange: (Float) -> Unit,
@@ -1117,6 +1120,7 @@ private fun ReaderScreen(
                 onKeepAwakeChange = onKeepAwakeChange,
                 onShowHeadersChange = onShowHeadersChange,
                 onShowFooterChange = onShowFooterChange,
+                onOverridePublisherTypographyChange = onOverridePublisherTypographyChange,
                 onBionicReadingChange = onBionicReadingChange,
                 onReadAloudRateChange = onReadAloudRateChange,
                 onReadAloudPitchChange = onReadAloudPitchChange,
@@ -1957,6 +1961,7 @@ private fun ReaderChrome(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onOverridePublisherTypographyChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
     onReadAloudRateChange: (Float) -> Unit,
     onReadAloudPitchChange: (Float) -> Unit,
@@ -2121,6 +2126,7 @@ private fun ReaderChrome(
                         onKeepAwakeChange = onKeepAwakeChange,
                         onShowHeadersChange = onShowHeadersChange,
                         onShowFooterChange = onShowFooterChange,
+                        onOverridePublisherTypographyChange = onOverridePublisherTypographyChange,
                         onBionicReadingChange = onBionicReadingChange,
                     )
                     ReaderPanel.READ_ALOUD -> ReadAloudSettingsPage(
@@ -2562,6 +2568,7 @@ private fun StylePanel(
     onKeepAwakeChange: (Boolean) -> Unit,
     onShowHeadersChange: (Boolean) -> Unit,
     onShowFooterChange: (Boolean) -> Unit,
+    onOverridePublisherTypographyChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
 ) {
     val fontSizeSetting = SettingsRegistry.ReaderFontSize
@@ -2624,6 +2631,12 @@ private fun StylePanel(
             onValueChangeFinished = { onFontSizeChange(pendingFontSize) },
             valueRange = fontSizeSetting.sliderRange(),
             steps = fontSizeSetting.sliderSteps(),
+        )
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.reader_override_book_typography_title),
+            subtitle = stringResource(R.string.reader_override_book_typography_subtitle),
+            checked = !settings.readerUsePublisherStyles,
+            onCheckedChange = onOverridePublisherTypographyChange,
         )
         ReaderStyleLabel(
             title = stringResource(R.string.settings_reader_line_height_title),

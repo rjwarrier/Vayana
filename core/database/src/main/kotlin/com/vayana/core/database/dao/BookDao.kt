@@ -200,6 +200,12 @@ interface BookDao {
     @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :updatedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun setReadNext(id: Long, readNextAddedAt: Long?, updatedAt: Long)
 
+    @Query(
+        "UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :readNextUpdatedAt, " +
+            "updatedAt = MAX(updatedAt, :readNextUpdatedAt) WHERE id = :id",
+    )
+    suspend fun applySyncedReadNext(id: Long, readNextAddedAt: Long?, readNextUpdatedAt: Long)
+
     @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt DESC")
     suspend fun getReadNextQueueIdsNewestFirst(): List<Long>
 

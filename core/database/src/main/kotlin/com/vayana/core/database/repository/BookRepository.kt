@@ -124,6 +124,14 @@ interface BookRepository {
         totalReadingSeconds: Long,
     ): ReadingProgressMergeResult
 
+    /** Applies a newer remote Read Next change without letting ordinary reading timestamps override it. */
+    suspend fun applySyncedReadNext(
+        syncId: String,
+        fileHash: String,
+        addedAt: Long?,
+        remoteUpdatedAt: Long,
+    ): Boolean
+
     suspend fun addReadingTime(id: Long, addedSeconds: Long)
 
     suspend fun recordBookOpened(id: Long)

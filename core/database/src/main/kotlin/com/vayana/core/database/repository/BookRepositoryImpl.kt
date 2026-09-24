@@ -133,6 +133,26 @@ class BookRepositoryImpl @Inject constructor(
         return result
     }
 
+    override suspend fun applySyncedReadNext(
+        syncId: String,
+        fileHash: String,
+        addedAt: Long?,
+        remoteUpdatedAt: Long,
+    ): Boolean {
+        if (syncId.isBlank() || fileHash.isBlank() || remoteUpdatedAt <= 0L || (addedAt != null && addedAt <= 0L)) {
+            return false
+        }
+        return database.withTransaction {
+            val book = bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash) ?: return@withTransaction false
+            val local = book.readNextState()
+            val remote = ReadNextState(addedAt = addedAt, updatedAt = remoteUpdatedAt)
+            if (remote.version <= local.version) return@withTransaction false
+            bookDao.applySyncedReadNext(book.id, remote.addedAt, remote.version)
+            if (remote.addedAt != null) trimReadNextQueueKeepingUpdatedAt()
+            true
+        }
+    }
+
     override suspend fun addReadingTime(id: Long, addedSeconds: Long) {
         bookDao.addReadingTime(id, addedSeconds, System.currentTimeMillis())
     }
@@ -615,6 +635,7 @@ internal fun BookEntity.toDomain(): Book = Book(
     customFontFamily = customFontFamily,
     customSideMarginPercent = customSideMarginPercent,
     readNextAddedAt = readNextAddedAt,
+    readNextUpdatedAt = readNextUpdatedAt,
     goodreadsUrl = goodreadsUrl,
     goodreadsRating = goodreadsRating,
     goodreadsRatingsCount = goodreadsRatingsCount,

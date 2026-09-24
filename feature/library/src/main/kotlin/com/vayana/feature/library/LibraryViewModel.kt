@@ -751,6 +751,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             val bumped = bookRepository.setReadNext(bookId, queued)
             if (bumped.isNotEmpty()) readNextBumpedEvents.emit(bumped)
+            readingProgressOnlySyncer.syncReadingProgress(force = true)
         }
     }
 
@@ -1890,6 +1891,8 @@ class LibraryViewModel @Inject constructor(
                             startedReadingAt = book.startedReadingAt,
                             finishedReadingAt = book.finishedReadingAt,
                             totalReadingSeconds = book.totalReadingSeconds,
+                            readNextAddedAt = book.readNextAddedAt,
+                            readNextUpdatedAt = book.readNextUpdatedAt,
                         )
                     },
                     exportedAt = System.currentTimeMillis(),

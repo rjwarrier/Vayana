@@ -294,6 +294,69 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
+    fun progressOnlyPatchAddsAndRemovesReadNextWithoutReadingPosition() {
+        val original = """
+            {
+              "exportedAt": 1000,
+              "books": [
+                {
+                  "syncId": "book-cloud",
+                  "fileHash": "hash-cloud",
+                  "updatedAt": 1000
+                }
+              ]
+            }
+        """.trimIndent()
+        val queued = patchPortableReadingProgressOnly(
+            jsonText = original,
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = null,
+                    readingPercent = 0f,
+                    lastReadAt = null,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 0,
+                    readNextAddedAt = 2000,
+                    readNextUpdatedAt = 2000,
+                ),
+            ),
+            exportedAt = 2500,
+        )
+        val queuedBook = JSONObject(queued.jsonText).getJSONArray("books").getJSONObject(0)
+        assertEquals(1, queued.patched)
+        assertEquals(2000L, queuedBook.getLong("readNextAddedAt"))
+        assertEquals(2000L, queuedBook.getLong("readNextUpdatedAt"))
+
+        val removed = patchPortableReadingProgressOnly(
+            jsonText = queued.jsonText,
+            patches = listOf(
+                PortableReadingProgressPatch(
+                    fileHash = "hash-cloud",
+                    lastLocator = null,
+                    readingPercent = 0f,
+                    lastReadAt = null,
+                    startedReadingAt = null,
+                    finishedReadingAt = null,
+                    totalReadingSeconds = 0,
+                    readNextAddedAt = null,
+                    readNextUpdatedAt = 3000,
+                ),
+            ),
+            exportedAt = 3500,
+        )
+        val removedBook = JSONObject(removed.jsonText).getJSONArray("books").getJSONObject(0)
+        assertTrue(removedBook.isNull("readNextAddedAt"))
+        assertEquals(3000L, removedBook.getLong("readNextUpdatedAt"))
+        val parsed = parsePortableReadingProgressSnapshot(removed.jsonText)
+        assertEquals(0, parsed.progresses.size)
+        assertEquals(1, parsed.readNextStates.size)
+        assertEquals(null, parsed.readNextStates.single().addedAt)
+        assertEquals(3000L, parsed.readNextStates.single().updatedAt)
+    }
+
+    @Test
     fun progressOnlyPatchSkipsStaleLocalProgress() {
         val json = """
             {

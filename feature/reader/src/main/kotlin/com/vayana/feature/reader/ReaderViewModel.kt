@@ -568,6 +568,12 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    fun updateOverridePublisherTypography(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.update(SettingsRegistry.ReaderPublisherStyles, !enabled)
+        }
+    }
+
     /** Turns per-book style overrides on (seeded from the current effective style) or off (reset to the global default). */
     fun setUseCustomStyle(enabled: Boolean) {
         if (enabled) {
@@ -1431,6 +1437,7 @@ private fun SettingsSnapshot.toBookStyle(): BookStyle = BookStyle(
     fontFamily = readerFontFamilyCss,
     customFontFileName = selectedImportedFont?.fileName,
     sideMarginPercent = readerSideMarginPercent,
+    overridePublisherTypography = !readerUsePublisherStyles,
     bionicReading = readerBionicReading,
     boldText = readerBolderText,
     textAlign = when (readerTextAlign) {

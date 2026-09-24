@@ -966,6 +966,8 @@
     <string name="reader_add_bookmark_content_description">Add bookmark</string>
     <string name="reader_return_to_previous_position_content_description">Back to where you were</string>
     <string name="reader_use_custom_style_for_book">Custom style for this book</string>
+    <string name="reader_override_book_typography_title">Override book typography</string>
+    <string name="reader_override_book_typography_subtitle">Use the selected font and text size when the book tries to replace them.</string>
     <string name="reader_hide_notes_panel">Hide notes panel</string>
     <string name="reader_show_notes_panel">Show notes panel</string>
     <string name="reader_refresh_screen_content_description">Refresh screen (clear ghosting)</string>

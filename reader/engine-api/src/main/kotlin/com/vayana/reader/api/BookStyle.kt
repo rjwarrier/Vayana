@@ -11,6 +11,8 @@ data class BookStyle(
     val fontFamily: String? = null,
     val customFontFileName: String? = null,
     val sideMarginPercent: Int = 10,
+    /** Ignore font families and paragraph sizes supplied by the book so reader typography controls work. */
+    val overridePublisherTypography: Boolean = false,
     val bionicReading: Boolean = false,
     /** Slide pages when turning instead of switching instantly. */
     val pageTurnAnimation: Boolean = false,

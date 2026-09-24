@@ -321,6 +321,18 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             append("body p,body div,body span,body li,body blockquote,body dd,body dt,body a,body em,body strong{")
             append("line-height:inherit !important;")
             append("}")
+            if (style.overridePublisherTypography) {
+                // A declaration on a child beats a value inherited from body, even when the body's
+                // declaration is important. Apply the selected family to text elements while leaving
+                // code/preformatted content alone, and keep heading sizes while normalizing body copy.
+                append("body p,body div,body span,body li,body blockquote,body dd,body dt,body a,body em,body strong,")
+                append("body h1,body h2,body h3,body h4,body h5,body h6{")
+                append("font-family:inherit !important;")
+                append("}")
+                append("body p,body li,body blockquote,body dd,body dt{")
+                append("font-size:inherit !important;")
+                append("}")
+            }
             if (style.boldText) {
                 // Inherited, so the body alone reaches every letter; each keeps its own colour.
                 append("body{-webkit-text-stroke:$BoldTextStrokePx currentColor !important;}")

@@ -56,6 +56,7 @@ data class Book(
     val customFontFamily: String? = null,
     val customSideMarginPercent: Int? = null,
     val readNextAddedAt: Long? = null,
+    val readNextUpdatedAt: Long? = null,
     val goodreadsUrl: String? = null,
     val goodreadsRating: Float? = null,
     val goodreadsRatingsCount: Int? = null,

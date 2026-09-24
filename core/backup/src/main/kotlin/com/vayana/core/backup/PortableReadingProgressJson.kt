@@ -19,6 +19,14 @@ data class PortableReadingProgressSnapshot(
     val deviceLabel: String?,
     val exportedAt: Long?,
     val progresses: List<PortableReadingProgress>,
+    val readNextStates: List<PortableReadNextState> = emptyList(),
+)
+
+data class PortableReadNextState(
+    val syncId: String,
+    val fileHash: String,
+    val addedAt: Long?,
+    val updatedAt: Long,
 )
 
 data class PortableCloudBook(
@@ -65,6 +73,8 @@ data class PortableReadingProgressPatch(
     val startedReadingAt: Long?,
     val finishedReadingAt: Long?,
     val totalReadingSeconds: Long,
+    val readNextAddedAt: Long? = null,
+    val readNextUpdatedAt: Long? = null,
 )
 
 data class PortableReadingProgressPatchResult(
@@ -99,15 +109,7 @@ fun patchPortableReadingProgressOnly(
     require(books.length() <= MaxPortableProgressBooks) { "Portable snapshot has too many books" }
     val patchesByFileHash = patches
         .asSequence()
-        .filter { patch ->
-            patch.fileHash.isNotBlank() &&
-                patch.fileHash.length <= MaxFileHashChars &&
-                !patch.lastLocator.isNullOrBlank() &&
-                patch.lastLocator.length <= MaxLocatorChars &&
-                !patch.readingPercent.isNaN() &&
-                !patch.readingPercent.isInfinite() &&
-                (patch.lastReadAt ?: 0L) > 0L
-        }
+        .filter { patch -> patch.fileHash.isNotBlank() && patch.fileHash.length <= MaxFileHashChars }
         .associateBy { it.fileHash }
     var patched = 0
 
@@ -117,20 +119,40 @@ fun patchPortableReadingProgressOnly(
         book.optBoundedString("syncId", MaxSyncIdChars) ?: continue
         val fileHash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
         val patch = patchesByFileHash[fileHash] ?: continue
-        val localVersion = patch.lastReadAt ?: continue
-        val remoteVersion = book.optPositiveLongOrNull("lastReadAt")
+        var bookPatched = false
+        val remoteProgressVersion = book.optPositiveLongOrNull("lastReadAt")
             ?: book.optPositiveLongOrNull("updatedAt")
             ?: 0L
-        if (localVersion <= remoteVersion) continue
 
-        book.put("lastLocator", patch.lastLocator)
-        book.put("readingPercent", patch.readingPercent.coerceIn(0f, 1f).toDouble())
-        book.putNullable("lastReadAt", patch.lastReadAt)
-        book.putNullable("startedReadingAt", patch.startedReadingAt)
-        book.putNullable("finishedReadingAt", patch.finishedReadingAt)
-        book.put("totalReadingSeconds", patch.totalReadingSeconds.coerceAtLeast(0L))
-        book.put("updatedAt", maxOf(book.optLong("updatedAt", 0L), localVersion))
-        patched += 1
+        val localReadNextVersion = patch.readNextUpdatedAt ?: patch.readNextAddedAt ?: 0L
+        val remoteReadNextVersion = book.optPositiveLongOrNull("readNextUpdatedAt")
+            ?: book.optPositiveLongOrNull("readNextAddedAt")
+            ?: 0L
+        val validReadNextState = localReadNextVersion > 0L &&
+            (patch.readNextAddedAt == null || patch.readNextAddedAt > 0L)
+        if (validReadNextState && localReadNextVersion > remoteReadNextVersion) {
+            book.putNullable("readNextAddedAt", patch.readNextAddedAt)
+            book.put("readNextUpdatedAt", localReadNextVersion)
+            book.put("updatedAt", maxOf(book.optLong("updatedAt", 0L), localReadNextVersion))
+            bookPatched = true
+        }
+
+        val localProgressVersion = patch.lastReadAt ?: 0L
+        val validProgress = !patch.lastLocator.isNullOrBlank() &&
+            patch.lastLocator.length <= MaxLocatorChars &&
+            patch.readingPercent.isFinite() &&
+            localProgressVersion > 0L
+        if (validProgress && localProgressVersion > remoteProgressVersion) {
+            book.put("lastLocator", patch.lastLocator)
+            book.put("readingPercent", patch.readingPercent.coerceIn(0f, 1f).toDouble())
+            book.putNullable("lastReadAt", patch.lastReadAt)
+            book.putNullable("startedReadingAt", patch.startedReadingAt)
+            book.putNullable("finishedReadingAt", patch.finishedReadingAt)
+            book.put("totalReadingSeconds", patch.totalReadingSeconds.coerceAtLeast(0L))
+            book.put("updatedAt", maxOf(book.optLong("updatedAt", 0L), localProgressVersion))
+            bookPatched = true
+        }
+        if (bookPatched) patched += 1
     }
 
     val sessionsAdded = root.appendMissingReadingSessions(readingSessions)
@@ -328,34 +350,44 @@ fun parsePortableReadingProgressSnapshot(jsonText: String): PortableReadingProgr
         deviceLabel = root.optBoundedString("deviceLabel", MaxDeviceLabelChars),
         exportedAt = root.optPositiveLongOrNull("exportedAt"),
         progresses = emptyList(),
+        readNextStates = emptyList(),
     )
     require(books.length() <= MaxPortableProgressBooks) { "Portable snapshot has too many books" }
-    val progresses = buildList {
-        for (index in 0 until books.length()) {
-            val book = books.optJSONObject(index) ?: continue
-            val syncId = book.optBoundedString("syncId", MaxSyncIdChars) ?: continue
-            val fileHash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
-            val lastLocator = book.optBoundedString("lastLocator", MaxLocatorChars) ?: continue
-            val updatedAt = book.optLong("updatedAt", 0L).takeIf { it > 0L } ?: continue
-            add(
-                PortableReadingProgress(
-                    syncId = syncId,
-                    fileHash = fileHash,
-                    lastLocator = lastLocator,
-                    readingPercent = book.optDouble("readingPercent", 0.0).toFloat().coerceIn(0f, 1f),
-                    lastReadAt = book.optPositiveLongOrNull("lastReadAt"),
-                    updatedAt = updatedAt,
-                    startedReadingAt = book.optPositiveLongOrNull("startedReadingAt"),
-                    finishedReadingAt = book.optPositiveLongOrNull("finishedReadingAt"),
-                    totalReadingSeconds = book.optLong("totalReadingSeconds", 0L).coerceAtLeast(0L),
-                ),
+    val progresses = ArrayList<PortableReadingProgress>()
+    val readNextStates = ArrayList<PortableReadNextState>()
+    for (index in 0 until books.length()) {
+        val book = books.optJSONObject(index) ?: continue
+        val syncId = book.optBoundedString("syncId", MaxSyncIdChars) ?: continue
+        val fileHash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
+        val readNextAddedAt = book.optPositiveLongOrNull("readNextAddedAt")
+        val readNextUpdatedAt = book.optPositiveLongOrNull("readNextUpdatedAt") ?: readNextAddedAt
+        if (readNextUpdatedAt != null) {
+            readNextStates += PortableReadNextState(
+                syncId = syncId,
+                fileHash = fileHash,
+                addedAt = readNextAddedAt,
+                updatedAt = readNextUpdatedAt,
             )
         }
+        val lastLocator = book.optBoundedString("lastLocator", MaxLocatorChars) ?: continue
+        val updatedAt = book.optLong("updatedAt", 0L).takeIf { it > 0L } ?: continue
+        progresses += PortableReadingProgress(
+            syncId = syncId,
+            fileHash = fileHash,
+            lastLocator = lastLocator,
+            readingPercent = book.optDouble("readingPercent", 0.0).toFloat().coerceIn(0f, 1f),
+            lastReadAt = book.optPositiveLongOrNull("lastReadAt"),
+            updatedAt = updatedAt,
+            startedReadingAt = book.optPositiveLongOrNull("startedReadingAt"),
+            finishedReadingAt = book.optPositiveLongOrNull("finishedReadingAt"),
+            totalReadingSeconds = book.optLong("totalReadingSeconds", 0L).coerceAtLeast(0L),
+        )
     }
     return PortableReadingProgressSnapshot(
         deviceLabel = root.optBoundedString("deviceLabel", MaxDeviceLabelChars),
         exportedAt = root.optPositiveLongOrNull("exportedAt"),
         progresses = progresses,
+        readNextStates = readNextStates,
     )
 }
 

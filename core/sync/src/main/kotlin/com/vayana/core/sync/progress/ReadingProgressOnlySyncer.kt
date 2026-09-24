@@ -2,13 +2,14 @@ package com.vayana.core.sync.progress
 
 import com.vayana.core.backup.PortableReadingProgress
 import com.vayana.core.backup.PortableReadingProgressPatch
+import com.vayana.core.backup.PortableReadNextState
 import com.vayana.core.backup.PortableTombstone
 import com.vayana.core.backup.parsePortableWordLookupCounters
 import com.vayana.core.backup.parsePortableReadingSessions
 import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.PortableReadingSession
-import com.vayana.core.backup.parsePortableReadingProgresses
+import com.vayana.core.backup.parsePortableReadingProgressSnapshot
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.runCatchingCancellable
@@ -140,6 +141,8 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 startedReadingAt = book.startedReadingAt,
                 finishedReadingAt = book.finishedReadingAt,
                 totalReadingSeconds = book.totalReadingSeconds,
+                readNextAddedAt = book.readNextAddedAt,
+                readNextUpdatedAt = book.readNextUpdatedAt,
             )
         }
         val readingSessions = readingSessionRepository.observeAll().first()
@@ -185,7 +188,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                         RemotePortableSnapshotSlice.WordLookupCounters,
                     ),
                 )
-                val parseAttempt = runCatchingCancellable { parsePortableReadingProgresses(booksJson) }
+                val parseAttempt = runCatchingCancellable { parsePortableReadingProgressSnapshot(booksJson) }
                 parseAttempt.onFailure { throwable ->
                     return@withContext ReadingProgressSyncResult(
                         status = ReadingProgressSyncStatus.FAILED,
@@ -193,7 +196,9 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     )
                 }
                 pulled = pullRemoteTombstones(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
-                pulled += pullRemoteProgress(parseAttempt.getOrDefault(emptyList()))
+                val parsedBooks = parseAttempt.getOrThrow()
+                pulled += pullRemoteProgress(parsedBooks.progresses)
+                pulled += pullRemoteReadNext(parsedBooks.readNextStates)
                 pulled += pullRemoteReadingSessions(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
                 pulled += pullRemoteWordLookupCounters(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
             }
@@ -272,6 +277,29 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     category = DiagnosticCategory.SYNC,
                     source = "ReadingProgressOnlySyncer.pullRemoteProgress",
                     message = "Failed to apply remote progress for one book: ${throwable.message}",
+                )
+            }
+        }
+        return applied
+    }
+
+    private suspend fun pullRemoteReadNext(states: List<PortableReadNextState>): Int {
+        var applied = 0
+        for (state in states) {
+            val attempt = runCatchingCancellable {
+                bookRepository.applySyncedReadNext(
+                    syncId = state.syncId,
+                    fileHash = state.fileHash,
+                    addedAt = state.addedAt,
+                    remoteUpdatedAt = state.updatedAt,
+                )
+            }
+            attempt.onSuccess { changed -> if (changed) applied += 1 }
+            attempt.onFailure { throwable ->
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer.pullRemoteReadNext",
+                    message = "Failed to apply remote Read Next state: ${throwable.message}",
                 )
             }
         }

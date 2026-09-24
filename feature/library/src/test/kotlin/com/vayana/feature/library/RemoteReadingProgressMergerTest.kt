@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 class RemoteReadingProgressMergerTest {
     private val repositoryCalls = mutableListOf<String>()
     private val appliedSyncIds = mutableListOf<String>()
+    private val appliedReadNextSyncIds = mutableListOf<String>()
     private var tombstoneMerges = 0
     private val tombstoneScopes = mutableListOf<TombstoneMergeScope>()
 
@@ -21,10 +22,18 @@ class RemoteReadingProgressMergerTest {
         arrayOf(BookRepository::class.java),
     ) { _, method, args ->
         repositoryCalls += method.name
-        check(method.name == "applySyncedReadingProgress") { "Unexpected BookRepository.${method.name}" }
-        val syncId = args[0] as String
-        appliedSyncIds += syncId
-        if (syncId == "stale") ReadingProgressMergeResult.LocalNewer else ReadingProgressMergeResult.AppliedRemote
+        when (method.name) {
+            "applySyncedReadingProgress" -> {
+                val syncId = args[0] as String
+                appliedSyncIds += syncId
+                if (syncId == "stale") ReadingProgressMergeResult.LocalNewer else ReadingProgressMergeResult.AppliedRemote
+            }
+            "applySyncedReadNext" -> {
+                appliedReadNextSyncIds += args[0] as String
+                true
+            }
+            else -> error("Unexpected BookRepository.${method.name}")
+        }
     } as BookRepository
 
     private val merger = RemoteReadingProgressMerger(
@@ -56,6 +65,23 @@ class RemoteReadingProgressMergerTest {
 
         assertEquals(1, tombstoneMerges)
         assertTrue(repositoryCalls.all { it == "applySyncedReadingProgress" })
+    }
+
+    @Test
+    fun mergeAppliesReadNextStateWithoutReadingPosition() = runBlocking {
+        val summary = merger.mergeProgress(
+            """
+            {
+              "books": [
+                {"syncId": "queued", "fileHash": "h3", "updatedAt": 20, "readNextAddedAt": 20, "readNextUpdatedAt": 20}
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("queued"), appliedReadNextSyncIds)
+        assertEquals(1, summary.applied)
+        assertTrue(summary.appliedSyncIds.isEmpty())
     }
 
     @Test
