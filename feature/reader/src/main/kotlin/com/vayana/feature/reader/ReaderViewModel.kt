@@ -72,6 +72,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
@@ -213,8 +214,11 @@ class ReaderViewModel @Inject constructor(
     private var lastUsedHighlightColor: String = DefaultAnnotationColor
     private var autoMarkedSelectionCfi: String? = null
     private val pageTurnAutoSyncGate = PageTurnAutoSyncGate { settings.value.readingAutoSyncEveryPages }
+    private val resumeProgressSyncGate = ReaderResumeSyncGate()
     private var autoProgressSyncJob: Job? = null
     private var autoProgressSyncRequested = false
+    private var autoProgressSyncForceRequested = false
+    private var autoProgressSyncResumeGeneration: Long? = null
     private val _syncStatus = MutableStateFlow<ReaderSyncStatus>(ReaderSyncStatus.Idle)
     val syncStatus: StateFlow<ReaderSyncStatus> = _syncStatus
 
@@ -255,6 +259,7 @@ class ReaderViewModel @Inject constructor(
 
     /** The locator the debounced write still owes the database, or null once that write has landed. */
     private var pendingLocatorWrite: PendingLocatorWrite? = null
+    private var locatorDeferredByResumeSync: Locator? = null
     private var pendingRemoteReadingPosition: SavedReadingPosition? = null
     private val readingPositionPromptDecider = ReadingPositionPromptDecider()
     private val _activeReadingSessionSeconds = MutableStateFlow(0L)
@@ -270,6 +275,7 @@ class ReaderViewModel @Inject constructor(
         bookOpen = false
         _readingPositionPrompt.value = null
         pendingRemoteReadingPosition = null
+        locatorDeferredByResumeSync = null
         lastReaderWrittenLocator = null
 
         engineJobs += viewModelScope.launch {
@@ -360,20 +366,15 @@ class ReaderViewModel @Inject constructor(
                     showRemoteReadingPositionPromptIfNeeded(remotePosition, locator)
                 }
                 if (_readingPositionPrompt.value == null) {
-                    locator.cfi?.let { cfi ->
-                        lastReaderWrittenLocator = cfi
-                        // The WebView bridge can fire several 'relocate' events for a single page
-                        // turn in quick succession; debounce so each one doesn't hit Room.
-                        val write = PendingLocatorWrite(cfi, locator.progression)
-                        pendingLocatorWrite = write
-                        locatorPersistJob?.cancel()
-                        locatorPersistJob = viewModelScope.launch {
-                            delay(LocatorPersistDebounceMillis)
-                            bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
-                            if (pendingLocatorWrite === write) pendingLocatorWrite = null
-                        }
+                    if (resumeProgressSyncGate.blocksPositionWrites) {
+                        // Keep only the newest relocation. If the sync finds no remote conflict it
+                        // still needs to be persisted; dropping it can lose a page turn made while
+                        // a slow resume check is running.
+                        locatorDeferredByResumeSync = locator
+                    } else {
+                        locatorDeferredByResumeSync = null
+                        persistReaderLocator(locator)
                     }
-                    onPageMoved(locator)
                 }
             }
         }
@@ -984,7 +985,10 @@ class ReaderViewModel @Inject constructor(
             remotePosition = remotePosition,
             currentLocator = currentLocator,
             lastReaderWrittenLocator = lastReaderWrittenLocator,
-        )?.let { prompt -> _readingPositionPrompt.value = prompt }
+        )?.let { prompt ->
+            locatorDeferredByResumeSync = null
+            _readingPositionPrompt.value = prompt
+        }
     }
 
     private fun refreshReadingPositionPromptCurrentLocation(locator: Locator) {
@@ -1070,6 +1074,11 @@ class ReaderViewModel @Inject constructor(
     fun onResume() {
         readerResumed = true
         persistReadingTime(readingTimeTracker.flush(System.currentTimeMillis()))
+        resumeProgressSyncGate.onResume(bookOpen)?.let { generation ->
+            // A reader kept open in the background has not seen progress made on another device.
+            // Force a pull before this WebView can save its stale locator as the newest position.
+            requestAutoProgressSync(force = true, resumeGeneration = generation)
+        }
     }
 
     fun onPause() {
@@ -1078,6 +1087,7 @@ class ReaderViewModel @Inject constructor(
         trackingJob?.cancel()
         trackingJob = null
         flushPendingLocatorWrite()
+        resumeProgressSyncGate.onPause(bookOpen)
     }
 
     /** Guarantees the last-seen position is saved immediately, bypassing the debounce, when the
@@ -1100,6 +1110,7 @@ class ReaderViewModel @Inject constructor(
     fun acceptReadingPositionPrompt() {
         val prompt = _readingPositionPrompt.value ?: return
         _readingPositionPrompt.value = null
+        locatorDeferredByResumeSync = null
         lastReaderWrittenLocator = prompt.targetLocator
         dispatch(
             NavTarget.ToLocator(
@@ -1110,6 +1121,7 @@ class ReaderViewModel @Inject constructor(
 
     fun dismissReadingPositionPrompt() {
         _readingPositionPrompt.value = null
+        locatorDeferredByResumeSync = null
         val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator ?: return
         val currentCfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
         lastReaderWrittenLocator = currentCfi
@@ -1125,30 +1137,77 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    private suspend fun persistReaderLocator(locator: Locator) {
+        locator.cfi?.let { cfi ->
+            lastReaderWrittenLocator = cfi
+            // The WebView bridge can fire several 'relocate' events for a single page turn in
+            // quick succession; debounce so each one doesn't hit Room.
+            val write = PendingLocatorWrite(cfi, locator.progression)
+            pendingLocatorWrite = write
+            locatorPersistJob?.cancel()
+            locatorPersistJob = viewModelScope.launch {
+                delay(LocatorPersistDebounceMillis)
+                bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
+                if (pendingLocatorWrite === write) pendingLocatorWrite = null
+            }
+        }
+        onPageMoved(locator)
+    }
+
+    private suspend fun persistLocatorDeferredByResumeSync() {
+        // Give a remote-progress event emitted by the sync one main-loop turn to install its
+        // prompt before deciding that the retained local relocation is safe to save.
+        yield()
+        if (resumeProgressSyncGate.blocksPositionWrites) return
+        if (_readingPositionPrompt.value != null) {
+            locatorDeferredByResumeSync = null
+            return
+        }
+        val locator = locatorDeferredByResumeSync ?: return
+        locatorDeferredByResumeSync = null
+        persistReaderLocator(locator)
+    }
+
     fun onReaderInteraction() {
         if (!readerResumed || !bookOpen) return
         persistReadingTime(readingTimeTracker.interact(System.currentTimeMillis()))
         startReadingTimeTicker()
     }
 
-    private fun requestAutoProgressSync() {
+    private fun requestAutoProgressSync(
+        force: Boolean = false,
+        resumeGeneration: Long? = null,
+    ) {
+        autoProgressSyncRequested = true
+        autoProgressSyncForceRequested = autoProgressSyncForceRequested || force
+        if (resumeGeneration != null) autoProgressSyncResumeGeneration = resumeGeneration
         val runningJob = autoProgressSyncJob
         if (runningJob?.isActive == true) {
-            autoProgressSyncRequested = true
             return
         }
         autoProgressSyncJob = viewModelScope.launch {
             do {
                 autoProgressSyncRequested = false
+                val forceThisRun = autoProgressSyncForceRequested
+                autoProgressSyncForceRequested = false
+                val resumeGenerationThisRun = autoProgressSyncResumeGeneration
+                autoProgressSyncResumeGeneration = null
                 _syncStatus.value = ReaderSyncStatus.Syncing
-                val result = readingProgressOnlySyncer.syncReadingProgress()
+                val result = try {
+                    readingProgressOnlySyncer.syncReadingProgress(force = forceThisRun)
+                } finally {
+                    val released = resumeGenerationThisRun?.let(resumeProgressSyncGate::onSyncFinished) == true
+                    if (released) viewModelScope.launch { persistLocatorDeferredByResumeSync() }
+                }
                 // Throttled means we didn't actually check anything; looping immediately would
                 // just spin until the window clears. A later page turn will trigger a fresh call.
+                // A queued forced resume check is different: let the loop run it immediately.
                 if (result.status == ReadingProgressSyncStatus.THROTTLED) {
                     // Nothing ran, so the dot must not keep claiming a sync is in flight. Fall back to
                     // whatever the last real attempt concluded rather than inventing a fresh verdict.
                     _syncStatus.value = lastSettledSyncStatus
-                    break
+                    if (!autoProgressSyncRequested) break
+                    continue
                 }
                 updateSyncStatus(result)
             } while (autoProgressSyncRequested)

@@ -46,14 +46,15 @@ class ReadingPositionPromptDeciderTest {
     }
 
     @Test
-    fun ignoresNearlySameProgress() {
+    fun promptsWhenAnewerRemoteLocatorHasNearlySameProgress() {
         val prompt = decider.promptForRemote(
             remotePosition = SavedReadingPosition(locator = "remote-cfi", progress = 0.2005f, version = 200L),
             currentLocator = locator(cfi = "current-cfi", progress = 0.2f),
             lastReaderWrittenLocator = "current-cfi",
         )
 
-        assertNull(prompt)
+        assertNotNull(prompt)
+        assertEquals("remote-cfi", prompt.targetLocator)
     }
 
     private fun locator(

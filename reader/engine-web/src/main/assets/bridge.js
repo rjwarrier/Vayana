@@ -298,6 +298,7 @@ async function open(bookUrl, lastLocatorCfi) {
         resolvedBadgeCfis.clear()
         popularBadgesBySection.clear()
         popularBadgeIndexDirty = true
+        resetPopularBadgeResolutionRetries()
         annotationRevision++
         hasOpened = false
         phase = 'fetching book'
@@ -364,9 +365,15 @@ async function open(bookUrl, lastLocatorCfi) {
             if (hasOpened) queueDocumentEnhancements(doc, index)
         })
         view.addEventListener('create-overlay', e => {
-            const { index } = e.detail
-            const obj = view.renderer.getContents().find(x => x.index === index)
-            if (obj?.doc && hasOpened) queueDocumentEnhancements(obj.doc, index)
+            const { doc, index } = e.detail
+            if (doc) {
+                // The event is emitted just before Foliate attaches the overlay. Queueing onto
+                // the next task makes failed early annotation draws retry against the real overlay.
+                resetPopularBadgeResolutionRetries()
+                popularBadgeIndexDirty = true
+                queueDocumentEnhancements(doc, index)
+                scheduleBadgeLayout()
+            }
         })
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
@@ -391,6 +398,10 @@ async function open(bookUrl, lastLocatorCfi) {
                     return g
                 })
                 // The overlay redraws whenever the page is re-paginated; the pills beside it must follow.
+                if (annotation.popular) {
+                    resetPopularBadgeResolutionRetries()
+                    popularBadgeIndexDirty = true
+                }
                 scheduleBadgeLayout()
             } else {
                 const inkStyle = inkStyleFor(annotation.color ?? DefaultAnnotationColor)
@@ -475,10 +486,34 @@ const resolvedBadgeCfis = new Map()
 const popularBadgesBySection = new Map()
 let popularBadgeIndexDirty = true
 let badgeLayoutQueued = false
+let popularBadgeResolutionRetryTimer = null
+let popularBadgeResolutionRetryAttempts = 0
+const MaxPopularBadgeResolutionRetries = 3
+
+function resetPopularBadgeResolutionRetries() {
+    popularBadgeResolutionRetryAttempts = 0
+    if (popularBadgeResolutionRetryTimer !== null) {
+        window.clearTimeout(popularBadgeResolutionRetryTimer)
+        popularBadgeResolutionRetryTimer = null
+    }
+}
+
+/** A renderer transition can make CFI resolution fail for a frame; retry briefly without polling forever. */
+function schedulePopularBadgeResolutionRetry() {
+    if (popularBadgeResolutionRetryTimer !== null ||
+        popularBadgeResolutionRetryAttempts >= MaxPopularBadgeResolutionRetries) return
+    const delay = 32 * (2 ** popularBadgeResolutionRetryAttempts++)
+    popularBadgeResolutionRetryTimer = window.setTimeout(() => {
+        popularBadgeResolutionRetryTimer = null
+        popularBadgeIndexDirty = true
+        scheduleBadgeLayout()
+    }, delay)
+}
 
 /** Resolve and parse annotations when they change, not on every page turn. */
 function rebuildPopularBadgeIndex() {
     popularBadgesBySection.clear()
+    let unresolved = false
     const byCfi = new Map()
     for (const ann of activeAnnotationsList) {
         if (!ann.popular) continue
@@ -494,13 +529,19 @@ function rebuildPopularBadgeIndex() {
     }
     for (const [cfi, metadata] of byCfi) {
         let resolved = resolvedBadgeCfis.get(cfi)
-        if (resolved === undefined) {
+        if (resolved == null) {
             try {
                 resolved = view.resolveCFI(cfi)
             } catch (_) {
                 resolved = null
             }
-            resolvedBadgeCfis.set(cfi, resolved)
+            // A null here is normally a transient renderer/overlay timing miss. Do not make it
+            // permanent: retry after the renderer has had another chance to settle.
+            if (resolved) resolvedBadgeCfis.set(cfi, resolved)
+            else {
+                resolvedBadgeCfis.delete(cfi)
+                unresolved = true
+            }
         }
         if (resolved) {
             const group = popularBadgesBySection.get(resolved.index) ?? []
@@ -508,7 +549,9 @@ function rebuildPopularBadgeIndex() {
             popularBadgesBySection.set(resolved.index, group)
         }
     }
-    popularBadgeIndexDirty = false
+    popularBadgeIndexDirty = unresolved
+    if (unresolved) schedulePopularBadgeResolutionRetry()
+    else resetPopularBadgeResolutionRetries()
 }
 
 function scheduleBadgeLayout() {
@@ -1242,6 +1285,7 @@ async function applyAnnotations(annotations, generation) {
     if (generation !== annotationApplyGeneration) return
     activeAnnotationsList = annotations
     annotationRevision++
+    resetPopularBadgeResolutionRetries()
     popularBadgeIndexDirty = true
     scheduleBadgeLayout()
     const nextByValue = new Map(activeAnnotationsList.map(annotation => [annotation.value, annotation]))
@@ -1360,8 +1404,15 @@ function matchTextAnnotationsForDoc(doc, index) {
             type: match.ann.type || 'underline',
             color: match.ann.color || DefaultAnnotationColor,
             note: match.ann.note,
-        })).then(() => {
+            popular: match.ann.popular,
+        })).then(result => {
             if (generation !== annotationApplyGeneration) return
+            if (result?.drawn === false) {
+                // Foliate can resolve the CFI before its overlay is attached. Keep the quote
+                // unresolved so create-overlay/relocate retries it instead of caching a no-op.
+                completedMatchingRevision.delete(doc)
+                return
+            }
             renderedAnnotations.add(match.cfi)
             resolvedTextAnnotations.set(match.ann.value, match.cfi)
             resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))

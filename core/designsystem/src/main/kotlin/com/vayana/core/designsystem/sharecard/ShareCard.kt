@@ -2,8 +2,6 @@ package com.vayana.core.designsystem.sharecard
 
 import android.graphics.Bitmap
 import android.os.Build
-import androidx.compose.foundation.Image
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.painterResource
 import com.vayana.core.designsystem.theme.ColorSchemes
 import com.vayana.core.designsystem.theme.DisplayProfile
@@ -70,7 +68,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
-import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.ShareCardTypography
 import com.vayana.core.designsystem.tokens.Sizes
@@ -217,26 +214,22 @@ fun ShareCardDialog(
     }
 }
 
-/** Brand lockup on every share card: the launcher icon, as it looks on the home screen, beside the "vayana" wordmark. */
+/** Brand lockup on every share card: the unframed mark and wordmark share the card's accent colour. */
 @Composable
 internal fun ShareCardWordmark(tint: Color, wordmark: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
+        Icon(
+            painter = painterResource(R.drawable.vayana_app_mark),
+            contentDescription = null,
+            tint = tint,
             modifier = Modifier
                 .size(Sizes.icon)
-                .clip(RoundedCornerShape(Radii.extraSmall))
-                .background(Palette.LauncherCream),
-        ) {
-            // The mark is drawn on the adaptive icon's 108dp canvas, of which a launcher shows the middle two
-            // thirds; scale it up by the same amount so it fills the tile the way it fills the app icon.
-            Image(
-                painter = painterResource(R.drawable.vayana_app_mark),
-                contentDescription = null,
-                modifier = Modifier
-                    .matchParentSize()
-                    .scale(AdaptiveIconVisibleScale),
-            )
-        }
+                .drawWithContent {
+                    // The shared vector uses the adaptive-icon 108dp canvas. Enlarge only its
+                    // drawing so the unframed glyph fills this slot without restoring a tile.
+                    scale(AdaptiveIconVisibleScale) { this@drawWithContent.drawContent() }
+                },
+        )
         Spacer(modifier = Modifier.width(Spacing.sm))
         Text(text = wordmark, style = ShareCardTypography.wordmark, color = tint)
     }
@@ -711,7 +704,7 @@ private fun String.sanitizedShareTag(): String =
         .take(MaxBookShareTagChars)
         .trim()
 
-/** How much of the adaptive icon's canvas a launcher crops away: it shows the middle 72 of 108dp. */
+/** Launchers display the middle 72dp of the mark's 108dp adaptive-icon canvas. */
 private const val AdaptiveIconVisibleScale = 108f / 72f
 
 private const val MaxBookShareTags = 3

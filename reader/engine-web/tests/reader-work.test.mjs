@@ -47,6 +47,41 @@ test('warm community badge layout visits only loaded-section candidates', () => 
     assert.equal(window.document.body.querySelectorAll('div > div').length, 100)
 })
 
+test('community badge CFI resolution automatically retries after a transient renderer miss', async () => {
+    const { window } = new JSDOM('<body></body>')
+    const doc = { defaultView: { frameElement: { getBoundingClientRect: () => ({ left: 30, top: 0 }) } } }
+    let resolveAttempts = 0
+    const context = vm.createContext({
+        document: window.document,
+        window,
+        requestAnimationFrame: callback => callback(),
+        activeAnnotationsList: [{ popular: true, value: 'epubcfi(/6/2)', note: '12 highlights', color: '#111111' }],
+        resolvedTextAnnotations: new Map(),
+        DefaultAnnotationColor: '#111111',
+        markColor: color => color,
+        highlightCount: () => 12,
+        view: {
+            renderer: { scrolled: false, size: 400, start: 400, getContents: () => [{ index: 0, doc }] },
+            resolveCFI: () => {
+                resolveAttempts++
+                if (resolveAttempts === 1) return null
+                return {
+                    index: 0,
+                    anchor: () => ({ getClientRects: () => [{ left: 40, top: 10, height: 20 }] }),
+                }
+            },
+        },
+    })
+    vm.runInContext(bridge.slice(bridge.indexOf('function popularBadgePlacement'), bridge.indexOf("window.addEventListener('resize', scheduleBadgeLayout)")), context)
+
+    vm.runInContext('layoutPopularBadges()', context)
+    assert.equal(window.document.body.querySelectorAll('div > div').length, 0)
+
+    await new Promise(resolve => window.setTimeout(resolve, 80))
+    assert.equal(resolveAttempts, 2)
+    assert.equal(window.document.body.querySelectorAll('div > div').length, 1)
+})
+
 test('warm page statistics reuse section totals and the contents map', () => {
     const sections = Array.from({ length: 1_000 }, () => ({ linear: 'yes', size: 10_000 }))
     let contentsVisits = 0
@@ -137,6 +172,7 @@ test('annotation rendering applies the newest waiting snapshot after an in-fligh
         renderedAnnotations: new Set(),
         standardAnnotationFingerprints: new Map(),
         pendingQuoteAdds: new Set(),
+        resetPopularBadgeResolutionRetries: () => {},
         scheduleBadgeLayout: () => {},
         isTextAnnotationValue: () => false,
         matchTextAnnotationsForDoc: () => {},
@@ -177,6 +213,7 @@ test('a late quote match cannot restore an annotation removed by a newer snapsho
         unmatchedInDoc: new WeakMap(),
         completedMatchingRevision: new WeakMap(),
         DefaultAnnotationColor: '#111111',
+        resetPopularBadgeResolutionRetries: () => {},
         scheduleBadgeLayout: () => {},
         isTextAnnotationValue: () => true,
         findTextRangeInDoc: () => ({}),
@@ -218,6 +255,7 @@ test('editing a previously missing quote retries matching in the loaded document
         unmatchedInDoc: new WeakMap(),
         completedMatchingRevision: new WeakMap(),
         DefaultAnnotationColor: '#111111',
+        resetPopularBadgeResolutionRetries: () => {},
         scheduleBadgeLayout: () => {},
         isTextAnnotationValue: () => true,
         findTextRangeInDoc: (_, text) => text === 'Edited passage' ? {} : null,
@@ -232,4 +270,54 @@ test('editing a previously missing quote retries matching in the loaded document
     for (let turn = 0; turn < 30; turn++) await Promise.resolve()
     assert.deepEqual(added, ['epubcfi(/6/4)'])
     assert.equal(context.resolvedTextAnnotations.get('quote:1'), 'epubcfi(/6/4)')
+})
+
+test('a community quote stays retryable when its overlay is not attached yet', async () => {
+    const doc = {}
+    let overlayAttached = false
+    const addAttempts = []
+    const context = vm.createContext({
+        view: {
+            addAnnotation: async annotation => {
+                addAttempts.push(annotation.value)
+                return { drawn: overlayAttached }
+            },
+            deleteAnnotation: async () => {},
+            getCFI: () => 'epubcfi(/6/8)',
+            renderer: { getContents: () => [{ doc, index: 0 }] },
+        },
+        annotationRevision: 0,
+        popularBadgeIndexDirty: false,
+        resolvedTextAnnotations: new Map(),
+        resolvedTextFingerprints: new Map(),
+        authoritativeSourceForCfi: new Map(),
+        renderedAnnotations: new Set(),
+        standardAnnotationFingerprints: new Map(),
+        pendingTextAnnotations: new Set(),
+        pendingQuoteAdds: new Set(),
+        unmatchedInDoc: new WeakMap(),
+        completedMatchingRevision: new WeakMap(),
+        DefaultAnnotationColor: '#111111',
+        resetPopularBadgeResolutionRetries: () => {},
+        scheduleBadgeLayout: () => {},
+        isTextAnnotationValue: () => true,
+        findTextRangeInDoc: () => ({}),
+        rangeOverlapRatio: () => 0,
+        highlightCount: () => 8,
+        post: () => {},
+    })
+    vm.runInContext(bridge.slice(bridge.indexOf('let activeAnnotationsList'), bridge.indexOf('function highlightCount')), context)
+    const quote = { value: 'quote:1', text: 'A community passage', type: 'underline', popular: true }
+
+    context.renderAnnotations([quote])
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+    assert.equal(context.resolvedTextAnnotations.has('quote:1'), false)
+
+    overlayAttached = true
+    context.matchTextAnnotationsForDoc(doc, 0)
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+
+    assert.deepEqual(addAttempts, ['epubcfi(/6/8)', 'epubcfi(/6/8)'])
+    assert.equal(context.resolvedTextAnnotations.get('quote:1'), 'epubcfi(/6/8)')
+    assert.equal(context.renderedAnnotations.has('epubcfi(/6/8)'), true)
 })

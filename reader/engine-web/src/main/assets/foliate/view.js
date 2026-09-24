@@ -384,6 +384,7 @@ export class View extends HTMLElement {
         }
         const { index, anchor } = await this.resolveNavigation(value)
         const obj = this.#getOverlayer(index)
+        let drawn = false
         if (obj) {
             const { overlayer, doc } = obj
             overlayer.remove(value)
@@ -391,10 +392,13 @@ export class View extends HTMLElement {
                 const range = doc ? anchor(doc) : anchor
                 const draw = (func, opts) => overlayer.add(value, range, func, opts)
                 this.#emit('draw-annotation', { draw, annotation, doc, range })
+                drawn = true
             }
         }
         const label = this.#tocProgress.getProgress(index)?.label ?? ''
-        return { index, label }
+        // Resolving a CFI is not proof that its chapter overlay exists yet. Callers use
+        // this signal to keep an annotation retryable across the load/overlay race.
+        return { index, label, drawn }
     }
     deleteAnnotation(annotation) {
         return this.addAnnotation(annotation, true)
@@ -415,7 +419,9 @@ export class View extends HTMLElement {
         const list = this.#searchResults.get(index)
         if (list) for (const item of list) this.addAnnotation(item)
 
-        this.#emit('create-overlay', { index })
+        // Forward the document itself: paginator does not expose it through getContents()
+        // until after this callback returns and the overlay has been attached.
+        this.#emit('create-overlay', { doc, index })
         return overlayer
     }
     async showAnnotation(annotation) {
