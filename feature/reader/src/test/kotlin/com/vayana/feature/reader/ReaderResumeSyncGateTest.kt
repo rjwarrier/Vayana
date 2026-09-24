@@ -1,5 +1,7 @@
 package com.vayana.feature.reader
 
+import com.vayana.core.sync.progress.ReadingProgressSyncResult
+import com.vayana.core.sync.progress.ReadingProgressSyncStatus
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -43,5 +45,25 @@ class ReaderResumeSyncGateTest {
 
         assertNull(gate.onResume(bookOpen = true))
         assertFalse(gate.blocksPositionWrites)
+    }
+
+    @Test
+    fun `only a completed remote check may retain the automatic resume locator`() {
+        val completed = listOf(
+            ReadingProgressSyncStatus.NO_CHANGES,
+            ReadingProgressSyncStatus.PULLED,
+            ReadingProgressSyncStatus.PUSHED,
+            ReadingProgressSyncStatus.SYNCED,
+            ReadingProgressSyncStatus.SYNC_DISABLED,
+            ReadingProgressSyncStatus.CLOUD_MISSING,
+        )
+        val incomplete = listOf(
+            ReadingProgressSyncStatus.THROTTLED,
+            ReadingProgressSyncStatus.CONFIG_INCOMPLETE,
+            ReadingProgressSyncStatus.FAILED,
+        )
+
+        completed.forEach { status -> assertTrue(ReadingProgressSyncResult(status).remoteCheckCompleted, status.name) }
+        incomplete.forEach { status -> assertFalse(ReadingProgressSyncResult(status).remoteCheckCompleted, status.name) }
     }
 }

@@ -1195,9 +1195,22 @@ class ReaderViewModel @Inject constructor(
                 _syncStatus.value = ReaderSyncStatus.Syncing
                 val result = try {
                     readingProgressOnlySyncer.syncReadingProgress(force = forceThisRun)
-                } finally {
+                } catch (throwable: Throwable) {
                     val released = resumeGenerationThisRun?.let(resumeProgressSyncGate::onSyncFinished) == true
-                    if (released) viewModelScope.launch { persistLocatorDeferredByResumeSync() }
+                    if (released) locatorDeferredByResumeSync = null
+                    throw throwable
+                }
+                val released = resumeGenerationThisRun?.let(resumeProgressSyncGate::onSyncFinished) == true
+                if (released) {
+                    if (result.remoteCheckCompleted) {
+                        viewModelScope.launch { persistLocatorDeferredByResumeSync() }
+                    } else {
+                        // This relocation was emitted automatically by the surviving WebView on
+                        // resume. If cloud state was not checked, timestamping it as fresh could
+                        // later overwrite progress made on another device. A real page turn after
+                        // the gate opens will still persist normally.
+                        locatorDeferredByResumeSync = null
+                    }
                 }
                 // Throttled means we didn't actually check anything; looping immediately would
                 // just spin until the window clears. A later page turn will trigger a fresh call.

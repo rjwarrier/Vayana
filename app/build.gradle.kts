@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.vayana.app"
         versionCode = 1
-        versionName = "0.75"
+        versionName = "0.85"
     }
 
     buildTypes {

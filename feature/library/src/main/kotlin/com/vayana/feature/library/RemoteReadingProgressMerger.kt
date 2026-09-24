@@ -51,8 +51,12 @@ internal class RemoteReadingProgressMerger(
     suspend fun mergeProgress(snapshotJson: String): ReadingProgressMergeSummary {
         val remoteSnapshot = parsePortableReadingProgressSnapshot(snapshotJson)
         val localDeviceLabel = localDeviceLabel()
-        return remoteSnapshot.progresses.fold(ReadingProgressMergeSummary()) { summary, progress ->
-            val mergeResult = bookRepository.applySyncedReadingProgress(
+        var applied = 0
+        var skipped = 0
+        val appliedSyncIds = linkedSetOf<String>()
+        val conflicts = ArrayList<PortableSyncConflict>()
+        remoteSnapshot.progresses.forEach { progress ->
+            when (val mergeResult = bookRepository.applySyncedReadingProgress(
                 syncId = progress.syncId,
                 fileHash = progress.fileHash,
                 locator = progress.lastLocator,
@@ -62,24 +66,27 @@ internal class RemoteReadingProgressMerger(
                 startedReadingAt = progress.startedReadingAt,
                 finishedReadingAt = progress.finishedReadingAt,
                 totalReadingSeconds = progress.totalReadingSeconds,
-            )
-            when (mergeResult) {
-                ReadingProgressMergeResult.AppliedRemote -> summary.copy(
-                    applied = summary.applied + 1,
-                    appliedSyncIds = summary.appliedSyncIds + progress.syncId,
-                )
-                is ReadingProgressMergeResult.ConflictLocalKept -> summary.copy(
-                    conflicts = summary.conflicts + mergeResult.toPortableConflict(
-                        localDeviceLabel = localDeviceLabel,
-                        remoteDeviceLabel = remoteSnapshot.deviceLabel,
-                    ),
+            )) {
+                ReadingProgressMergeResult.AppliedRemote -> {
+                    applied += 1
+                    appliedSyncIds += progress.syncId
+                }
+                is ReadingProgressMergeResult.ConflictLocalKept -> conflicts += mergeResult.toPortableConflict(
+                    localDeviceLabel = localDeviceLabel,
+                    remoteDeviceLabel = remoteSnapshot.deviceLabel,
                 )
                 ReadingProgressMergeResult.LocalNewer,
                 ReadingProgressMergeResult.NoLocalMatch,
                 ReadingProgressMergeResult.InvalidRemote,
-                -> summary.copy(skipped = summary.skipped + 1)
+                -> skipped += 1
             }
         }
+        return ReadingProgressMergeSummary(
+            applied = applied,
+            appliedSyncIds = appliedSyncIds,
+            conflicts = conflicts,
+            skipped = skipped,
+        )
     }
 }
 

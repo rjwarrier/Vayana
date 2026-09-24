@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import com.vayana.core.database.repository.isSyncedWithReadingProgress
 import com.vayana.core.sync.RemoteBookDeletionNotices
+import com.vayana.core.sync.SyncOperationCoordinator
 import com.vayana.core.sync.SyncedBookDeletionApplier
 import com.vayana.core.sync.asset.CloudAssetDeletionProcessor
 import com.vayana.core.sync.asset.deletePendingAndLog
@@ -87,6 +88,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
     private val syncedBookDeletionApplier: SyncedBookDeletionApplier,
     private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val remoteBookDeletionNotices: RemoteBookDeletionNotices,
+    private val syncOperationCoordinator: SyncOperationCoordinator,
 ) {
     private val lastSyncedAtMillis = AtomicLong(0L)
     private val lastAppliedRemoteSha = AtomicReference<String?>(null)
@@ -95,17 +97,18 @@ class ReadingProgressOnlySyncer @Inject constructor(
     private val lastSettledLocalFingerprint = AtomicReference<Int?>(null)
 
     /** [force] skips the minimum interval between runs, e.g. to send a book deletion straight away. */
-    suspend fun syncReadingProgress(force: Boolean = false): ReadingProgressSyncResult {
-        val result = runSync(force)
-        if (result.status.isIssue) {
-            diagnosticsLogStore.record(
-                category = DiagnosticCategory.SYNC,
-                source = "ReadingProgressOnlySyncer",
-                message = "${result.status}: ${result.failureMessage ?: "no further detail"}",
-            )
+    suspend fun syncReadingProgress(force: Boolean = false): ReadingProgressSyncResult =
+        syncOperationCoordinator.run {
+            val result = runSync(force)
+            if (result.status.isIssue) {
+                diagnosticsLogStore.record(
+                    category = DiagnosticCategory.SYNC,
+                    source = "ReadingProgressOnlySyncer",
+                    message = "${result.status}: ${result.failureMessage ?: "no further detail"}",
+                )
+            }
+            result
         }
-        return result
-    }
 
     private suspend fun runSync(force: Boolean): ReadingProgressSyncResult = withContext(dispatchers.io) {
         val now = System.currentTimeMillis()

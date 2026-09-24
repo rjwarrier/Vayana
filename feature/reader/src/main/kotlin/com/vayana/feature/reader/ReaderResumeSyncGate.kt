@@ -1,5 +1,8 @@
 package com.vayana.feature.reader
 
+import com.vayana.core.sync.progress.ReadingProgressSyncResult
+import com.vayana.core.sync.progress.ReadingProgressSyncStatus
+
 /**
  * Keeps a reader that survived in the background from writing its stale locator until a forced
  * progress sync has checked for a newer position from another device.
@@ -31,3 +34,19 @@ internal class ReaderResumeSyncGate {
         return !checkRequired
     }
 }
+
+/** Whether this result established that retaining the WebView's automatic resume relocation is safe. */
+internal val ReadingProgressSyncResult.remoteCheckCompleted: Boolean
+    get() = when (status) {
+        ReadingProgressSyncStatus.NO_CHANGES,
+        ReadingProgressSyncStatus.PULLED,
+        ReadingProgressSyncStatus.PUSHED,
+        ReadingProgressSyncStatus.SYNCED,
+        ReadingProgressSyncStatus.SYNC_DISABLED,
+        ReadingProgressSyncStatus.CLOUD_MISSING,
+        -> true
+        ReadingProgressSyncStatus.THROTTLED,
+        ReadingProgressSyncStatus.CONFIG_INCOMPLETE,
+        ReadingProgressSyncStatus.FAILED,
+        -> false
+    }

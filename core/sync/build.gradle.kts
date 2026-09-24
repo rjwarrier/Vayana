@@ -18,5 +18,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
 }

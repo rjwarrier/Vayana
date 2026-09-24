@@ -135,6 +135,7 @@ import kotlinx.coroutines.NonCancellable
 import com.vayana.core.database.repository.isBookDeletion
 import com.vayana.core.database.repository.isSyncedWithReadingProgress
 import com.vayana.core.sync.RemoteBookDeletionNotices
+import com.vayana.core.sync.SyncOperationCoordinator
 import com.vayana.core.sync.SyncedBookDeletionApplier
 import com.vayana.core.sync.asset.deletePendingAndLog
 import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
@@ -472,6 +473,7 @@ class LibraryViewModel @Inject constructor(
     private val dispatchers: DispatcherProvider,
     private val diagnosticsLogStore: DiagnosticsLogStore,
     private val launchReadingProgressCoordinator: LaunchReadingProgressCoordinator,
+    private val syncOperationCoordinator: SyncOperationCoordinator,
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
     private val bookDao: BookDao,
@@ -1072,7 +1074,7 @@ class LibraryViewModel @Inject constructor(
         mode: GitHubSyncMode = GitHubSyncMode.FULL,
         showProgress: Boolean = true,
         launchReadingProgressBookId: Long? = null,
-    ): GitHubSyncNowResult {
+    ): GitHubSyncNowResult = syncOperationCoordinator.run {
         val result = runSyncNow(allowInitialSync, mode, showProgress, launchReadingProgressBookId)
         if (result is GitHubSyncNowResult.Complete && (result.pullFailed || !result.metadataSynced)) {
             withContext(dispatchers.io) {
@@ -1086,7 +1088,7 @@ class LibraryViewModel @Inject constructor(
                 )
             }
         }
-        return result
+        result
     }
 
     /**
@@ -1933,7 +1935,7 @@ class LibraryViewModel @Inject constructor(
             ?.let(storageRoots::resolve)
             ?.takeIf { it.isFile && it.length() == reference.sizeBytes }
             ?.let { coverFile ->
-                runCatchingCancellable { Hashing.sha256(coverFile.readBytes()) == reference.sha256 }
+                runCatchingCancellable { Hashing.sha256(coverFile.inputStream()) == reference.sha256 }
                     .getOrDefault(false)
             } == true
         val localCoverIsCurrent = book.coverAssetId == reference.id &&
@@ -2567,8 +2569,10 @@ private fun Book.coverNeedsUpload(storageRoots: StorageRoots): Boolean {
     val coverPath = coverPath?.takeIf { it.isNotBlank() } ?: return false
     val coverFile = storageRoots.resolve(coverPath)
     if (!coverFile.isFile) return false
-    return coverAssetSha256.isNullOrBlank() || runCatchingCancellable {
-        Hashing.sha256(coverFile.readBytes()) != coverAssetSha256
+    val expectedSha = coverAssetSha256?.takeIf { it.isNotBlank() } ?: return true
+    if (coverAssetSizeBytes != coverFile.length()) return true
+    return runCatchingCancellable {
+        Hashing.sha256(coverFile.inputStream()) != expectedSha
     }.getOrDefault(true)
 }
 
