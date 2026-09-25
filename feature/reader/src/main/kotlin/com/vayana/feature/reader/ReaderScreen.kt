@@ -108,6 +108,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import com.vayana.core.designsystem.component.cloudSyncStatusText
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
@@ -1910,19 +1911,27 @@ private fun ReadingPositionPromptDialog(
     val currentLocation = prompt.currentPage?.let { page ->
         stringResource(R.string.reader_reading_position_page, page)
     } ?: stringResource(R.string.reader_progress_percent, (prompt.currentProgress * 100).roundToInt())
+    val syncStatus = cloudSyncStatusText(prompt.syncedAt, prompt.syncedDeviceLabel)
 
     AlertDialog(
         onDismissRequest = onStayHere,
         title = { Text(stringResource(R.string.reader_reading_position_prompt_title)) },
         text = {
-            Text(
-                text = stringResource(
-                    R.string.reader_reading_position_prompt_body,
-                    recentLocation,
-                    currentLocation,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    text = stringResource(
+                        R.string.reader_reading_position_prompt_body,
+                        recentLocation,
+                        currentLocation,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = syncStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         confirmButton = {
             Button(onClick = onGoToRecentLocation) {

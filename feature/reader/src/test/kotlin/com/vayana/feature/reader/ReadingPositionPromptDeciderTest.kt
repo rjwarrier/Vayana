@@ -12,7 +12,13 @@ class ReadingPositionPromptDeciderTest {
     @Test
     fun promptsForNewerExternalPosition() {
         val prompt = decider.promptForRemote(
-            remotePosition = SavedReadingPosition(locator = "remote-cfi", progress = 0.5f, version = 200L),
+            remotePosition = SavedReadingPosition(
+                locator = "remote-cfi",
+                progress = 0.5f,
+                version = 200L,
+                syncedDeviceLabel = "Bedroom tablet",
+                syncedAt = 150L,
+            ),
             currentLocator = locator(cfi = "current-cfi", progress = 0.1f, currentPage = 10, totalPages = 200),
             lastReaderWrittenLocator = "current-cfi",
         )
@@ -21,6 +27,8 @@ class ReadingPositionPromptDeciderTest {
         assertEquals("remote-cfi", prompt.targetLocator)
         assertEquals(100, prompt.targetPage)
         assertEquals(10, prompt.currentPage)
+        assertEquals("Bedroom tablet", prompt.syncedDeviceLabel)
+        assertEquals(150L, prompt.syncedAt)
     }
 
     @Test

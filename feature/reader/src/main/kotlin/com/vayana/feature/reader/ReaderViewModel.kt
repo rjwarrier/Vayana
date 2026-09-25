@@ -968,6 +968,8 @@ class ReaderViewModel @Inject constructor(
                     locator = remoteProgress.locator,
                     progress = remoteProgress.readingPercent,
                     version = remoteProgress.version,
+                    syncedDeviceLabel = remoteProgress.syncedDeviceLabel,
+                    syncedAt = remoteProgress.syncedAt,
                 )
                 val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator
                 if (currentLocator == null) {

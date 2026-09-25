@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import com.vayana.core.designsystem.theme.isMotionEnabled
@@ -47,9 +48,10 @@ internal fun Modifier.bookSharedElement(
     if (!enabled || !isMotionEnabled()) return this
     val sharedTransitionScope = LocalBookSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalBookAnimatedVisibilityScope.current ?: return this
+    val key = remember(bookId, source) { BookSharedTransitionKey(bookId, source) }
     return with(sharedTransitionScope) {
         sharedElement(
-            sharedContentState = rememberSharedContentState(BookSharedTransitionKey(bookId, source)),
+            sharedContentState = rememberSharedContentState(key),
             animatedVisibilityScope = animatedVisibilityScope,
         )
     }
@@ -64,11 +66,10 @@ internal fun Modifier.bookSharedBounds(
     if (!enabled || !isMotionEnabled()) return this
     val sharedTransitionScope = LocalBookSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalBookAnimatedVisibilityScope.current ?: return this
+    val key = remember(bookId) { BookSharedTransitionKey(bookId, BookOpenTransitionSource.HERO_CARD) }
     return with(sharedTransitionScope) {
         sharedBounds(
-            sharedContentState = rememberSharedContentState(
-                BookSharedTransitionKey(bookId, BookOpenTransitionSource.HERO_CARD),
-            ),
+            sharedContentState = rememberSharedContentState(key),
             animatedVisibilityScope = animatedVisibilityScope,
         )
     }

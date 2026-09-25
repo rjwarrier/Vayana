@@ -68,6 +68,8 @@ class BookRepositoryImpl @Inject constructor(
         startedReadingAt: Long?,
         finishedReadingAt: Long?,
         totalReadingSeconds: Long,
+        syncedDeviceLabel: String?,
+        syncedAt: Long?,
     ): ReadingProgressMergeResult {
         if (locator.isBlank() || remoteUpdatedAt <= 0L || readingPercent !in 0f..1f) {
             return ReadingProgressMergeResult.InvalidRemote
@@ -126,6 +128,8 @@ class BookRepositoryImpl @Inject constructor(
                 locator = locator,
                 readingPercent = readingPercent,
                 version = remoteVersion,
+                syncedDeviceLabel = syncedDeviceLabel,
+                syncedAt = syncedAt,
             )
             ReadingProgressMergeResult.AppliedRemote to event
         }

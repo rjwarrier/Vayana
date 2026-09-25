@@ -197,7 +197,11 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 }
                 pulled = pullRemoteTombstones(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
                 val parsedBooks = parseAttempt.getOrThrow()
-                pulled += pullRemoteProgress(parsedBooks.progresses)
+                pulled += pullRemoteProgress(
+                    progresses = parsedBooks.progresses,
+                    syncedDeviceLabel = parsedBooks.deviceLabel,
+                    syncedAt = parsedBooks.exportedAt,
+                )
                 pulled += pullRemoteReadNext(parsedBooks.readNextStates)
                 pulled += pullRemoteReadingSessions(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
                 pulled += pullRemoteWordLookupCounters(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
@@ -255,7 +259,11 @@ class ReadingProgressOnlySyncer @Inject constructor(
     }
 
     /** Applies each book independently so one bad or unexpectedly-failing row doesn't block the rest. */
-    private suspend fun pullRemoteProgress(progresses: List<PortableReadingProgress>): Int {
+    private suspend fun pullRemoteProgress(
+        progresses: List<PortableReadingProgress>,
+        syncedDeviceLabel: String?,
+        syncedAt: Long?,
+    ): Int {
         var applied = 0
         for (progress in progresses) {
             val attempt = runCatchingCancellable {
@@ -269,6 +277,8 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     startedReadingAt = progress.startedReadingAt,
                     finishedReadingAt = progress.finishedReadingAt,
                     totalReadingSeconds = progress.totalReadingSeconds,
+                    syncedDeviceLabel = syncedDeviceLabel,
+                    syncedAt = syncedAt,
                 )
             }
             attempt.onSuccess { result -> if (result is ReadingProgressMergeResult.AppliedRemote) applied += 1 }

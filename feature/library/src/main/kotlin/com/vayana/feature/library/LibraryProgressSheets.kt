@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import com.vayana.core.designsystem.component.cloudSyncStatusText
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import androidx.compose.ui.Alignment
@@ -459,6 +460,7 @@ internal fun ReadingProgressSyncDialog(
 ) {
     val previousPercent = (prompt.previousPercent * 100).roundToInt()
     val newPercent = (prompt.newPercent * 100).roundToInt()
+    val syncStatusText = cloudSyncStatusText(prompt.syncedAt, prompt.syncedDeviceLabel)
     ExpressiveDialogSurface(onDismissRequest = onRevertSyncedProgress) {
         ExpressiveDialogHeader(
             icon = Icons.Outlined.Sync,
@@ -481,8 +483,7 @@ internal fun ReadingProgressSyncDialog(
                         label = stringResource(R.string.library_book_progress_sync_prompt_synced),
                         percent = newPercent,
                         timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
-                        syncedAt = prompt.syncedAt,
-                        deviceLabel = prompt.syncedDeviceLabel,
+                        syncStatusText = syncStatusText,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -498,8 +499,7 @@ internal fun ReadingProgressSyncDialog(
                         label = stringResource(R.string.library_book_progress_sync_prompt_synced),
                         percent = newPercent,
                         timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
-                        syncedAt = prompt.syncedAt,
-                        deviceLabel = prompt.syncedDeviceLabel,
+                        syncStatusText = syncStatusText,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -526,8 +526,7 @@ private fun ProgressChoiceCard(
     percent: Int,
     timestamp: Long,
     modifier: Modifier = Modifier,
-    syncedAt: Long? = null,
-    deviceLabel: String? = null,
+    syncStatusText: String? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -558,20 +557,11 @@ private fun ProgressChoiceCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            syncedAt?.let {
+            syncStatusText?.let {
                 Text(
-                    text = stringResource(R.string.library_book_progress_sync_prompt_synced_at, it.asAppDateTime()),
+                    text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            deviceLabel?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = stringResource(R.string.library_book_progress_sync_prompt_device, it),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

@@ -77,6 +77,8 @@ internal class RemoteReadingProgressMerger(
                 startedReadingAt = progress.startedReadingAt,
                 finishedReadingAt = progress.finishedReadingAt,
                 totalReadingSeconds = progress.totalReadingSeconds,
+                syncedDeviceLabel = remoteSnapshot.deviceLabel,
+                syncedAt = remoteSnapshot.exportedAt,
             )) {
                 ReadingProgressMergeResult.AppliedRemote -> {
                     applied += 1

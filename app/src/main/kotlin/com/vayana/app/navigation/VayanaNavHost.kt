@@ -4,6 +4,7 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
@@ -181,8 +182,9 @@ fun VayanaNavHost(
         }
         composable<BookDetailRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<BookDetailRoute>()
-            val transitionSource = BookOpenTransitionSource.entries
-                .firstOrNull { source -> source.name == route.transitionSource }
+            val transitionSource = remember(route.transitionSource) {
+                BookOpenTransitionSource.entries.firstOrNull { source -> source.name == route.transitionSource }
+            }
             ProvideBookSharedTransitionScopes(this@SharedTransitionLayout, this@composable) {
                 com.vayana.feature.library.BookDetailRoute(
                     bookId = route.bookId,

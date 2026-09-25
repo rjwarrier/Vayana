@@ -30,6 +30,8 @@ data class RemoteReadingProgressApplied(
     val locator: String,
     val readingPercent: Float,
     val version: Long,
+    val syncedDeviceLabel: String? = null,
+    val syncedAt: Long? = null,
 )
 
 enum class ReadingProgressConflictReason {
@@ -122,6 +124,8 @@ interface BookRepository {
         startedReadingAt: Long?,
         finishedReadingAt: Long?,
         totalReadingSeconds: Long,
+        syncedDeviceLabel: String? = null,
+        syncedAt: Long? = null,
     ): ReadingProgressMergeResult
 
     /** Applies a newer remote Read Next change without letting ordinary reading timestamps override it. */

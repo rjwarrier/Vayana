@@ -9,12 +9,16 @@ data class ReadingPositionPrompt(
     val targetPage: Int?,
     val currentProgress: Float,
     val currentPage: Int?,
+    val syncedDeviceLabel: String? = null,
+    val syncedAt: Long? = null,
 )
 
 internal data class SavedReadingPosition(
     val locator: String,
     val progress: Float,
     val version: Long,
+    val syncedDeviceLabel: String? = null,
+    val syncedAt: Long? = null,
 )
 
 internal class ReadingPositionPromptDecider {
@@ -31,6 +35,8 @@ internal class ReadingPositionPromptDecider {
             targetPage = remotePosition.progress.estimatedPage(currentLocator.totalPages),
             currentProgress = currentLocator.progression,
             currentPage = currentLocator.currentPage,
+            syncedDeviceLabel = remotePosition.syncedDeviceLabel,
+            syncedAt = remotePosition.syncedAt,
         )
     }
 }

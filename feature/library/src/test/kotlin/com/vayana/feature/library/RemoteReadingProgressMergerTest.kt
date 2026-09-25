@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 class RemoteReadingProgressMergerTest {
     private val repositoryCalls = mutableListOf<String>()
     private val appliedSyncIds = mutableListOf<String>()
+    private val appliedSyncSources = mutableListOf<Pair<String?, Long?>>()
     private val appliedReadNextSyncIds = mutableListOf<String>()
     private var tombstoneMerges = 0
     private val tombstoneScopes = mutableListOf<TombstoneMergeScope>()
@@ -26,6 +27,7 @@ class RemoteReadingProgressMergerTest {
             "applySyncedReadingProgress" -> {
                 val syncId = args[0] as String
                 appliedSyncIds += syncId
+                appliedSyncSources += (args[9] as String?) to (args[10] as Long?)
                 if (syncId == "stale") ReadingProgressMergeResult.LocalNewer else ReadingProgressMergeResult.AppliedRemote
             }
             "applySyncedReadNext" -> {
@@ -53,6 +55,10 @@ class RemoteReadingProgressMergerTest {
         assertEquals(listOf(TombstoneMergeScope.BOOK_DELETIONS), tombstoneScopes)
         assertTrue(repositoryCalls.all { it == "applySyncedReadingProgress" })
         assertEquals(listOf("fresh", "stale"), appliedSyncIds)
+        assertEquals(
+            listOf<Pair<String?, Long?>>("Tablet" to 25L, "Tablet" to 25L),
+            appliedSyncSources,
+        )
         assertEquals(1, summary.applied)
         assertEquals(setOf("fresh"), summary.appliedSyncIds)
         assertEquals(1, summary.skipped)
