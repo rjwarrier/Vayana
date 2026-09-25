@@ -32,6 +32,31 @@ Most reading apps stop at displaying a book. Vayana treats reading as a connecte
 
 Vayana does this without requiring a Vayana account or putting ads in the reading experience. Your library is local by default. Optional online features—such as Goodreads enrichment and self-managed GitHub sync—remain under your control.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/screenshots/01-notes-and-highlights.png" alt="Book notes and highlights with filters, search, and community annotations" width="100%"><br>
+      <sub><strong>Highlights and notes</strong> — search, filter, edit, share, and distinguish personal annotations from community quotes.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/screenshots/02-notes-library.png" alt="Notes library grouped by book" width="100%"><br>
+      <sub><strong>Notes library</strong> — browse annotations by book with chapter and note counts at a glance.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/screenshots/03-book-library.png" alt="Vayana book library with Currently Reading card and cover grid" width="100%"><br>
+      <sub><strong>Library</strong> — continue reading, search and filter a cover-first collection.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/screenshots/04-book-details.png" alt="Book details with Goodreads metadata, reading progress, and statistics" width="100%"><br>
+      <sub><strong>Book details</strong> — metadata, community quotes, personal rating, progress, and reading statistics in one place.</sub>
+    </td>
+  </tr>
+</table>
+
 ## What makes it different
 
 ### A real E‑Ink mode
