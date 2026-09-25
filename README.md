@@ -16,6 +16,8 @@
     <a href="docs/releases/v0.85.md">Release notes</a>
     ·
     <a href="docs/FEATURES.md">Feature documentation</a>
+    ·
+    <a href="docs/GITHUB_SYNC_SETUP.md">GitHub sync setup</a>
   </p>
 
   <p>
@@ -99,6 +101,8 @@ Use a GitHub repository you control to synchronize:
 - Deletions and restores across devices
 
 Book and cover assets are encrypted with AES-GCM using your passphrase before upload. Lightweight progress sync can run while reading, and conflict messages identify the newer position with its sync time and device name. The sync setup itself can be exported as an encrypted transfer file for another device.
+
+Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to create a private repository, configure a least-privilege token, connect the first device, and add more devices safely.
 
 ## Features
 
@@ -207,6 +211,7 @@ The app uses Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, WorkMan
 ## Documentation
 
 - [Feature behavior and invariants](docs/FEATURES.md)
+- [GitHub sync setup](docs/GITHUB_SYNC_SETUP.md)
 - [Architecture and implementation decisions](docs/DECISIONS.md)
 - [Database changelog](docs/DATABASE_CHANGELOG.md)
 - [GitHub sync design](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
