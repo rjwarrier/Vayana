@@ -393,6 +393,9 @@
     <string name="library_book_progress_sync_prompt_body">Sync moved this book from %1$d%% to %2$d%%. Keep the synced progress, or go back to where you were?</string>
     <string name="library_book_progress_sync_prompt_local">This device</string>
     <string name="library_book_progress_sync_prompt_synced">Synced</string>
+    <string name="library_book_progress_sync_prompt_last_read">Last read %1$s</string>
+    <string name="library_book_progress_sync_prompt_synced_at">Synced %1$s</string>
+    <string name="library_book_progress_sync_prompt_device">From %1$s</string>
     <string name="library_book_progress_sync_prompt_keep">Keep synced progress</string>
     <string name="library_book_progress_sync_prompt_revert">Go back to %1$d%%</string>
     <string name="library_back_to_library_content_description">Back to Library</string>

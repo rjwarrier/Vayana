@@ -71,6 +71,8 @@ internal class LaunchReadingProgressPull(
             outcome = outcome,
             progressUpdated = merge.applied,
             progressAppliedSyncIds = merge.appliedSyncIds,
+            syncedDeviceLabel = merge.remoteDeviceLabel,
+            syncedAt = merge.remoteSyncedAt,
             conflicts = merge.conflictCount,
             skipped = merge.skipped + if (merge.skippedAlreadyChecked) 1 else 0,
         )
@@ -80,6 +82,8 @@ internal class LaunchReadingProgressPull(
         outcome: LaunchProgressCheckOutcome,
         progressUpdated: Int = 0,
         progressAppliedSyncIds: Set<String> = emptySet(),
+        syncedDeviceLabel: String? = null,
+        syncedAt: Long? = null,
         conflicts: Int = 0,
         skipped: Int = 0,
         pullFailed: Boolean = false,
@@ -98,6 +102,8 @@ internal class LaunchReadingProgressPull(
         failureMessage = failureMessage,
         launchProgressCheckOutcome = outcome,
         progressAppliedSyncIds = progressAppliedSyncIds,
+        syncedDeviceLabel = syncedDeviceLabel,
+        syncedAt = syncedAt,
     )
 }
 

@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
+import com.vayana.core.designsystem.theme.asAppDateTime
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
@@ -480,6 +481,8 @@ internal fun ReadingProgressSyncDialog(
                         label = stringResource(R.string.library_book_progress_sync_prompt_synced),
                         percent = newPercent,
                         timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
+                        syncedAt = prompt.syncedAt,
+                        deviceLabel = prompt.syncedDeviceLabel,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -495,6 +498,8 @@ internal fun ReadingProgressSyncDialog(
                         label = stringResource(R.string.library_book_progress_sync_prompt_synced),
                         percent = newPercent,
                         timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
+                        syncedAt = prompt.syncedAt,
+                        deviceLabel = prompt.syncedDeviceLabel,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -516,7 +521,14 @@ internal fun ReadingProgressSyncDialog(
 }
 
 @Composable
-private fun ProgressChoiceCard(label: String, percent: Int, timestamp: Long, modifier: Modifier = Modifier) {
+private fun ProgressChoiceCard(
+    label: String,
+    percent: Int,
+    timestamp: Long,
+    modifier: Modifier = Modifier,
+    syncedAt: Long? = null,
+    deviceLabel: String? = null,
+) {
     Surface(
         modifier = modifier,
         shape = Radii.cardShape,
@@ -542,12 +554,26 @@ private fun ProgressChoiceCard(label: String, percent: Int, timestamp: Long, mod
                 maxLines = 1,
             )
             Text(
-                text = timestamp.formatDate(),
+                text = stringResource(R.string.library_book_progress_sync_prompt_last_read, timestamp.asAppDateTime()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
+            syncedAt?.let {
+                Text(
+                    text = stringResource(R.string.library_book_progress_sync_prompt_synced_at, it.asAppDateTime()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            deviceLabel?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = stringResource(R.string.library_book_progress_sync_prompt_device, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

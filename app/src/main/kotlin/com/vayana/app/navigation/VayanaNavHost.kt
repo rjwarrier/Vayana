@@ -1,11 +1,13 @@
 package com.vayana.app.navigation
 
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -22,6 +24,8 @@ import com.vayana.core.designsystem.theme.vayanaNavTabEnter
 import com.vayana.core.designsystem.theme.vayanaNavTabExit
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
 import com.vayana.feature.library.LibraryAddAction
+import com.vayana.feature.library.BookOpenTransitionSource
+import com.vayana.feature.library.ProvideBookSharedTransitionScopes
 import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
 import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
 import com.vayana.feature.library.SeriesFolderScreenRoute
@@ -47,10 +51,11 @@ fun VayanaNavHost(
     val motionSetting = LocalMotionSetting.current
     val motionScheme = MaterialTheme.motionScheme
 
-    NavHost(
+    SharedTransitionLayout(modifier = modifier) {
+        NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         enterTransition = {
             if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
                 vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
@@ -86,6 +91,8 @@ fun VayanaNavHost(
                 .collectAsState()
             LibraryListDetailRoute(
                 navController = navController,
+                sharedTransitionScope = this@SharedTransitionLayout,
+                animatedVisibilityScope = this@composable,
                 onSettingsClick = { navController.navigate(SettingsRoute) },
                 onSearchClick = { navController.navigate(SearchRoute) },
                 onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
@@ -174,18 +181,23 @@ fun VayanaNavHost(
         }
         composable<BookDetailRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<BookDetailRoute>()
-            com.vayana.feature.library.BookDetailRoute(
-                bookId = route.bookId,
-                onBack = { navController.popBackStack() },
-                onReadableSourceChanged = { readable ->
-                    backStackEntry.savedStateHandle[BOOK_DETAIL_READABLE_KEY] = readable
-                },
-                onContinueReading = { bookId, locator ->
-                    navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
-                },
-                onOpenNotes = { bookId -> navController.navigate(BookNotesRoute(bookId)) },
-                onReadFromStart = { bookId -> navController.navigate(ReaderRoute(bookId = bookId, fromStart = true)) },
-            )
+            val transitionSource = BookOpenTransitionSource.entries
+                .firstOrNull { source -> source.name == route.transitionSource }
+            ProvideBookSharedTransitionScopes(this@SharedTransitionLayout, this@composable) {
+                com.vayana.feature.library.BookDetailRoute(
+                    bookId = route.bookId,
+                    transitionSource = transitionSource,
+                    onBack = { navController.popBackStack() },
+                    onReadableSourceChanged = { readable ->
+                        backStackEntry.savedStateHandle[BOOK_DETAIL_READABLE_KEY] = readable
+                    },
+                    onContinueReading = { bookId, locator ->
+                        navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
+                    },
+                    onOpenNotes = { bookId -> navController.navigate(BookNotesRoute(bookId)) },
+                    onReadFromStart = { bookId -> navController.navigate(ReaderRoute(bookId = bookId, fromStart = true)) },
+                )
+            }
         }
         composable<BookNotesRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<BookNotesRoute>()
@@ -202,6 +214,7 @@ fun VayanaNavHost(
                 onBack = { navController.popBackStack() },
                 onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) },
             )
+        }
         }
     }
 }

@@ -168,6 +168,7 @@ private fun ReadNextBookCard(
                 BookCover(
                     book = book,
                     modifier = Modifier
+                        .bookSharedElement(book.id, BookOpenTransitionSource.READ_NEXT_COVER)
                         .width(Sizes.coverWidthMin * 0.48f)
                         .aspectRatio(Sizes.coverAspectRatio)
                         .clip(RoundedCornerShape(Radii.small)),

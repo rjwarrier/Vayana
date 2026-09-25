@@ -57,6 +57,8 @@ class RemoteReadingProgressMergerTest {
         assertEquals(setOf("fresh"), summary.appliedSyncIds)
         assertEquals(1, summary.skipped)
         assertEquals("sha-1", summary.remoteSnapshotSha)
+        assertEquals("Tablet", summary.remoteDeviceLabel)
+        assertEquals(25L, summary.remoteSyncedAt)
     }
 
     @Test
@@ -103,6 +105,7 @@ class RemoteReadingProgressMergerTest {
         jsonText = """
             {
               "deviceLabel": "Tablet",
+              "exportedAt": 25,
               "books": [
                 {"syncId": "fresh", "fileHash": "h1", "lastLocator": "epubcfi(/6/4)", "readingPercent": 0.5, "updatedAt": 10},
                 {"syncId": "stale", "fileHash": "h2", "lastLocator": "epubcfi(/6/8)", "readingPercent": 0.2, "updatedAt": 5}

@@ -60,10 +60,12 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -149,7 +151,7 @@ enum class LibraryAddAction {
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryRoute(
-    onBookClick: (Long) -> Unit,
+    onBookClick: (Long, BookOpenTransitionSource) -> Unit,
     onSeriesFolderClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
     showSettingsAction: Boolean = true,
@@ -234,7 +236,7 @@ private fun LibraryScreen(
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
     addBookAction: LibraryAddAction?,
     onAddBookActionHandled: () -> Unit,
-    onBookClick: (Long) -> Unit,
+    onBookClick: (Long, BookOpenTransitionSource) -> Unit,
     onSeriesFolderClick: (String) -> Unit,
     onMarkFinished: (Long) -> Unit,
     onSetReadNext: (Long, Boolean) -> Unit,
@@ -319,16 +321,16 @@ private fun LibraryScreen(
     val activeReadNextQueue = readNextQueue.takeIf { readNextShelfShown }.orEmpty()
     val showReadNextSuggestions = readNextShelfShown && readNextQueue.isEmpty()
 
-    fun handleBookClick(book: Book) {
+    fun handleBookClick(book: Book, transitionSource: BookOpenTransitionSource) {
         if (activeDownloadBookId != null) return
         when (book.fileAvailability) {
-            BookFileAvailability.LOCAL -> onBookClick(book.id)
+            BookFileAvailability.LOCAL -> onBookClick(book.id, transitionSource)
             BookFileAvailability.CLOUD_ONLY -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(cloudDownloadStartedMessage)
                 when (onDownloadCloudBook(book)) {
                     CloudBookDownloadResult.DOWNLOADED -> {
                         snackbarHostState.showSnackbar(cloudDownloadCompleteMessage)
-                        onBookClick(book.id)
+                        onBookClick(book.id, transitionSource)
                     }
                     CloudBookDownloadResult.SYNC_DISABLED -> snackbarHostState.showSnackbar(cloudSyncDisabledMessage)
                     CloudBookDownloadResult.CONFIG_INCOMPLETE -> snackbarHostState.showSnackbar(cloudSyncConfigMissingMessage)
@@ -449,7 +451,7 @@ private fun LibraryScreen(
                 Key.Enter, Key.NumPadEnter -> currentIndex
                 else -> return@onPreviewKeyEvent false
             }
-            handleBookClick(books[targetIndex])
+            handleBookClick(books[targetIndex], BookOpenTransitionSource.COVER)
             true
         },
         topBar = {
@@ -1088,7 +1090,7 @@ private fun LibraryGrid(
     downloadingBookId: Long?,
     downloadProgress: Float?,
     selectedBookId: Long?,
-    onBookClick: (Book) -> Unit,
+    onBookClick: (Book, BookOpenTransitionSource) -> Unit,
     onSeriesFolderClick: (String) -> Unit,
     onMarkFinished: (Book) -> Unit,
     onRemoveFromReadNext: (Book) -> Unit,
@@ -1119,7 +1121,7 @@ private fun LibraryGrid(
                     book = heroBook,
                     isDownloading = heroBook.id == downloadingBookId,
                     downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
-                    onClick = { onBookClick(heroBook) },
+                    onClick = { onBookClick(heroBook, BookOpenTransitionSource.HERO_CARD) },
                     onMarkFinished = { onMarkFinished(heroBook) },
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
@@ -1133,7 +1135,7 @@ private fun LibraryGrid(
                     isSuggestion = readNextQueue.isEmpty(),
                     downloadingBookId = downloadingBookId,
                     downloadProgress = downloadProgress,
-                    onBookClick = onBookClick,
+                    onBookClick = { book -> onBookClick(book, BookOpenTransitionSource.READ_NEXT_COVER) },
                     onRemove = onRemoveFromReadNext,
                     onViewAll = onViewAllReadNext,
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
@@ -1152,7 +1154,7 @@ private fun LibraryGrid(
                             isDownloading = book.id == downloadingBookId,
                             downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                             onMarkFinished = { onMarkFinished(book) },
-                            onClick = { onBookClick(book) },
+                            onClick = { onBookClick(book, BookOpenTransitionSource.COVER) },
                         )
                     }
                     is SeriesLibraryItem.Folder -> item(key = "series:${entry.key}", contentType = "series") {
@@ -1169,7 +1171,7 @@ private fun LibraryGrid(
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onMarkFinished = { onMarkFinished(book) },
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
-                    onClick = { onBookClick(book) },
+                    onClick = { onBookClick(book, BookOpenTransitionSource.COVER) },
                 )
             }
         } else {
@@ -1191,7 +1193,7 @@ private fun LibraryGrid(
                         downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                         onMarkFinished = { onMarkFinished(book) },
                         modifier = Modifier.animateItem(placementSpec = placementSpec),
-                        onClick = { onBookClick(book) },
+                        onClick = { onBookClick(book, BookOpenTransitionSource.COVER) },
                     )
                 }
             }
@@ -1209,7 +1211,7 @@ private fun LibraryList(
     downloadingBookId: Long?,
     downloadProgress: Float?,
     selectedBookId: Long?,
-    onBookClick: (Book) -> Unit,
+    onBookClick: (Book, BookOpenTransitionSource) -> Unit,
     onSeriesFolderClick: (String) -> Unit,
     onMarkFinished: (Book) -> Unit,
     onRemoveFromReadNext: (Book) -> Unit,
@@ -1238,7 +1240,7 @@ private fun LibraryList(
                     book = heroBook,
                     isDownloading = heroBook.id == downloadingBookId,
                     downloadProgress = if (heroBook.id == downloadingBookId) downloadProgress else null,
-                    onClick = { onBookClick(heroBook) },
+                    onClick = { onBookClick(heroBook, BookOpenTransitionSource.HERO_CARD) },
                     onMarkFinished = { onMarkFinished(heroBook) },
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
@@ -1252,7 +1254,7 @@ private fun LibraryList(
                     isSuggestion = readNextQueue.isEmpty(),
                     downloadingBookId = downloadingBookId,
                     downloadProgress = downloadProgress,
-                    onBookClick = onBookClick,
+                    onBookClick = { book -> onBookClick(book, BookOpenTransitionSource.READ_NEXT_COVER) },
                     onRemove = onRemoveFromReadNext,
                     onViewAll = onViewAllReadNext,
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
@@ -1270,7 +1272,7 @@ private fun LibraryList(
                             selected = book.id == selectedBookId,
                             isDownloading = book.id == downloadingBookId,
                             downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
-                            onClick = { onBookClick(book) },
+                            onClick = { onBookClick(book, BookOpenTransitionSource.COVER) },
                             onMarkFinished = { onMarkFinished(book) },
                         )
                     }
@@ -1286,7 +1288,7 @@ private fun LibraryList(
                     selected = book.id == selectedBookId,
                     isDownloading = book.id == downloadingBookId,
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
-                    onClick = { onBookClick(book) },
+                    onClick = { onBookClick(book, BookOpenTransitionSource.COVER) },
                     onMarkFinished = { onMarkFinished(book) },
                     modifier = Modifier.animateItem(placementSpec = placementSpec),
                 )
@@ -1308,7 +1310,7 @@ private fun LibraryList(
                         selected = book.id == selectedBookId,
                         isDownloading = book.id == downloadingBookId,
                         downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
-                        onClick = { onBookClick(book) },
+                        onClick = { onBookClick(book, BookOpenTransitionSource.COVER) },
                         onMarkFinished = { onMarkFinished(book) },
                         modifier = Modifier.animateItem(placementSpec = placementSpec),
                     )
@@ -1367,7 +1369,12 @@ private fun LibraryListRow(
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Box(modifier = Modifier.width(Sizes.coverWidthMin * 0.58f)) {
-                BookCover(book = book, modifier = Modifier.fillMaxWidth())
+                BookCover(
+                    book = book,
+                    modifier = Modifier
+                        .bookSharedElement(book.id, BookOpenTransitionSource.COVER)
+                        .fillMaxWidth(),
+                )
                 BookFinishedBadge(
                     book = book,
                     onMarkFinished = onMarkFinished,
@@ -1478,6 +1485,7 @@ private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadPro
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LibraryHeroCard(
     book: Book,
@@ -1490,6 +1498,7 @@ private fun LibraryHeroCard(
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
+            .bookSharedBounds(book.id)
             .fillMaxWidth()
             .vayanaPressScale(interactionSource)
             .clickable(
@@ -1594,10 +1603,9 @@ private fun LibraryHeroCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        VayanaLinearProgressIndicator(
+                        LinearWavyProgressIndicator(
                             progress = { book.readingPercent.coerceIn(0f, 1f) },
                             modifier = Modifier.weight(1f),
-                            strokeCap = StrokeCap.Round,
                         )
                         Text(
                             text = "${(book.readingPercent * 100).toInt()}%",
@@ -1695,7 +1703,13 @@ private fun BookCoverCell(
             ),
     ) {
         Box {
-            BookCover(book = book, modifier = Modifier.fillMaxWidth(), shape = RectangleShape)
+            BookCover(
+                book = book,
+                modifier = Modifier
+                    .bookSharedElement(book.id, BookOpenTransitionSource.COVER)
+                    .fillMaxWidth(),
+                shape = RectangleShape,
+            )
             BookFinishedBadge(
                 book = book,
                 onMarkFinished = onMarkFinished,

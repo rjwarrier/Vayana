@@ -97,6 +97,8 @@ internal class RemoteReadingProgressMerger(
             appliedSyncIds = appliedSyncIds,
             conflicts = conflicts,
             skipped = skipped,
+            remoteDeviceLabel = remoteSnapshot.deviceLabel,
+            remoteSyncedAt = remoteSnapshot.exportedAt,
         )
     }
 }

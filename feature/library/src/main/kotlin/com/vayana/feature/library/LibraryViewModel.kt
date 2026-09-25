@@ -234,6 +234,8 @@ sealed interface GitHubSyncNowResult {
         val failureMessage: String? = null,
         val launchProgressCheckOutcome: LaunchProgressCheckOutcome = LaunchProgressCheckOutcome.NOT_APPLICABLE,
         val progressAppliedSyncIds: Set<String> = emptySet(),
+        val syncedDeviceLabel: String? = null,
+        val syncedAt: Long? = null,
     ) : GitHubSyncNowResult
     data class InitialSyncConfirmationRequired(val message: String?) : GitHubSyncNowResult
     data object SyncDisabled : GitHubSyncNowResult
@@ -296,6 +298,8 @@ internal data class ReadingProgressMergeSummary(
     val failureMessage: String? = null,
     val remoteSnapshot: RemotePortableSnapshotDocument? = null,
     val remoteSnapshotSha: String? = null,
+    val remoteDeviceLabel: String? = null,
+    val remoteSyncedAt: Long? = null,
     val skippedAlreadyChecked: Boolean = false,
 ) {
     val conflictCount: Int
@@ -415,6 +419,8 @@ data class BookProgressChange(
     val newUpdatedAt: Long,
     val previousLastReadAt: Long?,
     val newLastReadAt: Long?,
+    val syncedDeviceLabel: String? = null,
+    val syncedAt: Long? = null,
 )
 
 data class BookProgressSyncOutcome(
@@ -1113,7 +1119,8 @@ class LibraryViewModel @Inject constructor(
         // from "never opened" to some synced progress isn't a conflict, just filling in data.
         // The pull must also have applied remote progress to this very book: otherwise a before/after
         // difference is local reading that happened while the sync ran, not a synced change.
-        val appliedSyncIds = (result as? GitHubSyncNowResult.Complete)?.progressAppliedSyncIds.orEmpty()
+        val completedResult = result as? GitHubSyncNowResult.Complete
+        val appliedSyncIds = completedResult?.progressAppliedSyncIds.orEmpty()
         val changed = if (
             before != null && after != null &&
             before.syncId in appliedSyncIds &&
@@ -1129,6 +1136,8 @@ class LibraryViewModel @Inject constructor(
                 newUpdatedAt = after.updatedAt,
                 previousLastReadAt = before.lastReadAt,
                 newLastReadAt = after.lastReadAt,
+                syncedDeviceLabel = completedResult?.syncedDeviceLabel,
+                syncedAt = completedResult?.syncedAt,
             )
         } else {
             null
@@ -1275,6 +1284,8 @@ class LibraryViewModel @Inject constructor(
                 metadataSynced = !progressPush.failed,
                 failureMessage = progressPush.failureMessage,
                 progressAppliedSyncIds = progressMerge.appliedSyncIds,
+                syncedDeviceLabel = progressMerge.remoteDeviceLabel,
+                syncedAt = progressMerge.remoteSyncedAt,
             )
         }
         updateSyncProgress(

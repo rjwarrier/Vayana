@@ -136,6 +136,7 @@ fun BookDetailRoute(
     bookId: Long,
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
+    transitionSource: BookOpenTransitionSource? = null,
     onOpenNotes: ((Long) -> Unit)? = null,
     onReadFromStart: ((Long) -> Unit)? = null,
     useWideActions: Boolean = false,
@@ -175,6 +176,7 @@ fun BookDetailRoute(
     BookDetailScreen(
         modifier = modifier,
         book = book,
+        transitionSource = transitionSource,
         showSyncReadingProgress = uiState.githubSyncReady,
         syncReadingProgressRunning = syncReadingProgressRunning,
         progressChangePrompt = progressChangePrompt,
@@ -303,6 +305,7 @@ internal data class BookShareImageOptions(
 private fun BookDetailScreen(
     modifier: Modifier = Modifier,
     book: Book?,
+    transitionSource: BookOpenTransitionSource?,
     showSyncReadingProgress: Boolean,
     syncReadingProgressRunning: Boolean,
     progressChangePrompt: BookProgressChange?,
@@ -668,7 +671,12 @@ private fun BookDetailScreen(
             ) {
                 item {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .bookSharedBounds(
+                                bookId = book.id,
+                                enabled = transitionSource == BookOpenTransitionSource.HERO_CARD,
+                            )
+                            .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
                         // Cover on the left, identity (title, author, series, Goodreads) beside it; cover editing
@@ -681,6 +689,12 @@ private fun BookDetailScreen(
                                 BookCover(
                                     book = book,
                                     modifier = Modifier
+                                        .bookSharedElement(
+                                            bookId = book.id,
+                                            source = transitionSource ?: BookOpenTransitionSource.COVER,
+                                            enabled = transitionSource == BookOpenTransitionSource.COVER ||
+                                                transitionSource == BookOpenTransitionSource.READ_NEXT_COVER,
+                                        )
                                         .size(width = Sizes.coverWidthDetail, height = Sizes.coverWidthDetail / Sizes.coverAspectRatio)
                                         .clickable { showCoverPreview = true },
                                 )

@@ -61,7 +61,10 @@ data class ShelfDetailRoute(val shelfId: Long)
 data class SeriesFolderRoute(val seriesKey: String)
 
 @Serializable
-data class BookDetailRoute(val bookId: Long)
+data class BookDetailRoute(
+    val bookId: Long,
+    val transitionSource: String? = null,
+)
 
 /** The Notes screen opened straight on one book's notes, from that book's details. */
 @Serializable

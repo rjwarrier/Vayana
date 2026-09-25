@@ -21,13 +21,21 @@ class LaunchReadingProgressPullTest {
     fun newRemoteProgressIsPulledWithoutAnyUploadAndMarkerIsWritten() = runBlocking {
         val result = pull.run(bookId = BookId, syncTarget = Target) { skipSha ->
             pullCalls += skipSha
-            ReadingProgressMergeSummary(applied = 1, skipped = 2, remoteSnapshotSha = "sha-new")
+            ReadingProgressMergeSummary(
+                applied = 1,
+                skipped = 2,
+                remoteSnapshotSha = "sha-new",
+                remoteDeviceLabel = "Tablet",
+                remoteSyncedAt = 999_000L,
+            )
         }
 
         assertEquals(listOf<String?>(null), pullCalls)
         assertEquals(LaunchProgressCheckOutcome.CHECKED, result.launchProgressCheckOutcome)
         assertEquals(1, result.progressUpdated)
         assertEquals(2, result.skipped)
+        assertEquals("Tablet", result.syncedDeviceLabel)
+        assertEquals(999_000L, result.syncedAt)
         assertNoUploads(result)
         assertEquals(
             LaunchReadingProgressCheckMarker(
