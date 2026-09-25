@@ -18,7 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,7 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
-import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -42,6 +43,7 @@ import kotlin.math.roundToInt
  * while still reading, then four equal tiles - start and last read (or finish) dates, time spent and days taken. The
  * date tiles open a date picker when [onEditStarted] / [onEditFinished] are set.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ReadingStatsCard(
     book: Book,
@@ -102,7 +104,7 @@ internal fun ReadingStatsCard(
         action = action,
     ) {
         if (!finished) {
-            VayanaLinearProgressIndicator(
+            LinearWavyProgressIndicator(
                 progress = { book.readingPercent.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth(),
             )
