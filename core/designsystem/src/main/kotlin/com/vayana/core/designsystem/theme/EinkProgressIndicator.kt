@@ -2,7 +2,9 @@ package com.vayana.core.designsystem.theme
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -10,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.vayana.core.designsystem.tokens.Durations
 
 /**
@@ -77,6 +80,28 @@ fun VayanaLinearProgressIndicator(
         trackColor = trackColor,
         strokeCap = strokeCap,
     )
+}
+
+/** Determinate M3 wavy progress that remains a static squiggle on E-Ink displays. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun VayanaLinearWavyProgressIndicator(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val clampedProgress = { progress().coerceIn(0f, 1f) }
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+        LinearWavyProgressIndicator(
+            progress = clampedProgress,
+            modifier = modifier,
+            waveSpeed = 0.dp,
+        )
+    } else {
+        LinearWavyProgressIndicator(
+            progress = clampedProgress,
+            modifier = modifier,
+        )
+    }
 }
 
 private const val EinkStaticProgressFraction = 0.75f

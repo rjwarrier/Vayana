@@ -344,6 +344,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onStartReadAloud = { startReadAloud(false) },
                 onReadAloudFromSelection = { startReadAloud(true) },
                 onToggleReadAloud = viewModel::toggleReadAloud,
+                onPauseReadAloud = viewModel::pauseReadAloud,
                 onStopReadAloud = viewModel::stopReadAloud,
                 onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
                 onDismissReadAloudVoiceMissing = viewModel::dismissReadAloudVoiceMissing,
@@ -453,6 +454,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onStartReadAloud = { startReadAloud(false) },
         onReadAloudFromSelection = { startReadAloud(true) },
         onToggleReadAloud = viewModel::toggleReadAloud,
+        onPauseReadAloud = viewModel::pauseReadAloud,
         onStopReadAloud = viewModel::stopReadAloud,
         onCycleReadAloudSleepTimer = viewModel::cycleReadAloudSleepTimer,
         onDismissReadAloudVoiceMissing = viewModel::dismissReadAloudVoiceMissing,
@@ -609,6 +611,7 @@ private fun ReaderScreen(
     onStartReadAloud: () -> Unit,
     onReadAloudFromSelection: () -> Unit,
     onToggleReadAloud: () -> Unit,
+    onPauseReadAloud: () -> Unit,
     onStopReadAloud: () -> Unit,
     onCycleReadAloudSleepTimer: () -> Unit,
     onDismissReadAloudVoiceMissing: () -> Unit,
@@ -645,6 +648,10 @@ private fun ReaderScreen(
     // A plain holder, not state: nothing on screen depends on it, so setting it mustn't recompose.
     val pendingMiddleTap = remember { arrayOfNulls<Job>(1) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
+        if (shouldPauseReadAloudOnReaderTap(readAloud.playing)) {
+            onPauseReadAloud()
+            return@rememberUpdatedState
+        }
         val menuStart = width / 3f
         val menuEnd = menuStart * 2f
         when {
@@ -3114,6 +3121,8 @@ internal fun shouldInterceptReaderVolumeKey(
 ): Boolean = !readAloudPlaying && (volumeKeysTurnPages || chromeVisible)
 
 internal fun shouldPauseReaderWebView(readAloudPlaying: Boolean): Boolean = !readAloudPlaying
+
+internal fun shouldPauseReadAloudOnReaderTap(readAloudPlaying: Boolean): Boolean = readAloudPlaying
 
 internal fun needsNotificationPermission(sdkInt: Int, permissionGranted: Boolean): Boolean =
     sdkInt >= 33 && !permissionGranted

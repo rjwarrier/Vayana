@@ -4,6 +4,10 @@
 .kotlin/
 .claude/
 local.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
 .DS_Store
 build/
 captures/

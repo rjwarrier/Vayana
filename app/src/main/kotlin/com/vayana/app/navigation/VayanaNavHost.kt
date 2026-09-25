@@ -1,6 +1,9 @@
 package com.vayana.app.navigation
 
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -9,8 +12,10 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,12 +26,17 @@ import com.vayana.core.designsystem.theme.vayanaNavEnter
 import com.vayana.core.designsystem.theme.vayanaNavExit
 import com.vayana.core.designsystem.theme.vayanaNavPopEnter
 import com.vayana.core.designsystem.theme.vayanaNavPopExit
+import com.vayana.core.designsystem.theme.vayanaSharedElementEnter
+import com.vayana.core.designsystem.theme.vayanaSharedElementExit
+import com.vayana.core.designsystem.theme.vayanaSharedElementCrossfadeEnter
+import com.vayana.core.designsystem.theme.vayanaSharedElementCrossfadeExit
 import com.vayana.core.designsystem.theme.vayanaNavTabEnter
 import com.vayana.core.designsystem.theme.vayanaNavTabExit
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
 import com.vayana.feature.library.LibraryAddAction
 import com.vayana.feature.library.BookOpenTransitionSource
 import com.vayana.feature.library.ProvideBookSharedTransitionScopes
+import com.vayana.feature.library.LibraryViewModel
 import com.vayana.feature.library.ShelfDetailRoute as ShelfDetailScreenRoute
 import com.vayana.feature.library.ShelvesRoute as ShelvesScreenRoute
 import com.vayana.feature.library.SeriesFolderScreenRoute
@@ -58,31 +68,65 @@ fun VayanaNavHost(
         startDestination = startDestination,
         modifier = Modifier.fillMaxSize(),
         enterTransition = {
-            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
-            } else {
-                vayanaNavEnter(displayProfile, motionSetting, motionScheme)
+            when {
+                targetState.bookOpenTransitionSource() == BookOpenTransitionSource.COVER ->
+                    vayanaSharedElementCrossfadeEnter(displayProfile, motionSetting)
+                targetState.destination.hasRoute<BookDetailRoute>() ->
+                    vayanaSharedElementEnter(displayProfile, motionSetting)
+                initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab() ->
+                    vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
+                else -> vayanaNavEnter(displayProfile, motionSetting, motionScheme)
             }
         },
         exitTransition = {
-            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabExit(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
-            } else {
-                vayanaNavExit(displayProfile, motionSetting, motionScheme)
+            when {
+                targetState.bookOpenTransitionSource() == BookOpenTransitionSource.COVER ->
+                    vayanaSharedElementCrossfadeExit(displayProfile, motionSetting)
+                targetState.destination.hasRoute<BookDetailRoute>() ->
+                    vayanaSharedElementExit(displayProfile, motionSetting)
+                initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab() ->
+                    vayanaNavTabExit(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
+                else -> vayanaNavExit(displayProfile, motionSetting, motionScheme)
             }
         },
         popEnterTransition = {
-            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
-            } else {
-                vayanaNavPopEnter(displayProfile, motionSetting, motionScheme)
+            when {
+                initialState.bookOpenTransitionSource() == BookOpenTransitionSource.COVER ->
+                    vayanaSharedElementCrossfadeEnter(displayProfile, motionSetting)
+                initialState.destination.hasRoute<BookDetailRoute>() ->
+                    vayanaSharedElementEnter(displayProfile, motionSetting)
+                initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab() ->
+                    vayanaNavTabEnter(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
+                else -> vayanaNavPopEnter(displayProfile, motionSetting, motionScheme)
             }
         },
         popExitTransition = {
-            if (initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab()) {
-                vayanaNavTabExit(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
-            } else {
-                vayanaNavPopExit(displayProfile, motionSetting, motionScheme)
+            when {
+                initialState.bookOpenTransitionSource() == BookOpenTransitionSource.COVER ->
+                    vayanaSharedElementCrossfadeExit(displayProfile, motionSetting)
+                initialState.destination.hasRoute<BookDetailRoute>() ->
+                    vayanaSharedElementExit(displayProfile, motionSetting)
+                initialState.destination.isTopLevelTab() && targetState.destination.isTopLevelTab() ->
+                    vayanaNavTabExit(displayProfile, motionSetting, motionScheme, initialState.destination.tabDirectionTo(targetState.destination))
+                else -> vayanaNavPopExit(displayProfile, motionSetting, motionScheme)
+            }
+        },
+        predictivePopEnterTransition = { _ ->
+            when {
+                initialState.bookOpenTransitionSource() == BookOpenTransitionSource.COVER ->
+                    vayanaSharedElementCrossfadeEnter(displayProfile, motionSetting)
+                initialState.destination.hasRoute<BookDetailRoute>() ->
+                    vayanaSharedElementEnter(displayProfile, motionSetting)
+                else -> fadeIn(animationSpec = spring(dampingRatio = 1f, stiffness = 1_600f))
+            }
+        },
+        predictivePopExitTransition = { _ ->
+            when {
+                initialState.bookOpenTransitionSource() == BookOpenTransitionSource.COVER ->
+                    vayanaSharedElementCrossfadeExit(displayProfile, motionSetting)
+                initialState.destination.hasRoute<BookDetailRoute>() ->
+                    vayanaSharedElementExit(displayProfile, motionSetting)
+                else -> scaleOut(targetScale = 0.7f)
             }
         },
     ) {
@@ -185,10 +229,17 @@ fun VayanaNavHost(
             val transitionSource = remember(route.transitionSource) {
                 BookOpenTransitionSource.entries.firstOrNull { source -> source.name == route.transitionSource }
             }
+            val viewModelOwner = remember(backStackEntry) {
+                navController.previousBackStackEntry
+                    ?.takeIf { entry -> entry.destination.hasRoute<TopLevelRoute.Library>() }
+                    ?: backStackEntry
+            }
+            val libraryViewModel: LibraryViewModel = hiltViewModel(viewModelOwner)
             ProvideBookSharedTransitionScopes(this@SharedTransitionLayout, this@composable) {
                 com.vayana.feature.library.BookDetailRoute(
                     bookId = route.bookId,
                     transitionSource = transitionSource,
+                    viewModel = libraryViewModel,
                     onBack = { navController.popBackStack() },
                     onReadableSourceChanged = { readable ->
                         backStackEntry.savedStateHandle[BOOK_DETAIL_READABLE_KEY] = readable
@@ -223,6 +274,12 @@ fun VayanaNavHost(
 
 private fun NavDestination.isTopLevelTab(): Boolean =
     TopLevelDestination.entries.any { destination -> hasRoute(destination.routeClass) }
+
+private fun NavBackStackEntry.bookOpenTransitionSource(): BookOpenTransitionSource? {
+    if (!destination.hasRoute<BookDetailRoute>()) return null
+    val sourceName = toRoute<BookDetailRoute>().transitionSource ?: return null
+    return BookOpenTransitionSource.entries.firstOrNull { source -> source.name == sourceName }
+}
 
 private fun NavDestination.tabDirectionTo(target: NavDestination): Int {
     val initialIndex = TopLevelDestination.entries.indexOfFirst { hasRoute(it.routeClass) }

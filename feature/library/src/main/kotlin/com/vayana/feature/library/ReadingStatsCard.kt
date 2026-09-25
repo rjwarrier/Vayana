@@ -20,7 +20,6 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,6 +34,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.VayanaLinearWavyProgressIndicator
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
 
@@ -104,7 +104,7 @@ internal fun ReadingStatsCard(
         action = action,
     ) {
         if (!finished) {
-            LinearWavyProgressIndicator(
+            VayanaLinearWavyProgressIndicator(
                 progress = { book.readingPercent.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth(),
             )

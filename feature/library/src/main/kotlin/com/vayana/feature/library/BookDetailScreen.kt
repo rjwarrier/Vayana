@@ -110,7 +110,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
@@ -141,14 +141,15 @@ fun BookDetailRoute(
     onReadFromStart: ((Long) -> Unit)? = null,
     useWideActions: Boolean = false,
     onReadableSourceChanged: (Boolean) -> Unit = {},
+    viewModel: LibraryViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val viewModel: LibraryViewModel = hiltViewModel()
-    val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
-    val book by bookFlow.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
     val libraryBooks by viewModel.libraryBooks.collectAsState()
+    val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
+    val observedBook by bookFlow.collectAsState(initial = null)
+    val book = observedBook ?: libraryBooks.firstOrNull { libraryBook -> libraryBook.id == bookId }
+    val uiState by viewModel.uiState.collectAsState()
     val yearlyBooksGoal by viewModel.yearlyBooksGoal.collectAsState()
     val detailMessage by viewModel.bookDetailMessage.collectAsState()
     val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsState()

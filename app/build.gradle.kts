@@ -1,8 +1,22 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("vayana.android.application")
     id("vayana.android.library.compose")
     id("vayana.android.hilt")
     alias(libs.plugins.kotlin.serialization)
+}
+
+val releaseKeystorePropertiesFile = providers.gradleProperty("VAYANA_KEYSTORE_PROPERTIES")
+    .orElse(providers.environmentVariable("VAYANA_KEYSTORE_PROPERTIES"))
+    .orNull
+    ?.let(::file)
+    ?: rootProject.file("keystore.properties")
+val releaseKeystoreProperties = Properties().apply {
+    if (releaseKeystorePropertiesFile.exists()) {
+        FileInputStream(releaseKeystorePropertiesFile).use(::load)
+    }
 }
 
 android {
@@ -14,11 +28,26 @@ android {
         versionName = "0.85"
     }
 
+    signingConfigs {
+        if (releaseKeystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = file(releaseKeystoreProperties.getProperty("storeFile"))
+                storePassword = releaseKeystoreProperties.getProperty("storePassword")
+                keyAlias = releaseKeystoreProperties.getProperty("keyAlias")
+                keyPassword = releaseKeystoreProperties.getProperty("keyPassword")
+                storeType = releaseKeystoreProperties.getProperty("storeType", "PKCS12")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (releaseKeystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

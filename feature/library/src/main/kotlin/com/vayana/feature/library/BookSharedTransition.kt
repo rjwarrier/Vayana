@@ -2,12 +2,17 @@ package com.vayana.feature.library
 
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import com.vayana.core.designsystem.tokens.Durations
 import com.vayana.core.designsystem.theme.isMotionEnabled
+import com.vayana.core.designsystem.theme.vayanaSpring
+import com.vayana.core.designsystem.theme.vayanaTween
 
 /** The Books-screen element that opens Book Details. */
 enum class BookOpenTransitionSource {
@@ -20,6 +25,8 @@ private data class BookSharedTransitionKey(
     val bookId: Long,
     val source: BookOpenTransitionSource,
 )
+
+private const val BookCoverBoundsStiffness = 600f
 
 private val LocalBookSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 private val LocalBookAnimatedVisibilityScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
@@ -49,10 +56,20 @@ internal fun Modifier.bookSharedElement(
     val sharedTransitionScope = LocalBookSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalBookAnimatedVisibilityScope.current ?: return this
     val key = remember(bookId, source) { BookSharedTransitionKey(bookId, source) }
+    val boundsAnimation = when (source) {
+        BookOpenTransitionSource.COVER -> vayanaSpring<Rect>(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = BookCoverBoundsStiffness,
+        )
+        BookOpenTransitionSource.HERO_CARD,
+        BookOpenTransitionSource.READ_NEXT_COVER,
+        -> vayanaTween(Durations.long)
+    }
     return with(sharedTransitionScope) {
         sharedElement(
             sharedContentState = rememberSharedContentState(key),
             animatedVisibilityScope = animatedVisibilityScope,
+            boundsTransform = { _, _ -> boundsAnimation },
         )
     }
 }
@@ -67,10 +84,13 @@ internal fun Modifier.bookSharedBounds(
     val sharedTransitionScope = LocalBookSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalBookAnimatedVisibilityScope.current ?: return this
     val key = remember(bookId) { BookSharedTransitionKey(bookId, BookOpenTransitionSource.HERO_CARD) }
+    val boundsAnimation = vayanaTween<Rect>(Durations.long)
     return with(sharedTransitionScope) {
         sharedBounds(
             sharedContentState = rememberSharedContentState(key),
             animatedVisibilityScope = animatedVisibilityScope,
+            boundsTransform = { _, _ -> boundsAnimation },
+            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
         )
     }
 }

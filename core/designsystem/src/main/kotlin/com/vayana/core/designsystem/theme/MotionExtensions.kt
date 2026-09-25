@@ -188,6 +188,46 @@ fun <S> vayanaContentTransform(): AnimatedContentTransitionScope<S>.() -> Conten
     }
 }
 
+/**
+ * Fade-through used around a shared element. The short delay lets the shared cover or container
+ * establish its movement before the destination content appears, avoiding two full screens being
+ * visible at once.
+ */
+fun vayanaSharedElementEnter(profile: DisplayProfile, motionSetting: MotionSetting): EnterTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> EnterTransition.None
+    motionSetting == MotionSetting.REDUCED ->
+        fadeIn(animationSpec = tween(Durations.short, easing = LinearOutSlowInEasing))
+    else -> fadeIn(
+        animationSpec = tween(
+            durationMillis = Durations.medium,
+            delayMillis = Durations.short / 2,
+            easing = LinearOutSlowInEasing,
+        ),
+    )
+}
+
+/** Quickly clears the outgoing screen while its shared element remains in the transition overlay. */
+fun vayanaSharedElementExit(profile: DisplayProfile, motionSetting: MotionSetting): ExitTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> ExitTransition.None
+    else -> fadeOut(animationSpec = tween(Durations.short, easing = FastOutSlowInEasing))
+}
+
+/** Keeps supporting screen content in step with a compact shared element such as a book cover. */
+fun vayanaSharedElementCrossfadeEnter(profile: DisplayProfile, motionSetting: MotionSetting): EnterTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> EnterTransition.None
+    motionSetting == MotionSetting.REDUCED ->
+        fadeIn(animationSpec = tween(Durations.short, easing = LinearOutSlowInEasing))
+    else -> fadeIn(animationSpec = tween(Durations.medium, easing = LinearOutSlowInEasing))
+}
+
+/** Prevents a compact shared element from lingering over a screen that has already disappeared. */
+fun vayanaSharedElementCrossfadeExit(profile: DisplayProfile, motionSetting: MotionSetting): ExitTransition = when {
+    profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> ExitTransition.None
+    motionSetting == MotionSetting.REDUCED ->
+        fadeOut(animationSpec = tween(Durations.short, easing = FastOutSlowInEasing))
+    else -> fadeOut(animationSpec = tween(Durations.medium, easing = FastOutSlowInEasing))
+}
+
 fun vayanaNavTabEnter(profile: DisplayProfile, motionSetting: MotionSetting, scheme: MotionScheme, direction: Int): EnterTransition = when {
     profile == DisplayProfile.E_INK || motionSetting == MotionSetting.OFF -> EnterTransition.None
     motionSetting == MotionSetting.REDUCED -> fadeIn(animationSpec = scheme.fastEffectsSpec())

@@ -65,7 +65,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -121,6 +120,7 @@ import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.VayanaSnackbarHost
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
+import com.vayana.core.designsystem.theme.VayanaLinearWavyProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaSpring
@@ -1603,7 +1603,7 @@ private fun LibraryHeroCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        LinearWavyProgressIndicator(
+                        VayanaLinearWavyProgressIndicator(
                             progress = { book.readingPercent.coerceIn(0f, 1f) },
                             modifier = Modifier.weight(1f),
                         )
