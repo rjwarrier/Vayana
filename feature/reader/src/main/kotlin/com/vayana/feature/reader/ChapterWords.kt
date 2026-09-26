@@ -20,20 +20,34 @@ internal fun unusualWordCandidates(
     counts: Map<String, Int>,
     knownWords: Set<String>,
     limit: Int = MaxUnusualWordCandidates,
-): List<String> =
-    counts.entries
-        .groupBy { it.key.lowercase() }
-        .filter { (word, variants) ->
+): List<String> {
+    val byNormalizedWord = HashMap<String, CandidateCounts>(counts.size)
+    for ((variant, count) in counts) {
+        val word = variant.lowercase()
+        val candidate = byNormalizedWord.getOrPut(word, ::CandidateCounts)
+        candidate.occurrences += count
+        if (variant == word) candidate.hasLowercaseVariant = true
+    }
+
+    return byNormalizedWord.asSequence()
+        .filter { (word, candidate) ->
             word.length >= MinUnusualWordLength &&
                 word.all(Char::isLetter) &&
-                variants.any { it.key == word } &&
-                word !in knownWords
+                candidate.hasLowercaseVariant &&
+                word !in knownWords &&
+                candidate.occurrences <= MaxUnusualWordOccurrences
         }
-        .map { (word, variants) -> word to variants.sumOf { it.value } }
-        .filter { (_, count) -> count <= MaxUnusualWordOccurrences }
+        .map { (word, candidate) -> word to candidate.occurrences }
         .sortedWith(compareBy<Pair<String, Int>> { it.second }.thenByDescending { it.first.length }.thenBy { it.first })
         .take(limit)
         .map { it.first }
+        .toList()
+}
+
+private class CandidateCounts(
+    var occurrences: Int = 0,
+    var hasLowercaseVariant: Boolean = false,
+)
 
 internal const val MinUnusualWordLength = 8
 private const val MaxUnusualWordOccurrences = 2

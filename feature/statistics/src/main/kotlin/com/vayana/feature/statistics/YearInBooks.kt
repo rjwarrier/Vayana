@@ -53,6 +53,13 @@ internal fun List<Book>.yearInBooks(
 }
 
 internal fun List<Book>.averageActiveProgressPercent(finishedThreshold: Float): Int {
-    val active = filter { it.readingPercent > 0f && it.readingPercent < finishedThreshold }
-    return if (active.isEmpty()) 0 else (active.sumOf { it.readingPercent.toDouble() } / active.size * 100).toInt()
+    var total = 0.0
+    var count = 0
+    for (book in this) {
+        if (book.readingPercent > 0f && book.readingPercent < finishedThreshold) {
+            total += book.readingPercent
+            count++
+        }
+    }
+    return if (count == 0) 0 else (total / count * 100).toInt()
 }

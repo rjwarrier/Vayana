@@ -18,11 +18,17 @@ internal data class LibraryStatsSnapshot(
 }
 
 internal fun libraryStatsSnapshot(books: List<Book>): LibraryStatsSnapshot {
-    val records = books.map { LibraryStatsBook(it.id, it.createdAt, it.author, it.isFinished()) }
-        .sortedWith(compareBy(LibraryStatsBook::createdAt, LibraryStatsBook::id))
-    val authors = records.mapNotNull { it.author?.trim()?.takeIf(String::isNotEmpty)?.lowercase(Locale.ROOT) }
-        .distinct().size
-    return LibraryStatsSnapshot(records, authors, records.count(LibraryStatsBook::read))
+    val records = ArrayList<LibraryStatsBook>(books.size)
+    val authors = HashSet<String>()
+    var readCount = 0
+    for (book in books) {
+        val read = book.isFinished()
+        records += LibraryStatsBook(book.id, book.createdAt, book.author, read)
+        book.author?.trim()?.takeIf(String::isNotEmpty)?.let { authors += it.lowercase(Locale.ROOT) }
+        if (read) readCount++
+    }
+    records.sortWith(compareBy(LibraryStatsBook::createdAt, LibraryStatsBook::id))
+    return LibraryStatsSnapshot(records, authors.size, readCount)
 }
 
 internal enum class LibraryShareFormat(val designWidth: Int, val designHeight: Int, val exportWidth: Int, val exportHeight: Int) {

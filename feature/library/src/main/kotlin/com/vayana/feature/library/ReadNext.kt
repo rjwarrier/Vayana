@@ -76,8 +76,11 @@ internal fun suggestedReadNext(books: List<Book>, currentBook: Book?): List<Book
             .filter { it.id != current.id }
             .filter { it.series?.metadataKey() != currentSeries || it.seriesNumber?.toDoubleOrNull()?.let { number -> currentSeriesNumber != null && number > currentSeriesNumber } == true }
             .filter { it.isReadNextCandidate() }
-            .sortedWith(compareBy<Book> { it.series?.metadataKey().orEmpty() }.thenBy { it.seriesNumber?.toDoubleOrNull() ?: Double.MAX_VALUE }.thenBy { it.title.metadataKey() })
-            .firstOrNull()
+            .minWithOrNull(
+                compareBy<Book> { it.series?.metadataKey().orEmpty() }
+                    .thenBy { it.seriesNumber?.toDoubleOrNull() ?: Double.MAX_VALUE }
+                    .thenBy { it.title.metadataKey() },
+            )
     } else {
         null
     }

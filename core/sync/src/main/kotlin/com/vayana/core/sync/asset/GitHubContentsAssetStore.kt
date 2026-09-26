@@ -8,6 +8,7 @@ import java.net.URLEncoder
 import java.util.Base64
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 data class GitHubRepository(
@@ -52,7 +53,7 @@ class GitHubContentsAssetStore(
      */
     override suspend fun delete(path: String): Unit = withContext(dispatcher) {
         validateAssetPath(path)
-        val listing = client.execute(
+        val listing = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path.substringBeforeLast('/'), includeRef = true),
@@ -108,7 +109,7 @@ class GitHubContentsAssetStore(
 
     suspend fun getSyncDocument(path: String): ByteArray = withContext(dispatcher) {
         validateSyncDocumentPath(path)
-        val response = client.execute(
+        val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
@@ -139,7 +140,7 @@ class GitHubContentsAssetStore(
         // Blob content is addressed by its SHA, so a cached copy (from an earlier read, or the content GitHub
         // embeds in the metadata response for smaller files) is exactly the bytes of this version.
         GitHubBlobCache.get(sha)?.let { return@withContext GitHubSyncDocument(bytes = it, sha = sha) }
-        val blobResponse = client.execute(
+        val blobResponse = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = blobUrl(sha),
@@ -157,7 +158,7 @@ class GitHubContentsAssetStore(
 
     suspend fun listSyncDocumentDirectory(path: String): List<GitHubContentEntry> = withContext(dispatcher) {
         validateSyncDocumentDirectoryPath(path)
-        val response = client.execute(
+        val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
@@ -204,10 +205,10 @@ class GitHubContentsAssetStore(
      * an unchanged file answers 304 (no body, and not counted against GitHub's rate limit). For files small
      * enough that GitHub embeds their content, that content is cached under the SHA to save the blob download.
      */
-    private fun getSyncDocumentSha(path: String): String {
+    private suspend fun getSyncDocumentSha(path: String): String {
         val metadataKey = "$cacheScope|$path"
         val cached = GitHubMetadataCache.get(metadataKey)
-        val response = client.execute(
+        val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
@@ -235,7 +236,7 @@ class GitHubContentsAssetStore(
     }
 
     suspend fun testConnection(): GitHubConnectionTestResult = withContext(dispatcher) {
-        val response = client.execute(
+        val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl("vayana/snapshot-latest.json", includeRef = true),
@@ -255,7 +256,7 @@ class GitHubContentsAssetStore(
         }
     }
 
-    private fun putContents(path: String, bytes: ByteArray, message: String, replaceExisting: Boolean) {
+    private suspend fun putContents(path: String, bytes: ByteArray, message: String, replaceExisting: Boolean) {
         require(bytes.isNotEmpty()) { "Cloud asset upload is empty" }
         val maxBytes = if (path.endsWith(".json")) MaxSyncDocumentBytes else MaxEncryptedAssetBytes
         require(bytes.size <= maxBytes) { "Cloud upload is too large" }
@@ -304,7 +305,7 @@ class GitHubContentsAssetStore(
 
     override suspend fun get(path: String): ByteArray = withContext(dispatcher) {
         validateAssetPath(path)
-        val response = client.execute(
+        val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
@@ -319,10 +320,10 @@ class GitHubContentsAssetStore(
         response.body
     }
 
-    private fun findExistingSha(path: String): String? {
+    private suspend fun findExistingSha(path: String): String? {
         // Ask for object metadata so GitHub does not reject larger snapshot files that exceed the
         // default Contents API JSON body's embedded-content behavior.
-        val response = client.execute(
+        val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
@@ -354,6 +355,24 @@ class GitHubContentsAssetStore(
                 responseBody = response.safeBodyText(),
             )
         }
+    }
+
+    /** Retries only idempotent reads, keeping writes under the existing conflict protocol. */
+    private suspend fun executeRead(request: GitHubHttpRequest): GitHubHttpResponse {
+        require(request.method == "GET") { "Only GitHub reads are safe to retry here" }
+        repeat(MaxReadAttempts) { attempt ->
+            try {
+                val response = client.execute(request)
+                if (response.statusCode !in RetryableReadStatusCodes || attempt == MaxReadAttempts - 1) {
+                    return response
+                }
+                delay(response.retryDelayMillis(attempt))
+            } catch (exception: IOException) {
+                if (attempt == MaxReadAttempts - 1) throw exception
+                delay(readRetryDelayMillis(attempt))
+            }
+        }
+        error("Unreachable")
     }
 
     private fun contentsUrl(path: String, includeRef: Boolean = false): String {
@@ -746,6 +765,16 @@ private fun GitHubHttpResponse.isEmptyRepository(): Boolean =
     statusCode == HttpURLConnection.HTTP_CONFLICT &&
         bodyText().contains("Git Repository is empty", ignoreCase = true)
 
+private fun GitHubHttpResponse.retryDelayMillis(attempt: Int): Long =
+    header("Retry-After")
+        ?.trim()
+        ?.toLongOrNull()
+        ?.coerceIn(0L, MaxRetryAfterMillis / 1_000L)
+        ?.times(1_000L)
+        ?: readRetryDelayMillis(attempt)
+
+private fun readRetryDelayMillis(attempt: Int): Long = InitialReadRetryDelayMillis * (1L shl attempt)
+
 private val GitHubNameRegex = Regex("^[A-Za-z0-9_.-]{1,100}$")
 private val GitHubBranchRegex = Regex("^[A-Za-z0-9._/-]{1,255}$")
 private val GitHubObjectShaRegex = Regex("^[a-f0-9]{40,64}$")
@@ -753,8 +782,12 @@ private val SyncDocumentPathRegex = Regex("^[A-Za-z0-9._/-]{1,240}$")
 private val CompressedAnnotationsPathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*/annotations\\.zip$")
 private val SnapshotSliceDirectoryPathRegex = Regex("^vayana/snapshot-slices/[1-9][0-9]*$")
 private val AuthorizationTokenRegex = Regex(""""token"\s*:\s*"[^"]+"""")
+private val RetryableReadStatusCodes = setOf(408, 425, 429, 500, 502, 503, 504)
 private const val NetworkTimeoutMillis = 30_000
 private const val MaxPutAttempts = 3
+private const val MaxReadAttempts = 3
+private const val InitialReadRetryDelayMillis = 200L
+private const val MaxRetryAfterMillis = 2_000L
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024
 private const val MaxSyncDocumentBytes = 16 * 1024 * 1024
 private const val MaxSyncDocumentJsonBytes = MaxSyncDocumentBytes * 2

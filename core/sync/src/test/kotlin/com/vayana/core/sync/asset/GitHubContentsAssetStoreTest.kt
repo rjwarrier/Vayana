@@ -3,6 +3,8 @@ package com.vayana.core.sync.asset
 import com.vayana.core.backup.PortableAnnotation
 import com.vayana.core.backup.PortableReadingSession
 import com.vayana.core.backup.PortableSnapshot
+import com.vayana.core.backup.PortableTombstone
+import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.sync.snapshot.SnapshotSliceCache
 import com.vayana.core.sync.snapshot.getLatestPortableSnapshotDocument
 import com.vayana.core.sync.snapshot.pruneOlderPortableSnapshotSlices
@@ -23,6 +25,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 
 class GitHubContentsAssetStoreTest {
@@ -198,6 +201,24 @@ class GitHubContentsAssetStoreTest {
         assertContentEquals("""{"books":[]}""".toByteArray(), bytes)
         assertEquals("application/vnd.github.raw", client.requests.single().headers["Accept"])
         assertEquals(MaxSyncDocumentBytesForTest, client.requests.single().maxResponseBytes)
+    }
+
+    @Test
+    fun getSyncDocumentRetriesTransientReadFailure() = runBlocking {
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(
+                statusCode = 503,
+                body = """{"message":"temporarily unavailable"}""".toByteArray(),
+                headers = mapOf("retry-after" to "0"),
+            ),
+            GitHubHttpResponse(200, """{"books":[]}""".toByteArray()),
+        )
+        val store = testStore(client)
+
+        val bytes = store.getSyncDocument("vayana/snapshot-latest.json")
+
+        assertContentEquals("""{"books":[]}""".toByteArray(), bytes)
+        assertEquals(listOf("GET", "GET"), client.requests.map { it.method })
     }
 
     @Test
@@ -609,6 +630,62 @@ class GitHubContentsAssetStoreTest {
         assertTrue(puts[0].url.endsWith("contents/vayana/snapshot-slices/3000/reading-sessions.json"))
         assertTrue(puts[1].url.endsWith("contents/vayana/snapshot-latest.json"))
         assertTrue(puts[1].bodyText().contains(""""sha":"$ExistingSha""""))
+    }
+
+    @Test
+    fun slicedProgressPushPrefetchesNeededSlicesConcurrently() = runBlocking {
+        val paths = mapOf(
+            RemotePortableSnapshotSlice.ReadingSessions.key to "vayana/snapshot-slices/1000/reading-sessions.json",
+            RemotePortableSnapshotSlice.WordLookupCounters.key to "vayana/snapshot-slices/1000/word-lookup-counters.json",
+            RemotePortableSnapshotSlice.Tombstones.key to "vayana/snapshot-slices/1000/tombstones.json",
+        )
+        val manifest = """
+            {
+              "exportedAt": 1000,
+              "books": [],
+              "slices": {
+                "readingSessions": "${paths.getValue(RemotePortableSnapshotSlice.ReadingSessions.key)}",
+                "wordLookupCounters": "${paths.getValue(RemotePortableSnapshotSlice.WordLookupCounters.key)}",
+                "tombstones": "${paths.getValue(RemotePortableSnapshotSlice.Tombstones.key)}"
+              }
+            }
+        """.trimIndent()
+        val startedPaths = mutableSetOf<String>()
+        val allLoadsStarted = CompletableDeferred<Unit>()
+        val releaseLoads = CompletableDeferred<Unit>()
+        val remote = remotePortableSnapshotDocumentFrom(manifest, ExistingSha, paths) { path ->
+            synchronized(startedPaths) {
+                startedPaths += path
+                if (startedPaths.size == paths.size) allLoadsStarted.complete(Unit)
+            }
+            releaseLoads.await()
+            when (path) {
+                paths.getValue(RemotePortableSnapshotSlice.ReadingSessions.key) -> """{"readingSessions":[]}"""
+                paths.getValue(RemotePortableSnapshotSlice.WordLookupCounters.key) -> """{"wordLookupCounters":[]}"""
+                else -> """{"tombstones":[]}"""
+            }
+        }
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(201, ByteArray(0)),
+            GitHubHttpResponse(201, ByteArray(0)),
+            GitHubHttpResponse(201, ByteArray(0)),
+            GitHubHttpResponse(200, ByteArray(0)),
+        )
+        val push = async {
+            testStore(client).pushPortableReadingProgress(
+                remote = remote,
+                patches = emptyList(),
+                exportedAt = 3000,
+                readingSessions = listOf(PortableReadingSession("session", "book", 1, 2, 1)),
+                wordLookupCounters = listOf(PortableWordLookupCounter("word", "device", 1, 2)),
+                tombstones = listOf(PortableTombstone("deleted", "book", 2)),
+            )
+        }
+
+        withTimeout(1_000) { allLoadsStarted.await() }
+        releaseLoads.complete(Unit)
+        assertEquals(3, push.await().pushed)
+        assertEquals(paths.values.toSet(), startedPaths)
     }
 
     @Test

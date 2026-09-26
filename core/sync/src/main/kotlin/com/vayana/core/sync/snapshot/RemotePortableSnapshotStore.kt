@@ -296,12 +296,15 @@ suspend fun GitHubContentsAssetStore.pushPortableReadingProgress(
         return pushResult
     }
     // Only slices with local data to merge are worth downloading; the rest can't change.
-    val neededSliceKeys = buildList {
-        if (readingSessions.isNotEmpty()) add(RemotePortableSnapshotSlice.ReadingSessions.key)
-        if (wordLookupCounters.isNotEmpty()) add(RemotePortableSnapshotSlice.WordLookupCounters.key)
-        if (tombstones.isNotEmpty()) add(RemotePortableSnapshotSlice.Tombstones.key)
+    val neededSlices = buildList {
+        if (readingSessions.isNotEmpty()) add(RemotePortableSnapshotSlice.ReadingSessions)
+        if (wordLookupCounters.isNotEmpty()) add(RemotePortableSnapshotSlice.WordLookupCounters)
+        if (tombstones.isNotEmpty()) add(RemotePortableSnapshotSlice.Tombstones)
     }
-    val sliceJsonByKey = neededSliceKeys.mapNotNull { key -> remote.sliceJsonOrNull(key)?.let { key to it } }.toMap()
+    remote.prefetch(neededSlices)
+    val sliceJsonByKey = neededSlices
+        .mapNotNull { slice -> remote.sliceJsonOrNull(slice.key)?.let { slice.key to it } }
+        .toMap()
     val result = patchSlicedPortableReadingProgress(
         manifestJson = remote.jsonText,
         sliceJsonByKey = sliceJsonByKey,

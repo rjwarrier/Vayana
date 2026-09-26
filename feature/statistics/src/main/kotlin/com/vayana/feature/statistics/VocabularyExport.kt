@@ -18,10 +18,13 @@ internal fun vocabularyAnkiCsv(cards: List<VocabularyCard>): String = buildStrin
     appendLine("#html:false")
     appendLine("#columns:Word,Definition,Sentence,Book")
     cards.sortedBy { it.word.lowercase() }.forEach { card ->
-        appendLine(
-            listOf(card.word, card.definition, card.sentence.orEmpty(), card.bookTitle.orEmpty())
-                .joinToString(",") { it.asCsvField() },
-        )
+        append(card.word.asCsvField())
+        append(',')
+        append(card.definition.asCsvField())
+        append(',')
+        append(card.sentence.orEmpty().asCsvField())
+        append(',')
+        appendLine(card.bookTitle.orEmpty().asCsvField())
     }
 }
 
@@ -42,6 +45,8 @@ internal fun vocabularyMarkdown(cards: List<VocabularyCard>, title: String, othe
     }
 }
 
-private fun String.singleLine(): String = replace(Regex("\\s*\\R\\s*"), " ").trim()
+private fun String.singleLine(): String = replace(LineBreakWithWhitespace, " ").trim()
 
 private fun String.asCsvField(): String = "\"${singleLine().replace("\"", "\"\"")}\""
+
+private val LineBreakWithWhitespace = Regex("\\s*\\R\\s*")

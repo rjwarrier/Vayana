@@ -61,6 +61,26 @@ class ReadNextTest {
     }
 
     @Test
+    fun authorFallbackUsesSeriesNumberThenTitleOrdering() {
+        val current = book(
+            9,
+            "Last Current Book",
+            author = "Author",
+            series = "Finished Series",
+            number = "9",
+            reading = true,
+        )
+        val books = listOf(
+            current,
+            book(30, "Later", author = "Author", series = "Other Series", number = "2"),
+            book(20, "Zulu", author = "Author", series = "Other Series", number = "1"),
+            book(10, "Alpha", author = "Author", series = "Other Series", number = "1"),
+        )
+
+        assertEquals(listOf(10L), suggestedReadNext(books, current).map { it.id })
+    }
+
+    @Test
     fun noSuggestionWithoutAnActiveSeriesBook() {
         val notStarted = book(1, "Leviathan Wakes", series = "The Expanse", number = "1")
         val finished = book(2, "Caliban's War", series = "The Expanse", number = "2", reading = true, finished = true)
