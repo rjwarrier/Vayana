@@ -18,6 +18,8 @@ class BookFileMetadataTest {
         assertEquals("pdf", readableExtensionForMimeType("application/pdf"))
         assertEquals("", readableExtensionForMimeType("application/octet-stream"))
         assertEquals("", readableExtensionForMimeType(null))
+        assertEquals("pdf", readableExtension("download", "application/pdf"))
+        assertEquals("epub", readableExtension("BOOK.EPUB", "application/octet-stream"))
     }
 
     @Test

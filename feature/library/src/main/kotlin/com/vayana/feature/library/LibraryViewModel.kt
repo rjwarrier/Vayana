@@ -2175,8 +2175,7 @@ class LibraryViewModel @Inject constructor(
         val uri = candidate.uri
         val displayName = candidate.displayName
         // Files opened from a browser or mail app often have no usable extension; their MIME type still says what they are.
-        val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
-            .ifEmpty { readableExtensionForMimeType(contentResolver.getType(uri)) }
+        val extension = readableExtension(displayName, contentResolver.getType(uri))
         val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
             ?: return finishImportRow(candidate.id, ImportResult.Unsupported)
         if (format !in ReadableBookFormats) return finishImportRow(candidate.id, ImportResult.Unsupported)
@@ -2223,7 +2222,7 @@ class LibraryViewModel @Inject constructor(
     private suspend fun replaceSourceInLibrary(bookId: Long, contentResolver: ContentResolver, uri: Uri): BookDetailMessage {
         val existingBook = bookRepository.getById(bookId)?.withAbsolutePaths() ?: return BookDetailMessage.SOURCE_FAILED
         val displayName = displayNameOf(contentResolver, uri)
-        val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+        val extension = readableExtension(displayName, contentResolver.getType(uri))
         val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
             ?: return BookDetailMessage.SOURCE_UNSUPPORTED
         if (format !in ReadableBookFormats) return BookDetailMessage.SOURCE_UNSUPPORTED

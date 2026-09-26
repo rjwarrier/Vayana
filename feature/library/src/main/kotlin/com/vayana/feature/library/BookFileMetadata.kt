@@ -18,6 +18,12 @@ internal fun readableExtensionForMimeType(mimeType: String?): String = when (mim
     else -> ""
 }
 
+/** Uses the picked file's extension when present, otherwise its MIME type. */
+internal fun readableExtension(displayName: String, mimeType: String?): String =
+    displayName.substringAfterLast('.', missingDelimiterValue = "")
+        .lowercase()
+        .ifEmpty { readableExtensionForMimeType(mimeType) }
+
 /** What an imported book file says about itself, whatever its format. */
 internal class BookFileMetadata(
     val title: String,
