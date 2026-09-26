@@ -82,7 +82,7 @@ internal fun hyphenationCss(hyphenation: BookHyphenation): String? = when (hyphe
 
 /**
  * `:reader:engine-api`'s default implementation: foliate-js running inside a [WebView], driven
- * through a JS bridge (PROMPT2appbuild.md §3). One instance per [WebView] — construct it right
+ * through a JS bridge (docs/PRODUCT_SPEC.md §3). One instance per [WebView] — construct it right
  * after the WebView is created (e.g. in the `AndroidView` factory) and [close] it when the
  * screen leaves composition.
  */

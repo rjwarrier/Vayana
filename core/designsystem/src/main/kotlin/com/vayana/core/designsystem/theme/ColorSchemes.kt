@@ -85,7 +85,7 @@ object ColorSchemes {
         onErrorContainer = Color(0xFFF9DEDC),
     )
 
-    /** Raised black point (PROMPT1uidesign.md §1: "softer dark ... raised black point, less pure-black"). */
+    /** Raised black point (Design/DESIGN_SPEC.md §1: "softer dark ... raised black point, less pure-black"). */
     val softerDark: ColorScheme = dark.copy(
         background = Palette.M3SurfaceContainerLowestDark,
         surface = Palette.M3SurfaceContainerLowestDark,

@@ -39,7 +39,7 @@ private val VayanaShapes = Shapes(
 /**
  * Root theme. Every screen composes under this — never `MaterialTheme` directly — so
  * [LocalDisplayProfile] / [LocalDarkVariant] / [LocalMotionSetting] are always available and
- * the color scheme / motion scheme / shapes stay centrally controlled (PROMPT2appbuild.md §0.6).
+ * the color scheme / motion scheme / shapes stay centrally controlled (docs/PRODUCT_SPEC.md §0.6).
  *
  * `isSystemInDarkTheme()` is called exactly once, here — nowhere else in the app may call it
  * (§0.6: "No component reads isSystemInDarkTheme() directly").

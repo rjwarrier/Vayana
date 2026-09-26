@@ -3,10 +3,10 @@ package com.vayana.core.designsystem.tokens
 import androidx.compose.ui.graphics.Color
 
 /**
- * Raw color ramp, ported 1:1 from the design handoff's CSS custom properties
- * (`Design/design_handoff_vayana/vayana_ui_design.html`, section 01 Foundations).
+ * Raw color ramp, ported 1:1 from the UI reference's CSS custom properties
+ * (`Design/ui_reference/vayana_ui_design.html`, section 01 Foundations).
  * Nothing outside this file (and [ColorSchemes]) may reference a literal hex value — see
- * the Konsist test in this module's `src/test`, which enforces §0.2 of PROMPT2appbuild.md.
+ * the Konsist test in this module's `src/test`, which enforces §0.2 of docs/PRODUCT_SPEC.md.
  */
 object Palette {
     val Forest900 = Color(0xFF2A3F23)
@@ -125,7 +125,7 @@ object Palette {
     val M3OutlineDark = Color(0xFF899390)
     val M3OutlineVariantDark = Color(0xFF3F4946)
 
-    /** E-Ink build (PROMPT2appbuild.md §6, PROMPT1uidesign.md §2): pure #FFFFFF / #000000 only. */
+    /** E-Ink build (docs/PRODUCT_SPEC.md §6, Design/DESIGN_SPEC.md §2): pure #FFFFFF / #000000 only. */
     val EinkBackground = White
     val EinkForeground = Amoled
     val EinkContainerLow = Color(0xFFF7F7F7)

@@ -1,7 +1,7 @@
 package com.vayana.core.database.model
 
 /**
- * Formats accepted at import time (PROMPT2appbuild.md §3). Only EPUB is parsed natively so far.
+ * Formats accepted at import time (docs/PRODUCT_SPEC.md §3). Only EPUB is parsed natively so far.
  * [PHYSICAL] is a file-less entry for a paper book the user owns but doesn't read in-app — it
  * exists only to hold manually-typed quotes/notes, never opens the reader.
  */

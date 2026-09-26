@@ -6,7 +6,7 @@ import com.lemonappdev.konsist.api.verify.assertEmpty
 import org.junit.jupiter.api.Test
 
 /**
- * Enforces PROMPT2appbuild.md §0.2 ("No magic numbers in UI code") as a build-time JVM test
+ * Enforces docs/PRODUCT_SPEC.md §0.2 ("No magic numbers in UI code") as a build-time JVM test
  * rather than a custom Android Lint rule — see docs/DECISIONS.md for why.
  *
  * Only this module's own `tokens` package is allowed to spell out a literal `.dp`/`.sp` or

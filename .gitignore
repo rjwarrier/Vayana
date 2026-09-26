@@ -2,7 +2,21 @@
 .gradle/
 .idea/
 .kotlin/
+# Claude Code artifacts
 .claude/
+.claude.json
+CLAUDE.md
+CLAUDE.local.md
+
+# Private working documents and generated handoffs
+/Design/*.zip
+/docs/HANDOFF.md
+/docs/SESSION_HANDOFF_*.md
+/docs/CHANGES_*_TO_*.md
+/docs/IMPLEMENTATION_PLAN.md
+/docs/OPTIMIZATION_PLAN_*.md
+/docs/FEATURE_VALUE_RECOMMENDATIONS.md
+/docs/READ_ALOUD_PLAN.md
 local.properties
 keystore.properties
 *.jks

@@ -1,4 +1,4 @@
-# PROMPT 1 — UI Design (paste into Claude Design / any UI design tool)
+# Vayana UI design specification
 
 ---
 

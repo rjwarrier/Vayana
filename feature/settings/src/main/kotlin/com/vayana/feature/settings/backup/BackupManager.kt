@@ -32,7 +32,7 @@ import org.json.JSONObject
 /**
  * Everything that makes a backup restorable on a fresh install: the database (books,
  * annotations, word-lookup stats), settings, and the actual book/cover files - all as one zip,
- * so restoring is "pick the file" with no server, account, or network involved (PROMPT2 §4.9).
+ * so restoring is "pick the file" with no server, account, or network involved (the product specification §4.9).
  *
  * Restore is stash-then-commit: every live path it's about to overwrite is first moved aside
  * (same-directory rename, so it's cheap and atomic on any filesystem) rather than deleted, and

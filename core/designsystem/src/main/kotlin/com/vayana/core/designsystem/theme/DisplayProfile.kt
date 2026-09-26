@@ -2,12 +2,12 @@ package com.vayana.core.designsystem.theme
 
 import androidx.compose.runtime.staticCompositionLocalOf
 
-/** PROMPT2appbuild.md §6. No component reads `isSystemInDarkTheme()` or checks hardware directly — everything reads this. */
+/** docs/PRODUCT_SPEC.md §6. No component reads `isSystemInDarkTheme()` or checks hardware directly — everything reads this. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 enum class DisplayProfile { STANDARD, E_INK }
 
-/** PROMPT1uidesign.md §1: softer dark (raised black point) and true-black (AMOLED) are both dark-mode variants. */
+/** Design/DESIGN_SPEC.md §1: softer dark (raised black point) and true-black (AMOLED) are both dark-mode variants. */
 enum class DarkVariant { STANDARD, SOFTER, TRUE_BLACK }
 
 enum class MotionSetting { FULL, REDUCED, OFF }

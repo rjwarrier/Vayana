@@ -1,4 +1,4 @@
-# Handoff: vayana — E-Reader App UI
+# Vayana UI reference
 
 ## Overview
 UI design for **vayana**, an Android e-reader app ("read, undisturbed"). Covers foundations (color/type), core components, onboarding, and the primary screens: Library, Reader (clean state), Book detail, Notes, Statistics dashboard, Search, and Settings. Phone form factor, light and dark mode.
@@ -10,7 +10,7 @@ The bundled HTML file (`vayana_ui_design.html`) is a **design reference built in
 **High-fidelity.** Colors, typography, spacing, and layout are final. Treat hex values, font families/sizes, and corner radii below as exact.
 
 ## Design System Source
-Built on the Ranjith Jayadevan / yaja design system (Material 3 Expressive, warm/bookish palette). Token names below map to that system's CSS custom properties.
+Built on a Material 3 Expressive design system with a warm, bookish palette. Token names below map to that system's CSS custom properties.
 
 ## Screens
 

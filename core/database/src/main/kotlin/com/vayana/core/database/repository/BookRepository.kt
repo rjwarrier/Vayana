@@ -161,7 +161,7 @@ interface BookRepository {
     /** Records the two covers a book can switch between; [updateCover] still sets the one in use. */
     suspend fun updateCoverAlternates(id: Long, customCoverPath: String?, goodreadsCoverPath: String?)
 
-    /** Returns null if a book with the same [fileHash] already exists (import-time dedupe, PROMPT2appbuild.md §4.1). */
+    /** Returns null if a book with the same [fileHash] already exists (import-time dedupe, docs/PRODUCT_SPEC.md §4.1). */
     suspend fun insertIfNew(
         title: String,
         author: String?,

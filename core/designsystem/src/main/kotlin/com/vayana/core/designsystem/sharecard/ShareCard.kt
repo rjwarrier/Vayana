@@ -234,13 +234,13 @@ internal fun ShareCardWordmark(tint: Color, wordmark: String) {
     }
 }
 
-/** Small letter-spaced caps label, matching the share-card handoff's eyebrow style. */
+/** Small letter-spaced caps label, matching the share-card reference's eyebrow style. */
 @Composable
 internal fun ShareCardCaption(text: String, color: Color) {
     Text(text = text, style = ShareCardTypography.caption, color = color)
 }
 
-/** A finished/in-progress book rendered as a shareable light image card (handoff "Book — light"). */
+/** A finished/in-progress book rendered as a shareable light image card (share-card reference: "Book — light"). */
 @Composable
 fun BookShareCard(
     title: String,

@@ -1,4 +1,4 @@
-# PROMPT 2 — Build the App (paste into Claude Code / any coding LLM)
+# Vayana product and engineering specification
 
 ---
 

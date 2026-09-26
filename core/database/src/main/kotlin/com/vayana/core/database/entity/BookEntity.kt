@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 import java.util.UUID
 
 /**
- * Room schema per PROMPT2appbuild.md §2. [coverPath] and [filePath] are root-relative,
+ * Room schema per docs/PRODUCT_SPEC.md §2. [coverPath] and [filePath] are root-relative,
  * never absolute — resolved through `StorageRoots` (`:core:filesystem`) so relocating the
  * library is a single migration job, not a data-model change.
  */

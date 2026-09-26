@@ -143,7 +143,7 @@ Adds soft-delete to `annotations`:
   database and reappearing later.
 
 ## Version 6
-Adds `word_lookup_stats` for the "words you looked up" vocabulary statistic (PROMPT2appbuild.md §4.6):
+Adds `word_lookup_stats` for the "words you looked up" vocabulary statistic (docs/PRODUCT_SPEC.md §4.6):
 
 - `word` (text, primary key), `count` (integer), `lastLookedUpAt` (epoch millis).
 - One row per distinct word ever looked up in the offline dictionary; `count` increments on every lookup via an upsert.
@@ -179,4 +179,4 @@ Adds `annotations` for Phase 4's annotation foundation:
 - Indexes on `bookId`, `type`, `colorKey`, and `updatedAt` for book-local rendering and Notes filters.
 
 ## Version 1 (initial)
-`books` table only (`BookEntity`): the fields PROMPT2appbuild.md §2 lists for `Book`, minus `lastReadAt`-driven stats and cross-references (`BookGroup`, `Tag`, `Annotation`, etc.) — those land with the features that need them.
+`books` table only (`BookEntity`): the fields docs/PRODUCT_SPEC.md §2 lists for `Book`, minus `lastReadAt`-driven stats and cross-references (`BookGroup`, `Tag`, `Annotation`, etc.) — those land with the features that need them.

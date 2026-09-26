@@ -45,7 +45,7 @@ internal data class LibrarySpine(
 
 internal data class LibrarySpines(val spines: List<LibrarySpine>, val representsEveryBook: Boolean)
 
-/** Uses one spine per book when it fits; otherwise makes the handoff's deterministic proportional sample. */
+/** Uses one spine per book when it fits; otherwise makes the UI reference's deterministic proportional sample. */
 internal fun librarySpines(snapshot: LibraryStatsSnapshot, format: LibraryShareFormat, colorCount: Int): LibrarySpines {
     require(colorCount > 0)
     val shelfCount = if (format == LibraryShareFormat.STORY) 3 else 1

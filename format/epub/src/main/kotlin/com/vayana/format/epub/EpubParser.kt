@@ -9,7 +9,7 @@ import org.xmlpull.v1.XmlPullParser
  * Minimal EPUB2/EPUB3 metadata + cover extractor: reads `META-INF/container.xml` to locate the
  * OPF package document, then reads `<metadata>`/`<manifest>` from it. No third-party EPUB
  * library — the app is 100% offline and this is a small, well-defined format to hand-parse
- * (PROMPT2appbuild.md §3: "open EPUB natively").
+ * (docs/PRODUCT_SPEC.md §3: "open EPUB natively").
  */
 object EpubParser {
 

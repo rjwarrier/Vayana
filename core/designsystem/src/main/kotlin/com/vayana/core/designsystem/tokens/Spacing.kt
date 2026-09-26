@@ -2,7 +2,7 @@ package com.vayana.core.designsystem.tokens
 
 import androidx.compose.ui.unit.dp
 
-/** Base unit 4dp; scale per design handoff README §"Spacing & Radii". */
+/** Base unit 4dp; scale per design UI reference README §"Spacing & Radii". */
 object Spacing {
     val xs = 4.dp
     val sm = 8.dp
@@ -15,7 +15,7 @@ object Spacing {
 
 /**
  * Named padding constants for specific surfaces — never an inline `PaddingValues` (§0.2).
- * Chip and sheet values are hand-tuned pixel values straight from the handoff HTML
+ * Chip and sheet values are hand-tuned pixel values straight from the UI reference HTML
  * (filter chips: "6px/14px padding"; reader chrome sheet: "16px/8px/20px padding"),
  * not multiples of [Spacing] — kept as their own constants rather than rounded to the scale.
  */

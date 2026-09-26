@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 import java.util.UUID
 
 /**
- * A saved dictionary lookup turned into a flashcard-style review item (PROMPT2appbuild.md
+ * A saved dictionary lookup turned into a flashcard-style review item (docs/PRODUCT_SPEC.md
  * vocabulary review recommendation). [bookId] is not a foreign key on purpose - a card should
  * survive its source book being deleted, it just loses the "jump back to book" affordance.
  */

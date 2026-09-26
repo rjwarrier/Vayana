@@ -10,7 +10,7 @@ import androidx.compose.animation.core.spring
 
 /**
  * Every [MotionScheme] spec collapses to [snap] — zero duration, no spring overshoot.
- * PROMPT2appbuild.md §6: on E-Ink this is *not* "fast", it's zero, because a fast animation
+ * docs/PRODUCT_SPEC.md §6: on E-Ink this is *not* "fast", it's zero, because a fast animation
  * still ghosts on E-Ink hardware. Used for [DisplayProfile.E_INK] and [MotionSetting.OFF].
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

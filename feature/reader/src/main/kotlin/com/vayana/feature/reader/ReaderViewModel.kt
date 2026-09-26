@@ -170,7 +170,7 @@ class ReaderViewModel @Inject constructor(
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
 
-    /** Non-null while this book has its own font/line-height/margin overrides (PROMPT2 per-book reading preferences). */
+    /** Non-null while this book has its own font/line-height/margin overrides (the product specification's per-book reading preferences). */
     private val _bookStyleOverride = MutableStateFlow<BookStyleOverride?>(null)
 
     val usingCustomStyle: StateFlow<Boolean> = _bookStyleOverride

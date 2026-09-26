@@ -154,7 +154,7 @@ Implement in this order: identity/export before merge; merge and recovery before
 
 Use focused JVM tests for normalization/merge/crypto/HTTP state transitions; Room migration and Android integration tests for transactions, Keystore, DataStore journal recovery, WorkManager, and WebView isolation. Exercise real GitHub behavior only with a dedicated test repository and test credentials. Do not use production libraries for destructive recovery tests.
 
-## 11. Decisions to retain in the implementation handoff
+## 11. Decisions to retain in the implementation record
 
 Proposed defaults are metadata-first delivery, optional later file transfer, latest-compatible reading-position merge, local active-reader protection for ambiguous locator conflicts, initialized repositories, explicit historical promotion, and per-origin lookup counters. These are Vayana-specific choices, not requirements imposed by YATA. Revisit them before their dependent milestone if product preferences differ.
 

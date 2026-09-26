@@ -6,9 +6,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.unit.dp
 
 /**
- * Spring-based, emphasized motion (PROMPT1uidesign.md §1). In [com.vayana.core.designsystem.theme.DisplayProfile.E_INK]
+ * Spring-based, emphasized motion (Design/DESIGN_SPEC.md §1). In [com.vayana.core.designsystem.theme.DisplayProfile.E_INK]
  * every duration in [Durations] collapses to zero and every spring in [Springs] becomes a snap —
- * not merely "fast": a fast animation still ghosts on E-Ink hardware (PROMPT2appbuild.md §6).
+ * not merely "fast": a fast animation still ghosts on E-Ink hardware (docs/PRODUCT_SPEC.md §6).
  */
 object Durations {
     const val instant = 0
@@ -25,7 +25,7 @@ object Springs {
 }
 
 object Opacities {
-    const val pressed = 0.7f // "Press state: 0.7 opacity on tap for interactive items" (handoff README)
+    const val pressed = 0.7f // "Press state: 0.7 opacity on tap for interactive items" (UI reference README)
     const val disabled = 0.38f
     const val scrimStrong = 0.55f // book-cover genre/count label scrim
     const val hairline = 0.10f

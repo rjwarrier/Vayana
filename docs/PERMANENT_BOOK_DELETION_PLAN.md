@@ -141,7 +141,7 @@ written; the incoming one is stored).
 | 2. Cloud store | `CloudAssetStore.delete`, GitHub implementation (404-tolerant), `CloudAssetDeletionProcessor` wired after publish in both sync paths. | M |
 | 3. Sync rules | `BOOK_PURGE` in `applyCloudTombstone`; purge-blocks-children guards in merges and exporters; tombstones applied first. | M–L |
 | 4. UI | Delete dialog with two choices; permanent confirmation with counts; Recently deleted change; snackbar messages; sync health row. | M |
-| 5. Tests & docs | See §5; update `FEATURES.md`, `DATABASE_CHANGELOG.md`, `GITHUB_SYNC_IMPLEMENTATION_PLAN.md` (§4 tombstones, §9 asset deletion), `HANDOFF.md`. | S–M |
+| 5. Tests & docs | See §5; update `FEATURES.md`, `DATABASE_CHANGELOG.md`, and `GITHUB_SYNC_IMPLEMENTATION_PLAN.md` (§4 tombstones, §9 asset deletion). | S–M |
 
 Ship phases 1–3 behind the existing UI first (no entry point), then phase 4, so sync behaviour can be verified with
 two devices before the button appears.

@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * The reader engine contract (PROMPT2appbuild.md §3). Kept honest enough that a future native
+ * The reader engine contract (docs/PRODUCT_SPEC.md §3). Kept honest enough that a future native
  * Readium engine could implement it too — nothing here is foliate-js- or WebView-specific.
  * Uses plain [kotlin.Result], not `:core:common`'s `AppResult`, on purpose: this module is pure
  * Kotlin/JVM (§0.5, "domain has zero Android imports") and must not depend on an

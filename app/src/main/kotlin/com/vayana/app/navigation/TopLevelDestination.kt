@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Bottom nav is 3 tabs (Library / Notes / Statistics), matching every bottom-nav mock in
- * `Design/design_handoff_vayana/` — see docs/DECISIONS.md ("Bottom nav is 3 tabs, not 4").
+ * `Design/ui_reference/` — see docs/DECISIONS.md ("Bottom nav is 3 tabs, not 4").
  * Search and Settings are reached from within a screen, not from the bar.
  */
 @Serializable

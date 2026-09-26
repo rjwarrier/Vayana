@@ -2380,7 +2380,7 @@ private fun NotesPanel(uiState: ReaderUiState, onAnnotationClick: (Annotation) -
     }
 }
 
-/** Persistent notes list shown beside the reader on wide-landscape (tablet) screens, per PROMPT2's "book and notes side by side" recommendation. */
+/** Persistent notes list shown beside the reader on wide-landscape (tablet) screens, per the product specification's "book and notes side by side" recommendation. */
 @Composable
 private fun NotesSidePanel(
     modifier: Modifier = Modifier,

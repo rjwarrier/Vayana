@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.sp
 import com.vayana.core.designsystem.R
 
 /**
- * Type scale ported from the handoff (section 01, "Type scale — M3 Expressive, emphasized").
+ * Type scale ported from the UI reference (section 01, "Type scale — M3 Expressive, emphasized").
  * The app interface uses JetBrains Mono by product choice; in-book reader text remains controlled
  * by reader settings and can still use the serif/sans/mono options.
  *
@@ -35,7 +35,7 @@ object FontFamilies {
         Font(R.font.lora_italic, weight = FontWeight.Normal, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
     )
 
-    /** Original substitute for the handoff's `--font-ui` ("Google Sans") — see docs/DECISIONS.md. */
+    /** Original substitute for the UI reference's `--font-ui` ("Google Sans") — see docs/DECISIONS.md. */
     val Ui = FontFamily(
         Font(R.font.inter, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
         Font(R.font.inter, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
@@ -49,7 +49,7 @@ object FontFamilies {
     )
 }
 
-/** M3 roles mapped onto the handoff's 5-step scale (Display 57 / Headline 32 / Title 22 / Body 16 / Label 12). */
+/** M3 roles mapped onto the UI reference's 5-step scale (Display 57 / Headline 32 / Title 22 / Body 16 / Label 12). */
 val VayanaTypography = Typography(
     displayLarge = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.Bold, fontSize = 57.sp, lineHeight = 64.sp),
     displayMedium = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.Bold, fontSize = 45.sp, lineHeight = 52.sp),
@@ -72,7 +72,7 @@ val VayanaTypography = Typography(
     labelSmall = TextStyle(fontFamily = FontFamilies.Mono, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 14.sp),
 )
 
-/** Fixed-brand type styles for the share-card templates (§ share-card handoff), independent of app theme. */
+/** Fixed-brand type styles for the share-card templates (§ share-card reference), independent of app theme. */
 object ShareCardTypography {
     val wordmark = TextStyle(fontFamily = FontFamilies.Display, fontWeight = FontWeight.Bold, fontSize = 20.sp)
     val quoteMark = TextStyle(fontFamily = FontFamilies.Display, fontSize = 22.sp)

@@ -18,7 +18,7 @@ import com.vayana.core.designsystem.tokens.Durations
 /**
  * Drop-in replacement for [CircularProgressIndicator]'s indeterminate spinner. An indeterminate
  * spinner animates continuously by design - the one motion an E-Ink panel can least afford
- * (PROMPT2appbuild.md §6: same reasoning as [vayanaSpring] etc collapsing to snap there). A
+ * (docs/PRODUCT_SPEC.md §6: same reasoning as [vayanaSpring] etc collapsing to snap there). A
  * fixed-angle determinate ring still reads as "busy" without ever asking the panel to refresh
  * on its own.
  */
