@@ -55,7 +55,13 @@ class BookRepositoryImpl @Inject constructor(
         (bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash))?.toDomain()
 
     override suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, finishedThreshold: Float) {
-        bookDao.updateLocator(id, locator, readingPercent, finishedThreshold, System.currentTimeMillis())
+        bookDao.updateLocator(
+            id,
+            locator,
+            readingPercent.sanitizedReadingPercent(),
+            finishedThreshold,
+            System.currentTimeMillis(),
+        )
     }
 
     override suspend fun applySyncedReadingProgress(
@@ -598,7 +604,7 @@ private fun BookEntity.readingProgressVersion(): ReadingProgressVersion =
         syncId = syncId,
         fileHash = fileHash,
         locator = lastLocator,
-        readingPercent = readingPercent,
+        readingPercent = readingPercent.sanitizedReadingPercent(),
         lastReadAt = lastReadAt,
         updatedAt = updatedAt,
     )
@@ -625,7 +631,7 @@ internal fun BookEntity.toDomain(): Book = Book(
     coverAssetSha256 = coverAssetSha256,
     coverAssetSizeBytes = coverAssetSizeBytes,
     coverAssetUploadedAt = coverAssetUploadedAt,
-    readingPercent = readingPercent,
+    readingPercent = readingPercent.sanitizedReadingPercent(),
     rating = rating,
     createdAt = createdAt,
     updatedAt = updatedAt,
@@ -719,7 +725,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         coverAssetSizeBytes = coverAssetSizeBytes,
         coverAssetUploadedAt = coverAssetUploadedAt,
         lastLocator = lastLocator,
-        readingPercent = readingPercent.coerceIn(0f, 1f),
+        readingPercent = readingPercent.sanitizedReadingPercent(),
         rating = rating.coerceIn(0f, 5f),
         groupId = null,
         isDeleted = false,
@@ -756,6 +762,9 @@ private fun <T> T?.mergeRemoteOptional(remote: T?, remoteIsNewer: Boolean): T? =
         this == null || remoteIsNewer -> remote
         else -> this
     }
+
+internal fun Float.sanitizedReadingPercent(): Float =
+    if (isFinite()) coerceIn(0f, 1f) else 0f
 
 private const val MaxReadNextQueueBooks = 2
 private const val RemoteProgressEventBufferCapacity = 32
