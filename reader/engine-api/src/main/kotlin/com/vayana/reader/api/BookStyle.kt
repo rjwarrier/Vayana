@@ -20,6 +20,10 @@ data class BookStyle(
     val boldText: Boolean = false,
     val textAlign: BookTextAlign = BookTextAlign.BOOK,
     val hyphenation: BookHyphenation = BookHyphenation.BOOK,
+    /** Fixed-layout (PDF) pages: zoom to the printed area, leaving out blank margins. */
+    val pdfCropMargins: Boolean = false,
+    /** Fixed-layout (PDF) pages: fit the page's width to the screen instead of the whole page. */
+    val pdfFitWidth: Boolean = false,
 )
 
 /** Paragraph alignment; [BOOK] leaves it to the book's own styles. */

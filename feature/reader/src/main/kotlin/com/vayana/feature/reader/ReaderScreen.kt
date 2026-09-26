@@ -222,6 +222,13 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val engineGeneration by viewModel.engineGeneration.collectAsState()
     val readAloudVoices by viewModel.readAloudVoices.collectAsState()
     val readAloudEngines by viewModel.readAloudEngines.collectAsState()
+    val pdfPageControls = remember(viewModel) {
+        PdfPageControls(
+            onCropMarginsChange = viewModel::updatePdfCropMargins,
+            onFitWidthChange = viewModel::updatePdfFitWidth,
+            onDarkenTextChange = viewModel::updateBolderText,
+        )
+    }
     val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines) {
         ReadAloudVoiceControls(
             voices = readAloudVoices,
@@ -332,6 +339,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onShowFooterChange = viewModel::updateShowFooter,
                 onOverridePublisherTypographyChange = viewModel::updateOverridePublisherTypography,
                 onBionicReadingChange = viewModel::updateBionicReading,
+                pdfPageControls = pdfPageControls,
                 onReadAloudRateChange = viewModel::updateReadAloudRate,
                 onReadAloudPitchChange = viewModel::updateReadAloudPitch,
                 readAloudVoiceControls = readAloudVoiceControls,
@@ -442,6 +450,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onShowFooterChange = viewModel::updateShowFooter,
         onOverridePublisherTypographyChange = viewModel::updateOverridePublisherTypography,
         onBionicReadingChange = viewModel::updateBionicReading,
+        pdfPageControls = pdfPageControls,
         onReadAloudRateChange = viewModel::updateReadAloudRate,
         onReadAloudPitchChange = viewModel::updateReadAloudPitch,
         readAloudVoiceControls = readAloudVoiceControls,
@@ -599,6 +608,7 @@ private fun ReaderScreen(
     onShowFooterChange: (Boolean) -> Unit,
     onOverridePublisherTypographyChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
+    pdfPageControls: PdfPageControls,
     onReadAloudRateChange: (Float) -> Unit,
     onReadAloudPitchChange: (Float) -> Unit,
     readAloudVoiceControls: ReadAloudVoiceControls,
@@ -780,7 +790,9 @@ private fun ReaderScreen(
             }
         }
     }
-    val edgeSwipeEnabledState = rememberUpdatedState(settings.readerEdgeSwipeLight && !chromeVisible)
+    // A drag on a PDF page larger than the screen pans it; brightness swipes would take the ones starting at an edge.
+    val pageScrollable = (uiState as? ReaderUiState.Loaded)?.pageScrollable == true
+    val edgeSwipeEnabledState = rememberUpdatedState(settings.readerEdgeSwipeLight && !chromeVisible && !pageScrollable)
 
     // Immersive reading: status bar hides with the rest of the chrome, comes back on tap.
     // Full screen hides the navigation bar too.
@@ -956,6 +968,8 @@ private fun ReaderScreen(
                         }
                         var swipeEdge: ReaderEdge? = null
                         var swiping = false
+                        // A second finger makes the gesture a pinch (PDF zoom), never a tap on the page.
+                        var multiTouch = false
                         setOnTouchListener { view, event ->
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> {
@@ -963,6 +977,7 @@ private fun ReaderScreen(
                                     downY = event.y
                                     downTime = event.eventTime
                                     swiping = false
+                                    multiTouch = false
                                     swipeEdge = when {
                                         !edgeSwipeEnabledState.value -> null
                                         event.x < view.width * EdgeSwipeZoneFraction -> ReaderEdge.LEFT
@@ -970,10 +985,11 @@ private fun ReaderScreen(
                                         else -> null
                                     }
                                 }
+                                MotionEvent.ACTION_POINTER_DOWN -> multiTouch = true
                                 MotionEvent.ACTION_MOVE -> {
                                     val edge = swipeEdge
                                     val dy = downY - event.y
-                                    if (edge != null && !swiping && abs(dy) > touchSlop * 2 && abs(dy) > abs(event.x - downX) * 2) {
+                                    if (edge != null && !swiping && !multiTouch && abs(dy) > touchSlop * 2 && abs(dy) > abs(event.x - downX) * 2) {
                                         swiping = true
                                         // The page mustn't also turn this gesture into a long-press selection.
                                         val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
@@ -995,7 +1011,7 @@ private fun ReaderScreen(
                                     if (event.actionMasked == MotionEvent.ACTION_UP) {
                                         onReaderInteractionState.value()
                                         val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
-                                        if (isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
+                                        if (!multiTouch && isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
                                             onReaderTapState.value(event.x, view.width)
                                         }
                                     }
@@ -1130,6 +1146,7 @@ private fun ReaderScreen(
                 onShowFooterChange = onShowFooterChange,
                 onOverridePublisherTypographyChange = onOverridePublisherTypographyChange,
                 onBionicReadingChange = onBionicReadingChange,
+                pdfPageControls = pdfPageControls,
                 onReadAloudRateChange = onReadAloudRateChange,
                 onReadAloudPitchChange = onReadAloudPitchChange,
                 readAloudVoiceControls = readAloudVoiceControls,
@@ -1979,6 +1996,7 @@ private fun ReaderChrome(
     onShowFooterChange: (Boolean) -> Unit,
     onOverridePublisherTypographyChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
+    pdfPageControls: PdfPageControls,
     onReadAloudRateChange: (Float) -> Unit,
     onReadAloudPitchChange: (Float) -> Unit,
     readAloudVoiceControls: ReadAloudVoiceControls,
@@ -1994,6 +2012,8 @@ private fun ReaderChrome(
     onChapterWordClick: (String) -> Unit,
     onSaveChapterWord: (ChapterWord) -> Unit,
 ) {
+    // PDF pages have no reflowable text to restyle: the style panel offers page fit and crop instead.
+    val fixedLayout = (uiState as? ReaderUiState.Loaded)?.fixedLayout == true
     val chromeSurfaceColor = readerChromeSurfaceColor()
     val chromeTopBorderColor = readerChromeTopBorderColor(settings, chromeSurfaceColor)
     val surfaceModifier = modifier
@@ -2130,6 +2150,7 @@ private fun ReaderChrome(
                     ReaderPanel.PROGRESS -> ProgressPanel(uiState = uiState, onProgressChange = onProgressChange)
                     ReaderPanel.STYLE -> StylePanel(
                         settings = settings,
+                        showTypography = !fixedLayout,
                         usingCustomStyle = usingCustomStyle,
                         onUseCustomStyleChange = onUseCustomStyleChange,
                         onFontSizeChange = onFontSizeChange,
@@ -2144,6 +2165,7 @@ private fun ReaderChrome(
                         onShowFooterChange = onShowFooterChange,
                         onOverridePublisherTypographyChange = onOverridePublisherTypographyChange,
                         onBionicReadingChange = onBionicReadingChange,
+                        pdfPageControls = pdfPageControls,
                     )
                     ReaderPanel.READ_ALOUD -> ReadAloudSettingsPage(
                         settings = settings,
@@ -2572,6 +2594,7 @@ private fun SearchPanel(
 @Composable
 private fun StylePanel(
     settings: SettingsSnapshot,
+    showTypography: Boolean,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
     onFontSizeChange: (Int) -> Unit,
@@ -2586,6 +2609,7 @@ private fun StylePanel(
     onShowFooterChange: (Boolean) -> Unit,
     onOverridePublisherTypographyChange: (Boolean) -> Unit,
     onBionicReadingChange: (Boolean) -> Unit,
+    pdfPageControls: PdfPageControls,
 ) {
     val fontSizeSetting = SettingsRegistry.ReaderFontSize
     val lineHeightSetting = SettingsRegistry.ReaderLineHeight
@@ -2637,73 +2661,77 @@ private fun StylePanel(
             }
         }
 
-        ReaderStyleLabel(
-            title = stringResource(R.string.settings_reader_font_size_title),
-            value = "$pendingFontSize%",
-        )
-        Slider(
-            value = pendingFontSize.toFloat(),
-            onValueChange = { pendingFontSize = it.roundToStep(fontSizeSetting) },
-            onValueChangeFinished = { onFontSizeChange(pendingFontSize) },
-            valueRange = fontSizeSetting.sliderRange(),
-            steps = fontSizeSetting.sliderSteps(),
-        )
-        ReaderSettingsSwitchRow(
-            title = stringResource(R.string.reader_override_book_typography_title),
-            subtitle = stringResource(R.string.reader_override_book_typography_subtitle),
-            checked = !settings.readerUsePublisherStyles,
-            onCheckedChange = onOverridePublisherTypographyChange,
-        )
-        ReaderStyleLabel(
-            title = stringResource(R.string.settings_reader_line_height_title),
-            value = "${pendingLineHeight.roundToTenth()}x",
-        )
-        Slider(
-            value = pendingLineHeight,
-            onValueChange = { pendingLineHeight = it.roundToStep(lineHeightSetting) },
-            onValueChangeFinished = { onLineHeightChange(pendingLineHeight) },
-            valueRange = lineHeightSetting.range,
-            steps = lineHeightSetting.sliderSteps(),
-        )
-        ReaderStyleLabel(
-            title = stringResource(R.string.settings_reader_side_margin_title),
-            value = "$pendingSideMargin%",
-        )
-        Slider(
-            value = pendingSideMargin.toFloat(),
-            onValueChange = { pendingSideMargin = it.roundToStep(sideMarginSetting) },
-            onValueChangeFinished = { onSideMarginChange(pendingSideMargin) },
-            valueRange = sideMarginSetting.sliderRange(),
-            steps = sideMarginSetting.sliderSteps(),
-        )
+        if (showTypography) {
+            ReaderStyleLabel(
+                title = stringResource(R.string.settings_reader_font_size_title),
+                value = "$pendingFontSize%",
+            )
+            Slider(
+                value = pendingFontSize.toFloat(),
+                onValueChange = { pendingFontSize = it.roundToStep(fontSizeSetting) },
+                onValueChangeFinished = { onFontSizeChange(pendingFontSize) },
+                valueRange = fontSizeSetting.sliderRange(),
+                steps = fontSizeSetting.sliderSteps(),
+            )
+            ReaderSettingsSwitchRow(
+                title = stringResource(R.string.reader_override_book_typography_title),
+                subtitle = stringResource(R.string.reader_override_book_typography_subtitle),
+                checked = !settings.readerUsePublisherStyles,
+                onCheckedChange = onOverridePublisherTypographyChange,
+            )
+            ReaderStyleLabel(
+                title = stringResource(R.string.settings_reader_line_height_title),
+                value = "${pendingLineHeight.roundToTenth()}x",
+            )
+            Slider(
+                value = pendingLineHeight,
+                onValueChange = { pendingLineHeight = it.roundToStep(lineHeightSetting) },
+                onValueChangeFinished = { onLineHeightChange(pendingLineHeight) },
+                valueRange = lineHeightSetting.range,
+                steps = lineHeightSetting.sliderSteps(),
+            )
+            ReaderStyleLabel(
+                title = stringResource(R.string.settings_reader_side_margin_title),
+                value = "$pendingSideMargin%",
+            )
+            Slider(
+                value = pendingSideMargin.toFloat(),
+                onValueChange = { pendingSideMargin = it.roundToStep(sideMarginSetting) },
+                onValueChangeFinished = { onSideMarginChange(pendingSideMargin) },
+                valueRange = sideMarginSetting.sliderRange(),
+                steps = sideMarginSetting.sliderSteps(),
+            )
 
-        Text(text = stringResource(R.string.settings_reader_font_family_title), style = MaterialTheme.typography.labelLarge)
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            ReaderFontFamily.entries.forEach { family ->
-                FilterChip(
-                    selected = settings.readerCustomFontId == null && settings.readerFontFamily == family,
-                    onClick = { onFontFamilyChange(family) },
-                    label = { Text(family.label()) },
-                )
+            Text(text = stringResource(R.string.settings_reader_font_family_title), style = MaterialTheme.typography.labelLarge)
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                ReaderFontFamily.entries.forEach { family ->
+                    FilterChip(
+                        selected = settings.readerCustomFontId == null && settings.readerFontFamily == family,
+                        onClick = { onFontFamilyChange(family) },
+                        label = { Text(family.label()) },
+                    )
+                }
+                settings.readerImportedFonts.forEach { font ->
+                    FilterChip(
+                        selected = settings.readerCustomFontId == font.id,
+                        onClick = { onCustomFontChange(font.id) },
+                        label = { Text(font.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    )
+                }
             }
-            settings.readerImportedFonts.forEach { font ->
-                FilterChip(
-                    selected = settings.readerCustomFontId == font.id,
-                    onClick = { onCustomFontChange(font.id) },
-                    label = { Text(font.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                )
-            }
+
+            ReaderSettingsSwitchRow(
+                title = stringResource(R.string.settings_reader_bionic_reading_title),
+                subtitle = stringResource(R.string.settings_reader_bionic_reading_subtitle),
+                checked = settings.readerBionicReading,
+                onCheckedChange = onBionicReadingChange,
+            )
+        } else {
+            PdfPageSection(settings = settings, controls = pdfPageControls)
         }
-
-        ReaderSettingsSwitchRow(
-            title = stringResource(R.string.settings_reader_bionic_reading_title),
-            subtitle = stringResource(R.string.settings_reader_bionic_reading_subtitle),
-            checked = settings.readerBionicReading,
-            onCheckedChange = onBionicReadingChange,
-        )
 
         Row(
             modifier = Modifier
@@ -2991,6 +3019,43 @@ private fun ReaderSelectField(
 @Composable
 private fun MutedCaption(text: String) {
     Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** The PDF page settings the style panel shows in place of typography. */
+internal class PdfPageControls(
+    val onCropMarginsChange: (Boolean) -> Unit,
+    val onFitWidthChange: (Boolean) -> Unit,
+    val onDarkenTextChange: (Boolean) -> Unit,
+)
+
+@Composable
+private fun PdfPageSection(settings: SettingsSnapshot, controls: PdfPageControls) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Text(text = stringResource(R.string.reader_pdf_page_section_title), style = MaterialTheme.typography.labelLarge)
+        Text(
+            text = stringResource(R.string.reader_pdf_page_section_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.reader_pdf_crop_margins_title),
+            subtitle = stringResource(R.string.reader_pdf_crop_margins_subtitle),
+            checked = settings.readerPdfCropMargins,
+            onCheckedChange = controls.onCropMarginsChange,
+        )
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.reader_pdf_fit_width_title),
+            subtitle = stringResource(R.string.reader_pdf_fit_width_subtitle),
+            checked = settings.readerPdfFitWidth,
+            onCheckedChange = controls.onFitWidthChange,
+        )
+        ReaderSettingsSwitchRow(
+            title = stringResource(R.string.reader_pdf_darken_text_title),
+            subtitle = stringResource(R.string.reader_pdf_darken_text_subtitle),
+            checked = settings.readerBolderText,
+            onCheckedChange = controls.onDarkenTextChange,
+        )
+    }
 }
 
 @Composable

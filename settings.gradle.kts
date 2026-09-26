@@ -42,6 +42,7 @@ include(":reader:engine-api")
 include(":reader:engine-web")
 
 include(":format:epub")
+include(":format:pdf")
 include(":format:convert")
 
 include(":dictionary:api")

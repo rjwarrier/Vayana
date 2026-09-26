@@ -155,6 +155,8 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         readerAutoMarkSelection = read(SettingsRegistry.ReaderAutoMarkSelection),
         readerBionicReading = read(SettingsRegistry.ReaderBionicReading),
         readerBolderText = read(SettingsRegistry.ReaderBolderText),
+        readerPdfCropMargins = read(SettingsRegistry.ReaderPdfCropMargins),
+        readerPdfFitWidth = read(SettingsRegistry.ReaderPdfFitWidth),
         readerTextAlign = read(SettingsRegistry.ReaderTextAlign),
         readerHyphenation = read(SettingsRegistry.ReaderHyphenation),
         readerFullScreen = read(SettingsRegistry.ReaderFullScreen),

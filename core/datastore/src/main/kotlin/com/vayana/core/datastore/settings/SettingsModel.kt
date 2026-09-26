@@ -114,6 +114,8 @@ data class SettingsSnapshot(
     val readerAutoMarkSelection: Boolean = false,
     val readerBionicReading: Boolean = false,
     val readerBolderText: Boolean = false,
+    val readerPdfCropMargins: Boolean = false,
+    val readerPdfFitWidth: Boolean = false,
     val readerTextAlign: ReaderTextAlign = ReaderTextAlign.BOOK,
     val readerHyphenation: ReaderHyphenation = ReaderHyphenation.BOOK,
     val readerFullScreen: Boolean = false,
@@ -391,6 +393,20 @@ object SettingsRegistry {
         titleRes = R.string.settings_reader_bolder_text_title,
         subtitleRes = R.string.settings_reader_bolder_text_subtitle,
         group = SettingsGroup.READER_TEXT,
+    )
+    val ReaderPdfCropMargins: BooleanSetting = BooleanSetting(
+        key = "reader.pdf_crop_margins",
+        defaultValue = false,
+        titleRes = R.string.reader_pdf_crop_margins_title,
+        subtitleRes = R.string.reader_pdf_crop_margins_subtitle,
+        group = SettingsGroup.READER_PAGE,
+    )
+    val ReaderPdfFitWidth: BooleanSetting = BooleanSetting(
+        key = "reader.pdf_fit_width",
+        defaultValue = false,
+        titleRes = R.string.reader_pdf_fit_width_title,
+        subtitleRes = R.string.reader_pdf_fit_width_subtitle,
+        group = SettingsGroup.READER_PAGE,
     )
     val ReaderTextAlign: ChoiceSetting<com.vayana.core.datastore.settings.ReaderTextAlign> =
         ChoiceSetting<com.vayana.core.datastore.settings.ReaderTextAlign>(
@@ -741,6 +757,12 @@ object SettingsRegistry {
     )
 
     /** Persisted and backed up, but edited only by purpose-built feature UI. */
-    val internal: List<Setting<out Any>> = listOf(ReadAloudVoiceName, ReadAloudEngine, LibraryViewMode)
+    val internal: List<Setting<out Any>> = listOf(
+        ReadAloudVoiceName,
+        ReadAloudEngine,
+        LibraryViewMode,
+        ReaderPdfCropMargins,
+        ReaderPdfFitWidth,
+    )
     val persisted: List<Setting<out Any>> = all + internal
 }

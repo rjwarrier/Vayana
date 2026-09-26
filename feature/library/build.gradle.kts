@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":core:filesystem"))
     implementation(project(":core:sync"))
     implementation(project(":format:epub"))
+    implementation(project(":format:pdf"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.documentfile)

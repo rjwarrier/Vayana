@@ -165,7 +165,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val assetPath = path.trimStart('/')
         val stream = runCatching { appContext.assets.open(assetPath) }.getOrNull() ?: return null
         val mimeType = when (assetPath.substringAfterLast('.', "")) {
-            "js" -> "text/javascript"
+            "js", "mjs" -> "text/javascript"
             "html" -> "text/html"
             "json" -> "application/json"
             "css" -> "text/css"
@@ -173,6 +173,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             "png" -> "image/png"
             "jpg", "jpeg" -> "image/jpeg"
             "woff2" -> "font/woff2"
+            "ttf" -> "font/ttf"
             "wasm" -> "application/wasm"
             else -> "application/octet-stream"
         }
@@ -362,7 +363,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 "window.VayanaReader.setBionicReading(${style.bionicReading});" +
                 "window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation});" +
                 // Highlights live in an overlay outside the book's document, so the CSS above cannot reach them.
-                "window.VayanaReader.setInkMarks($isEinkTheme)",
+                "window.VayanaReader.setInkMarks($isEinkTheme);" +
+                // PDF pages are drawn, not styled: pdf.js repaints them in the theme's colours instead.
+                "window.VayanaReader.setPageColors(" +
+                "${JSONObject.quote(theme.backgroundColorArgb.toCssColor())}, " +
+                "${JSONObject.quote(theme.textColorArgb.toCssColor())});" +
+                "window.VayanaReader.setPdfLayout(${pdfLayoutJson(style)})",
             null,
         )
     }
@@ -530,7 +536,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             }
             "opened" -> {
                 val toc = payload.optJSONArray("toc")?.toTocEntries() ?: emptyList()
-                openResult?.complete(Result.success(OpenBook(title = payload.optString("title"), toc = toc)))
+                val openBook = OpenBook(
+                    title = payload.optString("title"),
+                    toc = toc,
+                    fixedLayout = payload.optBoolean("fixedLayout"),
+                )
+                openResult?.complete(Result.success(openBook))
                 openResult = null
             }
             "relocate" -> {
@@ -562,6 +573,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 _events.tryEmit(FootnoteOpened(Footnote(text = text, href = payload.optString("href"))))
             }
             "storyEnd" -> _events.tryEmit(EngineEvent.StoryEndReached)
+            "pageScrollable" -> _events.tryEmit(EngineEvent.PageScrollableChanged(payload.optBoolean("scrollable")))
             "reply" -> bridgeRequests.remove(payload.optLong("requestId"))?.complete(payload)
             "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {
@@ -613,6 +625,12 @@ private fun JSONObject.toIntMap(): Map<String, Int> = buildMap {
 
 private fun JSONObject.optMinutesOrNull(name: String): Int? =
     if (has(name) && !isNull(name)) ceil(getDouble(name)).toInt().coerceAtLeast(0) else null
+
+private fun pdfLayoutJson(style: BookStyle): String = JSONObject()
+    .put("cropMargins", style.pdfCropMargins)
+    .put("fitWidth", style.pdfFitWidth)
+    .put("darken", style.boldText)
+    .toString()
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
 

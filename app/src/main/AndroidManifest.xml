@@ -30,17 +30,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- "Open with" for an EPUB from a file manager, browser download or mail attachment (content URIs, no web links). -->
+            <!-- "Open with" for an EPUB or PDF from a file manager, browser download or mail attachment (content URIs, no web links). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:host="*" android:mimeType="application/epub+zip" />
             </intent-filter>
-            <!-- Some apps hand over an EPUB as a generic binary; the file name still says .epub. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/pdf" />
+            </intent-filter>
+            <!-- Some apps hand over a book as a generic binary; the file name still says .epub or .pdf. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:host="*" android:mimeType="application/octet-stream" android:pathPattern=".*\\.epub" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/octet-stream" android:pathPattern=".*\\.pdf" />
             </intent-filter>
             <!-- Share sheet. -->
             <intent-filter>
@@ -48,6 +58,7 @@
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
 

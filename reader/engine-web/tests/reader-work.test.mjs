@@ -16,6 +16,7 @@ test('warm community badge layout visits only loaded-section candidates', () => 
         value: `epubcfi(${id})`, note: '12 highlights', color: '#111111',
     }))
     const context = vm.createContext({
+        fixedLayout: false,
         document: window.document,
         window,
         requestAnimationFrame: callback => callback(),
@@ -52,6 +53,7 @@ test('community badge CFI resolution automatically retries after a transient ren
     const doc = { defaultView: { frameElement: { getBoundingClientRect: () => ({ left: 30, top: 0 }) } } }
     let resolveAttempts = 0
     const context = vm.createContext({
+        fixedLayout: false,
         document: window.document,
         window,
         requestAnimationFrame: callback => callback(),
@@ -86,6 +88,7 @@ test('warm page statistics reuse section totals and the contents map', () => {
     const sections = Array.from({ length: 1_000 }, () => ({ linear: 'yes', size: 10_000 }))
     let contentsVisits = 0
     const context = vm.createContext({
+        fixedLayout: false,
         view: { renderer: { pages: 12, page: 2 }, book: { sections } },
         sectionByteSizes: null,
         bytesPerPage: new Map(),
@@ -118,6 +121,7 @@ test('cached page statistics preserve the original estimates across sampled sect
     const sections = sizes.map(size => ({ linear: size ? 'yes' : 'no', size }))
     const samples = new Map()
     const context = vm.createContext({
+        fixedLayout: false,
         view: { renderer: { pages: 9, page: 4 }, book: { sections } },
         sectionByteSizes: null,
         bytesPerPage: new Map(),
@@ -156,6 +160,7 @@ test('annotation rendering applies the newest waiting snapshot after an in-fligh
     const firstAdd = new Promise(resolve => { releaseFirst = resolve })
     const operations = []
     const context = vm.createContext({
+        fixedLayout: false,
         view: {
             addAnnotation: async annotation => {
                 operations.push(`add:${annotation.value}`)
@@ -195,6 +200,7 @@ test('a late quote match cannot restore an annotation removed by a newer snapsho
     const operations = []
     const doc = {}
     const context = vm.createContext({
+        fixedLayout: false,
         view: {
             addAnnotation: async annotation => { operations.push(`add:${annotation.value}`); await pendingAdd },
             deleteAnnotation: async annotation => { operations.push(`delete:${annotation.value}`) },
@@ -237,6 +243,7 @@ test('editing a previously missing quote retries matching in the loaded document
     const doc = {}
     const added = []
     const context = vm.createContext({
+        fixedLayout: false,
         view: {
             addAnnotation: async annotation => { added.push(annotation.value) },
             deleteAnnotation: async () => {},
@@ -277,6 +284,7 @@ test('a community quote stays retryable when its overlay is not attached yet', a
     let overlayAttached = false
     const addAttempts = []
     const context = vm.createContext({
+        fixedLayout: false,
         view: {
             addAnnotation: async annotation => {
                 addAttempts.push(annotation.value)

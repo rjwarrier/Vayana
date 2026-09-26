@@ -14,7 +14,7 @@ assert.ok(start > 0 && end > start, 'speech code not found in bridge.js')
 
 function setup({ lastLocation = null } = {}) {
     const { window } = new JSDOM('<!doctype html><body></body>')
-    const context = vm.createContext({ document: window.document, NodeFilter: window.NodeFilter, Intl })
+    const context = vm.createContext({ document: window.document, NodeFilter: window.NodeFilter, Intl, fixedLayout: false, fixedSpeechMark: null })
     vm.runInContext(overlayerSource + '\nvar view = null\nvar segmenterFor = () => null', context)
     vm.runInContext(bridge.slice(start, end), context)
     const overlayer = vm.runInContext('new Overlayer()', context)

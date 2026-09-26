@@ -224,3 +224,37 @@ Everything here applies when Appearance → Display profile is E-Ink; the reader
 - Not done: vendor refresh modes (Onyx SDK); needs the SDK dependency and a Boox device to test.
 
 **Tests:** `PageKeyTest`, `ReadAloudPlayerTest` (sentence highlight), `reader/engine-web/tests` (ink marks, bionic idempotence).
+
+## PDF books
+
+- Import PDFs like EPUBs: file picker, folder scan, "Open with" and Share (`application/pdf`, or `.pdf` sent as a
+  generic binary), and Replace source. Title and author come from the PDF's info dictionary (else the file name);
+  the cover is the first page. Password-protected PDFs are reported as unsupported.
+- The reader shows one page per screen, fitted to the screen, with page taps/keys, contents (the PDF outline, with
+  page numbers), the progress slider, bookmarks, headers/footers, "Book finished" on the last page, and progress sync
+  like any book. The last page counts as 100%.
+- Zoom: pinch (up to 5x), or double-tap a spot with no word under it (2.5x / back to fit). Pan with one finger; side
+  taps still turn pages, and the next page opens at its top-left at the same zoom. The page re-renders sharp at the
+  new scale when the fingers lift.
+- Themes: any reader theme other than white paper (dark, sepia, true black) repaints text and drawings in the theme's
+  colours through pdf.js `pageColors`; images keep their own colours. Light and E-Ink themes show the original page.
+- Text PDFs: long-press selection, double-tap dictionary lookup, highlights, underlines, notes, copy and quote cards
+  work as in EPUBs (CFIs point into pdf.js's text layer); marks are drawn in a layer between the page image and the
+  text. Scanned PDFs have no text layer, so only zoom and bookmarks apply.
+- In-book search runs over each page's text and marks the matches on the page; results are labelled by page.
+- Read aloud reads the page's text layer sentence by sentence (a printed line break is a word break, except after a
+  hyphen that split a word), marks each word, keeps it on screen when zoomed, and turns to the next page.
+- The chapter word list covers the pages of the contents entry the current page falls under (up to 100 pages), or
+  the current page and the nine after it when the PDF has no contents.
+- A PDF page larger than the screen (zoomed, fit width) pans with a drag; the brightness/warm-light edge swipe steps
+  aside then (`EngineEvent.PageScrollableChanged`). Rotating or opening the read-aloud panel re-fits the page.
+- Import cleans embedded titles: "Microsoft Word - X.docx" becomes "X", a trailing ".pdf" goes, and placeholders
+  ("Untitled", author "Administrator") fall back to the file name / no author. The reader shows the library title.
+- Style panel, "PDF page" section in place of typography (fonts and spacing are printed into the page):
+  Crop margins (`reader.pdf_crop_margins`: finds the printed area of the pages read so far and fits that instead
+  of the whole sheet, one crop for the whole book so text keeps its size), Fit width (`reader.pdf_fit_width`: fills the width; next/previous scroll through the page before
+  turning, and paging back opens at the foot of the previous page), Darken text (the shared Bolder text setting: a
+  gamma curve deepens faint print on light pages and brightens it on dark ones).
+- Not yet for PDFs: bionic reading, overlapping highlight merging, community (Goodreads) quotes, JPEG 2000 images.
+- Code: `:format:pdf` (`PdfParser`, `PdfInfoReader`), `feature/library/BookFileMetadata.kt`, `OpenBook.fixedLayout`,
+  bridge.js `fixedLayout` paths, vendored `foliate/pdf.js` + `fixed-layout.js` + `vendor/pdfjs/`.

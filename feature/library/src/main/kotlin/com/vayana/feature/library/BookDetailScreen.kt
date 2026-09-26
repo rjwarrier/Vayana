@@ -574,7 +574,7 @@ private fun BookDetailScreen(
                                                     label = stringResource(R.string.library_replace_source_file),
                                                     icon = Icons.Outlined.AutoStories,
                                                     onClick = {
-                                                        sourcePicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "*/*"))
+                                                        sourcePicker.launch(arrayOf("application/epub+zip", "application/pdf", "application/octet-stream", "*/*"))
                                                     },
                                                 ),
                                             )

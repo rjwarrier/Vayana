@@ -99,7 +99,7 @@ import com.vayana.core.sync.snapshot.putPortableSnapshotDocuments
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.ResolvedBooks
 import com.vayana.core.filesystem.StorageRoots
-import com.vayana.format.epub.EpubParser
+import com.vayana.format.pdf.PdfPasswordProtectedException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -148,7 +148,6 @@ enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSU
 private data class QuoteImportResult(val added: Int, val skipped: Int)
 
 private const val QuoteLocatorPrefix = "quote"
-private const val EpubMimeType = "application/epub+zip"
 private const val GoodreadsQuoteLocatorPrefix = "goodreads-quote"
 
 sealed interface BookDetailMessage {
@@ -1035,7 +1034,7 @@ class LibraryViewModel @Inject constructor(
             // have downloaded a correct (possibly custom) cover for this book independently
             // of its file being local, and re-extracting would silently overwrite it.
             if (bookRepository.getById(book.id)?.coverPath.isNullOrBlank()) {
-                extractLocalCoverFallback(book.id, staged.relativePath)
+                extractLocalCoverFallback(book.id, staged.relativePath, book.format)
             }
             return@runCatchingCancellable finishCloudBookDownloadProgress(
                 book = book,
@@ -1061,16 +1060,16 @@ class LibraryViewModel @Inject constructor(
         books
             .filter { book ->
                 book.fileAvailability == BookFileAvailability.LOCAL &&
-                    book.format == BookFormat.EPUB &&
+                    book.format in ReadableBookFormats &&
                     book.coverPath.isNullOrBlank() &&
                     book.filePath.isNotBlank()
             }
-            .count { book -> extractLocalCoverFallback(book.id, book.filePath) }
+            .count { book -> extractLocalCoverFallback(book.id, book.filePath, book.format) }
 
-    private suspend fun extractLocalCoverFallback(bookId: Long, relativeFilePath: String): Boolean =
+    private suspend fun extractLocalCoverFallback(bookId: Long, relativeFilePath: String, format: BookFormat): Boolean =
         runCatchingCancellable {
             val file = storageRoots.resolve(relativeFilePath)
-            val coverBytes = EpubParser.parse(file).coverBytes ?: return@runCatchingCancellable false
+            val coverBytes = readBookFileMetadata(file, format, file.name).coverBytes ?: return@runCatchingCancellable false
             val coverFile = saveCover(coverBytes)
             bookRepository.updateCover(bookId, storageRoots.relativize(coverFile))
             true
@@ -2175,12 +2174,12 @@ class LibraryViewModel @Inject constructor(
     private suspend fun importOne(contentResolver: ContentResolver, candidate: ImportCandidate): ImportResult {
         val uri = candidate.uri
         val displayName = candidate.displayName
-        // Files opened from a browser or mail app often have no usable extension; their MIME type still says EPUB.
+        // Files opened from a browser or mail app often have no usable extension; their MIME type still says what they are.
         val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
-            .ifEmpty { if (contentResolver.getType(uri) == EpubMimeType) "epub" else "" }
+            .ifEmpty { readableExtensionForMimeType(contentResolver.getType(uri)) }
         val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
             ?: return finishImportRow(candidate.id, ImportResult.Unsupported)
-        if (format != BookFormat.EPUB) return finishImportRow(candidate.id, ImportResult.Unsupported)
+        if (format !in ReadableBookFormats) return finishImportRow(candidate.id, ImportResult.Unsupported)
 
         var importedFile: File? = null
         var coverFile: File? = null
@@ -2189,7 +2188,7 @@ class LibraryViewModel @Inject constructor(
             val imported = bookFileImporter.import(uri, extension)
             importedFile = imported.file
             updateImportRow(candidate.id, ImportRowStatus.PARSING)
-            val metadata = EpubParser.parse(imported.file)
+            val metadata = readBookFileMetadata(imported.file, format, displayName)
             coverFile = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
 
             val book = bookRepository.insertIfNew(
@@ -2211,7 +2210,7 @@ class LibraryViewModel @Inject constructor(
             } else {
                 ImportResult.Duplicate
             }
-        }.getOrElse { ImportResult.Failed }
+        }.getOrElse { error -> if (error is PdfPasswordProtectedException) ImportResult.Unsupported else ImportResult.Failed }
             .also { result ->
                 if (result != ImportResult.Imported) {
                     importedFile?.delete()
@@ -2227,14 +2226,14 @@ class LibraryViewModel @Inject constructor(
         val extension = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
         val format = BookFormat.entries.firstOrNull { it.name.equals(extension, ignoreCase = true) }
             ?: return BookDetailMessage.SOURCE_UNSUPPORTED
-        if (format != BookFormat.EPUB) return BookDetailMessage.SOURCE_UNSUPPORTED
+        if (format !in ReadableBookFormats) return BookDetailMessage.SOURCE_UNSUPPORTED
 
         var importedFile: File? = null
         var coverFile: File? = null
         return runCatchingCancellable {
             val imported = bookFileImporter.import(uri, extension)
             importedFile = imported.file
-            val metadata = EpubParser.parse(imported.file)
+            val metadata = readBookFileMetadata(imported.file, format, displayName)
             coverFile = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
             val replaced = bookRepository.replaceSource(
                 id = bookId,
@@ -2273,7 +2272,9 @@ class LibraryViewModel @Inject constructor(
             } else {
                 BookDetailMessage.SOURCE_DUPLICATE
             }
-        }.getOrElse { BookDetailMessage.SOURCE_FAILED }
+        }.getOrElse { error ->
+            if (error is PdfPasswordProtectedException) BookDetailMessage.SOURCE_UNSUPPORTED else BookDetailMessage.SOURCE_FAILED
+        }
             .also { result ->
                 if (result != BookDetailMessage.SOURCE_REPLACED) {
                     importedFile?.delete()

@@ -85,3 +85,64 @@ non-reader destinations consume safe drawing insets at the navigation host.
 **Shipped small, ethos-aligned features that use existing local data before adding migration-heavy systems.** The product specification's strongest product through-line is calm, offline reading: comfort controls, local ownership of notes, and reflective statistics without accounts or telemetry. So this pass makes already-declared reader behavior settings real (`keep screen awake`, volume-key page turns), adds local Notes search plus plain-text sharing, and turns the empty Statistics tab into a local dashboard from the existing `Book` and `Annotation` repositories. Full reading-session heatmaps, FTS search, dictionaries, TTS, tags, and backup remain good next milestones, but they need either new schema or engine/API work; these additions avoid placeholder UI while keeping the app useful and offline.
 
 **Annotation management stays local and direct.** Notes now expose edit/delete in the global Notes tab, reader selections can be copied through the system clipboard, and the reader chrome can save a bookmark at the current CFI. These all use the existing `AnnotationRepository` contract instead of adding a second notes service or export format. Bookmark creation dedupes exact current-CFI matches so a repeated tap does not quietly multiply identical bookmarks; broader bookmark organization can wait until tags/groups land.
+
+## PDF support — foliate's pdf.js path, pages only
+
+**PDFs open in the existing WebView engine through foliate-js's `pdf.js` adapter and Mozilla pdf.js, not a native
+`PdfRenderer` engine and not a PDF→EPUB conversion.** Conversion (the original spec plan) wrecks layout, tables and
+scanned books; `PdfRenderer` is bitmap-only below API 35 and would need a second `BookEngine`. The foliate path reuses
+the bridge, locators, TOC, progress, sync and resume logic, and pdf.js's text layer leaves room for selection,
+dictionary and read aloud later. Cost: ~5 MB of assets.
+
+**`OpenBook.fixedLayout` tells the reader a book is pre-paginated.** The reader then hides the typography controls,
+read aloud and the chapter word list. A page's CFI is foliate's section CFI (`epubcfi(/6/N)`); a highlight's CFI points
+into pdf.js's text layer (`epubcfi(/6/N!/4/6/...)`), which is deterministic for a given pdf.js version, so selections,
+highlights, notes and lookup reuse the EPUB paths unchanged.
+
+**PDF marks get their own layer, not foliate's overlayer.** foliate's fixed-layout renderer has no overlayer, and pdf.js
+rebuilds the text layer on every render (zoom, theme). bridge.js draws highlights, underlines and search hits as
+absolutely placed boxes in a `.vayana-marks` layer between the canvas and the text layer, redrawn on the
+`vayana-page-rendered` event our pdf.js patch fires. Multiply blend on light pages, screen on dark ones, so print stays
+legible through the mark.
+
+**Zoom lives in bridge.js, not in the WebView or Kotlin.** Pinch touches reach the page document (the top page is
+`user-scalable=no`), so bridge.js tracks two-finger distance in screen coordinates, previews with a CSS transform, and
+on release sets foliate's `zoom` attribute to an absolute scale so pdf.js re-renders sharp; scroll is adjusted to keep
+the focal point fixed (`zoomScrollFor`, tested). Kotlin only ignores multi-touch gestures as taps. Double-tap on a word
+still looks it up; elsewhere it toggles zoom.
+
+**The text layer is built once per page and rescaled after.** pdf.js's `TextLayer.update({ viewport })` repositions the
+existing spans; rebuilding on every zoom would detach the text nodes that selections, marks and read-aloud ranges hold.
+
+**PDF pages must render with the screen off.** Read aloud turns pages in the background, and pdf.js continues a long
+page's drawing on animation frames, which stop then; its `onContinue` hook is handed the same frame-paced scheduler,
+so our pdf.js patch switches frame pacing off for page renders and yields between slices through a `MessageChannel`
+(timers are throttled in a hidden page; messages aren't).
+
+**Large PDFs are read on demand.** `disableAutoFetch` keeps pdf.js from reading the whole file into the renderer in the
+background; with 1 MB ranges a 6.7 MB picture book reads 1.5 MB to open. Search caches each page's text for the open
+book, so only the first search pays for reading every page.
+
+**PDF "typography" means fitting the page, not restyling it.** Fonts and spacing are printed into a PDF, so the style
+panel offers Crop margins, Fit width and Darken text instead. The printed area comes from sampling the rendered canvas
+(160px wide, differences from the top-left pixel's colour), and the crop is the union of the pages measured so far:
+one box for the book, so the text keeps its size and place from page to page instead of zooming in on a chapter's
+short last page. Pages with nothing to crop (full-bleed covers) leave it alone. Zoom is
+relative to the box. Scales within 3% of the current one keep the current render, so turning between pages with
+similar margins doesn't render twice. Darken text reuses Bolder text rather than adding a setting: same intent, one
+switch across formats. A reflow (text-only) view was considered and left out: it drops images and layout and splits
+highlights between two views.
+
+**Dark themes recolour through pdf.js `pageColors`, not a CSS invert.** pdf.js paints text and vector art in the given
+foreground/background and leaves images untouched, so photos don't turn negative. White-paper themes (light, E-Ink)
+pass no colours and keep the document's own.
+
+**Progress counts a page as read once it's on screen.** foliate reports a fixed-layout page's fraction as its start
+(last page of 10 = 90%), which would never reach the finished threshold. bridge.js reports `(index + 1) / total` and
+maps fractions back with `ceil(f * total) - 1`, so the slider, resume-by-fraction and the reported value round-trip
+to the same page (tests/fixed-layout.test.mjs).
+
+**Import metadata comes from the PDF itself, without a PDF library.** `:format:pdf` reads `/Title` and `/Author` from
+the trailer's Info dictionary by scanning the file's head and tail (`PdfInfoReader`), falling back to the file name
+when Info sits in a compressed object stream or the file is encrypted; the cover is page 1 rendered by Android's
+`PdfRenderer`. A PDF that needs a password is reported as unsupported.

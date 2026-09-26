@@ -106,6 +106,10 @@ sealed interface ReaderUiState {
         val selection: ReaderSelection? = null,
         /** Position to jump back to via [ReaderViewModel.returnToPreviousPosition], set right before a TOC/search/note jump. */
         val returnLocator: Locator? = null,
+        /** A pre-paginated book (PDF): page fit and crop settings take the place of typography. */
+        val fixedLayout: Boolean = false,
+        /** The page is larger than the screen (zoomed or fit-width PDF): drags scroll it instead of edge swipes. */
+        val pageScrollable: Boolean = false,
     ) : ReaderUiState
     data class Failed(val message: String) : ReaderUiState
 }
@@ -327,13 +331,15 @@ class ReaderViewModel @Inject constructor(
                     if (readerResumed) onResume()
                     applyReaderStyle(engine, effectiveSettings.value)
                     _uiState.value = ReaderUiState.Loaded(
-                        bookTitle = openBook.title,
+                        // A PDF's embedded title is often a file or tool name; the library's title is the one people set.
+                        bookTitle = if (openBook.fixedLayout) book.title else openBook.title.ifBlank { book.title },
                         bookAuthor = book.author,
                         bookCoverPath = book.coverPath,
                         bookSeries = book.series,
                         bookSeriesNumber = book.seriesNumber,
                         toc = openBook.toc,
                         currentLocator = resumeLocator,
+                        fixedLayout = openBook.fixedLayout,
                     )
                     observeAnnotations(engine)
                     showReturnRecap(previousReadAt)
@@ -395,6 +401,9 @@ class ReaderViewModel @Inject constructor(
                     is FootnoteOpened -> _footnote.value = event.footnote
                     com.vayana.reader.api.EngineEvent.StoryEndReached -> offerBookFinishedPrompt()
                     com.vayana.reader.api.EngineEvent.RendererGone -> onRendererGone()
+                    is com.vayana.reader.api.EngineEvent.PageScrollableChanged -> _uiState.update { current ->
+                        if (current is ReaderUiState.Loaded) current.copy(pageScrollable = event.scrollable) else current
+                    }
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
                     -> Unit
@@ -624,6 +633,19 @@ class ReaderViewModel @Inject constructor(
 
     fun updateBionicReading(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderBionicReading, enabled) }
+    }
+
+    fun updatePdfCropMargins(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderPdfCropMargins, enabled) }
+    }
+
+    fun updatePdfFitWidth(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderPdfFitWidth, enabled) }
+    }
+
+    /** PDF "Darken text" and EPUB "Bolder text" are one setting: both make thin, faint print easier to read. */
+    fun updateBolderText(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderBolderText, enabled) }
     }
 
     fun createHighlight(colorKey: String = DefaultAnnotationColor) {
@@ -1456,6 +1478,8 @@ private fun SettingsSnapshot.toBookStyle(): BookStyle = BookStyle(
     },
     // A sliding page is a run of partial refreshes on E-Ink: all ghosting, and slower than a plain flip.
     pageTurnAnimation = readerPageTurnAnimation && displayProfile != DisplayProfile.E_INK,
+    pdfCropMargins = readerPdfCropMargins,
+    pdfFitWidth = readerPdfFitWidth,
 )
 
 private val ReaderFontFamily.cssFamily: String

@@ -20,6 +20,9 @@ const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
 let readerSideMarginPercent = 10
 let hasOpened = false
+// Pre-paginated books (PDF) render each page as an image with a text layer on top. They have real page numbers but
+// no reflowable text, so styling, annotations, selection, read aloud and the chapter word list don't apply.
+let fixedLayout = false
 
 // Dynamic page-count estimate: foliate's paginator lays out each chapter into CSS columns
 // sized by the live font-size/line-height/margin, so `renderer.pages` for the chapter you're
@@ -38,6 +41,7 @@ function resetPageEstimate() {
 }
 
 function bookPageStats(sectionIndex) {
+    if (fixedLayout) return fixedLayoutPageStats(sectionIndex)
     const renderer = view?.renderer
     if (!renderer || typeof renderer.pages !== 'number') return null
     const pages = renderer.pages
@@ -89,6 +93,41 @@ function bookPageStats(sectionIndex) {
         tocPages,
         tocRevision: revision,
     }
+}
+
+// A fixed-layout section is one page. Its contents entries resolve asynchronously (PDF destinations), so their page
+// numbers join the next relocate once resolved.
+let fixedLayoutTocPages = null
+let fixedLayoutTocRevision = 0
+
+function fixedLayoutPageStats(sectionIndex) {
+    const totalPages = view?.book?.sections?.length ?? 0
+    if (!Number.isInteger(sectionIndex) || totalPages <= 0) return null
+    return {
+        currentPage: Math.min(totalPages, sectionIndex + 1),
+        totalPages,
+        tocPages: fixedLayoutTocPages ?? {},
+        tocRevision: fixedLayoutTocRevision,
+    }
+}
+
+async function resolveFixedLayoutTocPages(book) {
+    const pages = {}
+    const walk = async items => {
+        for (const item of items ?? []) {
+            if (item.href && !(item.href in pages)) {
+                try {
+                    const index = (await book.resolveHref(item.href))?.index
+                    if (Number.isInteger(index) && index >= 0) pages[item.href] = index + 1
+                } catch (_) {}
+            }
+            await walk(item.subitems)
+        }
+    }
+    await walk(book.toc)
+    if (view?.book !== book) return
+    fixedLayoutTocPages = pages
+    fixedLayoutTocRevision++
 }
 
 // TOC href -> section index, resolved once per book for the contents panel's page numbers.
@@ -222,9 +261,9 @@ function checkStoryEnd(index) {
     try {
         const end = storyEndIndex()
         const renderer = view.renderer
-        const onLastPage = renderer.scrolled
+        const onLastPage = fixedLayout || (renderer.scrolled
             ? renderer.viewSize - renderer.end <= 2
-            : Number.isFinite(renderer.page) && renderer.page >= renderer.pages - 2
+            : Number.isFinite(renderer.page) && renderer.page >= renderer.pages - 2)
         const reached = (index === end && onLastPage) || (index > end && previousRelocateSection === end)
         previousRelocateSection = index
         if (reached) {
@@ -246,6 +285,14 @@ window.addEventListener('error', e => {
 window.addEventListener('unhandledrejection', e => {
     post('error', { message: `Unhandled rejection: ${e.reason && e.reason.stack || e.reason}` })
 })
+
+// EPUB titles may be language maps; PDF titles may be missing.
+function bookTitle(metadata) {
+    const title = metadata?.title
+    if (typeof title === 'string') return title
+    if (title && typeof title === 'object') return Object.values(title).find(value => typeof value === 'string') ?? ''
+    return ''
+}
 
 function tocToPlain(items) {
     if (!items) return []
@@ -328,6 +375,9 @@ async function open(bookUrl, lastLocatorCfi) {
         storyEndPosted = false
         previousRelocateSection = null
         lastSentTocRevision = -1
+        fixedLayout = false
+        fixedLayoutTocPages = null
+        resetFixedLayoutState()
         resetPageEstimate()
         view.addEventListener('relocate', e => {
             scheduleBadgeLayout()
@@ -336,7 +386,7 @@ async function open(bookUrl, lastLocatorCfi) {
             const tocChanged = pageStats && pageStats.tocRevision !== lastSentTocRevision
             post('relocate', {
                 cfi,
-                fraction,
+                fraction: fixedLayout ? fixedLayoutFraction(section) ?? fraction : fraction,
                 tocLabel: tocItem?.label?.trim?.() ?? null,
                 tocHref: tocItem?.href ?? null,
                 currentPage: pageStats?.currentPage ?? null,
@@ -350,7 +400,8 @@ async function open(bookUrl, lastLocatorCfi) {
             if (tocChanged) lastSentTocRevision = pageStats.tocRevision
             markFirstRender('relocate')
             checkStoryEnd(section?.current)
-            if (hasOpened) {
+            if (fixedLayout) onFixedLayoutRelocate(section?.current)
+            if (hasOpened && !fixedLayout) {
                 for (const { doc, index } of view.renderer.getContents()) {
                     if (doc) queueDocumentEnhancements(doc, index)
                 }
@@ -358,6 +409,12 @@ async function open(bookUrl, lastLocatorCfi) {
         })
         view.addEventListener('load', e => {
             const { doc, index } = e.detail
+            if (fixedLayout) {
+                wireFixedLayoutPage(doc, index)
+                post('pageLoaded', {})
+                markFirstRender('load')
+                return
+            }
             wireSelection(doc, index)
             wireDoubleTapLookup(doc)
             post('pageLoaded', {})
@@ -427,7 +484,12 @@ async function open(bookUrl, lastLocatorCfi) {
         post('log', { step: 'view.open' })
         phase = 'opening book package'
         await view.open(bookFile)
-        post('log', { step: 'view.init' })
+        fixedLayout = Boolean(view.isFixedLayout)
+        if (fixedLayout) {
+            view.book.setPageColors?.(fixedPageColors)
+            void resolveFixedLayoutTocPages(view.book)
+        }
+        post('log', { step: 'view.init', fixedLayout })
         phase = 'initializing book view'
         const isStandardCfi = lastLocatorCfi && (lastLocatorCfi.startsWith('epubcfi(') || lastLocatorCfi.includes('.xhtml') || lastLocatorCfi.includes('.html'))
         const initialLocation = isStandardCfi ? lastLocatorCfi : undefined
@@ -444,9 +506,11 @@ async function open(bookUrl, lastLocatorCfi) {
         }
 
         hasOpened = true
-        post('opened', { toc: tocToPlain(view.book.toc), title: view.book.metadata?.title ?? '' })
-        for (const { doc, index } of view.renderer.getContents()) {
-            if (doc) queueDocumentEnhancements(doc, index)
+        post('opened', { toc: tocToPlain(view.book.toc), title: bookTitle(view.book.metadata), fixedLayout })
+        if (!fixedLayout) {
+            for (const { doc, index } of view.renderer.getContents()) {
+                if (doc) queueDocumentEnhancements(doc, index)
+            }
         }
 
         if (lastLocatorCfi && !isStandardCfi) {
@@ -655,11 +719,37 @@ function queueDocumentEnhancements(doc, index) {
     }, 0)
 }
 
-function next() { view?.next() }
-function prev() { view?.prev() }
+function next() {
+    if (fixedLayout && scrollFixedPage(1)) return
+    view?.next()
+}
+function prev() {
+    if (fixedLayout && scrollFixedPage(-1)) return
+    view?.prev()
+}
 function goLeft() { view?.goLeft() }
 function goRight() { view?.goRight() }
-function goToFraction(fraction) { view?.goToFraction(fraction) }
+function goToFraction(fraction) {
+    if (fixedLayout) {
+        const index = fixedLayoutIndexOfFraction(fraction, view?.book?.sections?.length ?? 0)
+        if (index != null) view.goTo(index)
+        return
+    }
+    view?.goToFraction(fraction)
+}
+
+// A fixed-layout page counts as read once it is on screen, so the last page is 100%. Navigating by fraction maps back
+// to the same page: fixedLayoutIndexOfFraction(fixedLayoutFraction(i)) === i.
+function fixedLayoutFraction(section) {
+    const { current, total } = section ?? {}
+    return Number.isInteger(current) && total > 0 ? Math.min(1, (current + 1) / total) : null
+}
+
+function fixedLayoutIndexOfFraction(fraction, total) {
+    if (!(total > 0) || !Number.isFinite(fraction)) return null
+    // The epsilon absorbs float error: (i + 1) / n * n can come out a hair above i + 1.
+    return Math.max(0, Math.min(total - 1, Math.ceil(fraction * total - 1e-9) - 1))
+}
 
 function isTextAnnotationValue(value) {
     return value?.startsWith('text:') ||
@@ -916,14 +1006,15 @@ function wireDoubleTapLookup(doc) {
         if (!last || e.timeStamp - last.time > DoubleTapWindowMillis) return
         if (Math.hypot(e.clientX - last.x, e.clientY - last.y) > DoubleTapSlopPx) return
         doubleTapState.delete(doc)
-        selectWordAt(doc, e.clientX, e.clientY)
+        // On a PDF page, a double tap away from any word (or on a scanned page with no text) zooms instead.
+        if (!selectWordAt(doc, e.clientX, e.clientY) && fixedLayout) toggleFixedZoom(doc, e.clientX, e.clientY)
     })
 }
 
 function selectWordAt(doc, x, y) {
     const caret = doc.caretRangeFromPoint?.(x, y)
     const node = caret?.startContainer
-    if (!node || node.nodeType !== 3) return
+    if (!node || node.nodeType !== 3) return false
     const range = doc.createRange()
     const bionicWord = node.parentElement?.closest(`.${BionicWordClass}`)
     if (bionicWord) {
@@ -931,7 +1022,7 @@ function selectWordAt(doc, x, y) {
     } else {
         const word = [...segmenterFor(doc, 'word').segment(node.data)]
             .find(({ segment, index }) => caret.startOffset >= index && caret.startOffset < index + segment.length)
-        if (!word?.isWordLike) return
+        if (!word?.isWordLike) return false
         range.setStart(node, word.index)
         range.setEnd(node, word.index + word.segment.length)
     }
@@ -939,6 +1030,7 @@ function selectWordAt(doc, x, y) {
     const selection = doc.getSelection()
     selection.removeAllRanges()
     selection.addRange(range)
+    return true
 }
 
 const SpeechHighlightColor = '#5B8DEF'
@@ -1007,11 +1099,18 @@ function speechSentencesFor(doc, index, fromRange) {
     speech.index = index
     speech.sentences.clear()
     if (!doc.body) return []
-    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+    // On a PDF page only the text layer holds the words (the link layer can carry form text).
+    const root = fixedLayout ? doc.querySelector('.textLayer') ?? doc.body : doc.body
+    const walker = doc.createTreeWalker(root, fixedLayout ? NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT : NodeFilter.SHOW_TEXT)
     const pieces = []
     let text = ''
     let lastBlock = null
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.nodeType === 1) {
+            // pdf.js ends each printed line with <br>: a word boundary, except after a hyphen that split a word.
+            if (node.localName === 'br' && text && !/\p{L}-$/u.test(text)) text += '\n'
+            continue
+        }
         const parent = node.parentElement
         if (!node.data.trim() || parent?.closest('script, style, rt')) continue
         // Separate blocks so a paragraph without closing punctuation doesn't run into the next one.
@@ -1063,12 +1162,13 @@ function speechSentencesFor(doc, index, fromRange) {
 }
 
 // [fromCfi] starts reading at the sentence holding that position (a selection) instead of at the top of the page.
-function startSpeech(requestId, fromCfi) {
+async function startSpeech(requestId, fromCfi) {
     const content = currentContent()
     if (!content?.doc) {
         post('reply', { requestId, sentences: [], endOfBook: true })
         return
     }
+    if (fixedLayout) await whenFixedPageRendered(content.doc)
     const visible = view.lastLocation?.range
     let fromRange = visible?.startContainer?.ownerDocument === content.doc ? visible : null
     if (fromCfi) {
@@ -1095,6 +1195,7 @@ async function nextSpeechChunk(requestId) {
     try {
         await view.goTo(next)
         const content = view.renderer.getContents().find(c => c.index === next)
+        if (fixedLayout) await whenFixedPageRendered(content?.doc)
         const sentences = content?.doc ? speechSentencesFor(content.doc, next, null) : []
         speech.index = next
         post('reply', { requestId, sentences, endOfBook: false })
@@ -1110,6 +1211,10 @@ async function markSpeech(id, start, end) {
     if (!range || !view) return
     // Drawn straight onto the section's overlay from the Range already in hand. Going through view.addAnnotation would
     // build a CFI for it and resolve that back to a Range, twice per word (again to remove it).
+    if (fixedLayout) {
+        markFixedLayoutSpeech(range)
+        return
+    }
     const overlayer = view.renderer.getContents().find(c => c.index === speech.index)?.overlayer
     if (!overlayer) return
     clearSpeechMark()
@@ -1136,6 +1241,7 @@ async function markSpeech(id, start, end) {
 }
 
 function clearSpeechMark() {
+    if (fixedSpeechMark) clearFixedLayoutSpeech()
     speech.markedOverlayer?.remove(SpeechMarkKey)
     speech.markedOverlayer = null
 }
@@ -1151,12 +1257,29 @@ const MaxChapterWordKinds = 20000
 
 // How often each all-letter word of at least [minLength] letters appears (as written) in the chapter on screen, for
 // the reader's chapter word list. Shorter words are dropped here so they never cross the bridge.
-function chapterWordCounts(requestId, minLength) {
+async function chapterWordCounts(requestId, minLength) {
     const counts = Object.create(null)
     const doc = currentContent()?.doc
-    if (doc?.body) {
+    let text = null
+    if (fixedLayout) {
+        const current = currentFixedIndex() ?? 0
+        const total = view.book.sections?.length ?? 0
+        const { start, end } = chapterPageRange(current, total, Object.values(fixedLayoutTocPages ?? {}))
+        const pages = []
+        for (let index = start; index <= end; index++) {
+            try {
+                pages.push(await view.book.getPageText(index))
+            } catch (error) {
+                post('log', { step: 'chapterWords', index, message: String(error) })
+            }
+        }
+        text = pages.join('\n')
+    } else if (doc?.body) {
+        text = doc.body.textContent ?? ''
+    }
+    if (doc && text) {
         let kinds = 0
-        for (const { segment, isWordLike } of segmenterFor(doc, 'word').segment(doc.body.textContent ?? '')) {
+        for (const { segment, isWordLike } of segmenterFor(doc, 'word').segment(text)) {
             if (!isWordLike || segment.length < minLength || !/^\p{L}+$/u.test(segment)) continue
             if (counts[segment] === undefined) {
                 if (kinds >= MaxChapterWordKinds) continue
@@ -1222,6 +1345,15 @@ let searchToken = 0
 
 async function search(query) {
     if (!view) return
+    if (fixedLayout) {
+        const token = ++searchToken
+        try {
+            await searchFixedLayout(query, token)
+        } catch (e) {
+            post('error', { message: `Search failed: ${e.message}` })
+        }
+        return
+    }
     const myToken = ++searchToken
     const results = []
     try {
@@ -1241,6 +1373,11 @@ async function search(query) {
 
 function clearSearch() {
     searchToken++ // invalidate any in-flight search so its stale results never post
+    if (fixedLayout) {
+        fixedSearchQuery = ''
+        redrawFixedLayoutMarks()
+        return
+    }
     if (view?.clearSearch) view.clearSearch()
 }
 
@@ -1252,6 +1389,11 @@ let annotationApplyGeneration = 0
 /** Keep one annotation application in flight and retain only the newest waiting snapshot. */
 function renderAnnotations(annotations) {
     if (!view) return
+    if (fixedLayout) {
+        activeAnnotationsList = Array.isArray(annotations) ? annotations.filter(Boolean) : []
+        redrawFixedLayoutMarks()
+        return
+    }
     pendingAnnotations = Array.isArray(annotations) ? annotations.filter(Boolean) : []
     if (!annotationApplyRunning) void drainAnnotationUpdates()
 }
@@ -1760,6 +1902,703 @@ async function findCfiInBook(text) {
     return null
 }
 
-window.VayanaReader = { open, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
-addEventListener('resize', () => applyReaderMargin(readerSideMarginPercent))
+// ---- Fixed-layout (PDF) pages: zoom, page colours, marks and search -------------------------------------------------
+// A PDF page is a canvas with pdf.js's invisible text layer on top. Selection, lookup and CFIs work on that text layer
+// like on an EPUB document; marks are drawn in a layer of our own between the canvas and the text, because foliate's
+// overlayer only exists for reflowable sections. pdf.js rebuilds the text layer on every render (zoom, colours) and
+// fires 'vayana-page-rendered' afterwards, when the marks are drawn again.
+
+const MinFixedZoom = 1
+const MaxFixedZoom = 5
+const DoubleTapFixedZoom = 2.5
+const FixedMarkLayerClass = 'vayana-marks'
+const SearchMarkColor = '#F6C453'
+const MaxFixedSearchResults = 500
+const FixedSearchExcerptChars = 40
+const FixedSearchBatch = 8
+
+// Zoom relative to the page (or its printed area, with margins cropped) fitting the screen.
+let fixedZoom = 1
+let fixedPinch = null
+let fixedPageColors = null
+let fixedSearchQuery = ''
+let lastFixedLayoutIndex = null
+// The reader's page settings for PDFs: crop the blank margins, fit the width instead of the whole page, darken print.
+let pdfLayout = { cropMargins: false, fitWidth: false, darken: false }
+// Page index -> its printed area as fractions of the page ({ x, y, w, h }), or null for a page with no margins to crop.
+const pageContentBoxes = new Map()
+// The union of the printed areas measured so far: one crop for the whole book, so the text keeps its size from page
+// to page (a chapter's short last page would otherwise zoom in) and sits in the same place on screen.
+let cropBox = null
+// Set once the reader touches the page after a page turn; the view then stops re-aligning itself to late renders.
+let fixedViewTouched = false
+// The read-aloud mark on a PDF page: { doc, range }.
+let fixedSpeechMark = null
+const renderedPageDocs = new WeakSet()
+const pageRenderWaiters = new WeakMap()
+const FixedScaleTolerance = 0.03
+const ContentBoxSampleWidth = 160
+const ContentBoxThreshold = 40
+const ContentBoxPadding = 0.015
+const MaxChapterWordPages = 100
+const ChapterWordPagesWithoutContents = 10
+
+function resetFixedLayoutState() {
+    fixedZoom = 1
+    fixedPinch = null
+    fixedSearchQuery = ''
+    lastFixedLayoutIndex = null
+    fixedViewTouched = false
+    fixedSpeechMark = null
+    pageContentBoxes.clear()
+    cropBox = null
+    clearTimeout(fixedRefitTimer)
+    fixedScrollableReported = null
+}
+
+function fixedLayoutContents() {
+    return (view?.renderer?.getContents?.() ?? []).filter(content => content.doc && Number.isInteger(content.index))
+}
+
+function wireFixedLayoutPage(doc, index) {
+    wireSelection(doc, index)
+    wireDoubleTapLookup(doc)
+    wirePinchZoom(doc)
+    doc.addEventListener('touchstart', () => { fixedViewTouched = true }, { passive: true })
+    doc.addEventListener('vayana-page-rendered', () => onFixedPageRendered(doc, index))
+}
+
+function onFixedPageRendered(doc, index) {
+    renderedPageDocs.add(doc)
+    for (const resolve of pageRenderWaiters.get(doc) ?? []) resolve()
+    pageRenderWaiters.delete(doc)
+    applyPdfDarken(doc)
+    let boxChanged = false
+    if (pdfLayout.cropMargins && !pageContentBoxes.has(index)) {
+        const before = cropBox
+        measureContentBox(doc, index)
+        boxChanged = cropBox !== before
+    }
+    drawFixedLayoutMarks(doc, index)
+    // A page's printed area is only known once it has rendered; line the view up with it unless the reader has
+    // already moved the page themselves.
+    if (boxChanged && index === currentFixedIndex() && !fixedViewTouched) applyFixedView()
+}
+
+// Resolves once the page's text layer exists (or after a few seconds, so a failed render never hangs read aloud).
+function whenFixedPageRendered(doc) {
+    if (!doc || renderedPageDocs.has(doc)) return Promise.resolve()
+    return new Promise(resolve => {
+        const waiters = pageRenderWaiters.get(doc) ?? []
+        waiters.push(resolve)
+        pageRenderWaiters.set(doc, waiters)
+        setTimeout(resolve, 4000)
+    })
+}
+
+function currentFixedIndex() {
+    const current = view?.lastLocation?.section?.current
+    return Number.isInteger(current) ? current : lastFixedLayoutIndex
+}
+
+// A new page opens at its top, or at its bottom when paging backwards, at the same zoom.
+function onFixedLayoutRelocate(index) {
+    if (index === lastFixedLayoutIndex) return
+    const backwards = Number.isInteger(lastFixedLayoutIndex) && index < lastFixedLayoutIndex
+    lastFixedLayoutIndex = index
+    fixedViewTouched = false
+    applyFixedView(backwards ? 'bottom' : 'top')
+}
+
+function fixedPageSize() {
+    const doc = fixedLayoutContents()[0]?.doc
+    const content = doc?.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? ''
+    const size = Object.fromEntries(content.split(',').map(part => part.split('=').map(value => value.trim())))
+    const width = parseFloat(size.width)
+    const height = parseFloat(size.height)
+    return width > 0 && height > 0 ? { width, height } : null
+}
+
+/**
+ * Where the renderer must scroll so the page point under [focus] (renderer coordinates) stays under it when the page
+ * scale changes from [oldScale] to [newScale]. A page smaller than the view is centred, which shifts it by an offset.
+ */
+function zoomScrollFor({ scroll, focus, viewSize, pageSize, oldScale, newScale }) {
+    const oldOffset = Math.max(0, (viewSize - pageSize * oldScale) / 2)
+    const newOffset = Math.max(0, (viewSize - pageSize * newScale) / 2)
+    const pagePoint = (scroll + focus - oldOffset) / oldScale
+    return Math.max(0, pagePoint * newScale + newOffset - focus)
+}
+
+function clampFixedZoom(zoom) {
+    return Math.max(MinFixedZoom, Math.min(MaxFixedZoom, Number.isFinite(zoom) ? zoom : 1))
+}
+
+const FullPageBox = Object.freeze({ x: 0, y: 0, w: 1, h: 1 })
+let fixedRefitTimer = null
+let fixedViewSize = null
+
+function scheduleFixedRefit() {
+    if (!fixedLayout) return
+    clearTimeout(fixedRefitTimer)
+    fixedRefitTimer = setTimeout(() => {
+        const renderer = view?.renderer
+        if (!renderer) return
+        const size = `${renderer.clientWidth}x${renderer.clientHeight}`
+        if (size === fixedViewSize) return
+        fixedViewSize = size
+        applyFixedView()
+    }, 150)
+}
+
+function fixedFitBox() {
+    return (pdfLayout.cropMargins && cropBox) || FullPageBox
+}
+
+// Pages with nothing to crop (a full-bleed cover or photo) leave the book's crop as it is.
+function measureContentBox(doc, index) {
+    const box = contentBoxOfPage(doc)
+    pageContentBoxes.set(index, box)
+    const union = unionBox(cropBox, box)
+    if (JSON.stringify(union) !== JSON.stringify(cropBox)) cropBox = union
+    return box
+}
+
+function unionBox(a, b) {
+    if (!a || !b) return a ?? b ?? null
+    const x = Math.min(a.x, b.x)
+    const y = Math.min(a.y, b.y)
+    return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y }
+}
+
+/** The page scale at which [box] (fractions of the page) fills the view: its width, or all of it. */
+function fitScaleFor(box, page, viewWidth, viewHeight, fitWidth) {
+    const width = viewWidth / (box.w * page.width)
+    return fitWidth ? width : Math.min(width, viewHeight / (box.h * page.height))
+}
+
+/**
+ * Scroll offsets that show [box] at [scale]: centred when it is smaller than the view, else from its start, or from
+ * its end with [align] 'bottom' (paging backwards lands at the foot of the previous page).
+ */
+function boxScrollFor({ box, page, scale, viewWidth, viewHeight, align }) {
+    const x = box.x * page.width * scale
+    const w = box.w * page.width * scale
+    const y = box.y * page.height * scale
+    const h = box.h * page.height * scale
+    return {
+        left: Math.max(0, x - Math.max(0, (viewWidth - w) / 2)),
+        top: align === 'bottom' ? Math.max(0, y + h - viewHeight) : Math.max(0, y - Math.max(0, (viewHeight - h) / 2)),
+    }
+}
+
+function rendererScale() {
+    const value = parseFloat(view?.renderer?.getAttribute('zoom'))
+    return Number.isFinite(value) && value > 0 ? value : null
+}
+
+// Setting the scale re-renders the page; a change too small to see keeps the current render.
+function setRendererScale(scale) {
+    const current = rendererScale()
+    if (current && Math.abs(scale - current) / current < FixedScaleTolerance) return
+    view.renderer.setAttribute('zoom', String(scale))
+}
+
+function fixedViewGeometry() {
+    const renderer = view?.renderer
+    const page = fixedPageSize()
+    if (!renderer || !page) return null
+    const viewWidth = renderer.clientWidth
+    const viewHeight = renderer.clientHeight
+    const box = fixedFitBox()
+    const fit = fitScaleFor(box, page, viewWidth, viewHeight, pdfLayout.fitWidth)
+    return fit > 0 ? { renderer, page, viewWidth, viewHeight, box, fit } : null
+}
+
+// Scales the page for the current zoom and page settings and scrolls to its printed area.
+function applyFixedView(align = 'top') {
+    const geometry = fixedViewGeometry()
+    if (!geometry) return
+    const { renderer, page, viewWidth, viewHeight, box, fit } = geometry
+    fixedViewSize = `${viewWidth}x${viewHeight}`
+    setRendererScale(fit * fixedZoom)
+    const scale = rendererScale() ?? fit * fixedZoom
+    const { left, top } = boxScrollFor({ box, page, scale, viewWidth, viewHeight, align })
+    renderer.scrollLeft = left
+    renderer.scrollTop = top
+    reportFixedScrollable()
+}
+
+// Tells the app whether a drag on the page pans it, so the reader's own edge swipes keep out of the way.
+let fixedScrollableReported = null
+function reportFixedScrollable() {
+    const renderer = view?.renderer
+    if (!renderer) return
+    const scrollable = renderer.scrollHeight > renderer.clientHeight + 2 || renderer.scrollWidth > renderer.clientWidth + 2
+    if (scrollable === fixedScrollableReported) return
+    fixedScrollableReported = scrollable
+    post('pageScrollable', { scrollable })
+}
+
+function setFixedZoom(zoom, focusX, focusY) {
+    const geometry = fixedViewGeometry()
+    if (!geometry) return
+    const { renderer, page, viewWidth, viewHeight, fit } = geometry
+    const next = clampFixedZoom(zoom)
+    if (next <= 1.001) {
+        fixedZoom = 1
+        applyFixedView()
+        return
+    }
+    const oldScale = rendererScale() ?? fit * fixedZoom
+    const newScale = fit * next
+    const fx = Number.isFinite(focusX) ? focusX : viewWidth / 2
+    const fy = Number.isFinite(focusY) ? focusY : viewHeight / 2
+    const left = zoomScrollFor({ scroll: renderer.scrollLeft, focus: fx, viewSize: viewWidth, pageSize: page.width, oldScale, newScale })
+    const top = zoomScrollFor({ scroll: renderer.scrollTop, focus: fy, viewSize: viewHeight, pageSize: page.height, oldScale, newScale })
+    fixedZoom = next
+    setRendererScale(newScale)
+    renderer.scrollLeft = left
+    renderer.scrollTop = top
+    reportFixedScrollable()
+}
+
+/**
+ * Next/previous on a page taller than the screen (fit width, zoomed in) first moves down/up through it, keeping a
+ * little of the old view for context; only at the end of the page does it turn. True when it scrolled.
+ */
+function scrollFixedPage(direction) {
+    const geometry = fixedViewGeometry()
+    if (!geometry) return false
+    const { renderer, page, viewHeight, box } = geometry
+    const scale = rendererScale() ?? geometry.fit * fixedZoom
+    const top = box.y * page.height * scale
+    const bottom = (box.y + box.h) * page.height * scale
+    const step = viewHeight * 0.9
+    if (direction > 0 && renderer.scrollTop + viewHeight < bottom - 4) {
+        renderer.scrollTop = Math.min(bottom - viewHeight, renderer.scrollTop + step)
+        return true
+    }
+    if (direction < 0 && renderer.scrollTop > top + 4) {
+        renderer.scrollTop = Math.max(top, renderer.scrollTop - step)
+        return true
+    }
+    return false
+}
+
+function setPdfLayout(options) {
+    const next = {
+        cropMargins: Boolean(options?.cropMargins),
+        fitWidth: Boolean(options?.fitWidth),
+        darken: Boolean(options?.darken),
+    }
+    if (JSON.stringify(next) === JSON.stringify(pdfLayout)) return
+    const cropTurnedOn = next.cropMargins && !pdfLayout.cropMargins
+    pdfLayout = next
+    if (!fixedLayout) return
+    for (const { doc, index } of fixedLayoutContents()) {
+        applyPdfDarken(doc)
+        if (cropTurnedOn && renderedPageDocs.has(doc) && !pageContentBoxes.has(index)) measureContentBox(doc, index)
+    }
+    applyFixedView()
+}
+
+// A gamma curve on the page image: faint print gets darker on a light page (lighter on a dark one) while the paper
+// stays as it is. A plain contrast filter pivots on mid-grey and leaves grey text grey.
+function applyPdfDarken(doc) {
+    const holder = doc?.querySelector('#canvas')
+    if (!holder) return
+    if (!pdfLayout.darken) {
+        holder.style.filter = ''
+        return
+    }
+    const dark = fixedPageColors ? (relativeLuminance(fixedPageColors.background) ?? 1) < 0.2 : false
+    const id = dark ? 'vayana-lighten-print' : 'vayana-darken-print'
+    if (!doc.getElementById(id)) {
+        const exponent = dark ? 0.55 : 2.2
+        const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('width', '0')
+        svg.setAttribute('height', '0')
+        svg.style.position = 'absolute'
+        svg.innerHTML = `<filter id="${id}" color-interpolation-filters="sRGB"><feComponentTransfer>` +
+            ['R', 'G', 'B'].map(c => `<feFunc${c} type="gamma" amplitude="1" exponent="${exponent}" offset="0"/>`).join('') +
+            '</feComponentTransfer></filter>'
+        doc.body.append(svg)
+    }
+    holder.style.filter = `url(#${id})`
+}
+
+/**
+ * The printed area of an RGBA image of [width] x [height] as fractions of it, padded a little, or null when the print
+ * already reaches (nearly) every edge. Background is the top-left pixel's colour; a pixel counts as print when any
+ * channel differs from it by more than [threshold].
+ */
+function contentBoxFromPixels(data, width, height, threshold = ContentBoxThreshold, padding = ContentBoxPadding) {
+    if (!(width > 0 && height > 0) || data.length < width * height * 4) return null
+    const [r0, g0, b0] = [data[0], data[1], data[2]]
+    let minX = width
+    let minY = height
+    let maxX = -1
+    let maxY = -1
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4
+            if (Math.abs(data[i] - r0) > threshold || Math.abs(data[i + 1] - g0) > threshold ||
+                Math.abs(data[i + 2] - b0) > threshold) {
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+            }
+        }
+    }
+    if (maxX < 0) return null
+    const x = Math.max(0, minX / width - padding)
+    const y = Math.max(0, minY / height - padding)
+    const w = Math.min(1, (maxX + 1) / width + padding) - x
+    const h = Math.min(1, (maxY + 1) / height + padding) - y
+    // Nothing worth cropping: the view would barely change and just re-render.
+    if (w * h > 0.92) return null
+    return { x, y, w, h }
+}
+
+function contentBoxOfPage(doc) {
+    const canvas = doc?.querySelector('#canvas canvas')
+    if (!canvas?.width || !canvas.height) return null
+    try {
+        const width = ContentBoxSampleWidth
+        const height = Math.max(1, Math.round(canvas.height / canvas.width * width))
+        const sample = document.createElement('canvas')
+        sample.width = width
+        sample.height = height
+        const context = sample.getContext('2d', { willReadFrequently: true })
+        context.drawImage(canvas, 0, 0, width, height)
+        return contentBoxFromPixels(context.getImageData(0, 0, width, height).data, width, height)
+    } catch (error) {
+        post('log', { step: 'contentBox', message: String(error) })
+        return null
+    }
+}
+
+/**
+ * The pages whose words make up the "chapter" of PDF page [current] for the word list: from the contents entry it
+ * falls under to the page before the next entry, capped at [maxPages]. Without contents, this page and the
+ * [pagesWithoutContents] - 1 after it.
+ * [tocStartPages] are 1-based contents page numbers.
+ */
+function chapterPageRange(current, total, tocStartPages, maxPages = MaxChapterWordPages, pagesWithoutContents = ChapterWordPagesWithoutContents) {
+    const starts = [...new Set(tocStartPages)].map(page => page - 1).filter(i => i >= 0 && i < total).sort((a, b) => a - b)
+    if (!starts.length) return { start: current, end: Math.max(current, Math.min(total - 1, current + pagesWithoutContents - 1)) }
+    const start = starts.filter(i => i <= current).at(-1) ?? 0
+    const next = starts.find(i => i > current)
+    const end = Math.min(next == null ? total - 1 : next - 1, start + maxPages - 1)
+    return { start, end: Math.max(start, end) }
+}
+
+// A point in a page document, in the renderer's own coordinates.
+function rendererPointOf(doc, clientX, clientY) {
+    const frame = doc.defaultView?.frameElement?.getBoundingClientRect()
+    const renderer = view?.renderer?.getBoundingClientRect()
+    if (!frame || !renderer) return null
+    return { x: frame.left + clientX - renderer.left, y: frame.top + clientY - renderer.top }
+}
+
+function toggleFixedZoom(doc, clientX, clientY) {
+    const point = rendererPointOf(doc, clientX, clientY)
+    setFixedZoom(fixedZoom > 1.05 ? 1 : DoubleTapFixedZoom, point?.x, point?.y)
+}
+
+function touchDistance(a, b) {
+    // Screen coordinates: the page frame is scaled while pinching, which would skew its own client coordinates.
+    return Math.hypot(a.screenX - b.screenX, a.screenY - b.screenY)
+}
+
+function wirePinchZoom(doc) {
+    // Two fingers are ours; one finger still pans the zoomed page.
+    doc.documentElement.style.touchAction = 'pan-x pan-y'
+    doc.addEventListener('touchstart', e => {
+        if (e.touches.length !== 2) return
+        const [a, b] = e.touches
+        const focus = rendererPointOf(doc, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
+        const distance = touchDistance(a, b)
+        if (!focus || !(distance > 0)) return
+        // A second finger ends any selection the first one started.
+        doc.getSelection()?.removeAllRanges()
+        fixedPinch = { distance, focus, ratio: 1 }
+    }, { passive: true })
+    doc.addEventListener('touchmove', e => {
+        if (!fixedPinch || e.touches.length !== 2) return
+        e.preventDefault()
+        const [a, b] = e.touches
+        const ratio = clampFixedZoom(fixedZoom * touchDistance(a, b) / fixedPinch.distance) / fixedZoom
+        fixedPinch.ratio = ratio
+        // Cheap while the fingers move; the page renders sharp at the new scale when they lift.
+        const renderer = view.renderer
+        renderer.style.transformOrigin = `${fixedPinch.focus.x}px ${fixedPinch.focus.y}px`
+        renderer.style.transform = `scale(${ratio})`
+    }, { passive: false })
+    const end = e => {
+        if (!fixedPinch || e.touches.length >= 2) return
+        const { focus, ratio } = fixedPinch
+        fixedPinch = null
+        view.renderer.style.transform = ''
+        view.renderer.style.transformOrigin = ''
+        if (Math.abs(ratio - 1) > 0.02) setFixedZoom(fixedZoom * ratio, focus.x, focus.y)
+    }
+    doc.addEventListener('touchend', end, { passive: true })
+    doc.addEventListener('touchcancel', end, { passive: true })
+}
+
+function relativeLuminance(hex) {
+    const match = /^#?([0-9a-f]{6})$/i.exec(String(hex ?? '').trim())
+    if (!match) return null
+    const value = parseInt(match[1], 16)
+    const channel = shift => {
+        const c = ((value >> shift) & 0xff) / 255
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+}
+
+/**
+ * The colours pdf.js should draw pages in for a reader theme, or null for the page's own colours. White paper with
+ * dark text (light and E-Ink themes) keeps the original colours, including coloured text and links; any other theme
+ * recolours text and drawings into it, leaving images as they are.
+ */
+function pageColorsForTheme(background, foreground) {
+    const bg = relativeLuminance(background)
+    const fg = relativeLuminance(foreground)
+    if (bg == null || fg == null) return null
+    if (bg > 0.9 && fg < 0.2) return null
+    return { background, foreground }
+}
+
+function setPageColors(background, foreground) {
+    const next = pageColorsForTheme(background, foreground)
+    if (JSON.stringify(next) === JSON.stringify(fixedPageColors)) return
+    fixedPageColors = next
+    if (!fixedLayout) return
+    view?.book?.setPageColors?.(next)
+    // Setting the zoom again re-renders the pages on screen in the new colours.
+    const renderer = view?.renderer
+    if (renderer) renderer.setAttribute('zoom', renderer.getAttribute('zoom') ?? 'fit-page')
+    // The darken curve runs the other way on a dark page.
+    for (const { doc } of fixedLayoutContents()) applyPdfDarken(doc)
+}
+
+function fixedMarkLayer(doc) {
+    const textLayer = doc.querySelector('.textLayer')
+    if (!textLayer) return null
+    let layer = doc.querySelector(`.${FixedMarkLayerClass}`)
+    if (!layer) {
+        layer = doc.createElement('div')
+        layer.className = FixedMarkLayerClass
+        textLayer.before(layer)
+    }
+    const dark = fixedPageColors ? (relativeLuminance(fixedPageColors.background) ?? 1) < 0.2 : false
+    Object.assign(layer.style, {
+        position: 'absolute',
+        left: `${textLayer.offsetLeft}px`,
+        top: `${textLayer.offsetTop}px`,
+        width: `${textLayer.offsetWidth}px`,
+        height: `${textLayer.offsetHeight}px`,
+        pointerEvents: 'none',
+        // Multiply keeps print legible through a light mark; on a dark page it would vanish, so lighten there instead.
+        mixBlendMode: dark ? 'screen' : 'multiply',
+        opacity: dark ? '0.55' : '0.45',
+    })
+    return layer
+}
+
+function drawFixedLayoutMarks(doc, index) {
+    const layer = fixedMarkLayer(doc)
+    if (!layer) return
+    layer.replaceChildren()
+    const box = layer.getBoundingClientRect()
+    if (!box.width || !layer.offsetWidth) return
+    // Client rects are measured after the page document's own scaling; the layer is laid out before it.
+    const scale = layer.offsetWidth / box.width
+    const drawRange = (range, style) => {
+        for (const rect of range.getClientRects()) {
+            if (!rect.width || !rect.height) continue
+            const mark = doc.createElement('div')
+            Object.assign(mark.style, {
+                position: 'absolute',
+                left: `${(rect.left - box.left) * scale}px`,
+                top: `${(rect.top - box.top) * scale}px`,
+                width: `${rect.width * scale}px`,
+                height: `${rect.height * scale}px`,
+            }, style)
+            layer.append(mark)
+        }
+    }
+    for (const annotation of activeAnnotationsList) {
+        const range = fixedLayoutRangeOf(annotation.value, doc, index)
+        if (!range) continue
+        const color = markColor(annotation.color ?? DefaultAnnotationColor)
+        drawRange(range, annotation.type === 'underline'
+            ? { borderBottom: `2px dashed ${color}` }
+            : { background: color })
+    }
+    if (fixedSearchQuery) {
+        for (const range of findTextRanges(doc, fixedSearchQuery)) drawRange(range, { background: markColor(SearchMarkColor) })
+    }
+    if (fixedSpeechMark?.doc === doc) drawRange(fixedSpeechMark.range, { background: markColor(SpeechHighlightColor) })
+}
+
+function markFixedLayoutSpeech(range) {
+    const doc = range.startContainer.ownerDocument
+    const previous = fixedSpeechMark?.doc
+    fixedSpeechMark = { doc, range }
+    if (previous && previous !== doc) drawFixedLayoutMarks(previous, fixedLayoutContents().find(c => c.doc === previous)?.index)
+    drawFixedLayoutMarks(doc, speech.index)
+    scrollFixedRangeIntoView(doc, range)
+}
+
+function clearFixedLayoutSpeech() {
+    const doc = fixedSpeechMark?.doc
+    fixedSpeechMark = null
+    if (doc) drawFixedLayoutMarks(doc, fixedLayoutContents().find(c => c.doc === doc)?.index)
+}
+
+// Keeps the word being read on screen when the page is larger than the view.
+function scrollFixedRangeIntoView(doc, range) {
+    const renderer = view?.renderer
+    const rect = range.getBoundingClientRect()
+    const top = rendererPointOf(doc, rect.left, rect.top)
+    const bottom = rendererPointOf(doc, rect.right, rect.bottom)
+    if (!renderer || !top || !bottom) return
+    const height = renderer.clientHeight
+    const width = renderer.clientWidth
+    if (top.y < 0 || bottom.y > height) renderer.scrollTop += top.y - height / 3
+    if (top.x < 0 || bottom.x > width) renderer.scrollLeft += top.x - width / 8
+}
+
+// A range on this page, only for CFIs pointing into a page's text: a bare page CFI is a bookmark.
+function fixedLayoutRangeOf(cfi, doc, index) {
+    if (typeof cfi !== 'string' || !cfi.startsWith('epubcfi(') || !cfi.includes('!')) return null
+    try {
+        const resolved = view.resolveCFI(cfi)
+        if (resolved?.index !== index) return null
+        const range = resolved.anchor(doc)
+        return range?.collapsed === false ? range : null
+    } catch (_) {
+        return null
+    }
+}
+
+function redrawFixedLayoutMarks() {
+    for (const { doc, index } of fixedLayoutContents()) drawFixedLayoutMarks(doc, index)
+}
+
+// Lower-cased text with each whitespace run as one space, and for each character the offset it came from.
+function normalizeWithMap(text) {
+    let normalized = ''
+    const map = []
+    let lastSpace = false
+    for (let i = 0; i < text.length; i++) {
+        const isSpace = /\s/.test(text[i])
+        if (isSpace && lastSpace) continue
+        normalized += isSpace ? ' ' : text[i].toLowerCase()
+        map.push(i)
+        lastSpace = isSpace
+    }
+    return { normalized, map }
+}
+
+function normalizeSearchText(text) {
+    return normalizeWithMap(String(text ?? '').trim()).normalized
+}
+
+// Offsets in [text] where [query] matches, case-insensitively and ignoring runs of whitespace: [start, end) pairs.
+function findTextMatches(text, query, limit) {
+    const needle = normalizeSearchText(query)
+    if (!needle) return []
+    const { normalized, map } = normalizeWithMap(text)
+    const matches = []
+    for (let at = normalized.indexOf(needle); at >= 0 && matches.length < limit; at = normalized.indexOf(needle, at + needle.length)) {
+        matches.push({ start: map[at], end: map[at + needle.length - 1] + 1 })
+    }
+    return matches
+}
+
+// Ranges of [query] in the page's text layer, across span boundaries.
+function findTextRanges(doc, query) {
+    const root = doc.querySelector('.textLayer')
+    if (!root) return []
+    const nodes = []
+    let text = ''
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    let node
+    while ((node = walker.nextNode())) {
+        nodes.push({ node, start: text.length })
+        text += node.data
+    }
+    if (!nodes.length) return []
+    const pointAt = offset => {
+        let i = nodes.length - 1
+        while (i > 0 && nodes[i].start > offset) i--
+        return { node: nodes[i].node, offset: Math.min(nodes[i].node.data.length, offset - nodes[i].start) }
+    }
+    return findTextMatches(text, query, 200).map(({ start, end }) => {
+        const range = doc.createRange()
+        const from = pointAt(start)
+        const to = pointAt(end - 1)
+        range.setStart(from.node, from.offset)
+        range.setEnd(to.node, to.offset + 1)
+        return range
+    })
+}
+
+// The match with up to [FixedSearchExcerptChars] of context either side, trimmed back to whole words.
+function searchExcerpt(text, start, end, context = FixedSearchExcerptChars) {
+    let from = Math.max(0, start - context)
+    let to = Math.min(text.length, end + context)
+    if (from > 0) {
+        const space = text.slice(from, start).search(/\s/)
+        if (space >= 0) from += space + 1
+    }
+    if (to < text.length) {
+        const tail = text.slice(end, to)
+        const space = tail.search(/\s\S*$/)
+        if (space >= 0) to = end + space
+    }
+    return `${from > 0 ? '… ' : ''}${text.slice(from, to).replace(/\s+/g, ' ').trim()}${to < text.length ? ' …' : ''}`
+}
+
+// Every match in the book with a little context either side, pointing at its page.
+async function searchFixedLayout(query, token) {
+    fixedSearchQuery = query
+    redrawFixedLayoutMarks()
+    const results = []
+    const sections = view.book.sections ?? []
+    const pageText = index => view.book.getPageText(index).catch(error => {
+        post('log', { step: 'searchPage', index, message: String(error) })
+        return ''
+    })
+    // Pages are read a few at a time: each is a round trip to pdf.js's worker, and waiting on them one by one is
+    // most of a whole-book search.
+    let batch = []
+    for (let index = 0; index < sections.length && results.length < MaxFixedSearchResults; index++) {
+        if (index % FixedSearchBatch === 0) {
+            batch = Array.from({ length: Math.min(FixedSearchBatch, sections.length - index) }, (_, i) => pageText(index + i))
+        }
+        const text = await batch[index % FixedSearchBatch]
+        if (token !== searchToken) return
+        for (const { start, end } of findTextMatches(text, query, MaxFixedSearchResults - results.length)) {
+            results.push({
+                cfi: view.getCFI(index),
+                excerpt: searchExcerpt(text, start, end),
+                tocLabel: `Page ${index + 1}`,
+            })
+        }
+    }
+    if (token === searchToken) post('searchResults', { query, results })
+}
+
+window.VayanaReader = { open, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
+addEventListener('resize', () => {
+    applyReaderMargin(readerSideMarginPercent)
+    scheduleFixedRefit()
+})
 post('ready', {})

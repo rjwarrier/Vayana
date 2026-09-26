@@ -31,6 +31,8 @@ data class TocEntry(
 data class OpenBook(
     val title: String,
     val toc: List<TocEntry>,
+    /** Pre-paginated pages (PDF): no reflowable text, so styling, annotations and read aloud don't apply. */
+    val fixedLayout: Boolean = false,
 )
 
 enum class ReaderAnnotationType {
@@ -79,6 +81,12 @@ sealed interface EngineEvent {
 
     /** The engine's rendering process crashed or was killed; the engine is unusable and must be replaced. */
     data object RendererGone : EngineEvent
+
+    /**
+     * Whether the page on screen is larger than the view (a zoomed or fit-width PDF page), so a drag scrolls it and
+     * must not be taken for an edge swipe.
+     */
+    data class PageScrollableChanged(val scrollable: Boolean) : EngineEvent
 }
 
 data class SearchResult(
