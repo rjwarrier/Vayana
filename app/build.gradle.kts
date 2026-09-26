@@ -18,6 +18,7 @@ val releaseKeystoreProperties = Properties().apply {
         FileInputStream(releaseKeystorePropertiesFile).use(::load)
     }
 }
+val releaseSigningConfigured = releaseKeystorePropertiesFile.exists()
 
 android {
     namespace = "com.vayana.app"
@@ -29,7 +30,7 @@ android {
     }
 
     signingConfigs {
-        if (releaseKeystorePropertiesFile.exists()) {
+        if (releaseSigningConfigured) {
             create("release") {
                 storeFile = file(releaseKeystoreProperties.getProperty("storeFile"))
                 storePassword = releaseKeystoreProperties.getProperty("storePassword")
@@ -45,10 +46,28 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (releaseKeystorePropertiesFile.exists()) {
+            if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+    }
+}
+
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    group = "verification"
+    description = "Fails release packaging when no release signing configuration is available."
+    inputs.property("releaseSigningConfigured", releaseSigningConfigured)
+    doLast {
+        check(inputs.properties["releaseSigningConfigured"] == true) {
+            "Release signing is required. Set VAYANA_KEYSTORE_PROPERTIES to a signing properties " +
+                "file, or add keystore.properties at the project root."
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name in setOf("packageRelease", "packageReleaseBundle", "packageReleaseUniversalApk", "signReleaseBundle")) {
+        dependsOn(verifyReleaseSigning)
     }
 }
 
