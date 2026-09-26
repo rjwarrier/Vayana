@@ -107,6 +107,7 @@ data class SettingsSnapshot(
     val readerFooterGapDp: Int = 8,
     val readerUsePublisherStyles: Boolean = true,
     val readerTapZoneMode: TapZoneMode = TapZoneMode.THREE_ZONE,
+    val readerControlsTapMode: ReaderControlsTapMode = ReaderControlsTapMode.SINGLE,
     val readerVolumeKeys: Boolean = false,
     val readerKeepAwake: Boolean = false,
     val readerShowHeaders: Boolean = true,
@@ -168,7 +169,11 @@ enum class ReaderHyphenation { BOOK, ON, OFF }
 
 enum class ReaderTheme { SYSTEM, LIGHT, PAPER, SEPIA, MINT, SKY, ROSE, DARK, OLED }
 
-enum class TapZoneMode { THREE_ZONE }
+/** Whether taps at the page edges turn pages. Horizontal swiping remains available in both modes. */
+enum class TapZoneMode { THREE_ZONE, SWIPE_ONLY }
+
+/** Number of quick taps in the middle of the page required to show reader controls. */
+enum class ReaderControlsTapMode(val tapCount: Int) { SINGLE(1), DOUBLE(2), TRIPLE(3) }
 
 enum class DefaultCoverSource { YOURS, GOODREADS }
 
@@ -343,7 +348,22 @@ object SettingsRegistry {
         titleRes = R.string.settings_reader_tap_zone_title,
         subtitleRes = R.string.settings_reader_tap_zone_subtitle,
         group = SettingsGroup.READER_CONTROLS,
-        options = listOf<ChoiceOption<TapZoneMode>>(ChoiceOption(TapZoneMode.THREE_ZONE, R.string.settings_reader_tap_zone_three_zone)),
+        options = listOf<ChoiceOption<TapZoneMode>>(
+            ChoiceOption(TapZoneMode.THREE_ZONE, R.string.settings_reader_tap_zone_three_zone),
+            ChoiceOption(TapZoneMode.SWIPE_ONLY, R.string.settings_reader_tap_zone_swipe_only),
+        ),
+    )
+    val ReaderControlsTapMode: ChoiceSetting<com.vayana.core.datastore.settings.ReaderControlsTapMode> = ChoiceSetting(
+        key = "reader.controls_tap_mode",
+        defaultValue = com.vayana.core.datastore.settings.ReaderControlsTapMode.SINGLE,
+        titleRes = R.string.settings_reader_controls_tap_title,
+        subtitleRes = R.string.settings_reader_controls_tap_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+        options = listOf(
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderControlsTapMode.SINGLE, R.string.settings_reader_controls_tap_single),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderControlsTapMode.DOUBLE, R.string.settings_reader_controls_tap_double),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderControlsTapMode.TRIPLE, R.string.settings_reader_controls_tap_triple),
+        ),
     )
     val ReaderVolumeKeys: BooleanSetting = BooleanSetting(
         key = "reader.volume_keys",
@@ -736,6 +756,7 @@ object SettingsRegistry {
         ReaderShowFooter,
         ReaderFooterGap,
         ReaderTapZoneMode,
+        ReaderControlsTapMode,
         ReaderPageTurnAnimation,
         ReaderVolumeKeys,
         ReaderEdgeSwipeLight,

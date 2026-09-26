@@ -148,6 +148,7 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         readerFooterGapDp = read(SettingsRegistry.ReaderFooterGap),
         readerUsePublisherStyles = read(SettingsRegistry.ReaderPublisherStyles),
         readerTapZoneMode = read(SettingsRegistry.ReaderTapZoneMode),
+        readerControlsTapMode = read(SettingsRegistry.ReaderControlsTapMode),
         readerVolumeKeys = read(SettingsRegistry.ReaderVolumeKeys),
         readerKeepAwake = read(SettingsRegistry.ReaderKeepAwake),
         readerShowHeaders = read(SettingsRegistry.ReaderShowHeaders),
@@ -194,8 +195,8 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
 @Suppress("UNCHECKED_CAST")
 private fun <T : Any> Preferences.read(setting: Setting<T>): T = when (setting) {
     is BooleanSetting -> this[booleanPreferencesKey(setting.key)] ?: setting.defaultValue
-    is IntSetting -> this[intPreferencesKey(setting.key)] ?: setting.defaultValue
-    is FloatSetting -> this[floatPreferencesKey(setting.key)] ?: setting.defaultValue
+    is IntSetting -> setting.sanitizeStoredValue(this[intPreferencesKey(setting.key)] ?: setting.defaultValue)
+    is FloatSetting -> setting.sanitizeStoredValue(this[floatPreferencesKey(setting.key)] ?: setting.defaultValue)
     is StringSetting -> this[stringPreferencesKey(setting.key)] ?: setting.defaultValue
     is ChoiceSetting<*> -> {
         val encoded = this[stringPreferencesKey(setting.key)]
@@ -207,8 +208,8 @@ private fun <T : Any> Preferences.read(setting: Setting<T>): T = when (setting) 
 private fun <T : Any> MutablePreferencesWriter.write(setting: Setting<T>, value: T) {
     when (setting) {
         is BooleanSetting -> preferences[booleanPreferencesKey(setting.key)] = value as Boolean
-        is IntSetting -> preferences[intPreferencesKey(setting.key)] = (value as Int).coerceIn(setting.range)
-        is FloatSetting -> preferences[floatPreferencesKey(setting.key)] = (value as Float).coerceIn(setting.range.start, setting.range.endInclusive)
+        is IntSetting -> preferences[intPreferencesKey(setting.key)] = setting.sanitizeStoredValue(value as Int)
+        is FloatSetting -> preferences[floatPreferencesKey(setting.key)] = setting.sanitizeStoredValue(value as Float)
         is StringSetting -> preferences[stringPreferencesKey(setting.key)] = (value as String).take(setting.maxLength)
         is ChoiceSetting<*> -> preferences[stringPreferencesKey(setting.key)] = (value as Enum<*>).name
     }
@@ -217,8 +218,8 @@ private fun <T : Any> MutablePreferencesWriter.write(setting: Setting<T>, value:
 private fun MutablePreferences.writeFromString(setting: Setting<out Any>, encoded: String) {
     when (setting) {
         is BooleanSetting -> this[booleanPreferencesKey(setting.key)] = encoded.toBooleanStrictOrNull() ?: setting.defaultValue
-        is IntSetting -> this[intPreferencesKey(setting.key)] = (encoded.toIntOrNull() ?: setting.defaultValue).coerceIn(setting.range)
-        is FloatSetting -> this[floatPreferencesKey(setting.key)] = (encoded.toFloatOrNull() ?: setting.defaultValue).coerceIn(setting.range.start, setting.range.endInclusive)
+        is IntSetting -> this[intPreferencesKey(setting.key)] = setting.sanitizeStoredValue(encoded.toIntOrNull() ?: setting.defaultValue)
+        is FloatSetting -> this[floatPreferencesKey(setting.key)] = setting.sanitizeStoredValue(encoded.toFloatOrNull() ?: setting.defaultValue)
         is StringSetting -> this[stringPreferencesKey(setting.key)] = encoded.take(setting.maxLength)
         is ChoiceSetting<*> -> {
             val value = setting.options.firstOrNull { (it.value as Enum<*>).name == encoded }?.value ?: setting.defaultValue
@@ -236,6 +237,13 @@ private fun Setting<out Any>.preferencesKey(): Preferences.Key<*> = when (this) 
 }
 
 private fun Any.serializeSettingValue(): String = if (this is Enum<*>) name else toString()
+
+internal fun IntSetting.sanitizeStoredValue(value: Int): Int = value.coerceIn(range)
+
+internal fun FloatSetting.sanitizeStoredValue(value: Float): Float =
+    value.takeIf { it.isFinite() }
+        ?.coerceIn(range.start, range.endInclusive)
+        ?: defaultValue.coerceIn(range.start, range.endInclusive)
 
 private val Setting<out Any>.isExportable: Boolean
     get() = this !is StringSetting || exportable

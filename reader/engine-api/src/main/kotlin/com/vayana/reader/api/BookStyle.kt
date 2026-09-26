@@ -24,6 +24,8 @@ data class BookStyle(
     val pdfCropMargins: Boolean = false,
     /** Fixed-layout (PDF) pages: fit the page's width to the screen instead of the whole page. */
     val pdfFitWidth: Boolean = false,
+    /** Clockwise rotation applied to fixed-layout pages. */
+    val pdfRotationDegrees: Int = 0,
 )
 
 /** Paragraph alignment; [BOOK] leaves it to the book's own styles. */

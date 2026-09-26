@@ -15,6 +15,7 @@ object PortableSettings {
         SettingsRegistry.ReaderShowHeaders.key,
         SettingsRegistry.ReaderShowFooter.key,
         SettingsRegistry.ReaderTapZoneMode.key,
+        SettingsRegistry.ReaderControlsTapMode.key,
         SettingsRegistry.ReaderAutoMarkSelection.key,
         SettingsRegistry.ReaderBionicReading.key,
         SettingsRegistry.ReaderTextAlign.key,

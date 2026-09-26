@@ -4,6 +4,8 @@ import vm from 'node:vm'
 import { test } from 'node:test'
 
 const bridge = await readFile(new URL('../src/main/assets/bridge.js', import.meta.url), 'utf8')
+const pdf = await readFile(new URL('../src/main/assets/foliate/pdf.js', import.meta.url), 'utf8')
+const pdfPage = await readFile(new URL('../src/main/assets/pdf-page.html', import.meta.url), 'utf8')
 const slice = (from, to) => {
     const start = bridge.indexOf(from)
     const end = bridge.indexOf(to, start)
@@ -141,4 +143,65 @@ test('the book crop grows to cover every page measured, and ignores pages with n
     assert.ok(Math.abs(union.x + union.w - 0.85) < 1e-9 && Math.abs(union.y + union.h - 0.9) < 1e-9)
     assert.equal(layout.unionBox(a, null), a)
     assert.equal(layout.unionBox(null, null), null)
+})
+
+test('native PDFs request only the selected byte range', async () => {
+    const requests = []
+    const rangeContext = vm.createContext({
+        ArrayBuffer, JSON, Math, Number,
+        globalThis: { AndroidBridge: { bookInfo: () => JSON.stringify({ name: 'book.pdf', type: 'application/pdf', size: 100 }) } },
+        fetch: async (url, options) => {
+            requests.push({ url, options })
+            return { ok: true, status: 206, statusText: 'Partial Content', arrayBuffer: async () => new ArrayBuffer(10) }
+        },
+    })
+    vm.runInContext(slice('function nativePdfFile', 'async function open'), rangeContext)
+    const file = rangeContext.nativePdfFile('https://appassets.androidplatform.net/book/current')
+    const data = await file.slice(20, 30).arrayBuffer()
+    assert.equal(data.byteLength, 10)
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].options.headers.Range, 'bytes=20-29')
+    assert.equal(requests[0].options.cache, 'no-store')
+})
+
+test('PDF warm-up prefers the next page and stays inside the book', () => {
+    const start = pdf.indexOf('const adjacentPageIndexes')
+    const end = pdf.indexOf('// Vayana: pdf.js draws', start)
+    assert.ok(start >= 0 && end > start)
+    const context = vm.createContext({})
+    vm.runInContext(`${pdf.slice(start, end)}; globalThis.result = adjacentPageIndexes`, context)
+    assert.deepEqual(Array.from(context.result(4, 10)), [5, 3])
+    assert.deepEqual(Array.from(context.result(0, 10)), [1])
+    assert.deepEqual(Array.from(context.result(9, 10)), [8])
+})
+
+test('PDF raster resolution keeps normal pages sharp and caps high-zoom canvas memory', () => {
+    const start = pdf.indexOf('function pdfRenderPixelRatio')
+    const end = pdf.indexOf('const adjacentPageIndexes', start)
+    assert.ok(start >= 0 && end > start)
+    const context = vm.createContext({ Math })
+    vm.runInContext(`${pdf.slice(start, end)}; globalThis.result = pdfRenderPixelRatio`, context)
+    const ratio = context.result
+    assert.equal(ratio({ width: 600, height: 800, zoom: 0.5, pixelRatio: 3, maxPixels: 12_000_000, maxDimension: 8192 }), 3)
+
+    const capped = ratio({ width: 600, height: 800, zoom: 5, pixelRatio: 3, maxPixels: 12_000_000, maxDimension: 8192 })
+    assert.ok(600 * 5 * capped * 800 * 5 * capped <= 12_000_000 + 1)
+    assert.ok(600 * 5 * capped <= 8192 && 800 * 5 * capped <= 8192)
+    assert.ok(capped < 3)
+})
+
+test('every PDF page reuses the packaged document shell', () => {
+    assert.match(pdf, /new URL\('\.\.\/pdf-page\.html', import\.meta\.url\)/)
+    assert.match(pdfPage, /id="canvas"/)
+    assert.match(pdfPage, /class="textLayer"/)
+    assert.match(pdfPage, /class="annotationLayer"/)
+})
+
+test('PDF navigation metadata, previews, rotation and password callbacks are exposed', () => {
+    assert.match(pdf, /book\.pageLabels = await pdf\.getPageLabels\(\)/)
+    assert.match(pdf, /book\.getPageThumbnail =/)
+    assert.match(pdf, /loadingTask\.onPassword =/)
+    assert.match(bridge, /function goToPage\(pageIndex\)/)
+    assert.match(bridge, /function providePdfPassword\(password\)/)
+    assert.match(bridge, /rotationDegrees/)
 })

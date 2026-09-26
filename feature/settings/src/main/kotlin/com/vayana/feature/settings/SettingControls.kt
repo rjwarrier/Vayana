@@ -55,7 +55,7 @@ import com.vayana.core.designsystem.theme.vayanaFadeIn
 import com.vayana.core.designsystem.theme.vayanaFadeOut
 import com.vayana.core.designsystem.theme.vayanaScaleIn
 import com.vayana.core.designsystem.theme.vayanaScaleOut
-import com.vayana.core.designsystem.theme.vayanaSpring
+import com.vayana.core.designsystem.theme.vayanaTween
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -290,7 +290,9 @@ private fun ChoiceSettingControl(setting: ChoiceSetting<*>, value: Any, onUpdate
             val selected = option.value == value
             val cornerRadius by animateDpAsState(
                 targetValue = if (selected) Radii.full else Radii.small,
-                animationSpec = vayanaSpring(),
+                // A bouncy spring can overshoot below zero while moving from the 9999dp pill radius back to 8dp.
+                // RoundedCornerShape rejects negative radii, so keep this geometry animation bounded.
+                animationSpec = vayanaTween(),
                 label = "SettingsChoiceChipCorner",
             )
             FilterChip(

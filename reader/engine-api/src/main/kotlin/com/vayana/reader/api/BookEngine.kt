@@ -46,5 +46,11 @@ interface BookEngine {
      */
     suspend fun mergeRanges(cfi: String, others: List<String>): MergedRange?
 
+    /** Small encoded preview of a fixed-layout page, or null when this engine/book has no page previews. */
+    suspend fun pageThumbnail(pageIndex: Int, maxWidthPx: Int): ByteArray? = null
+
+    /** Continues a password-protected PDF open. Null cancels the pending prompt. */
+    suspend fun providePdfPassword(password: String?) = Unit
+
     fun close()
 }

@@ -12,4 +12,5 @@ dependencies {
     implementation(project(":core:resources"))
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(kotlin("test"))
 }

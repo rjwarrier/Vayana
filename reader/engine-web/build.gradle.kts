@@ -11,4 +11,11 @@ dependencies {
     implementation(project(":core:common"))
     implementation(libs.androidx.webkit)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit5.jupiter)
+    testRuntimeOnly(libs.junit5.platform.launcher)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }

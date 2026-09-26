@@ -33,6 +33,8 @@ data class OpenBook(
     val toc: List<TocEntry>,
     /** Pre-paginated pages (PDF): no reflowable text, so styling, annotations and read aloud don't apply. */
     val fixedLayout: Boolean = false,
+    /** Printed page labels supplied by a PDF (for example "iv", "1", "A-3"), in page order. */
+    val pageLabels: List<String> = emptyList(),
 )
 
 enum class ReaderAnnotationType {
@@ -62,6 +64,8 @@ sealed interface NavTarget {
     data class ToLocator(val locator: Locator) : NavTarget
     data class ToHref(val href: String) : NavTarget
     data class ToFraction(val fraction: Float) : NavTarget
+    /** Zero-based page index for a fixed-layout book. */
+    data class ToPage(val pageIndex: Int) : NavTarget
     data object NextPage : NavTarget
     data object PreviousPage : NavTarget
 }
@@ -87,6 +91,12 @@ sealed interface EngineEvent {
      * must not be taken for an edge swipe.
      */
     data class PageScrollableChanged(val scrollable: Boolean) : EngineEvent
+
+    /** A PDF cannot finish opening until the user supplies a password. */
+    data class PdfPasswordRequired(val incorrect: Boolean) : EngineEvent
+
+    /** The configured tap gesture on the book page requested the reader controls. */
+    data object ControlsRequested : EngineEvent
 }
 
 data class SearchResult(

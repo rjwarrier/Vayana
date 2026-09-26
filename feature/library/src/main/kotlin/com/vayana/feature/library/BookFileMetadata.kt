@@ -3,6 +3,7 @@ package com.vayana.feature.library
 import com.vayana.core.database.model.BookFormat
 import com.vayana.format.epub.EpubParser
 import com.vayana.format.pdf.PdfParser
+import com.vayana.format.pdf.PdfPasswordProtectedException
 import java.io.File
 
 /** Formats the reader can open. Anything else is reported as unsupported on import. */
@@ -39,11 +40,15 @@ internal class BookFileMetadata(
  * Reads [file] as [format]. [displayName] is the name the file was picked under; a PDF without a title of its own is
  * named after it.
  *
- * @throws com.vayana.format.pdf.PdfPasswordProtectedException for a PDF that needs a password.
+ * Password-protected PDFs are imported with filename metadata; the reader asks for the password when opened.
  */
 internal fun readBookFileMetadata(file: File, format: BookFormat, displayName: String): BookFileMetadata = when (format) {
-    BookFormat.PDF -> PdfParser.parse(file, fallbackTitle = titleFromFileName(displayName)).let { pdf ->
-        BookFileMetadata(title = pdf.title, author = pdf.author, coverBytes = pdf.coverBytes)
+    BookFormat.PDF -> try {
+        PdfParser.parse(file, fallbackTitle = titleFromFileName(displayName)).let { pdf ->
+            BookFileMetadata(title = pdf.title, author = pdf.author, coverBytes = pdf.coverBytes)
+        }
+    } catch (_: PdfPasswordProtectedException) {
+        BookFileMetadata(title = titleFromFileName(displayName), author = null, coverBytes = null)
     }
     else -> EpubParser.parse(file).let { epub ->
         BookFileMetadata(

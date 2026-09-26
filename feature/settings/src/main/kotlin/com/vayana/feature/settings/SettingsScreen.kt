@@ -1254,6 +1254,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderFooterGap -> readerFooterGapDp
     SettingsRegistry.ReaderPublisherStyles -> readerUsePublisherStyles
     SettingsRegistry.ReaderTapZoneMode -> readerTapZoneMode
+    SettingsRegistry.ReaderControlsTapMode -> readerControlsTapMode
     SettingsRegistry.ReaderVolumeKeys -> readerVolumeKeys
     SettingsRegistry.ReaderKeepAwake -> readerKeepAwake
     SettingsRegistry.ReaderShowHeaders -> readerShowHeaders
@@ -1320,6 +1321,7 @@ private fun Setting<out Any>.searchTokens(): String {
         SettingsRegistry.ReaderFooterGap -> "reader footer gap bottom edge spacing page progress layout"
         SettingsRegistry.ReaderPublisherStyles -> "publisher style css page layout book"
         SettingsRegistry.ReaderTapZoneMode -> "tap zone page turn navigation gestures"
+        SettingsRegistry.ReaderControlsTapMode -> "reader controls menu single double triple tap gesture"
         SettingsRegistry.ReaderVolumeKeys -> "volume keys buttons page turn"
         SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
         SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"

@@ -20,9 +20,15 @@ const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
 let readerSideMarginPercent = 10
 let hasOpened = false
-// Pre-paginated books (PDF) render each page as an image with a text layer on top. They have real page numbers but
-// no reflowable text, so styling, annotations, selection, read aloud and the chapter word list don't apply.
+// Pre-paginated books (PDF) render each page as an image with a text layer on top. Typography cannot reflow, but the
+// text layer still supports selection, annotations, search, lookup, read aloud and the chapter word list.
 let fixedLayout = false
+let pendingPdfPassword = null
+
+addEventListener('vayana-pdf-password', event => {
+    pendingPdfPassword = event.detail?.updatePassword ?? null
+    post('pdfPasswordRequired', { incorrect: Boolean(event.detail?.incorrect) })
+})
 
 // Dynamic page-count estimate: foliate's paginator lays out each chapter into CSS columns
 // sized by the live font-size/line-height/margin, so `renderer.pages` for the chapter you're
@@ -326,6 +332,41 @@ async function initWithFallback(initialLocation) {
     }
 }
 
+function nativePdfFile(bookUrl) {
+    if (!globalThis.AndroidBridge?.bookInfo) return null
+    let info
+    try {
+        info = JSON.parse(globalThis.AndroidBridge.bookInfo())
+    } catch (_) {
+        return null
+    }
+    if (info?.type !== 'application/pdf' || !Number.isSafeInteger(info.size) || info.size <= 0) return null
+
+    const read = async (begin, end) => {
+        if (end <= begin) return new ArrayBuffer(0)
+        const response = await fetch(bookUrl, {
+            headers: { Range: `bytes=${begin}-${end - 1}` },
+            cache: 'no-store',
+        })
+        if (!response.ok) throw new Error(`PDF range fetch failed: ${response.status} ${response.statusText}`)
+        const data = await response.arrayBuffer()
+        if (data.byteLength !== end - begin)
+            throw new Error(`PDF range fetch returned ${data.byteLength} bytes; expected ${end - begin}`)
+        return data
+    }
+    const index = value => Math.max(0, Math.min(info.size, Math.trunc(Number(value) || 0)))
+    return {
+        name: info.name || 'current.pdf',
+        type: info.type,
+        size: info.size,
+        slice: (begin = 0, end = info.size) => {
+            const start = index(begin)
+            const finish = Math.max(start, index(end))
+            return { size: finish - start, arrayBuffer: () => read(start, finish) }
+        },
+    }
+}
+
 async function open(bookUrl, lastLocatorCfi) {
     let phase = 'starting'
     const watchdog = setInterval(() => {
@@ -348,13 +389,18 @@ async function open(bookUrl, lastLocatorCfi) {
         resetPopularBadgeResolutionRetries()
         annotationRevision++
         hasOpened = false
-        phase = 'fetching book'
-        post('log', { step: 'fetching', bookUrl })
-        const res = await fetch(bookUrl)
-        post('log', { step: 'fetched', ok: res.ok, status: res.status, contentType: res.headers.get('content-type') })
-        if (!res.ok) throw new Error(`Book fetch failed: ${res.status} ${res.statusText}`)
-        const bookBlob = await res.blob()
-        const bookFile = new File([bookBlob], 'current')
+        phase = 'opening book source'
+        let bookFile = nativePdfFile(bookUrl)
+        if (bookFile) {
+            post('log', { step: 'rangeBackedPdf', size: bookFile.size })
+        } else {
+            post('log', { step: 'fetching', bookUrl })
+            const res = await fetch(bookUrl)
+            post('log', { step: 'fetched', ok: res.ok, status: res.status, contentType: res.headers.get('content-type') })
+            if (!res.ok) throw new Error(`Book fetch failed: ${res.status} ${res.statusText}`)
+            const bookBlob = await res.blob()
+            bookFile = new File([bookBlob], 'current')
+        }
 
         phase = 'creating view'
         view = document.createElement('foliate-view')
@@ -400,7 +446,10 @@ async function open(bookUrl, lastLocatorCfi) {
             if (tocChanged) lastSentTocRevision = pageStats.tocRevision
             markFirstRender('relocate')
             checkStoryEnd(section?.current)
-            if (fixedLayout) onFixedLayoutRelocate(section?.current)
+            if (fixedLayout) {
+                onFixedLayoutRelocate(section?.current)
+                view.book.prefetchAround?.(section?.current)
+            }
             if (hasOpened && !fixedLayout) {
                 for (const { doc, index } of view.renderer.getContents()) {
                     if (doc) queueDocumentEnhancements(doc, index)
@@ -506,7 +555,13 @@ async function open(bookUrl, lastLocatorCfi) {
         }
 
         hasOpened = true
-        post('opened', { toc: tocToPlain(view.book.toc), title: bookTitle(view.book.metadata), fixedLayout })
+        pendingPdfPassword = null
+        post('opened', {
+            toc: tocToPlain(view.book.toc),
+            title: bookTitle(view.book.metadata),
+            fixedLayout,
+            pageLabels: fixedLayout ? view.book.pageLabels ?? [] : [],
+        })
         if (!fixedLayout) {
             for (const { doc, index } of view.renderer.getContents()) {
                 if (doc) queueDocumentEnhancements(doc, index)
@@ -736,6 +791,29 @@ function goToFraction(fraction) {
         return
     }
     view?.goToFraction(fraction)
+}
+
+function goToPage(pageIndex) {
+    if (!fixedLayout || !Number.isInteger(pageIndex)) return
+    const total = view?.book?.sections?.length ?? 0
+    if (pageIndex >= 0 && pageIndex < total) view.goTo(pageIndex)
+}
+
+function providePdfPassword(password) {
+    const updatePassword = pendingPdfPassword
+    pendingPdfPassword = null
+    if (!updatePassword) return
+    updatePassword(typeof password === 'string' ? password : new Error('PDF password entry cancelled'))
+}
+
+async function pageThumbnail(requestId, pageIndex, maxWidth) {
+    let dataUrl = null
+    try {
+        dataUrl = fixedLayout ? await view?.book?.getPageThumbnail?.(pageIndex, maxWidth) : null
+    } catch (error) {
+        post('log', { step: 'pageThumbnail', pageIndex, message: String(error) })
+    }
+    post('reply', { requestId, dataUrl })
 }
 
 // A fixed-layout page counts as read once it is on screen, so the last page is 100%. Navigating by fraction maps back
@@ -990,24 +1068,82 @@ async function showFootnote(href) {
 
 const DoubleTapWindowMillis = 350
 const DoubleTapSlopPx = 24
-const doubleTapState = new WeakMap()
+const readerTapState = new WeakMap()
 let wordLookupSelection = false
+let readerControlsTapCount = 1
+let readerControlsVisible = false
+let readerControlsBlocked = false
 
-// Two quick taps on a word in the middle of the page select it, which opens the dictionary like a long-press.
-// The sides of the page turn pages on a single tap, so double taps there are left alone.
+function setReaderControlsGesture(tapCount, controlsVisible, blocked) {
+    const count = Math.trunc(Number(tapCount))
+    readerControlsTapCount = count >= 1 && count <= 3 ? count : 1
+    readerControlsVisible = Boolean(controlsVisible)
+    readerControlsBlocked = Boolean(blocked)
+}
+
+function clearReaderTapState(doc) {
+    const state = readerTapState.get(doc)
+    if (state?.timer) clearTimeout(state.timer)
+    readerTapState.delete(doc)
+}
+
+function requestReaderControls(doc) {
+    clearReaderTapState(doc)
+    if (!readerControlsVisible && !readerControlsBlocked) post('controlsRequested', {})
+}
+
+function lookupOrZoomAt(doc, x, y) {
+    clearReaderTapState(doc)
+    if (readerControlsVisible || readerControlsBlocked) return
+    // On a PDF page, a double tap away from any word (or on a scanned page with no text) zooms instead.
+    if (!selectWordAt(doc, x, y) && fixedLayout) toggleFixedZoom(doc, x, y)
+}
+
+// Reader-control taps and word lookup share the middle of the page. A double tap on a word always keeps its dictionary
+// meaning; otherwise the configured count opens controls. Triple-tap mode delays double-tap lookup by one tap window
+// so a third tap can win without briefly opening the dictionary first.
 function wireDoubleTapLookup(doc) {
     doc.addEventListener('click', e => {
         if (e.target?.closest?.('a[href]')) return
+        if (readerControlsVisible || readerControlsBlocked) return
         const width = (doc.defaultView?.top ?? window).innerWidth || 1
         const horizontal = e.screenX / width
         if (horizontal < 1 / 3 || horizontal > 2 / 3) return
-        const last = doubleTapState.get(doc)
-        doubleTapState.set(doc, { time: e.timeStamp, x: e.clientX, y: e.clientY })
-        if (!last || e.timeStamp - last.time > DoubleTapWindowMillis) return
-        if (Math.hypot(e.clientX - last.x, e.clientY - last.y) > DoubleTapSlopPx) return
-        doubleTapState.delete(doc)
-        // On a PDF page, a double tap away from any word (or on a scanned page with no text) zooms instead.
-        if (!selectWordAt(doc, e.clientX, e.clientY) && fixedLayout) toggleFixedZoom(doc, e.clientX, e.clientY)
+        const last = readerTapState.get(doc)
+        const continues = last &&
+            e.timeStamp - last.time <= DoubleTapWindowMillis &&
+            Math.hypot(e.clientX - last.x, e.clientY - last.y) <= DoubleTapSlopPx
+        if (last?.timer) clearTimeout(last.timer)
+        const state = {
+            time: e.timeStamp,
+            x: e.clientX,
+            y: e.clientY,
+            count: continues ? last.count + 1 : 1,
+            timer: null,
+        }
+        readerTapState.set(doc, state)
+
+        if (readerControlsTapCount === 1) {
+            if (state.count >= 2) lookupOrZoomAt(doc, e.clientX, e.clientY)
+            else state.timer = setTimeout(() => requestReaderControls(doc), DoubleTapWindowMillis)
+            return
+        }
+        if (readerControlsTapCount === 2) {
+            if (state.count >= 2) {
+                clearReaderTapState(doc)
+                if (!selectWordAt(doc, e.clientX, e.clientY)) post('controlsRequested', {})
+            } else {
+                state.timer = setTimeout(() => clearReaderTapState(doc), DoubleTapWindowMillis)
+            }
+            return
+        }
+        if (state.count >= 3) {
+            requestReaderControls(doc)
+        } else if (state.count === 2) {
+            state.timer = setTimeout(() => lookupOrZoomAt(doc, e.clientX, e.clientY), DoubleTapWindowMillis)
+        } else {
+            state.timer = setTimeout(() => clearReaderTapState(doc), DoubleTapWindowMillis)
+        }
     })
 }
 
@@ -1924,7 +2060,7 @@ let fixedPageColors = null
 let fixedSearchQuery = ''
 let lastFixedLayoutIndex = null
 // The reader's page settings for PDFs: crop the blank margins, fit the width instead of the whole page, darken print.
-let pdfLayout = { cropMargins: false, fitWidth: false, darken: false }
+let pdfLayout = { cropMargins: false, fitWidth: false, darken: false, rotationDegrees: 0 }
 // Page index -> its printed area as fractions of the page ({ x, y, w, h }), or null for a page with no margins to crop.
 const pageContentBoxes = new Map()
 // The union of the printed areas measured so far: one crop for the whole book, so the text keeps its size from page
@@ -2187,15 +2323,28 @@ function scrollFixedPage(direction) {
 }
 
 function setPdfLayout(options) {
+    const rotationDegrees = [0, 90, 180, 270].includes(Number(options?.rotationDegrees))
+        ? Number(options.rotationDegrees) : 0
     const next = {
         cropMargins: Boolean(options?.cropMargins),
         fitWidth: Boolean(options?.fitWidth),
         darken: Boolean(options?.darken),
+        rotationDegrees,
     }
     if (JSON.stringify(next) === JSON.stringify(pdfLayout)) return
     const cropTurnedOn = next.cropMargins && !pdfLayout.cropMargins
+    const rotationChanged = next.rotationDegrees !== pdfLayout.rotationDegrees
     pdfLayout = next
     if (!fixedLayout) return
+    view?.book?.setPageRotation?.(next.rotationDegrees)
+    if (rotationChanged) {
+        pageContentBoxes.clear()
+        cropBox = null
+        const renderer = view?.renderer
+        const scale = rendererScale() ?? 1
+        renderer?.setAttribute('zoom', String(scale * 1.0001))
+        requestAnimationFrame(() => renderer?.setAttribute('zoom', String(scale)))
+    }
     for (const { doc, index } of fixedLayoutContents()) {
         applyPdfDarken(doc)
         if (cropTurnedOn && renderedPageDocs.has(doc) && !pageContentBoxes.has(index)) measureContentBox(doc, index)
@@ -2596,7 +2745,7 @@ async function searchFixedLayout(query, token) {
     if (token === searchToken) post('searchResults', { query, results })
 }
 
-window.VayanaReader = { open, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, goToHref, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
+window.VayanaReader = { open, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, goToPage, goToHref, providePdfPassword, pageThumbnail, setReaderControlsGesture, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
 addEventListener('resize', () => {
     applyReaderMargin(readerSideMarginPercent)
     scheduleFixedRefit()

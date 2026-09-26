@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=1000, height=2000">
+    <link rel="stylesheet" href="foliate/vendor/pdfjs/text_layer_builder.css">
+    <link rel="stylesheet" href="foliate/vendor/pdfjs/annotation_layer_builder.css">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+        /* https://github.com/mozilla/pdf.js/commit/bd05b255fabfc313b194bfe9a17ccded4d90fb5a */
+        :root {
+            --user-unit: 1;
+            --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+            --scale-round-x: 1px;
+            --scale-round-y: 1px;
+        }
+    </style>
+    <script>
+        const params = new URLSearchParams(location.search)
+        const positive = (name, fallback) => {
+            const value = Number(params.get(name))
+            return Number.isFinite(value) && value > 0 ? value : fallback
+        }
+        const width = positive('width', 1000)
+        const height = positive('height', 2000)
+        document.querySelector('meta[name="viewport"]').content = `width=${width}, height=${height}`
+    </script>
+</head>
+<body>
+    <div id="canvas"></div>
+    <div class="textLayer"></div>
+    <div class="annotationLayer"></div>
+</body>
+</html>

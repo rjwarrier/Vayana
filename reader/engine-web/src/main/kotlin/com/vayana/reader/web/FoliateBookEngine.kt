@@ -34,10 +34,13 @@ import com.vayana.reader.api.ReaderSelection
 import com.vayana.reader.api.SearchResult
 import com.vayana.reader.api.TocEntry
 import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
 import kotlin.math.ceil
+import kotlin.math.min
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +56,7 @@ private const val LogTag = "FoliateReader"
 private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
+private const val BOOK_PATH = "/book/current"
 private const val IMPORTED_FONT_FAMILY = "VayanaImportedReaderFont"
 private const val ReaderOpenTimeoutMillis = 60_000L
 private const val EinkBackgroundArgb = -0x1
@@ -88,10 +92,12 @@ internal fun hyphenationCss(hyphenation: BookHyphenation): String? = when (hyphe
  */
 class FoliateBookEngine(private val webView: WebView, context: Context) : BookEngine {
 
+    @Volatile
     private var currentBookFile: File? = null
     private var jsReady = false
     private var pendingOpen: Pair<String, String?>? = null
     private var openResult: CompletableDeferred<Result<OpenBook>>? = null
+    @Volatile private var waitingForPdfPassword = false
 
     private val _location = MutableStateFlow<Locator?>(null)
     override val location: StateFlow<Locator?> = _location
@@ -143,23 +149,58 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             WebResourceResponse(mimeType, null, 200, "OK", mapOf("Cache-Control" to "no-store"), stream)
         }
         .addPathHandler("/fonts/") { path -> serveFont(path) }
-        .addPathHandler("/book/") { path ->
-            val file = currentBookFile ?: return@addPathHandler null
-            val mimeType = file.readerMimeType()
-            WebResourceResponse(
-                mimeType,
+        .build()
+
+    /** Streams either the complete book or the single byte range requested by PDF.js. */
+    private fun serveBook(request: WebResourceRequest): WebResourceResponse? {
+        val file = currentBookFile ?: return null
+        val length = file.length()
+        val rangeHeader = request.requestHeaders.entries
+            .firstOrNull { it.key.equals("Range", ignoreCase = true) }
+            ?.value
+        if (rangeHeader == null) {
+            return WebResourceResponse(
+                file.readerMimeType(),
                 null,
                 200,
                 "OK",
                 mapOf(
                     "Cache-Control" to "no-store",
-                    "Content-Length" to file.length().toString(),
-                    "Accept-Ranges" to "none",
+                    "Content-Length" to length.toString(),
+                    "Accept-Ranges" to "bytes",
                 ),
                 file.inputStream(),
             )
         }
-        .build()
+
+        val range = parseByteRange(rangeHeader, length)
+            ?: return WebResourceResponse(
+                "text/plain",
+                "utf-8",
+                416,
+                "Range Not Satisfiable",
+                mapOf(
+                    "Cache-Control" to "no-store",
+                    "Content-Range" to "bytes */$length",
+                    "Accept-Ranges" to "bytes",
+                ),
+                ByteArray(0).inputStream(),
+            )
+        val stream = FileInputStream(file).also { it.channel.position(range.start) }
+        return WebResourceResponse(
+            file.readerMimeType(),
+            null,
+            206,
+            "Partial Content",
+            mapOf(
+                "Cache-Control" to "no-store",
+                "Content-Length" to range.length.toString(),
+                "Content-Range" to "bytes ${range.start}-${range.endInclusive}/$length",
+                "Accept-Ranges" to "bytes",
+            ),
+            LimitedInputStream(stream, range.length),
+        )
+    }
 
     private fun serveAsset(path: String): WebResourceResponse? {
         val assetPath = path.trimStart('/')
@@ -215,6 +256,9 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 if (url.scheme != "https" || url.host != "appassets.androidplatform.net") {
                     return blockedResponse()
                 }
+                if (url.path == BOOK_PATH) {
+                    return serveBook(request) ?: blockedResponse(statusCode = 404, reasonPhrase = "Not Found")
+                }
                 return assetLoader.shouldInterceptRequest(url) ?: blockedResponse(statusCode = 404, reasonPhrase = "Not Found")
             }
 
@@ -250,6 +294,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook> {
         lastTocPages = emptyMap()
+        waitingForPdfPassword = false
         openResult?.complete(Result.failure(IllegalStateException("Reader open was replaced by a newer request")))
         val bookFile = File(source.absoluteFilePath)
         if (!bookFile.isFile) {
@@ -271,8 +316,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         val request = BOOK_URL to resumeLocator?.cfi
         if (jsReady) evaluateOpen(request.first, request.second) else pendingOpen = request
 
-        return withTimeoutOrNull(ReaderOpenTimeoutMillis) { deferred.await() }
-            ?: Result.failure<OpenBook>(IllegalStateException("Timed out while opening reader")).also {
+        val timedResult = withTimeoutOrNull(ReaderOpenTimeoutMillis) { deferred.await() }
+        if (timedResult != null) return timedResult
+        if (waitingForPdfPassword) return deferred.await()
+        return Result.failure<OpenBook>(IllegalStateException("Timed out while opening reader")).also {
                 if (openResult === deferred) {
                     openResult = null
                     pendingOpen = null
@@ -285,6 +332,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             is NavTarget.NextPage -> "window.VayanaReader.next()"
             is NavTarget.PreviousPage -> "window.VayanaReader.prev()"
             is NavTarget.ToFraction -> "window.VayanaReader.goToFraction(${target.fraction})"
+            is NavTarget.ToPage -> "window.VayanaReader.goToPage(${target.pageIndex})"
             is NavTarget.ToHref -> "window.VayanaReader.goToHref(${JSONObject.quote(target.href)})"
             is NavTarget.ToLocator -> target.locator.cfi
                 ?.let { "window.VayanaReader.goToHref(${JSONObject.quote(it)})" }
@@ -426,6 +474,21 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         )
     }
 
+    override suspend fun pageThumbnail(pageIndex: Int, maxWidthPx: Int): ByteArray? {
+        val dataUrl = requestBridge(
+            "pageThumbnail",
+            pageIndex.toString(),
+            maxWidthPx.coerceIn(80, 480).toString(),
+        )?.optStringOrNull("dataUrl") ?: return null
+        val encoded = dataUrl.substringAfter(',', missingDelimiterValue = "")
+        return encoded.takeIf { it.isNotBlank() }?.let { Base64.decode(it, Base64.DEFAULT) }
+    }
+
+    override suspend fun providePdfPassword(password: String?) {
+        val value = password?.let(JSONObject::quote) ?: "null"
+        webView.evaluateJavascript("window.VayanaReader.providePdfPassword($value)", null)
+    }
+
     /**
      * Calls `window.VayanaReader.[function](requestId, ...[arguments])` and waits for the bridge's "reply" event carrying
      * that id. Null when no reply comes in time or the engine closes first.
@@ -451,6 +514,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         // and WebView.destroy() is not safe to call twice.
         if (closed) return
         closed = true
+        waitingForPdfPassword = false
         openResult?.complete(Result.failure(IllegalStateException("Reader closed before the book opened")))
         openResult = null
         pendingOpen = null
@@ -493,6 +557,17 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         @JavascriptInterface
         fun onEvent(type: String, jsonPayload: String) {
             webView.post { handleEvent(type, JSONObject(jsonPayload)) }
+        }
+
+        /** Metadata only: bridge.js uses it to expose PDFs as a range-backed file without copying their bytes. */
+        @JavascriptInterface
+        fun bookInfo(): String {
+            val file = currentBookFile ?: return "{}"
+            return JSONObject()
+                .put("name", file.name)
+                .put("type", file.readerMimeType())
+                .put("size", file.length())
+                .toString()
         }
 
         // Called synchronously from JS (see foliate/epub.js Loader.createURL) with the resource's
@@ -540,7 +615,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                     title = payload.optString("title"),
                     toc = toc,
                     fixedLayout = payload.optBoolean("fixedLayout"),
+                    pageLabels = payload.optJSONArray("pageLabels")?.let { labels ->
+                        List(labels.length()) { index -> labels.optString(index, (index + 1).toString()) }
+                    }.orEmpty(),
                 )
+                waitingForPdfPassword = false
                 openResult?.complete(Result.success(openBook))
                 openResult = null
             }
@@ -574,9 +653,15 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             }
             "storyEnd" -> _events.tryEmit(EngineEvent.StoryEndReached)
             "pageScrollable" -> _events.tryEmit(EngineEvent.PageScrollableChanged(payload.optBoolean("scrollable")))
+            "pdfPasswordRequired" -> {
+                waitingForPdfPassword = true
+                _events.tryEmit(EngineEvent.PdfPasswordRequired(payload.optBoolean("incorrect")))
+            }
+            "controlsRequested" -> _events.tryEmit(EngineEvent.ControlsRequested)
             "reply" -> bridgeRequests.remove(payload.optLong("requestId"))?.complete(payload)
             "log" -> if (Log.isLoggable(LogTag, Log.DEBUG)) Log.d(LogTag, "bridge: $payload")
             "error" -> {
+                waitingForPdfPassword = false
                 val message = payload.optString("message", "Unknown reader error")
                 openResult?.complete(Result.failure(IllegalStateException(message)))
                 openResult = null
@@ -630,6 +715,7 @@ private fun pdfLayoutJson(style: BookStyle): String = JSONObject()
     .put("cropMargins", style.pdfCropMargins)
     .put("fitWidth", style.pdfFitWidth)
     .put("darken", style.boldText)
+    .put("rotationDegrees", style.pdfRotationDegrees)
     .toString()
 
 private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
@@ -653,6 +739,55 @@ private fun File.readerMimeType(): String =
         "txt" -> "text/plain"
         else -> "application/octet-stream"
     }
+
+internal data class ByteRange(val start: Long, val endInclusive: Long) {
+    val length: Long get() = endInclusive - start + 1
+}
+
+/** Parses one HTTP byte range. Multiple ranges are deliberately rejected because PDF.js never requests them. */
+internal fun parseByteRange(header: String, resourceLength: Long): ByteRange? {
+    if (resourceLength <= 0L) return null
+    val match = Regex("^bytes=(\\d*)-(\\d*)$").matchEntire(header.trim()) ?: return null
+    val startText = match.groupValues[1]
+    val endText = match.groupValues[2]
+    if (startText.isEmpty() && endText.isEmpty()) return null
+
+    if (startText.isEmpty()) {
+        val suffixLength = endText.toLongOrNull()?.takeIf { it > 0L } ?: return null
+        val start = (resourceLength - suffixLength).coerceAtLeast(0L)
+        return ByteRange(start, resourceLength - 1L)
+    }
+
+    val start = startText.toLongOrNull()?.takeIf { it in 0 until resourceLength } ?: return null
+    val requestedEnd = if (endText.isEmpty()) resourceLength - 1L else endText.toLongOrNull() ?: return null
+    if (requestedEnd < start) return null
+    return ByteRange(start, min(requestedEnd, resourceLength - 1L))
+}
+
+/** Stops WebView at the requested range boundary while still closing the underlying file descriptor. */
+private class LimitedInputStream(
+    private val source: InputStream,
+    private var remaining: Long,
+) : InputStream() {
+    override fun read(): Int {
+        if (remaining <= 0L) return -1
+        val value = source.read()
+        if (value >= 0) remaining--
+        return value
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        if (length == 0) return 0
+        if (remaining <= 0L) return -1
+        val count = source.read(buffer, offset, min(length.toLong(), remaining).toInt())
+        if (count > 0) remaining -= count
+        return count
+    }
+
+    override fun available(): Int = min(source.available().toLong(), remaining).toInt()
+
+    override fun close() = source.close()
+}
 
 private fun JSONObject.toSelectionOrNull(): ReaderSelection? {
     val cfi = optStringOrNull("cfi") ?: return null

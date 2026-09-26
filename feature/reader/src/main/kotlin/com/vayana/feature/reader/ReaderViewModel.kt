@@ -4,10 +4,12 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.core.content.edit
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
+import com.vayana.core.database.model.BookFormat
 import com.vayana.core.common.ApplicationScope
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.repository.AnnotationRepository
@@ -108,6 +110,8 @@ sealed interface ReaderUiState {
         val returnLocator: Locator? = null,
         /** A pre-paginated book (PDF): page fit and crop settings take the place of typography. */
         val fixedLayout: Boolean = false,
+        /** PDF page labels in physical page order. */
+        val pageLabels: List<String> = emptyList(),
         /** The page is larger than the screen (zoomed or fit-width PDF): drags scroll it instead of edge swipes. */
         val pageScrollable: Boolean = false,
     ) : ReaderUiState
@@ -116,6 +120,14 @@ sealed interface ReaderUiState {
 
 /** The end-of-story question: finished? and, optionally, a rating ([rating] is the book's current one, 0 if none). */
 data class BookFinishedPrompt(val rating: Float)
+
+data class PdfPasswordPrompt(val incorrect: Boolean)
+
+data class PdfBookPreferences(
+    val cropMargins: Boolean = true,
+    val fitWidth: Boolean = false,
+    val rotationDegrees: Int = 0,
+)
 
 /** Shown when a book is reopened after a while: how long since it was last read, and the reader's latest highlight in it. */
 data class ReaderRecap(val awayMillis: Long, val highlight: String?, val dueWords: Int = 0)
@@ -176,25 +188,38 @@ class ReaderViewModel @Inject constructor(
 
     /** Non-null while this book has its own font/line-height/margin overrides (the product specification's per-book reading preferences). */
     private val _bookStyleOverride = MutableStateFlow<BookStyleOverride?>(null)
+    private val _pdfBookPreferences = MutableStateFlow<PdfBookPreferences?>(null)
+    val pdfBookPreferences: StateFlow<PdfBookPreferences?> = _pdfBookPreferences
 
     val usingCustomStyle: StateFlow<Boolean> = _bookStyleOverride
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** [settings] with this book's overrides layered on top - what the reader actually renders with and the Style panel shows. */
-    val effectiveSettings: StateFlow<SettingsSnapshot> = combine(settings, _bookStyleOverride) { snapshot, override ->
-        if (override == null) {
-            snapshot
-        } else {
-            snapshot.copy(
+    val effectiveSettings: StateFlow<SettingsSnapshot> = combine(settings, _bookStyleOverride, _pdfBookPreferences) { snapshot, override, pdf ->
+        val styled = if (override == null) snapshot else snapshot.copy(
                 readerFontSizePercent = override.fontSizePercent ?: snapshot.readerFontSizePercent,
                 readerLineHeight = override.lineHeight ?: snapshot.readerLineHeight,
                 readerFontFamily = override.fontFamily ?: snapshot.readerFontFamily,
                 readerCustomFontId = if (override.fontFamily == null) snapshot.readerCustomFontId else null,
                 readerSideMarginPercent = override.sideMarginPercent ?: snapshot.readerSideMarginPercent,
             )
-        }
+        if (pdf == null) styled else styled.copy(
+            readerPdfCropMargins = pdf.cropMargins,
+            readerPdfFitWidth = pdf.fitWidth,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
+
+    private val _pdfPasswordPrompt = MutableStateFlow<PdfPasswordPrompt?>(null)
+    val pdfPasswordPrompt: StateFlow<PdfPasswordPrompt?> = _pdfPasswordPrompt
+
+    private val _pdfThumbnails = MutableStateFlow<Map<Int, ByteArray>>(emptyMap())
+    val pdfThumbnails: StateFlow<Map<Int, ByteArray>> = _pdfThumbnails
+    private val thumbnailJobs = mutableMapOf<Int, Job>()
+
+    /** Monotonic signal from the book document; the screen owns the actual controls visibility. */
+    private val _readerControlsRequest = MutableStateFlow(0L)
+    val readerControlsRequest: StateFlow<Long> = _readerControlsRequest
 
     val recentLookups: StateFlow<List<String>> = wordLookupStatRepository.observeRecent(RecentLookupsLimit)
         .map { stats -> stats.map { it.word } }
@@ -290,6 +315,8 @@ class ReaderViewModel @Inject constructor(
                 return@launch
             }
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
+            _pdfBookPreferences.value = if (book.format == BookFormat.PDF) loadPdfBookPreferences() else null
+            _pdfThumbnails.value = emptyMap()
             // Read before recordBookOpened below replaces it; a jump to a note or search hit isn't a "return".
             val restoredCfi = restartCfi?.takeIf { it.isNotBlank() }
             restartCfi = null
@@ -340,6 +367,7 @@ class ReaderViewModel @Inject constructor(
                         toc = openBook.toc,
                         currentLocator = resumeLocator,
                         fixedLayout = openBook.fixedLayout,
+                        pageLabels = openBook.pageLabels,
                     )
                     observeAnnotations(engine)
                     showReturnRecap(previousReadAt)
@@ -404,6 +432,10 @@ class ReaderViewModel @Inject constructor(
                     is com.vayana.reader.api.EngineEvent.PageScrollableChanged -> _uiState.update { current ->
                         if (current is ReaderUiState.Loaded) current.copy(pageScrollable = event.scrollable) else current
                     }
+                    is com.vayana.reader.api.EngineEvent.PdfPasswordRequired -> {
+                        _pdfPasswordPrompt.value = PdfPasswordPrompt(event.incorrect)
+                    }
+                    com.vayana.reader.api.EngineEvent.ControlsRequested -> _readerControlsRequest.update { it + 1L }
                     is com.vayana.reader.api.EngineEvent.Error,
                     is com.vayana.reader.api.EngineEvent.Relocated,
                     -> Unit
@@ -414,8 +446,9 @@ class ReaderViewModel @Inject constructor(
         engineJobs += viewModelScope.launch {
             // Only what the page is drawn from: a brightness swipe or a read-aloud speed change rewrites the settings too,
             // and re-applying an identical style still re-lays-out the whole chapter.
-            effectiveSettings
-                .map { snapshot -> snapshot.toBookStyle() to snapshot.readTheme }
+            combine(effectiveSettings, _pdfBookPreferences) { snapshot, pdf ->
+                snapshot.toBookStyle(pdf?.rotationDegrees ?: 0) to snapshot.readTheme
+            }
                 .distinctUntilChanged()
                 .debounce(StyleUpdateDebounceMillis)
                 .collectLatest { (style, theme) ->
@@ -448,6 +481,9 @@ class ReaderViewModel @Inject constructor(
             cancelEngineJobs()
             boundEngine = null
             bookOpen = false
+            thumbnailJobs.values.forEach(Job::cancel)
+            thumbnailJobs.clear()
+            _pdfPasswordPrompt.value = null
         }
         engine.close()
     }
@@ -497,6 +533,33 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun goToProgress(fraction: Float) = dispatch(NavTarget.ToFraction(fraction.coerceIn(0f, 1f)))
+
+    fun goToPdfPage(pageIndex: Int) {
+        pushReturnLocator()
+        dispatch(NavTarget.ToPage(pageIndex))
+    }
+
+    fun loadPdfThumbnail(pageIndex: Int, maxWidthPx: Int = 240) {
+        if (pageIndex < 0 || _pdfThumbnails.value.containsKey(pageIndex) || thumbnailJobs.containsKey(pageIndex)) return
+        val engine = boundEngine ?: return
+        thumbnailJobs[pageIndex] = viewModelScope.launch {
+            try {
+                engine.pageThumbnail(pageIndex, maxWidthPx)?.let { bytes ->
+                    _pdfThumbnails.update { current ->
+                        val next = if (current.size >= MaxPdfThumbnailCache) current - current.keys.first() else current
+                        next + (pageIndex to bytes)
+                    }
+                }
+            } finally {
+                thumbnailJobs.remove(pageIndex)
+            }
+        }
+    }
+
+    fun providePdfPassword(password: String?) {
+        _pdfPasswordPrompt.value = null
+        viewModelScope.launch { boundEngine?.providePdfPassword(password) }
+    }
 
     fun openAnnotation(annotation: Annotation) {
         pushReturnLocator()
@@ -636,11 +699,35 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun updatePdfCropMargins(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderPdfCropMargins, enabled) }
+        updatePdfBookPreferences { it.copy(cropMargins = enabled) }
     }
 
     fun updatePdfFitWidth(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderPdfFitWidth, enabled) }
+        updatePdfBookPreferences { it.copy(fitWidth = enabled) }
+    }
+
+    fun rotatePdfClockwise() {
+        updatePdfBookPreferences { it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) }
+        _pdfThumbnails.value = emptyMap()
+    }
+
+    private fun updatePdfBookPreferences(transform: (PdfBookPreferences) -> PdfBookPreferences) {
+        val updated = transform(_pdfBookPreferences.value ?: loadPdfBookPreferences())
+        _pdfBookPreferences.value = updated
+        appContext.getSharedPreferences(PdfPreferencesFile, Context.MODE_PRIVATE).edit {
+            putBoolean("$bookId.crop", updated.cropMargins)
+            putBoolean("$bookId.fit", updated.fitWidth)
+            putInt("$bookId.rotation", updated.rotationDegrees)
+        }
+    }
+
+    private fun loadPdfBookPreferences(): PdfBookPreferences {
+        val preferences = appContext.getSharedPreferences(PdfPreferencesFile, Context.MODE_PRIVATE)
+        return PdfBookPreferences(
+            cropMargins = preferences.getBoolean("$bookId.crop", true),
+            fitWidth = preferences.getBoolean("$bookId.fit", settings.value.readerPdfFitWidth),
+            rotationDegrees = preferences.getInt("$bookId.rotation", 0),
+        )
     }
 
     /** PDF "Darken text" and EPUB "Bolder text" are one setting: both make thin, faint print easier to read. */
@@ -960,7 +1047,10 @@ class ReaderViewModel @Inject constructor(
     }
 
     private suspend fun applyReaderStyle(engine: BookEngine, snapshot: SettingsSnapshot) {
-        engine.applyStyle(style = snapshot.toBookStyle(), theme = snapshot.readTheme)
+        engine.applyStyle(
+            style = snapshot.toBookStyle(_pdfBookPreferences.value?.rotationDegrees ?: 0),
+            theme = snapshot.readTheme,
+        )
     }
 
     private fun observeAnnotations(engine: BookEngine) {
@@ -1457,7 +1547,7 @@ private val SettingsSnapshot.selectedImportedFont
 private val SettingsSnapshot.readerFontFamilyCss: String
     get() = if (selectedImportedFont != null) "'VayanaImportedReaderFont', serif" else readerFontFamily.cssFamily
 
-private fun SettingsSnapshot.toBookStyle(): BookStyle = BookStyle(
+private fun SettingsSnapshot.toBookStyle(pdfRotationDegrees: Int = 0): BookStyle = BookStyle(
     fontSizePercent = readerFontSizePercent,
     lineHeight = readerLineHeight,
     fontFamily = readerFontFamilyCss,
@@ -1480,6 +1570,7 @@ private fun SettingsSnapshot.toBookStyle(): BookStyle = BookStyle(
     pageTurnAnimation = readerPageTurnAnimation && displayProfile != DisplayProfile.E_INK,
     pdfCropMargins = readerPdfCropMargins,
     pdfFitWidth = readerPdfFitWidth,
+    pdfRotationDegrees = pdfRotationDegrees,
 )
 
 private val ReaderFontFamily.cssFamily: String
@@ -1569,6 +1660,8 @@ private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
 private const val LocatorPersistDebounceMillis = 400L
 private const val RecentLookupsLimit = 5
+private const val MaxPdfThumbnailCache = 72
+private const val PdfPreferencesFile = "pdf_reader_preferences"
 
 /** No page turn for this long ends the current reading session (PROMPT: idle stops a session). */
 private const val IdleSessionTimeoutMs = 5 * 60 * 1000L

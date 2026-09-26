@@ -4,33 +4,45 @@ import './vendor/pdfjs/pdf.mjs'
 const pdfjsLib = globalThis.pdfjsLib
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsPath('pdf.worker.mjs')
 
-// https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/text_layer_builder.css
-// https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
-// Vayana: linked from each page document rather than inlined into it; every page document is kept for the book's
-// lifetime (on Android, in the app's memory), and the two stylesheets are ~16 KB of it. A frame's load event waits
-// for them, so the text layer is still laid out with them in place.
-const layerStylesheets = ['text_layer_builder.css', 'annotation_layer_builder.css']
-    .map(name => `<link rel="stylesheet" href="${pdfjsPath(name)}">`).join('')
-
-// Vayana: Android WebView fails to load `blob:` URLs inside a sandboxed same-origin iframe (see
-// epub.js), so with the native bridge present each page document is served by the app instead.
-const pageDocumentUrl = html => {
-    if (!globalThis.AndroidBridge) return URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-    const bytes = new TextEncoder().encode(html)
-    let binary = ''
-    for (let i = 0; i < bytes.length; i += 0x8000)
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
-    return globalThis.AndroidBridge.registerResource('text/html', btoa(binary))
+// Every PDF page uses the same lightweight document shell. Only its viewport differs, so carrying it in the URL
+// avoids creating and retaining a native bridge resource for every page visited.
+const pageDocumentUrl = ({ width, height }) => {
+    const url = new URL('../pdf-page.html', import.meta.url)
+    url.searchParams.set('width', width)
+    url.searchParams.set('height', height)
+    return url.toString()
 }
 
 // Vayana: { background, foreground } for dark and tinted reader themes, or null for the page's own colours. pdf.js
 // recolours text and vector art and leaves images alone.
 let pageColors = null
+let pageRotationDegrees = 0
 // Vayana: page document -> its TextLayer (a promise while it is first being built)
 const textLayers = new WeakMap()
 // Vayana: page document -> { generation, task } of its latest render. A zoom or a resize can start a render while an
 // older one is still drawing; the older one is cancelled, and never replaces the newer canvas if it finishes first.
 const pageRenders = new WeakMap()
+const MaxPdfCanvasPixels = 12_000_000
+const MaxPdfCanvasDimension = 8_192
+
+/** Physical pixels per CSS pixel, bounded so a high zoom or unusually large page cannot kill the WebView renderer. */
+function pdfRenderPixelRatio({
+    width,
+    height,
+    zoom,
+    pixelRatio = devicePixelRatio,
+    maxPixels = MaxPdfCanvasPixels,
+    maxDimension = MaxPdfCanvasDimension,
+}) {
+    const cssWidth = Math.max(1, width * zoom)
+    const cssHeight = Math.max(1, height * zoom)
+    const areaLimit = Math.sqrt(maxPixels / (cssWidth * cssHeight))
+    const dimensionLimit = Math.min(maxDimension / cssWidth, maxDimension / cssHeight)
+    return Math.max(0.1, Math.min(pixelRatio, areaLimit, dimensionLimit))
+}
+
+const adjacentPageIndexes = (index, total) => [index + 1, index - 1]
+    .filter(candidate => candidate >= 0 && candidate < total)
 
 // Vayana: pdf.js draws a long page in slices paced by animation frames, and frames stop with the screen off or the app
 // in the background, which is when read aloud turns pages. Each slice here waits for a posted message instead: that
@@ -50,11 +62,15 @@ const renderWithoutFrames = task => {
 }
 
 const render = async (page, doc, zoom) => {
-    const scale = zoom * devicePixelRatio
-    doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
+    const pageSize = page.getViewport({ scale: 1, rotation: page.rotate + pageRotationDegrees })
+    const pixelRatio = pdfRenderPixelRatio({ width: pageSize.width, height: pageSize.height, zoom })
+    const scale = zoom * pixelRatio
+    doc.documentElement.style.transform = `scale(${1 / pixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
     doc.documentElement.style.setProperty('--scale-factor', scale)
-    const viewport = page.getViewport({ scale })
+    const viewport = page.getViewport({ scale, rotation: page.rotate + pageRotationDegrees })
+    const viewportMeta = doc.querySelector('meta[name="viewport"]')
+    if (viewportMeta) viewportMeta.content = `width=${pageSize.width}, height=${pageSize.height}`
 
     // the canvas must be in the `PDFDocument`'s `ownerDocument`
     // (`globalThis.document` by default); that's where the fonts are loaded
@@ -133,7 +149,7 @@ const render = async (page, doc, zoom) => {
 }
 
 const renderPage = async (page, getImageBlob) => {
-    const viewport = page.getViewport({ scale: 1 })
+    const viewport = page.getViewport({ scale: 1, rotation: page.rotate + pageRotationDegrees })
     if (getImageBlob) {
         const canvas = document.createElement('canvas')
         canvas.height = viewport.height
@@ -142,31 +158,7 @@ const renderPage = async (page, getImageBlob) => {
         await page.render({ canvasContext, viewport }).promise
         return new Promise(resolve => canvas.toBlob(resolve))
     }
-    const src = pageDocumentUrl(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=${viewport.width}, height=${viewport.height}">
-        <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-        }
-        /*
-        https://github.com/mozilla/pdf.js/commit/bd05b255fabfc313b194bfe9a17ccded4d90fb5a
-        */
-        :root {
-          --user-unit: 1;
-          --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
-          --scale-round-x: 1px;
-          --scale-round-y: 1px;
-        }
-        </style>
-        ${layerStylesheets}
-        <div id="canvas"></div>
-        <div class="textLayer"></div>
-        <div class="annotationLayer"></div>
-    `)
+    const src = pageDocumentUrl(viewport)
     const onZoom = ({ doc, scale }) => render(page, doc, scale)
     return { src, onZoom }
 }
@@ -178,13 +170,14 @@ const makeTOCItem = item => ({
 })
 
 export const makePDF = async file => {
+    pageRotationDegrees = 0
     const transport = new pdfjsLib.PDFDataRangeTransport(file.size, [])
     transport.requestDataRange = (begin, end) => {
         file.slice(begin, end).arrayBuffer().then(chunk => {
             transport.onDataRange(begin, chunk)
         })
     }
-    const pdf = await pdfjsLib.getDocument({
+    const loadingTask = pdfjsLib.getDocument({
         range: transport,
         cMapUrl: pdfjsPath('cmaps/'),
         standardFontDataUrl: pdfjsPath('standard_fonts/'),
@@ -195,7 +188,16 @@ export const makePDF = async file => {
         // Each read is a round trip to the worker; 1 MB reads (not the default 64 KB) keep search across a whole
         // book, which touches every page, from turning into thousands of them.
         rangeChunkSize: 1 << 20,
-    }).promise
+    })
+    loadingTask.onPassword = (updatePassword, reason) => {
+        dispatchEvent(new CustomEvent('vayana-pdf-password', {
+            detail: {
+                updatePassword,
+                incorrect: reason === pdfjsLib.PasswordResponses.INCORRECT_PASSWORD,
+            },
+        }))
+    }
+    const pdf = await loadingTask.promise
 
     // Vayana: one page per screen. Paired spreads suit a desktop window, not a phone, and moving between the two pages
     // of one spread by `goTo` emits no 'relocate', which would leave the saved position behind.
@@ -218,19 +220,36 @@ export const makePDF = async file => {
 
     const outline = await pdf.getOutline()
     book.toc = outline?.map(makeTOCItem)
+    book.pageLabels = await pdf.getPageLabels() ?? Array.from({ length: pdf.numPages }, (_, index) => String(index + 1))
 
+    // Cache the in-flight promise too: a fast page turn and the idle warm-up must never decode the same page twice.
     const cache = new Map()
+    const loadPage = index => {
+        const cached = cache.get(index)
+        if (cached) return cached
+        const loading = pdf.getPage(index + 1).then(renderPage)
+        loading.catch(() => cache.delete(index))
+        cache.set(index, loading)
+        return loading
+    }
     book.sections = Array.from({ length: pdf.numPages }).map((_, i) => ({
         id: i,
-        load: async () => {
-            const cached = cache.get(i)
-            if (cached) return cached
-            const url = await renderPage(await pdf.getPage(i + 1))
-            cache.set(i, url)
-            return url
-        },
+        load: () => loadPage(i),
         size: 1000,
     }))
+    let prefetchRevision = 0
+    let prefetchTimer = null
+    book.prefetchAround = index => {
+        if (!Number.isInteger(index)) return
+        const revision = ++prefetchRevision
+        clearTimeout(prefetchTimer)
+        prefetchTimer = setTimeout(async () => {
+            for (const candidate of adjacentPageIndexes(index, pdf.numPages)) {
+                if (revision !== prefetchRevision) return
+                try { await loadPage(candidate) } catch (_) {}
+            }
+        }, 200)
+    }
     book.isExternal = uri => /^\w+:/i.test(uri)
     book.resolveHref = async href => {
         const parsed = JSON.parse(href)
@@ -248,6 +267,29 @@ export const makePDF = async file => {
     }
     book.getTOCFragment = doc => doc.documentElement
     book.getCover = async () => renderPage(await pdf.getPage(1), true)
+    const thumbnailCache = new Map()
+    book.getPageThumbnail = (index, maxWidth = 240) => {
+        if (!Number.isInteger(index) || index < 0 || index >= pdf.numPages) return Promise.resolve(null)
+        const width = Math.max(80, Math.min(480, Number(maxWidth) || 240))
+        const cacheKey = `${index}:${Math.round(width)}:${pageRotationDegrees}`
+        if (thumbnailCache.has(cacheKey)) return thumbnailCache.get(cacheKey)
+        const thumbnail = pdf.getPage(index + 1).then(async page => {
+            const natural = page.getViewport({ scale: 1, rotation: page.rotate + pageRotationDegrees })
+            const viewport = page.getViewport({
+                scale: Math.min(1, width / natural.width),
+                rotation: page.rotate + pageRotationDegrees,
+            })
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.max(1, Math.round(viewport.width))
+            canvas.height = Math.max(1, Math.round(viewport.height))
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+            return canvas.toDataURL('image/jpeg', 0.78)
+        })
+        thumbnail.catch(() => thumbnailCache.delete(cacheKey))
+        thumbnailCache.set(cacheKey, thumbnail)
+        if (thumbnailCache.size > 72) thumbnailCache.delete(thumbnailCache.keys().next().value)
+        return thumbnail
+    }
     // Vayana: page text for in-book search, and the colours pages render in
     // Kept for the open book: search and the word list go through every page again each time. A page's text is a
     // few KB, so even a long book's is small next to one rendered page.
@@ -263,6 +305,16 @@ export const makePDF = async file => {
         return pageTexts.get(index)
     }
     book.setPageColors = colors => { pageColors = colors }
-    book.destroy = () => pdf.destroy()
+    book.setPageRotation = degrees => {
+        const normalized = ((Number(degrees) || 0) % 360 + 360) % 360
+        pageRotationDegrees = [0, 90, 180, 270].includes(normalized) ? normalized : 0
+    }
+    book.destroy = () => {
+        prefetchRevision++
+        clearTimeout(prefetchTimer)
+        cache.clear()
+        thumbnailCache.clear()
+        return pdf.destroy()
+    }
     return book
 }

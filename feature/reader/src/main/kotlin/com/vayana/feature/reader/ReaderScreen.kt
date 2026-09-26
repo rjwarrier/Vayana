@@ -2,6 +2,7 @@ package com.vayana.feature.reader
 
 import android.Manifest
 import android.app.Activity
+import android.graphics.BitmapFactory
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -27,6 +28,7 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +59,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -125,6 +130,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -148,6 +154,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -169,6 +176,7 @@ import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.datastore.settings.TapZoneMode
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.PageKeyDirection
 import com.vayana.core.designsystem.theme.pageKeyDirection
@@ -203,10 +211,7 @@ import android.view.WindowManager
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Translate
-import androidx.compose.runtime.rememberCoroutineScope
 import com.vayana.reader.api.Footnote
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 @Composable
 fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocabulary: () -> Unit = {}) {
@@ -222,11 +227,19 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val engineGeneration by viewModel.engineGeneration.collectAsState()
     val readAloudVoices by viewModel.readAloudVoices.collectAsState()
     val readAloudEngines by viewModel.readAloudEngines.collectAsState()
-    val pdfPageControls = remember(viewModel) {
+    val pdfBookPreferences by viewModel.pdfBookPreferences.collectAsState()
+    val pdfPasswordPrompt by viewModel.pdfPasswordPrompt.collectAsState()
+    val pdfThumbnails by viewModel.pdfThumbnails.collectAsState()
+    val readerControlsRequest by viewModel.readerControlsRequest.collectAsState()
+    var showPdfPageBrowser by rememberSaveable { mutableStateOf(false) }
+    val pdfPageControls = remember(viewModel, pdfBookPreferences?.rotationDegrees) {
         PdfPageControls(
             onCropMarginsChange = viewModel::updatePdfCropMargins,
             onFitWidthChange = viewModel::updatePdfFitWidth,
             onDarkenTextChange = viewModel::updateBolderText,
+            rotationDegrees = pdfBookPreferences?.rotationDegrees ?: 0,
+            onRotateClockwise = viewModel::rotatePdfClockwise,
+            onBrowsePages = { showPdfPageBrowser = true },
         )
     }
     val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines) {
@@ -303,6 +316,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
                 onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
                 engineGeneration = engineGeneration,
+                readerControlsRequest = readerControlsRequest,
                 onEngineReady = viewModel::bindEngine,
                 onEngineReleased = viewModel::releaseEngine,
                 activeReadingSessionSeconds = activeReadingSessionSeconds,
@@ -414,6 +428,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
         onDismissReadingPositionPrompt = viewModel::dismissReadingPositionPrompt,
         engineGeneration = engineGeneration,
+        readerControlsRequest = readerControlsRequest,
         onEngineReady = viewModel::bindEngine,
         onEngineReleased = viewModel::releaseEngine,
         activeReadingSessionSeconds = activeReadingSessionSeconds,
@@ -485,7 +500,161 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
             onDismiss = viewModel::dismissBookFinishedPrompt,
         )
     }
+    pdfPasswordPrompt?.let { prompt ->
+        PdfPasswordDialog(
+            incorrect = prompt.incorrect,
+            onSubmit = viewModel::providePdfPassword,
+            onCancel = {
+                viewModel.providePdfPassword(null)
+                onBack()
+            },
+        )
     }
+    if (showPdfPageBrowser) {
+        val loaded = uiState as? ReaderUiState.Loaded
+        PdfPageBrowserDialog(
+            pageLabels = loaded?.pageLabels.orEmpty(),
+            currentPage = loaded?.currentLocator?.currentPage,
+            thumbnails = pdfThumbnails,
+            onLoadThumbnail = viewModel::loadPdfThumbnail,
+            onSelectPage = { index ->
+                showPdfPageBrowser = false
+                viewModel.goToPdfPage(index)
+            },
+            onDismiss = { showPdfPageBrowser = false },
+        )
+    }
+    }
+}
+
+@Composable
+private fun PdfPasswordDialog(
+    incorrect: Boolean,
+    onSubmit: (String?) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var password by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.reader_pdf_password_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(stringResource(if (incorrect) R.string.reader_pdf_password_incorrect else R.string.reader_pdf_password_body))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.reader_pdf_password_label)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSubmit(password) }, enabled = password.isNotEmpty()) {
+                Text(stringResource(R.string.reader_pdf_password_open))
+            }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(android.R.string.cancel)) } },
+    )
+}
+
+@Composable
+private fun PdfPageBrowserDialog(
+    pageLabels: List<String>,
+    currentPage: Int?,
+    thumbnails: Map<Int, ByteArray>,
+    onLoadThumbnail: (Int, Int) -> Unit,
+    onSelectPage: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var pageInput by rememberSaveable { mutableStateOf("") }
+    var invalidInput by rememberSaveable { mutableStateOf(false) }
+    val pageCount = pageLabels.size
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.reader_pdf_pages_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = pageInput,
+                        onValueChange = {
+                            pageInput = it
+                            invalidInput = false
+                        },
+                        label = { Text(stringResource(R.string.reader_pdf_page_jump_label)) },
+                        supportingText = if (invalidInput) ({ Text(stringResource(R.string.reader_pdf_page_jump_invalid)) }) else null,
+                        isError = invalidInput,
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = {
+                        val page = resolvePdfPageInput(pageInput, pageLabels)
+                        if (page == null) invalidInput = true else onSelectPage(page)
+                    }) {
+                        Text(stringResource(R.string.reader_pdf_page_jump_action))
+                    }
+                }
+                if (pageCount == 0) {
+                    Text(stringResource(R.string.reader_pdf_pages_unavailable))
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(112.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+                        contentPadding = PaddingValues(vertical = Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        gridItemsIndexed(pageLabels, key = { index, _ -> index }) { index, label ->
+                            LaunchedEffect(index) { onLoadThumbnail(index, 240) }
+                            val bytes = thumbnails[index]
+                            val bitmap = remember(bytes) {
+                                bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
+                            }
+                            Surface(
+                                onClick = { onSelectPage(index) },
+                                shape = RoundedCornerShape(Radii.medium),
+                                color = if (currentPage == index + 1) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap,
+                                            contentDescription = stringResource(R.string.reader_pdf_page_thumbnail_description, label),
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 128.dp, max = 190.dp),
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().size(128.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) { VayanaCircularProgressIndicator() }
+                                    }
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (currentPage == index + 1) FontWeight.Bold else FontWeight.Normal,
+                                        modifier = Modifier.padding(Spacing.xs),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.reader_pdf_pages_close)) } },
+    )
+}
+
+internal fun resolvePdfPageInput(input: String, pageLabels: List<String>): Int? {
+    val normalized = input.trim()
+    if (normalized.isEmpty()) return null
+    return pageLabels.indexOfFirst { it.equals(normalized, ignoreCase = true) }.takeIf { it >= 0 }
+        ?: normalized.toIntOrNull()?.minus(1)?.takeIf { it in pageLabels.indices }
 }
 
 /**
@@ -579,6 +748,7 @@ private fun ReaderScreen(
     onAcceptReadingPositionPrompt: () -> Unit,
     onDismissReadingPositionPrompt: () -> Unit,
     engineGeneration: Int,
+    readerControlsRequest: Long,
     onEngineReady: (BookEngine) -> Unit,
     onEngineReleased: (BookEngine) -> Unit,
     activeReadingSessionSeconds: Long,
@@ -654,9 +824,6 @@ private fun ReaderScreen(
     val focusRequester = remember { FocusRequester() }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var volumeKeyDownAt by remember { mutableStateOf(0L) }
-    val tapScope = rememberCoroutineScope()
-    // A plain holder, not state: nothing on screen depends on it, so setting it mustn't recompose.
-    val pendingMiddleTap = remember { arrayOfNulls<Job>(1) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
         if (shouldPauseReadAloudOnReaderTap(readAloud.playing)) {
             onPauseReadAloud()
@@ -666,22 +833,32 @@ private fun ReaderScreen(
         val menuEnd = menuStart * 2f
         when {
             chromeVisible -> chromeVisible = false
-            x < menuStart -> onTapPrevious()
-            x > menuEnd -> onTapNext()
-            else -> {
-                // Wait out a possible second tap: a double tap here looks up the word instead of opening the menu.
-                val pending = pendingMiddleTap[0]
-                if (pending?.isActive == true) {
-                    pending.cancel()
-                } else {
-                    pendingMiddleTap[0] = tapScope.launch {
-                        delay(ViewConfiguration.getDoubleTapTimeout().toLong())
-                        selectedPanel = ReaderPanel.STYLE
-                        chromeVisible = true
-                    }
-                }
-            }
+            x < menuStart && settings.readerTapZoneMode != TapZoneMode.SWIPE_ONLY -> onTapPrevious()
+            x > menuEnd && settings.readerTapZoneMode != TapZoneMode.SWIPE_ONLY -> onTapNext()
+            // Middle taps are arbitrated inside the book document, where a tap on a word can remain dictionary lookup.
+            else -> Unit
         }
+    }
+    LaunchedEffect(readerControlsRequest) {
+        if (readerControlsRequest > 0L) {
+            selectedPanel = ReaderPanel.STYLE
+            chromeVisible = true
+        }
+    }
+    val readerDocumentReady = uiState is ReaderUiState.Loaded
+    LaunchedEffect(
+        webViewRef,
+        readerDocumentReady,
+        settings.readerControlsTapMode,
+        chromeVisible,
+        readAloud.playing,
+    ) {
+        if (!readerDocumentReady) return@LaunchedEffect
+        webViewRef?.evaluateJavascript(
+            "window.VayanaReader && window.VayanaReader.setReaderControlsGesture(" +
+                "${settings.readerControlsTapMode.tapCount}, $chromeVisible, ${readAloud.playing})",
+            null,
+        )
     }
     val onHardwarePageKeyState = rememberUpdatedState<(Int, Int, Long) -> Boolean> { keyCode, action, heldMillis ->
         val pageKey = pageKeyDirection(keyCode)
@@ -2147,7 +2324,11 @@ private fun ReaderChrome(
                         onCreateBookmark = onCreateBookmark,
                         onBookmarkClick = onAnnotationClick,
                     )
-                    ReaderPanel.PROGRESS -> ProgressPanel(uiState = uiState, onProgressChange = onProgressChange)
+                    ReaderPanel.PROGRESS -> ProgressPanel(
+                        uiState = uiState,
+                        onProgressChange = onProgressChange,
+                        onBrowsePages = pdfPageControls.onBrowsePages.takeIf { fixedLayout },
+                    )
                     ReaderPanel.STYLE -> StylePanel(
                         settings = settings,
                         showTypography = !fixedLayout,
@@ -2342,7 +2523,11 @@ private fun BookmarksPanel(
 }
 
 @Composable
-private fun ProgressPanel(uiState: ReaderUiState, onProgressChange: (Float) -> Unit) {
+private fun ProgressPanel(
+    uiState: ReaderUiState,
+    onProgressChange: (Float) -> Unit,
+    onBrowsePages: (() -> Unit)? = null,
+) {
     val locator = (uiState as? ReaderUiState.Loaded)?.currentLocator
     val progress = locator?.progression ?: 0f
     Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
@@ -2363,6 +2548,11 @@ private fun ProgressPanel(uiState: ReaderUiState, onProgressChange: (Float) -> U
             )
         }
         Slider(value = progress, onValueChange = onProgressChange, valueRange = 0f..1f)
+        onBrowsePages?.let { browse ->
+            FilledTonalButton(onClick = browse) {
+                Text(stringResource(R.string.reader_pdf_browse_pages))
+            }
+        }
     }
 }
 
@@ -3026,6 +3216,9 @@ internal class PdfPageControls(
     val onCropMarginsChange: (Boolean) -> Unit,
     val onFitWidthChange: (Boolean) -> Unit,
     val onDarkenTextChange: (Boolean) -> Unit,
+    val rotationDegrees: Int,
+    val onRotateClockwise: () -> Unit,
+    val onBrowsePages: () -> Unit,
 )
 
 @Composable
@@ -3055,6 +3248,26 @@ private fun PdfPageSection(settings: SettingsSnapshot, controls: PdfPageControls
             checked = settings.readerBolderText,
             onCheckedChange = controls.onDarkenTextChange,
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.reader_pdf_rotation_title), style = MaterialTheme.typography.labelLarge)
+                Text(
+                    stringResource(R.string.reader_pdf_rotation_value, controls.rotationDegrees),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            OutlinedButton(onClick = controls.onRotateClockwise) {
+                Text(stringResource(R.string.reader_pdf_rotate_action))
+            }
+        }
+        FilledTonalButton(onClick = controls.onBrowsePages) {
+            Text(stringResource(R.string.reader_pdf_browse_pages))
+        }
     }
 }
 
@@ -3242,4 +3455,3 @@ private fun Context.copyTextToClipboard(text: String) {
     val clip = ClipData.newPlainText(getString(R.string.app_name), text)
     clipboardManager.setPrimaryClip(clip)
 }
-

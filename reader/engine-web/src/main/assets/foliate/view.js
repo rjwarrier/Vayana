@@ -233,6 +233,7 @@ export class View extends HTMLElement {
     async open(book) {
         if (typeof book === 'string'
         || typeof book.arrayBuffer === 'function'
+        || typeof book.slice === 'function'
         || book.isDirectory) book = await makeBook(book)
         this.book = book
         this.language = languageInfo(book.metadata?.language)
