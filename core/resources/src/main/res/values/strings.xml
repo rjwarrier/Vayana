@@ -429,7 +429,6 @@
     <string name="library_book_progress_sync_prompt_body">Sync moved this book from %1$d%% to %2$d%%. Keep the synced progress, or go back to where you were?</string>
     <string name="library_book_progress_sync_prompt_local">This device</string>
     <string name="library_book_progress_sync_prompt_synced">Synced</string>
-    <string name="library_book_progress_sync_prompt_last_read">Last read %1$s</string>
     <plurals name="sync_status_minutes_ago">
         <item quantity="one">Last sync %1$d minute ago from %2$s</item>
         <item quantity="other">Last sync %1$d minutes ago from %2$s</item>

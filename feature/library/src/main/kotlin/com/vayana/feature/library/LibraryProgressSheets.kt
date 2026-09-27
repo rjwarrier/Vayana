@@ -5,8 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,7 +33,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import com.vayana.core.designsystem.component.cloudSyncStatusText
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import androidx.compose.ui.Alignment
@@ -460,7 +462,10 @@ internal fun ReadingProgressSyncDialog(
 ) {
     val previousPercent = (prompt.previousPercent * 100).roundToInt()
     val newPercent = (prompt.newPercent * 100).roundToInt()
-    val syncStatusText = cloudSyncStatusText(prompt.syncedAt, prompt.syncedDeviceLabel)
+    val localTimestamp = (prompt.previousLastReadAt ?: prompt.previousUpdatedAt).asAppDateTime()
+    val syncedTimestamp = (prompt.syncedAt ?: prompt.newLastReadAt ?: prompt.newUpdatedAt).asAppDateTime()
+    val syncedDevice = prompt.syncedDeviceLabel?.trim()?.takeIf { it.isNotEmpty() }
+        ?: stringResource(R.string.sync_status_unknown_device)
     ExpressiveDialogSurface(onDismissRequest = onRevertSyncedProgress) {
         ExpressiveDialogHeader(
             icon = Icons.Outlined.Sync,
@@ -476,31 +481,34 @@ internal fun ReadingProgressSyncDialog(
                     ProgressChoiceCard(
                         label = stringResource(R.string.library_book_progress_sync_prompt_local),
                         percent = previousPercent,
-                        timestamp = prompt.previousLastReadAt ?: prompt.previousUpdatedAt,
+                        timestamp = localTimestamp,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     ProgressChoiceCard(
                         label = stringResource(R.string.library_book_progress_sync_prompt_synced),
                         percent = newPercent,
-                        timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
-                        syncStatusText = syncStatusText,
+                        timestamp = syncedTimestamp,
+                        device = syncedDevice,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Row(
+                    modifier = Modifier.height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
                     ProgressChoiceCard(
                         label = stringResource(R.string.library_book_progress_sync_prompt_local),
                         percent = previousPercent,
-                        timestamp = prompt.previousLastReadAt ?: prompt.previousUpdatedAt,
-                        modifier = Modifier.weight(1f),
+                        timestamp = localTimestamp,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                     ProgressChoiceCard(
                         label = stringResource(R.string.library_book_progress_sync_prompt_synced),
                         percent = newPercent,
-                        timestamp = prompt.newLastReadAt ?: prompt.newUpdatedAt,
-                        syncStatusText = syncStatusText,
-                        modifier = Modifier.weight(1f),
+                        timestamp = syncedTimestamp,
+                        device = syncedDevice,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
             }
@@ -524,9 +532,9 @@ internal fun ReadingProgressSyncDialog(
 private fun ProgressChoiceCard(
     label: String,
     percent: Int,
-    timestamp: Long,
+    timestamp: String,
     modifier: Modifier = Modifier,
-    syncStatusText: String? = null,
+    device: String? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -553,15 +561,17 @@ private fun ProgressChoiceCard(
                 maxLines = 1,
             )
             Text(
-                text = stringResource(R.string.library_book_progress_sync_prompt_last_read, timestamp.asAppDateTime()),
+                text = timestamp,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            syncStatusText?.let {
+            device?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
