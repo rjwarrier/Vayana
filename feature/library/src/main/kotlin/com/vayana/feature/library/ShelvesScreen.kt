@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -104,6 +105,8 @@ private fun ShelvesScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_shelves_title)) },
+                // The app shell already applies the status-bar inset to this destination.
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.notes_back_content_description))
@@ -134,19 +137,30 @@ private fun ShelvesScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 if (readNextQueue.isNotEmpty()) {
-                    item {
-                        Text(text = stringResource(R.string.library_read_next_title), style = MaterialTheme.typography.titleMedium)
+                    item(key = "read-next-header") {
+                        Text(
+                            text = stringResource(R.string.library_read_next_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.animateItem(),
+                        )
                     }
                     items(readNextQueue, key = { "next-${it.id}" }) { book ->
-                        ReadNextRow(book = book, onClick = { onBookClick(book.id) }, onRemove = { onRemoveFromReadNext(book.id) })
+                        ReadNextRow(
+                            book = book,
+                            onClick = { onBookClick(book.id) },
+                            onRemove = { onRemoveFromReadNext(book.id) },
+                            modifier = Modifier.animateItem(),
+                        )
                     }
                 }
                 if (shelves.isNotEmpty()) {
-                    item {
+                    item(key = "shelves-header") {
                         Text(
                             text = stringResource(R.string.library_shelves_section_title),
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = Spacing.sm),
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(top = Spacing.sm),
                         )
                     }
                     items(shelves, key = { it.id }) { shelf ->
@@ -155,6 +169,7 @@ private fun ShelvesScreen(
                             bookCount = shelfBookCounts[shelf.id] ?: 0,
                             onClick = { onShelfClick(shelf.id) },
                             onDelete = { deletingShelf = shelf },
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -220,10 +235,16 @@ private fun ShelvesScreen(
 }
 
 @Composable
-private fun ShelfRow(shelf: Shelf, bookCount: Int, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun ShelfRow(
+    shelf: Shelf,
+    bookCount: Int,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
 
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radii.largeIncreased))
             .clickable(onClick = onClick),
@@ -270,9 +291,14 @@ private fun ShelfRow(shelf: Shelf, bookCount: Int, onClick: () -> Unit, onDelete
 }
 
 @Composable
-private fun ReadNextRow(book: Book, onClick: () -> Unit, onRemove: () -> Unit) {
+private fun ReadNextRow(
+    book: Book,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radii.largeIncreased))
             .clickable(onClick = onClick),

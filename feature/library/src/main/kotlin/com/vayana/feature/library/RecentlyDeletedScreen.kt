@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -86,6 +87,8 @@ private fun RecentlyDeletedScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_recently_deleted_title)) },
+                // The app shell already applies the status-bar inset to this destination.
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -115,6 +118,7 @@ private fun RecentlyDeletedScreen(
                         book = book,
                         onRestore = { onRestore(book.id) },
                         onPurge = { purgingBook = book },
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
@@ -139,9 +143,10 @@ private fun DeletedBookCard(
     book: Book,
     onRestore: () -> Unit,
     onPurge: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radii.largeIncreased)),
         shape = RoundedCornerShape(Radii.largeIncreased),
