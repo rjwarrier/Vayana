@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="read_aloud_notification_channel">ഉറക്കെ വായിക്കൽ</string>
+    <string name="read_aloud_notification_title">ഉറക്കെ വായിക്കുന്നു</string>
+    <string name="read_aloud_notification_text">സ്ക്രീൻ ഓഫായാലും വായന തുടരും</string>
+    <string name="read_aloud_notification_progress">%1$d%% പൂർത്തിയായി</string>
+    <string name="read_aloud_notification_pause">നിർത്തിവയ്ക്കുക</string>
+    <string name="read_aloud_notification_play">തുടങ്ങുക</string>
+    <string name="read_aloud_notification_previous">മുൻ വാക്യം</string>
+    <string name="read_aloud_notification_next">അടുത്ത വാക്യം</string>
+</resources>
