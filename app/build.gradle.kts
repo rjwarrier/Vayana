@@ -23,6 +23,11 @@ val releaseSigningConfigured = releaseKeystorePropertiesFile.exists()
 android {
     namespace = "com.vayana.app"
 
+    // Lists the translated languages (values-*) for Android 13+ per-app language settings.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.vayana.app"
         versionCode = 2

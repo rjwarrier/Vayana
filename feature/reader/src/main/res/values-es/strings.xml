@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="read_aloud_notification_channel">Leer en voz alta</string>
+    <string name="read_aloud_notification_title">Leyendo en voz alta</string>
+    <string name="read_aloud_notification_text">La reproducción puede continuar con la pantalla apagada</string>
+    <string name="read_aloud_notification_progress">%1$d%% completado</string>
+    <string name="read_aloud_notification_pause">Pausar</string>
+    <string name="read_aloud_notification_play">Reproducir</string>
+    <string name="read_aloud_notification_previous">Frase anterior</string>
+    <string name="read_aloud_notification_next">Frase siguiente</string>
+</resources>
