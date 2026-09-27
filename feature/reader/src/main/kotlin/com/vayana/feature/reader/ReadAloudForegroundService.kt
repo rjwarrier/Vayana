@@ -1,5 +1,6 @@
 package com.vayana.feature.reader
 
+import com.vayana.core.common.AppLanguage
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -25,6 +26,11 @@ class ReadAloudForegroundService : Service() {
     private var bookTitle: String? = null
     private var progressPercent: Int? = null
     private var mediaSession: MediaSession? = null
+
+    // Notification text in the language chosen in Settings (before Android 13 the system does not apply it).
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(AppLanguage.wrap(base))
+    }
 
     override fun onCreate() {
         super.onCreate()

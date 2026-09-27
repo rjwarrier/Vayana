@@ -1402,4 +1402,9 @@
     <string name="dictionary_part_of_speech_verb">verb</string>
     <string name="dictionary_part_of_speech_adjective">adj.</string>
     <string name="dictionary_part_of_speech_adverb">adv.</string>
+
+    <!-- App language -->
+    <string name="settings_app_language_title">Language</string>
+    <string name="settings_app_language_subtitle">Language of Vayana\'s menus and messages. Books keep their own language.</string>
+    <string name="settings_app_language_system">Phone language</string>
 </resources>

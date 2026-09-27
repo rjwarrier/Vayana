@@ -742,6 +742,11 @@ private fun SettingsGroupDetail(
                 }
             }
         }
+        if (group == SettingsGroup.APPEARANCE) {
+            item {
+                SettingsContentContainer { AppLanguageCard() }
+            }
+        }
         if (group == SettingsGroup.SYNC) {
             item {
                 SettingsContentContainer {

@@ -1,12 +1,14 @@
 package com.vayana.app
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.vayana.core.common.AppLanguage
 import com.vayana.core.designsystem.theme.EinkPageKeys
 import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.feature.library.IncomingBookFiles
@@ -17,6 +19,10 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var incomingBookFiles: IncomingBookFiles
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
