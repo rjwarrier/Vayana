@@ -90,7 +90,6 @@ import com.vayana.core.database.model.communityHighlightCount
 import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.sharecard.QuoteShareDialog
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaContentTransform
@@ -433,13 +432,13 @@ private fun NotesScreen(
                         bookItem = bookItem,
                         annotations = visibleAnnotations,
                         onAnnotationClick = { annotation ->
-                            if (bookItem.book.format != BookFormat.PHYSICAL) {
+                            if (!bookItem.book.format.isOffline) {
                                 val locator = annotation.locator.ifBlank { "text:${annotation.id}" }
                                 onOpenReader(bookItem.book.id, locator)
                             }
                         },
                         onOpenBook = {
-                            if (bookItem.book.format != BookFormat.PHYSICAL) {
+                            if (!bookItem.book.format.isOffline) {
                                 onOpenReader(bookItem.book.id, null)
                             }
                         },
@@ -776,7 +775,9 @@ private fun BookCoverThumbnail(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         tonalElevation = Elevations.none,
     ) {
-        if (coverPath != null && File(coverPath).exists()) {
+        // A disk check, so once per path rather than on every recomposition of every row.
+        val coverExists = remember(coverPath) { coverPath != null && File(coverPath).exists() }
+        if (coverPath != null && coverExists) {
             AsyncImage(
                 model = File(coverPath),
                 contentDescription = title,

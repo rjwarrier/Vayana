@@ -40,7 +40,7 @@ internal fun validateStagedBackup(context: Context, stagingDir: File, declaredVe
             while (cursor.moveToNext()) {
                 val format = BookFormat.valueOf(cursor.getString(2))
                 val fileAvailability = cursor.getString(3)
-                if (format != BookFormat.PHYSICAL && fileAvailability == "LOCAL") {
+                if (!format.isOffline && fileAvailability == "LOCAL") {
                     requireStagedFile(stagingDir, cursor.getString(0), "books")
                 }
                 if (!cursor.isNull(1)) requireStagedFile(stagingDir, cursor.getString(1), "covers")

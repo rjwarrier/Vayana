@@ -88,7 +88,7 @@ class DiagnosticsLogStore internal constructor(private val logFile: File) {
     }
 }
 
-internal fun String.truncateDiagnosticDetail(): String {
+private fun String.truncateDiagnosticDetail(): String {
     if (length <= MaxDetailChars) return this
     return take(MaxDetailChars - TruncatedSuffix.length) + TruncatedSuffix
 }

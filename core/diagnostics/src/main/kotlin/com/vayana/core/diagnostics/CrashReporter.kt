@@ -4,18 +4,25 @@ import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
+import androidx.annotation.RequiresApi
+import com.vayana.core.common.ApplicationScope
+import com.vayana.core.common.DispatcherProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.InputStreamReader
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 import kotlin.system.exitProcess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /** Installs a global uncaught-exception handler that journals the crash before the process dies. */
 @Singleton
 class CrashReporter @Inject constructor(
     private val logStore: DiagnosticsLogStore,
     @param:ApplicationContext private val context: Context,
+    @param:ApplicationScope private val appScope: CoroutineScope,
+    private val dispatchers: DispatcherProvider,
 ) {
     private var installed = false
 
@@ -30,7 +37,7 @@ class CrashReporter @Inject constructor(
                     category = DiagnosticCategory.CRASH,
                     source = thread.name,
                     message = throwable.message ?: throwable.javaClass.simpleName,
-                    detail = throwable.stackTraceToString().truncateDiagnosticDetail(),
+                    detail = throwable.stackTraceToString(),
                 )
             }
             if (previousHandler != null) {
@@ -44,27 +51,22 @@ class CrashReporter @Inject constructor(
 
     private fun capturePreviousSystemExitAsync() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        Thread(
-            { runCatching { capturePreviousSystemExits() } },
-            ExitCaptureThreadName,
-        ).apply {
-            isDaemon = true
-            start()
-        }
+        appScope.launch(dispatchers.io) { runCatching { capturePreviousSystemExits() } }
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun capturePreviousSystemExits() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val activityManager = context.getSystemService(ActivityManager::class.java) ?: return
         val exits = activityManager
             .getHistoricalProcessExitReasons(context.packageName, 0, MaxSystemExitHistory)
             .filter { it.processName == context.packageName }
             .sortedBy { it.timestamp }
-        if (exits.isEmpty()) return
-
         val checkpoint = logStore.lastProcessedExitTimestamp()
+        val newExits = exits.filter { it.timestamp > checkpoint }
+        if (newExits.isEmpty()) return
+
         val existingCrashes = logStore.readAll().filter { it.category == DiagnosticCategory.CRASH }
-        exits.filter { it.timestamp > checkpoint }.forEach { exit ->
+        newExits.forEach { exit ->
             if (exit.reason in CapturedExitReasons && existingCrashes.none { event ->
                     abs(event.timestamp - exit.timestamp) <= DuplicateExitWindowMillis
                 }
@@ -78,7 +80,7 @@ class CrashReporter @Inject constructor(
                 )
             }
         }
-        logStore.markExitTimestampProcessed(exits.maxOf { it.timestamp })
+        logStore.markExitTimestampProcessed(newExits.last().timestamp)
     }
 }
 
@@ -97,7 +99,7 @@ private fun ApplicationExitInfo.toTechnicalDetail(): String = buildString {
         appendLine("System trace:")
         append(it)
     }
-}.truncateDiagnosticDetail()
+}
 
 private fun ApplicationExitInfo.readTrace(): String? = runCatching {
     traceInputStream?.use { stream ->
@@ -119,7 +121,6 @@ private const val MaxSystemExitHistory = 10
 private const val MaxSystemTraceChars = 24_000
 private const val TraceReadBufferChars = 2_048
 private const val DuplicateExitWindowMillis = 15_000L
-private const val ExitCaptureThreadName = "vayana-exit-capture"
 private const val SystemExitSource = "Android system"
 
 private val CapturedExitReasons = setOf(

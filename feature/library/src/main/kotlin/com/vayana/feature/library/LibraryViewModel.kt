@@ -1,5 +1,8 @@
 package com.vayana.feature.library
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
@@ -39,7 +42,6 @@ import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.normalizedBookTag
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookAliasDao
-import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ShelfDao
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.dao.VocabularyCardDao
@@ -481,7 +483,6 @@ class LibraryViewModel @Inject constructor(
     private val syncOperationCoordinator: SyncOperationCoordinator,
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
-    private val bookDao: BookDao,
     private val shelfDao: ShelfDao,
     private val vocabularyCardDao: VocabularyCardDao,
     private val annotationDao: AnnotationDao,
@@ -512,6 +513,21 @@ class LibraryViewModel @Inject constructor(
     val libraryBooks: StateFlow<List<Book>> =
         resolvedBooks.all.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** What can be read here: the Books screen and series folders list only these. */
+    val readableBooks: StateFlow<List<Book>> = libraryBooks
+        .map { books -> books.filterNot { it.format.isOffline } }
+        .flowOn(dispatchers.default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Books read outside the app, most recently finished (or started, or added) first. */
+    val offlineBooks: StateFlow<List<Book>> = libraryBooks
+        .map { books ->
+            books.filter { it.format.isOffline }.sortedByDescending { it.finishedReadingAt ?: it.startedReadingAt ?: it.createdAt }
+        }
+        .distinctUntilChanged()
+        .flowOn(dispatchers.default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val githubSyncReady: Flow<Boolean> = settingsRepository.snapshot
         .map { it.isGitHubSyncReady() }
         .distinctUntilChanged()
@@ -533,7 +549,10 @@ class LibraryViewModel @Inject constructor(
     ) { books, controls, syncReady, finishedThreshold ->
         LibraryUiState(
             allBooks = books,
+            // Books read outside the app live on their own screen; the library is what can be opened here. Filtered
+            // here rather than by combining [readableBooks], which would run this whole pass twice per change.
             books = books
+                .filter { !it.format.isOffline }
                 .filterBy(controls.filter, finishedThreshold)
                 .filterByQuery(controls.query)
                 .sortedBy(controls.sort, controls.sortDirection),
@@ -589,29 +608,28 @@ class LibraryViewModel @Inject constructor(
     )
 
     init {
-        // One launch check for the most recently read book, then stop observing. Staying subscribed kept the full
-        // book query live for the whole session, re-running it on every page turn's position write (and, when a
-        // check failed offline, retrying the network call on each of them).
+        // One launch check for the most recently read book: wait for sync to be set up, then a single query. Watching
+        // the whole books table for this kept a full-library query live (re-run on every page turn's position write)
+        // whenever sync was off or nothing had been read yet.
         viewModelScope.launch {
-            val bookId = combine(bookRepository.observeAll(), githubSyncReady) { books, syncReady ->
-                if (!syncReady) {
-                    null
-                } else {
-                    books.maxByOrNull { it.lastReadAt ?: 0L }
-                        ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
-                        ?.id
-                }
-            }
-                .flowOn(dispatchers.default)
-                .first { it != null }
-                ?: return@launch
+            githubSyncReady.first { it }
+            val bookId = bookRepository.lastReadBookId() ?: return@launch
             launchReadingProgressCoordinator.checkOnce(bookId) {
                 syncReadingProgressForBook(bookId = bookId, silent = true)
             }
         }
     }
 
+    /**
+     * The search box's text. Compose state rather than a flow value, so the field updates in the same frame as the
+     * keystroke: echoing it back through [uiState] (which filters the library off the main thread) let stale text
+     * overwrite new typing and made the cursor jump.
+     */
+    var searchText by mutableStateOf("")
+        private set
+
     fun updateQuery(query: String) {
+        searchText = query
         controls.update { it.copy(query = query) }
     }
 
@@ -716,8 +734,9 @@ class LibraryViewModel @Inject constructor(
     fun observeShelvesForBook(bookId: Long): StateFlow<List<Shelf>> = shelfRepository.observeShelvesForBook(bookId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun observeShelfBookCount(shelfId: Long): StateFlow<Int> = shelfRepository.observeShelfBookCount(shelfId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    /** Books per shelf id, for the Shelves list: one query for every row instead of one per row. */
+    val shelfBookCounts: StateFlow<Map<Long, Int>> = shelfRepository.observeShelfBookCounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun observeShelf(shelfId: Long): StateFlow<Shelf?> = shelves
         .map { list -> list.firstOrNull { it.id == shelfId } }
@@ -727,12 +746,6 @@ class LibraryViewModel @Inject constructor(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch { shelfRepository.create(trimmed) }
-    }
-
-    fun renameShelf(shelfId: Long, name: String) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch { shelfRepository.rename(shelfId, trimmed) }
     }
 
     fun deleteShelf(shelfId: Long) {
@@ -1297,11 +1310,7 @@ class LibraryViewModel @Inject constructor(
         val remoteSnapshot = progressMerge.remoteSnapshot
         // Every slice is merged below; download them together instead of one after another.
         remoteSnapshot?.prefetch()
-        val tombstoneMerge = if (remoteSnapshot == null) {
-            GenericSyncMergeSummary()
-        } else {
-            mergeCloudTombstones(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.Tombstones))
-        }
+        // Tombstones were already merged (all of them) by pullReadingProgress above, from this same snapshot.
         val cloudLibraryMerge = if (remoteSnapshot == null) {
             CloudLibraryMergeSummary()
         } else {
@@ -1350,7 +1359,7 @@ class LibraryViewModel @Inject constructor(
         val uploadCandidates = localBooks
             .filter { book ->
                 book.fileAvailability == BookFileAvailability.LOCAL &&
-                    book.format != BookFormat.PHYSICAL &&
+                    !book.format.isOffline &&
                     book.fileAssetId.isNullOrBlank()
             }
         val coverUploadCandidates = localBooks
@@ -1467,7 +1476,7 @@ class LibraryViewModel @Inject constructor(
         // A rebase (409-conflict retry) may have pulled and merged additional remote data into the local DB after
         // the counts above were computed; fold its deltas in so the reported summary reflects what actually synced.
         val entityMerges = listOf(
-            cloudLibraryMerge, tombstoneMerge, bookAliasMerge, shelfMerge, shelfMembershipMerge,
+            cloudLibraryMerge, bookAliasMerge, shelfMerge, shelfMembershipMerge,
             vocabularyCardMerge, readingSessionMerge, wordLookupCounterMerge, annotationMerge,
         )
         val totalBooksCreated = cloudLibraryMerge.created + metadataSave.extraBooksCreated
@@ -1944,18 +1953,18 @@ class LibraryViewModel @Inject constructor(
         reference: CloudAssetReference,
         store: GitHubContentsAssetStore,
     ): Int {
-        val localCoverMatchesCloud = book.coverPath
-            ?.let(storageRoots::resolve)
-            ?.takeIf { it.isFile && it.length() == reference.sizeBytes }
-            ?.let { coverFile ->
-                runCatchingCancellable { Hashing.sha256(coverFile.inputStream()) == reference.sha256 }
-                    .getOrDefault(false)
-            } == true
+        // The cheap metadata comparison first: only a cover that claims to be current is worth hashing to prove it.
         val localCoverIsCurrent = book.coverAssetId == reference.id &&
             book.coverAssetSha256 == reference.sha256 &&
             book.coverAssetSizeBytes == reference.sizeBytes &&
             book.coverAssetUploadedAt == reference.uploadedAt &&
-            localCoverMatchesCloud
+            book.coverPath
+                ?.let(storageRoots::resolve)
+                ?.takeIf { it.isFile && it.length() == reference.sizeBytes }
+                ?.let { coverFile ->
+                    runCatchingCancellable { Hashing.sha256(coverFile.inputStream()) == reference.sha256 }
+                        .getOrDefault(false)
+                } == true
         if (localCoverIsCurrent) return 0
 
         val passphrase = settingsRepository.snapshot.first().githubSyncPassphrase.toCharArray()
@@ -2121,29 +2130,33 @@ class LibraryViewModel @Inject constructor(
     }
 
     /**
-     * Adds a file-less entry for a paper book, so it can hold manually-typed quotes/notes.
-     * [onCreated] fires with the new book's id once it lands, so the caller can jump straight
-     * to its detail screen; it won't fire if [title] is blank or the insert somehow collides.
+     * Adds a book read outside the app (paper, audiobook or another app's ebook). [onCreated] fires with the new book's id once it lands,
+     * so the caller can open its details (e.g. to fetch Goodreads data).
      */
-    fun addPhysicalBook(title: String, author: String?, onCreated: (Long) -> Unit = {}) {
-        val cleanTitle = title.trim()
-        if (cleanTitle.isEmpty()) return
+    internal fun addOfflineBook(draft: OfflineBookDraft, onCreated: (Long) -> Unit = {}) {
+        if (draft.title.isBlank()) return
         viewModelScope.launch {
             val book = withContext(dispatchers.io) {
-                bookRepository.insertIfNew(
-                    title = cleanTitle,
-                    author = author?.trim()?.takeIf { it.isNotBlank() },
-                    series = null,
-                    seriesNumber = null,
-                    description = null,
-                    coverPath = null,
-                    filePath = "",
-                    format = BookFormat.PHYSICAL,
-                    fileHash = "physical:${UUID.randomUUID()}",
+                bookRepository.insertOfflineBook(
+                    title = draft.title,
+                    author = draft.author,
+                    format = draft.format,
+                    startedAt = draft.startedAt,
+                    finishedAt = draft.finishedAt,
+                    pageCount = draft.pageCount,
+                    currentPage = draft.currentPage,
                 )
             }
-            if (book != null) onCreated(book.id)
+            onCreated(book.id)
         }
+    }
+
+    fun updateOfflinePages(bookId: Long, pageCount: Int?, currentPage: Int?) {
+        viewModelScope.launch { bookRepository.updateOfflinePages(bookId, pageCount, currentPage) }
+    }
+
+    fun updateOfflineFormat(bookId: Long, format: BookFormat) {
+        viewModelScope.launch { bookRepository.updateOfflineFormat(bookId, format) }
     }
 
     private data class ImportCandidate(val uri: Uri, val displayName: String) {
@@ -2591,7 +2604,7 @@ private fun Book.coverNeedsUpload(storageRoots: StorageRoots): Boolean {
 }
 
 private fun Book.canRemoveLocalFileFromDevice(): Boolean =
-    format != BookFormat.PHYSICAL &&
+    !format.isOffline &&
         fileAvailability == BookFileAvailability.LOCAL &&
         filePath.isNotBlank() &&
         !fileAssetId.isNullOrBlank() &&
@@ -2612,6 +2625,7 @@ private fun PortableAsset.toCloudAssetReference(): CloudAssetReference? =
 private fun PortableCloudBook.toRecord(): CloudBookRecord? {
     val format = runCatchingCancellable { BookFormat.valueOf(format.uppercase()) }.getOrNull()
         ?: return null
+    if (fileAsset == null && !format.isOffline) return null
     return CloudBookRecord(
         syncId = syncId,
         title = title,
@@ -2622,10 +2636,10 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         tagsCsv = tagsCsv,
         format = format,
         fileHash = fileHash,
-        assetId = fileAsset.id,
-        assetSha256 = fileAsset.sha256,
-        assetSizeBytes = fileAsset.sizeBytes,
-        assetUploadedAt = fileAsset.uploadedAt,
+        assetId = fileAsset?.id,
+        assetSha256 = fileAsset?.sha256,
+        assetSizeBytes = fileAsset?.sizeBytes,
+        assetUploadedAt = fileAsset?.uploadedAt,
         coverAssetId = coverAsset?.id,
         coverAssetSha256 = coverAsset?.sha256,
         coverAssetSizeBytes = coverAsset?.sizeBytes,

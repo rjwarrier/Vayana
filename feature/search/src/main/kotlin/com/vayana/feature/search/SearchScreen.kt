@@ -56,7 +56,6 @@ import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.tokens.Elevations
@@ -89,6 +88,7 @@ fun SearchRoute(
     SearchScreen(
         modifier = modifier,
         uiState = uiState,
+        searchText = viewModel.searchText,
         onQueryChange = viewModel::updateQuery,
         onFilterChange = viewModel::updateFilter,
         onSubmitSearch = viewModel::recordSearch,
@@ -109,6 +109,8 @@ fun SearchRoute(
 @Composable
 private fun SearchScreen(
     uiState: GlobalSearchUiState,
+    /** What the search box shows; [uiState]'s query lags a frame behind typing. */
+    searchText: String,
     onQueryChange: (String) -> Unit,
     onBack: () -> Unit,
     onOpenBook: (Long) -> Unit,
@@ -154,7 +156,7 @@ private fun SearchScreen(
                         )
                     }
                     OutlinedTextField(
-                        value = uiState.query,
+                        value = searchText,
                         onValueChange = onQueryChange,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -168,7 +170,7 @@ private fun SearchScreen(
                             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = SearchFieldUnfocusedBorderAlpha),
                         ),
                         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                        trailingIcon = if (uiState.query.isNotEmpty()) {
+                        trailingIcon = if (searchText.isNotEmpty()) {
                             {
                                 IconButton(onClick = { onQueryChange("") }) {
                                     Icon(
@@ -252,7 +254,7 @@ private fun SearchResultsList(
                     result = result,
                     tokens = tokens,
                     onClick = {
-                        if (result.book.format != BookFormat.PHYSICAL) {
+                        if (!result.book.format.isOffline) {
                             onOpenReader(result.book.id, result.annotation.locator.ifBlank { "text:${result.annotation.id}" })
                         } else {
                             onOpenBook(result.book.id)

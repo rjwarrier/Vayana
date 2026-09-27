@@ -49,10 +49,11 @@ data class CloudBookRecord(
     val tagsCsv: String?,
     val format: BookFormat,
     val fileHash: String,
-    val assetId: String,
-    val assetSha256: String,
-    val assetSizeBytes: Long,
-    val assetUploadedAt: Long,
+    /** The file asset; all null for a book read outside the app ([BookFormat.isOffline]). */
+    val assetId: String?,
+    val assetSha256: String?,
+    val assetSizeBytes: Long?,
+    val assetUploadedAt: Long?,
     val coverAssetId: String?,
     val coverAssetSha256: String?,
     val coverAssetSizeBytes: Long?,
@@ -95,6 +96,9 @@ interface BookRepository {
 
     /** The most recently read book that can open in the reader on this device, or null. */
     suspend fun lastReadOpenableBookId(): Long?
+
+    /** The most recently read active book, whether or not its file is on this device. */
+    suspend fun lastReadBookId(): Long?
 
     /** Ids of books whose text matches every word of [text] (as word prefixes), most recently read first. */
     fun observeSearchIds(text: String, limit: Int): Flow<List<Long>>
@@ -146,6 +150,26 @@ interface BookRepository {
 
     /** Corrects when reading started and finished (null leaves the book unstarted or unfinished). */
     suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?)
+
+    /** Switches a book read outside the app to another offline type ([BookFormat.isOffline]). */
+    suspend fun updateOfflineFormat(id: Long, format: BookFormat)
+
+    /** Adds a file-less entry for a book read outside the app (see [BookFormat.isOffline]). */
+    suspend fun insertOfflineBook(
+        title: String,
+        author: String?,
+        format: BookFormat,
+        startedAt: Long?,
+        finishedAt: Long?,
+        pageCount: Int? = null,
+        currentPage: Int? = null,
+    ): Book
+
+    /**
+     * Sets an offline book's total pages and the page the reader is on; progress follows, and reaching the last page
+     * finishes the book. A [currentPage] without a [pageCount] is ignored.
+     */
+    suspend fun updateOfflinePages(id: Long, pageCount: Int?, currentPage: Int?)
 
     suspend fun updateCover(id: Long, coverPath: String?)
 

@@ -1,5 +1,6 @@
 package com.vayana.core.common
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -69,8 +70,18 @@ fun Context.shareText(text: String, chooserTitle: String) {
     startActivity(Intent.createChooser(intent, chooserTitle))
 }
 
-/** Writes [content] off the main thread, then shares it as [mimeType] via the system share sheet. */
-suspend fun Context.shareFile(content: String, fileName: String, mimeType: String, chooserTitle: String) {
+/**
+ * Writes [content] off the main thread, then shares it as [mimeType] via the system share sheet, with an
+ * optional [subject] and message [text] for targets such as email.
+ */
+suspend fun Context.shareFile(
+    content: String,
+    fileName: String,
+    mimeType: String,
+    chooserTitle: String,
+    subject: String? = null,
+    text: String? = null,
+) {
     val uri = withContext(Dispatchers.IO) {
         val dir = File(cacheDir, "shared_files").apply { mkdirs() }
         val file = File(dir, fileName)
@@ -80,6 +91,9 @@ suspend fun Context.shareFile(content: String, fileName: String, mimeType: Strin
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = mimeType
         putExtra(Intent.EXTRA_STREAM, uri)
+        subject?.let { putExtra(Intent.EXTRA_SUBJECT, it) }
+        text?.let { putExtra(Intent.EXTRA_TEXT, it) }
+        clipData = ClipData.newRawUri(fileName, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     startActivity(Intent.createChooser(intent, chooserTitle))

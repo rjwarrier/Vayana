@@ -11,11 +11,15 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
+/** The device a synced snapshot came from, or a generic label when it didn't say. */
+@Composable
+fun syncDeviceLabel(deviceLabel: String?): String =
+    deviceLabel?.trim()?.takeIf { it.isNotEmpty() } ?: stringResource(R.string.sync_status_unknown_device)
+
 /** A consistent, human-friendly description of the cloud snapshot behind a sync conflict. */
 @Composable
 fun cloudSyncStatusText(syncedAt: Long?, deviceLabel: String?): String {
-    val configuredDevice = deviceLabel?.trim()?.takeIf { it.isNotEmpty() }
-    val device = configuredDevice ?: stringResource(R.string.sync_status_unknown_device)
+    val device = syncDeviceLabel(deviceLabel)
     if (syncedAt == null) {
         return stringResource(R.string.sync_status_from_device, device)
     }

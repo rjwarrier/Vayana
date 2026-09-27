@@ -3,7 +3,6 @@ package com.vayana.core.sync.asset
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.common.Hashing
 import com.vayana.core.database.model.BookFileAvailability
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.filesystem.StorageRoots
 import java.io.File
@@ -93,7 +92,7 @@ class CloudBookAssetTransfer @Inject constructor(
     suspend fun prepareBookFile(bookId: Long, passphrase: CharArray): PreparedCloudAsset = withContext(dispatchers.io) {
         require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         val book = bookRepository.getById(bookId) ?: error("Book not found")
-        check(book.format != BookFormat.PHYSICAL) { "Physical books do not have downloadable assets" }
+        check(!book.format.isOffline) { "Books read outside the app do not have downloadable assets" }
         check(book.fileAvailability == BookFileAvailability.LOCAL) { "Only local book files can be uploaded" }
         check(book.filePath.isNotBlank()) { "Book file path is empty" }
         val file = storageRoots.resolve(book.filePath)

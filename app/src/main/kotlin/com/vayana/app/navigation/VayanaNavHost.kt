@@ -32,6 +32,7 @@ import com.vayana.core.designsystem.theme.vayanaSharedElementCrossfadeEnter
 import com.vayana.core.designsystem.theme.vayanaSharedElementCrossfadeExit
 import com.vayana.core.designsystem.theme.vayanaNavTabEnter
 import com.vayana.core.designsystem.theme.vayanaNavTabExit
+import com.vayana.feature.library.OfflineBooksRoute as OfflineBooksScreenRoute
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
 import com.vayana.feature.library.LibraryAddAction
 import com.vayana.feature.library.BookOpenTransitionSource
@@ -142,6 +143,7 @@ fun VayanaNavHost(
                 onSearchClick = { navController.navigate(SearchRoute) },
                 onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
                 onShelvesClick = { navController.navigate(ShelvesRoute) },
+                onOfflineBooksClick = { navController.navigate(OfflineBooksRoute) },
                 onContinueReading = { bookId, locator ->
                     navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
                 },
@@ -198,11 +200,23 @@ fun VayanaNavHost(
                 onOpenReader = { bookId, locator -> navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator)) },
             )
         }
-        composable<RecentlyDeletedRoute> {
-            RecentlyDeletedScreenRoute(onBack = { navController.popBackStack() })
+        composable<RecentlyDeletedRoute> { backStackEntry ->
+            RecentlyDeletedScreenRoute(
+                onBack = { navController.popBackStack() },
+                viewModel = navController.sharedLibraryViewModel(backStackEntry),
+            )
         }
-        composable<ShelvesRoute> {
+        composable<OfflineBooksRoute> { backStackEntry ->
+            OfflineBooksScreenRoute(
+                viewModel = navController.sharedLibraryViewModel(backStackEntry),
+                onBack = { navController.popBackStack() },
+                onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
+                onFetchGoodreads = { bookId -> navController.navigate(BookDetailRoute(bookId, openGoodreads = true)) },
+            )
+        }
+        composable<ShelvesRoute> { backStackEntry ->
             ShelvesScreenRoute(
+                viewModel = navController.sharedLibraryViewModel(backStackEntry),
                 onBack = { navController.popBackStack() },
                 onShelfClick = { shelfId -> navController.navigate(ShelfDetailRoute(shelfId)) },
                 onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
@@ -211,6 +225,7 @@ fun VayanaNavHost(
         composable<ShelfDetailRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<ShelfDetailRoute>()
             ShelfDetailScreenRoute(
+                viewModel = navController.sharedLibraryViewModel(backStackEntry),
                 shelfId = route.shelfId,
                 onBack = { navController.popBackStack() },
                 onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
@@ -219,6 +234,7 @@ fun VayanaNavHost(
         composable<SeriesFolderRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<SeriesFolderRoute>()
             SeriesFolderScreenRoute(
+                viewModel = navController.sharedLibraryViewModel(backStackEntry),
                 seriesKey = route.seriesKey,
                 onBack = { navController.popBackStack() },
                 onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
@@ -229,16 +245,12 @@ fun VayanaNavHost(
             val transitionSource = remember(route.transitionSource) {
                 BookOpenTransitionSource.entries.firstOrNull { source -> source.name == route.transitionSource }
             }
-            val viewModelOwner = remember(backStackEntry) {
-                navController.previousBackStackEntry
-                    ?.takeIf { entry -> entry.destination.hasRoute<TopLevelRoute.Library>() }
-                    ?: backStackEntry
-            }
-            val libraryViewModel: LibraryViewModel = hiltViewModel(viewModelOwner)
+            val libraryViewModel = navController.sharedLibraryViewModel(backStackEntry)
             ProvideBookSharedTransitionScopes(this@SharedTransitionLayout, this@composable) {
                 com.vayana.feature.library.BookDetailRoute(
                     bookId = route.bookId,
                     transitionSource = transitionSource,
+                    openGoodreads = route.openGoodreads,
                     viewModel = libraryViewModel,
                     onBack = { navController.popBackStack() },
                     onReadableSourceChanged = { readable ->
@@ -286,3 +298,15 @@ private fun NavDestination.tabDirectionTo(target: NavDestination): Int {
     val targetIndex = TopLevelDestination.entries.indexOfFirst { target.hasRoute(it.routeClass) }
     return if (targetIndex >= initialIndex) 1 else -1
 }
+
+/** The Books tab's entry, which owns the shared [LibraryViewModel]; [fallback] when it isn't on the back stack. */
+private fun NavHostController.libraryEntryOr(fallback: NavBackStackEntry): NavBackStackEntry =
+    runCatching { getBackStackEntry<TopLevelRoute.Library>() }.getOrDefault(fallback)
+
+/**
+ * The Books tab's [LibraryViewModel] for screens reached from it (details, shelves, folders, offline books), instead
+ * of a fresh copy per screen that would start its own library flows and launch checks.
+ */
+@Composable
+private fun NavHostController.sharedLibraryViewModel(entry: NavBackStackEntry): LibraryViewModel =
+    hiltViewModel(remember(entry) { libraryEntryOr(entry) })

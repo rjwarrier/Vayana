@@ -1,22 +1,18 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material3.Icon
@@ -28,22 +24,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.vayana.core.designsystem.theme.PagedLazyColumn
 import com.vayana.core.designsystem.theme.VayanaSnackbarHost
-import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -51,11 +44,13 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
-import java.io.File
 
 @Composable
-fun RecentlyDeletedRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val viewModel: LibraryViewModel = hiltViewModel()
+fun RecentlyDeletedRoute(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: LibraryViewModel = hiltViewModel(),
+) {
     val deletedBooks by viewModel.recentlyDeletedBooks.collectAsStateWithLifecycle()
     val deletionNotice by viewModel.permanentDeletionNotice.collectAsStateWithLifecycle()
 
@@ -158,33 +153,7 @@ private fun DeletedBookCard(
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                modifier = Modifier
-                    .width(Sizes.coverWidthMin)
-                    .aspectRatio(Sizes.coverAspectRatio)
-                    .clip(RoundedCornerShape(Radii.small)),
-                shape = RoundedCornerShape(Radii.small),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            ) {
-                if (book.coverPath != null && File(book.coverPath).exists()) {
-                    AsyncImage(
-                        model = File(book.coverPath),
-                        contentDescription = book.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        colorFilter = rememberCoverColorFilter(),
-                    )
-                } else {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoStories,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.icon),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
+            BookCover(book = book, modifier = Modifier.width(Sizes.coverWidthMin))
 
             Column(
                 modifier = Modifier.weight(1f),

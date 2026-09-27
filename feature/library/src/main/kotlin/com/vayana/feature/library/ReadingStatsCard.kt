@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -54,7 +55,23 @@ internal fun ReadingStatsCard(
     onEditStarted: (() -> Unit)? = null,
     /** As [onEditStarted], for the finish date of a finished book. */
     onEditFinished: (() -> Unit)? = null,
+    /** For a book read outside the app: switches it to another offline type (paper, audiobook, other ebook). */
+    onChangeFormat: ((BookFormat) -> Unit)? = null,
+    /** For a book read outside the app: opens the page editor. */
+    onEditPages: (() -> Unit)? = null,
 ) {
+    if (book.format.isOffline) {
+        OfflineReadingStatsCard(
+            book = book,
+            finished = finished,
+            modifier = modifier,
+            onEditStarted = onEditStarted,
+            onEditFinished = onEditFinished,
+            onChangeFormat = onChangeFormat,
+            onEditPages = onEditPages,
+        )
+        return
+    }
     val context = LocalContext.current
     val startedAt = book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
     val daysTaken = remember(startedAt, book.finishedReadingAt) {
@@ -109,26 +126,112 @@ internal fun ReadingStatsCard(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        // Equal tiles in a fixed two-column grid: each row takes its tallest tile's height, every tile its share
-        // of the width, so the grid never wraps into uneven rows.
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            stats.chunked(ReadingStatColumns).forEach { row ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    row.forEach { stat ->
-                        ReadingStatTile(
-                            stat = stat,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight(),
-                        )
-                    }
-                    repeat(ReadingStatColumns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+        ReadingStatGrid(stats)
+    }
+}
+
+/**
+ * The reading card for a book read outside the app: only what the reader entered - the page they are on (with the
+ * progress bar, as for books read here), start and finish dates (shown as not set until chosen), the days between
+ * them, and the book's type, which its tile toggles. Every entered value is editable from its tile.
+ */
+@Composable
+private fun OfflineReadingStatsCard(
+    book: Book,
+    finished: Boolean,
+    modifier: Modifier,
+    onEditStarted: (() -> Unit)?,
+    onEditFinished: (() -> Unit)?,
+    onChangeFormat: ((BookFormat) -> Unit)?,
+    onEditPages: (() -> Unit)?,
+) {
+    val context = LocalContext.current
+    val notSet = stringResource(R.string.offline_book_date_not_set)
+    val pageCount = book.pageCount
+    val currentPage = book.currentPage()
+    val startedAt = book.startedReadingAt
+    val daysText = remember(startedAt, book.finishedReadingAt, context) {
+        startedAt?.let { formatDaysTaken(calculateDaysTaken(it, book.finishedReadingAt), context) }
+    }
+    // Each tap moves to the next type, wrapping round: Physical, Audiobook, Other ebook.
+    val offline = BookFormat.Offline
+    val otherFormat = offline[(offline.indexOf(book.format) + 1) % offline.size]
+    val stats = listOfNotNull(
+        // An audiobook has no pages, so it gets no page tile.
+        if (!book.format.tracksPages) null else ReadingStat(
+            label = stringResource(R.string.offline_book_pages_label),
+            value = if (pageCount != null && currentPage != null) {
+                stringResource(R.string.offline_book_pages_value, currentPage, pageCount)
+            } else {
+                notSet
+            },
+            onClick = onEditPages,
+            clickLabel = stringResource(R.string.offline_book_edit_pages),
+        ),
+        ReadingStat(
+            label = stringResource(R.string.library_stat_started),
+            value = startedAt?.formatDate() ?: notSet,
+            onClick = onEditStarted,
+            clickLabel = stringResource(R.string.library_edit_started_date),
+        ),
+        ReadingStat(
+            label = stringResource(R.string.library_status_finished),
+            value = book.finishedReadingAt?.formatDate() ?: notSet,
+            onClick = onEditFinished,
+            clickLabel = stringResource(R.string.library_edit_finished_date),
+        ),
+        ReadingStat(
+            label = stringResource(if (finished) R.string.library_stat_days_taken else R.string.library_stat_days_so_far),
+            value = daysText ?: notSet,
+        ),
+        ReadingStat(
+            label = stringResource(R.string.offline_book_type_label),
+            value = book.format.displayLabel(),
+            onClick = onChangeFormat?.let { change -> { change(otherFormat) } },
+            clickLabel = stringResource(R.string.offline_book_change_type),
+        ),
+    )
+    BookDetailSection(
+        icon = book.format.offlineIcon(),
+        title = when {
+            finished -> stringResource(R.string.library_status_finished)
+            pageCount != null -> stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
+            startedAt != null -> stringResource(R.string.offline_book_status_reading)
+            else -> stringResource(R.string.library_status_not_started)
+        },
+        modifier = modifier,
+    ) {
+        if (!finished && pageCount != null) {
+            VayanaLinearWavyProgressIndicator(
+                progress = { book.readingPercent.coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        ReadingStatGrid(stats)
+    }
+}
+
+@Composable
+private fun ReadingStatGrid(stats: List<ReadingStat>) {
+    // Equal tiles in a fixed two-column grid: each row takes its tallest tile's height, every tile its share
+    // of the width, so the grid never wraps into uneven rows.
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        stats.chunked(ReadingStatColumns).forEach { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                row.forEach { stat ->
+                    ReadingStatTile(
+                        stat = stat,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
                 }
+                repeat(ReadingStatColumns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
             }
         }
     }
@@ -213,7 +316,7 @@ internal fun formatReadingDuration(totalSeconds: Long, context: android.content.
     }
 }
 
-private fun calculateDaysTaken(startedAt: Long, finishedAt: Long?): Int {
+internal fun calculateDaysTaken(startedAt: Long, finishedAt: Long?): Int {
     val startCal = java.util.Calendar.getInstance().apply {
         timeInMillis = startedAt
         set(java.util.Calendar.HOUR_OF_DAY, 0)

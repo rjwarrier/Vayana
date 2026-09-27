@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.Book
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.HighlightReviewRepository
 import com.vayana.core.database.repository.ReviewGrade
@@ -105,7 +104,7 @@ class HighlightReviewViewModel @Inject constructor(
             bookCoverPath = book.coverPath,
             bookSeries = book.series,
             bookSeriesNumber = book.seriesNumber,
-            canOpen = book.format != BookFormat.PHYSICAL,
+            canOpen = !book.format.isOffline,
         )
         }
     }

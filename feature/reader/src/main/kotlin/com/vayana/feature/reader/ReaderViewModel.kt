@@ -826,8 +826,6 @@ class ReaderViewModel @Inject constructor(
 
     fun pauseReadAloud() = readAloudPlayer.pause()
 
-    fun skipReadAloudSentence(sentences: Int) = readAloudPlayer.skip(sentences)
-
     fun stopReadAloud() = readAloudPlayer.stop()
 
     fun cycleReadAloudSleepTimer() = readAloudPlayer.cycleSleepTimer()

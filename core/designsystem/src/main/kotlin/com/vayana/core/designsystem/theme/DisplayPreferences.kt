@@ -25,7 +25,9 @@ fun DateFormatStyle.format(epochMillis: Long): String = format(epochMillis.toLoc
 /** The date in this style followed by the device's short time. */
 fun DateFormatStyle.formatWithTime(epochMillis: Long): String {
     val dateTime = epochMillis.toLocalDateTime()
-    val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.getDefault()).format(dateTime)
+    val locale = Locale.getDefault()
+    val time = timeFormatterCache.getOrPut(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
+        .format(dateTime)
     return "${format(dateTime.toLocalDate())} $time"
 }
 
@@ -44,9 +46,21 @@ fun LocalDate.asAppDate(): String = LocalDateFormatStyle.current.format(this)
 
 private fun Long.toLocalDateTime() = Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault())
 
-private fun DateFormatStyle.formatter(): DateTimeFormatter = when (this) {
-    DateFormatStyle.SYSTEM -> DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault())
-    DateFormatStyle.DAY_FIRST -> DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
-    DateFormatStyle.MONTH_FIRST -> DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())
-    DateFormatStyle.ISO -> DateTimeFormatter.ISO_LOCAL_DATE
+/**
+ * Formatters are immutable and thread-safe but costly to build (patterns are parsed), and dates are formatted in list
+ * rows on every recomposition, so each style keeps one per locale.
+ */
+private fun DateFormatStyle.formatter(): DateTimeFormatter {
+    val locale = Locale.getDefault()
+    return formatterCache.getOrPut(this to locale) {
+        when (this) {
+            DateFormatStyle.SYSTEM -> DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+            DateFormatStyle.DAY_FIRST -> DateTimeFormatter.ofPattern("d MMM yyyy", locale)
+            DateFormatStyle.MONTH_FIRST -> DateTimeFormatter.ofPattern("MMM d, yyyy", locale)
+            DateFormatStyle.ISO -> DateTimeFormatter.ISO_LOCAL_DATE
+        }
+    }
 }
+
+private val formatterCache = java.util.concurrent.ConcurrentHashMap<Pair<DateFormatStyle, Locale>, DateTimeFormatter>()
+private val timeFormatterCache = java.util.concurrent.ConcurrentHashMap<Locale, DateTimeFormatter>()

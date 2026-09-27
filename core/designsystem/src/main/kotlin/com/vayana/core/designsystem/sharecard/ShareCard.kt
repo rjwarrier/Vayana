@@ -701,7 +701,7 @@ private fun String.sanitizedShareTag(): String =
     map { if (Character.isISOControl(it)) ' ' else it }
         .joinToString("")
         .trim()
-        .replace(Regex("\\s+"), " ")
+        .replace(WhitespaceRun, " ")
         .take(MaxBookShareTagChars)
         .trim()
 
@@ -710,3 +710,4 @@ private const val AdaptiveIconVisibleScale = 1.3f
 
 private const val MaxBookShareTags = 3
 private const val MaxBookShareTagChars = 24
+private val WhitespaceRun = Regex("\\s+")

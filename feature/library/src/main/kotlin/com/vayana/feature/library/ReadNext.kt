@@ -35,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -305,7 +304,7 @@ internal fun ReadNextSeriesBreakDialog(
     }
 }
 
-private fun Book.isReadNextCandidate(): Boolean = format != BookFormat.PHYSICAL && !isFinished()
+private fun Book.isReadNextCandidate(): Boolean = !format.isOffline && !isFinished()
 
 /** The lowest-numbered unread book of [seriesKey] after [afterNumber] (any number when null), excluding [current]. */
 private fun List<Book>.nextInSeries(current: Book, seriesKey: String, afterNumber: Double?): Book? = asSequence()

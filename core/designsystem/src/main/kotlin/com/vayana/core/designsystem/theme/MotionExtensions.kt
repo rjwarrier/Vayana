@@ -41,13 +41,6 @@ fun isMotionEnabled(): Boolean {
 }
 
 @Composable
-fun isExpressiveMotion(): Boolean {
-    val profile = LocalDisplayProfile.current
-    val motion = LocalMotionSetting.current
-    return profile != DisplayProfile.E_INK && motion == MotionSetting.FULL
-}
-
-@Composable
 fun <T> vayanaSpring(
     dampingRatio: Float = Spring.DampingRatioLowBouncy,
     stiffness: Float = Spring.StiffnessMediumLow,

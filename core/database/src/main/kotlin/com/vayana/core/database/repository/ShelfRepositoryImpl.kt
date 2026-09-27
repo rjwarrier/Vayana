@@ -33,10 +33,6 @@ class ShelfRepositoryImpl @Inject constructor(
         return entity.copy(id = id).toDomain()
     }
 
-    override suspend fun rename(id: Long, name: String) {
-        shelfDao.rename(id, name, System.currentTimeMillis())
-    }
-
     override suspend fun delete(id: Long) {
         database.withTransaction {
             shelfDao.getById(id)?.let { shelf ->
@@ -52,7 +48,8 @@ class ShelfRepositoryImpl @Inject constructor(
     override fun observeShelvesForBook(bookId: Long): Flow<List<Shelf>> =
         shelfDao.observeShelvesForBook(bookId).map { entities -> entities.map { it.toDomain() } }
 
-    override fun observeShelfBookCount(shelfId: Long): Flow<Int> = shelfDao.observeShelfBookCount(shelfId)
+    override fun observeShelfBookCounts(): Flow<Map<Long, Int>> =
+        shelfDao.observeShelfBookCounts().map { counts -> counts.associate { it.shelfId to it.count } }
 
     override suspend fun addBookToShelf(bookId: Long, shelfId: Long) {
         database.withTransaction {

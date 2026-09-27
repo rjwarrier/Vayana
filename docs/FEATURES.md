@@ -87,6 +87,35 @@ queues the chosen one.
 
 **Tests:** `feature/library/.../ReadNextTest.kt`, `core/database/.../repository/ReadNextStateTest.kt`.
 
+## Offline books (physical, audiobooks, other ebooks)
+
+**Code:** `feature/library/OfflineBooksScreen.kt`, `AddOfflineBookDialog.kt`, `ReadingStatsCard.kt`
+(`OfflineReadingStatsCard`), `BookShareStats.kt`, `ReadingDatePickerDialog.kt` (shared with Book details),
+`OfflinePages` (`core/database/model/Book.kt`), `BookFormat.isOffline` (`core/database/model/Book.kt`),
+`BookRepositoryImpl.insertOfflineBook` / `updateOfflineFormat` / `mergeCloudBook`.
+
+- Books read outside the app are ordinary `books` rows with format `PHYSICAL`, `AUDIOBOOK` or `OTHER_EBOOK` (an ebook
+  read in another app or device), `filePath = ""` and a unique `fileHash` (`<format>:<uuid>`). No schema change:
+  `format` is stored as text.
+- Library menu (three dots) → **Offline books** lists them; they are kept off the Books list, series folders and
+  Read Next, but appear in Search, Shelves, Notes and Statistics.
+- Adding one asks for title, author, type, optional start/finish dates, and "Fetch details from Goodreads" (on by
+  default), which opens the new book's details straight into the Goodreads picker (`BookDetailRoute.openGoodreads`).
+- The finish date drives progress (`BookRepositoryImpl.updateReadingDates` sets `readingPercent` to 1, or back to 0 when the finish is cleared), so
+  finished offline books count towards the yearly goal like any other.
+- **Pages:** total pages live in the existing `pageEstimate` column (`Book.pageCount`); the current page is
+  `readingPercent × pageCount`, so page progress needs no schema change and syncs with the book. Reaching the last
+  page finishes the book and going back un-finishes it (`BookRepositoryImpl.updateOfflinePages`).
+- Book details shows the wavy progress bar (once pages are known) and page, start, finish, days and type tiles, each
+  editable (tapping type cycles Physical → Audiobook → Other ebook); the share card shows format and days in place of progress and
+  reading time.
+- **Sync:** the full GitHub sync carries them as book records without a `fileAsset` (`parsePortableCloudBooks`
+  accepts that only for offline formats) and creates them `LOCAL` on other devices. Offline books have no reader
+  position, so their dates and type travel with the book metadata (LWW on `updatedAt`), not the progress-only sync.
+  Older app versions skip them.
+
+**Tests:** `feature/library/.../OfflineBookRepositoryTest.kt`, `core/backup/.../PortableReadingProgressJsonTest.kt`.
+
 ## Deleting books
 
 **Code:** `feature/library/BookDeletionDialogs.kt`, `PermanentDeletionNotices.kt`, `LibraryViewModel.deleteBook` /

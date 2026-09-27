@@ -762,7 +762,7 @@ private fun ReadingActivityCard(dailyMinutes: List<DailyReadingMinutes>, recentW
                     modifier = Modifier.padding(start = Spacing.xs),
                     horizontalArrangement = Arrangement.spacedBy(HeatmapCellGap),
                 ) {
-                    items(weeks.size) { weekIndex ->
+                    items(weeks.size, key = { weekIndex -> weeks[weekIndex].first().date.toEpochDay() }) { weekIndex ->
                         WeekColumn(
                             week = weeks[weekIndex],
                             monthLabel = monthLabels[weekIndex],

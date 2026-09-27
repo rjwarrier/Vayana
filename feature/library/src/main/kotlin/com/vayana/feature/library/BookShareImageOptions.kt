@@ -32,6 +32,8 @@ internal fun BookShareImageOptionsPanel(
     hasTags: Boolean,
     hasYearlyGoal: Boolean,
     onOptionsChange: (BookShareImageOptions) -> Unit,
+    /** Names the stat and date chips after what this book's card shows in those places. */
+    stats: BookShareStats,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_layout))
@@ -123,12 +125,12 @@ internal fun BookShareImageOptionsPanel(
             )
             ShareCardOptionChip(
                 selected = options.showProgress,
-                label = stringResource(R.string.share_card_image_options_progress),
+                label = stringResource(stats.stat1OptionLabel),
                 onClick = { onOptionsChange(options.copy(showProgress = !options.showProgress)) },
             )
             ShareCardOptionChip(
                 selected = options.showReadTime,
-                label = stringResource(R.string.share_card_image_options_read_time),
+                label = stringResource(stats.stat2OptionLabel),
                 onClick = { onOptionsChange(options.copy(showReadTime = !options.showReadTime)) },
             )
             // An unrated book has nothing to show here, so the toggle would change nothing in the preview.
@@ -153,7 +155,7 @@ internal fun BookShareImageOptionsPanel(
             }
             ShareCardOptionChip(
                 selected = options.showImportedDate,
-                label = stringResource(R.string.share_card_image_options_imported_date),
+                label = stringResource(stats.dateOptionLabel),
                 onClick = {
                     val showImportedDate = !options.showImportedDate
                     onOptionsChange(options.copy(showImportedDate = showImportedDate, showTags = options.showTags && !showImportedDate))

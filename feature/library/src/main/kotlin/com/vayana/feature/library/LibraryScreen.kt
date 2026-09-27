@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.RestoreFromTrash
@@ -115,7 +116,6 @@ import coil3.compose.AsyncImage
 import com.vayana.core.designsystem.theme.rememberCoverColorFilter
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
-import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.VayanaSnackbarHost
@@ -159,6 +159,7 @@ fun LibraryRoute(
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
+    onOfflineBooksClick: () -> Unit,
     addBookAction: LibraryAddAction? = null,
     onAddBookActionHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -176,6 +177,7 @@ fun LibraryRoute(
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
+        searchText = viewModel.searchText,
         allBooks = uiState.allBooks,
         readNextQueue = readNextQueue,
         deletionNotice = deletionNotice,
@@ -206,6 +208,7 @@ fun LibraryRoute(
         onSearchClick = onSearchClick,
         onRecentlyDeletedClick = onRecentlyDeletedClick,
         onShelvesClick = onShelvesClick,
+        onOfflineBooksClick = onOfflineBooksClick,
         onQueryChange = viewModel::updateQuery,
         onSortChange = viewModel::updateSort,
         onFilterChange = viewModel::updateFilter,
@@ -218,6 +221,7 @@ fun LibraryRoute(
 private fun LibraryScreen(
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
+    searchText: String,
     allBooks: List<Book>,
     readNextQueue: List<Book>,
     deletionNotice: PermanentDeletionNotice?,
@@ -248,6 +252,7 @@ private fun LibraryScreen(
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
+    onOfflineBooksClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
     onFilterChange: (LibraryFilter) -> Unit,
@@ -462,6 +467,7 @@ private fun LibraryScreen(
             ) {
                 LibraryTopBar(
                     controls = uiState.controls,
+                    searchText = searchText,
                     searchFocusRequester = searchFocusRequester,
                     showSyncNow = true,
                     syncRunning = syncRunning,
@@ -475,6 +481,7 @@ private fun LibraryScreen(
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
+                    onOfflineBooksClick = onOfflineBooksClick,
                     onStatsShareClick = { showStatsShareDialog = true },
                     onQueryChange = onQueryChange,
                     onSortChange = onSortChange,
@@ -623,56 +630,6 @@ private fun LibraryScreen(
 }
 
 @Composable
-private fun AddPhysicalBookDialog(onDismiss: () -> Unit, onConfirm: (String, String?) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var author by remember { mutableStateOf("") }
-
-    ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
-        ExpressiveDialogHeader(
-            icon = Icons.Outlined.AutoStories,
-            title = stringResource(R.string.library_add_physical_book_title),
-            supportingText = stringResource(R.string.library_add_physical_book_hint),
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-        OutlinedTextField(
-            value = title,
-            onValueChange = { title = it },
-            label = { Text(stringResource(R.string.library_add_physical_book_book_title)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radii.medium),
-            colors = expressiveTextFieldColors(),
-        )
-        OutlinedTextField(
-            value = author,
-            onValueChange = { author = it },
-            label = { Text(stringResource(R.string.library_add_physical_book_author)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radii.medium),
-            colors = expressiveTextFieldColors(),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledTonalButton(onClick = onDismiss, shape = Radii.buttonShape) {
-                Text(stringResource(R.string.settings_reset_all_cancel))
-            }
-            Button(
-                onClick = { onConfirm(title.trim(), author.trim().takeIf { it.isNotBlank() }) },
-                enabled = title.isNotBlank(),
-                shape = Radii.buttonShape,
-            ) {
-                Text(stringResource(R.string.library_add_physical_book_confirm))
-            }
-        }
-    }
-}
-
-@Composable
 internal fun expressiveTextFieldColors(): androidx.compose.material3.TextFieldColors =
     OutlinedTextFieldDefaults.colors(
         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -689,6 +646,8 @@ private enum class LibrarySyncBadge {
 @Composable
 private fun LibraryTopBar(
     controls: LibraryControls,
+    /** What the search box shows; held apart from [controls], which lag a frame behind typing. */
+    searchText: String,
     searchFocusRequester: FocusRequester,
     showSyncNow: Boolean,
     showAddAction: Boolean,
@@ -702,6 +661,7 @@ private fun LibraryTopBar(
     onSearchClick: () -> Unit,
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
+    onOfflineBooksClick: () -> Unit,
     onStatsShareClick: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
@@ -887,6 +847,17 @@ private fun LibraryTopBar(
                                         onClick = onStatsShareClick,
                                     ),
                                 )))
+                                add(
+                                    VayanaMenuGroup(
+                                        listOf(
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.offline_books_title),
+                                                icon = Icons.Outlined.Headphones,
+                                                onClick = onOfflineBooksClick,
+                                            ),
+                                        ),
+                                    ),
+                                )
                                 if (showSettingsAction) {
                                     add(
                                         VayanaMenuGroup(
@@ -922,7 +893,7 @@ private fun LibraryTopBar(
 
             val focusManager = LocalFocusManager.current
             OutlinedTextField(
-                value = controls.query,
+                value = searchText,
                 onValueChange = onQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -941,7 +912,7 @@ private fun LibraryTopBar(
                 ),
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 trailingIcon = {
-                    if (controls.query.isNotEmpty()) {
+                    if (searchText.isNotEmpty()) {
                         IconButton(onClick = { onQueryChange("") }) {
                             Icon(
                                 imageVector = Icons.Outlined.Close,
@@ -1096,10 +1067,18 @@ private fun LibraryGrid(
     onRemoveFromReadNext: (Book) -> Unit,
     onViewAllReadNext: () -> Unit,
 ) {
-    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) LibraryDisplayBooks(null, books) else rememberLibraryDisplayBooks(books)
+    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) {
+        remember(books) { LibraryDisplayBooks(null, books) }
+    } else {
+        rememberLibraryDisplayBooks(books)
+    }
     val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
-    val folderItems = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
+    // Grouping walks and sorts the whole library: only redo it when the rows change, not on every recomposition
+    // (selection, download progress).
+    val folderItems = remember(displayBooks.rows, groupBy) {
+        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
+    }
     val placementSpec = rememberLazyItemPlacementSpec()
 
     PagedLazyVerticalGrid(
@@ -1217,10 +1196,18 @@ private fun LibraryList(
     onRemoveFromReadNext: (Book) -> Unit,
     onViewAllReadNext: () -> Unit,
 ) {
-    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) LibraryDisplayBooks(null, books) else rememberLibraryDisplayBooks(books)
+    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) {
+        remember(books) { LibraryDisplayBooks(null, books) }
+    } else {
+        rememberLibraryDisplayBooks(books)
+    }
     val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
-    val folderItems = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
+    // Grouping walks and sorts the whole library: only redo it when the rows change, not on every recomposition
+    // (selection, download progress).
+    val folderItems = remember(displayBooks.rows, groupBy) {
+        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
+    }
     val placementSpec = rememberLazyItemPlacementSpec()
 
     PagedLazyColumn(
@@ -1964,7 +1951,7 @@ internal fun LibraryFilter.label(): String = when (this) {
 }
 
 internal fun Book.hasLocalReadableSource(): Boolean =
-    format != BookFormat.PHYSICAL &&
+    !format.isOffline &&
         fileAvailability == BookFileAvailability.LOCAL &&
         filePath.isNotBlank()
 

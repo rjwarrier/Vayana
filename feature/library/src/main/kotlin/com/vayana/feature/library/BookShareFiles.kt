@@ -7,6 +7,8 @@ import com.vayana.core.database.model.BookFormat
 import com.vayana.core.resources.R
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal fun Book.toShareText(context: android.content.Context): String {
     val progress = (readingPercent * 100).toInt()
@@ -17,10 +19,13 @@ internal fun Book.toShareText(context: android.content.Context): String {
     }.trim()
 }
 
-internal fun android.content.Context.shareBookFile(book: Book) {
-    val source = File(book.filePath)
-    val sharedFile = source.copyToSharedBookFile(this, book.shareFileName(source))
-    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", sharedFile)
+/** Copies the book file into the share cache off the main thread (books can be hundreds of MB), then shares it. */
+internal suspend fun android.content.Context.shareBookFile(book: Book) {
+    val uri = withContext(Dispatchers.IO) {
+        val source = File(book.filePath)
+        val sharedFile = source.copyToSharedBookFile(this@shareBookFile, book.shareFileName(source))
+        FileProvider.getUriForFile(this@shareBookFile, "$packageName.fileprovider", sharedFile)
+    }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = book.format.shareMimeType()
         putExtra(Intent.EXTRA_STREAM, uri)
@@ -70,6 +75,8 @@ private fun BookFormat.shareMimeType(): String = when (this) {
     BookFormat.AZW3,
     BookFormat.FB2,
     BookFormat.PHYSICAL,
+    BookFormat.AUDIOBOOK,
+    BookFormat.OTHER_EBOOK,
     -> "application/octet-stream"
 }
 
@@ -80,5 +87,5 @@ private fun BookFormat.defaultExtension(): String = when (this) {
     BookFormat.MOBI -> "mobi"
     BookFormat.AZW3 -> "azw3"
     BookFormat.FB2 -> "fb2"
-    BookFormat.PHYSICAL -> ""
+    BookFormat.PHYSICAL, BookFormat.AUDIOBOOK, BookFormat.OTHER_EBOOK -> ""
 }

@@ -55,6 +55,9 @@ data object HighlightReviewRoute
 data object ShelvesRoute
 
 @Serializable
+data object OfflineBooksRoute
+
+@Serializable
 data class ShelfDetailRoute(val shelfId: Long)
 
 @Serializable
@@ -64,6 +67,8 @@ data class SeriesFolderRoute(val seriesKey: String)
 data class BookDetailRoute(
     val bookId: Long,
     val transitionSource: String? = null,
+    /** Opens straight into the Goodreads picker, e.g. for a book just added without a file. */
+    val openGoodreads: Boolean = false,
 )
 
 /** The Notes screen opened straight on one book's notes, from that book's details. */
@@ -110,6 +115,7 @@ internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boo
             hasRoute(SearchRoute::class) ||
             hasRoute(RecentlyDeletedRoute::class) ||
             hasRoute(ShelvesRoute::class) ||
+            hasRoute(OfflineBooksRoute::class) ||
             hasRoute(ShelfDetailRoute::class) ||
             hasRoute(SeriesFolderRoute::class) ||
             hasRoute(BookDetailRoute::class)

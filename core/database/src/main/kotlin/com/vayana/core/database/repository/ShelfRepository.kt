@@ -26,15 +26,14 @@ interface ShelfRepository {
 
     suspend fun create(name: String): Shelf
 
-    suspend fun rename(id: Long, name: String)
-
     suspend fun delete(id: Long)
 
     fun observeBooksForShelf(shelfId: Long): Flow<List<Book>>
 
     fun observeShelvesForBook(bookId: Long): Flow<List<Shelf>>
 
-    fun observeShelfBookCount(shelfId: Long): Flow<Int>
+    /** How many books each shelf holds, by shelf id; a shelf without books is missing from the map. */
+    fun observeShelfBookCounts(): Flow<Map<Long, Int>>
 
     suspend fun addBookToShelf(bookId: Long, shelfId: Long)
 

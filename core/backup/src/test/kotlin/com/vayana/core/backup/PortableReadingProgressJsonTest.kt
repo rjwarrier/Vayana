@@ -120,7 +120,7 @@ class PortableReadingProgressJsonTest {
         assertEquals("book-cloud", books.single().syncId)
         assertEquals("Remote Book", books.single().title)
         assertEquals("sci-fi, favorite", books.single().tagsCsv)
-        assertEquals("abcdEFGH1234_wxyz", books.single().fileAsset.id)
+        assertEquals("abcdEFGH1234_wxyz", books.single().fileAsset?.id)
         assertEquals("coverEFGH1234_wxyz", books.single().coverAsset?.id)
         assertEquals(0.35f, books.single().readingPercent)
         assertEquals("https://www.goodreads.com/book/show/16046748", books.single().goodreadsUrl)
@@ -133,13 +133,12 @@ class PortableReadingProgressJsonTest {
     }
 
     @Test
-    fun skipsCloudBooksWithoutDownloadableAssets() {
+    fun skipsReadableCloudBooksWithoutDownloadableAssets() {
         val books = parsePortableCloudBooks(
             """
             {
               "books": [
                 {"syncId":"deleted","title":"Deleted","format":"EPUB","fileHash":"hash-a","isDeleted":true},
-                {"syncId":"physical","title":"Paper","format":"PHYSICAL","fileHash":"physical:1","updatedAt":1},
                 {"syncId":"missing-asset","title":"No Asset","format":"EPUB","fileHash":"hash-b","updatedAt":1}
               ]
             }
@@ -147,6 +146,25 @@ class PortableReadingProgressJsonTest {
         )
 
         assertEquals(emptyList(), books)
+    }
+
+    @Test
+    fun keepsBooksReadOutsideTheAppWithoutFileAssets() {
+        val books = parsePortableCloudBooks(
+            """
+            {
+              "books": [
+                {"syncId":"physical","title":"Paper","format":"PHYSICAL","fileHash":"physical:1","updatedAt":1,"finishedReadingAt":5},
+                {"syncId":"audio","title":"Listened","format":"AUDIOBOOK","fileHash":"audiobook:1","updatedAt":2},
+                {"syncId":"kindle","title":"Elsewhere","format":"OTHER_EBOOK","fileHash":"other_ebook:1","updatedAt":3}
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("physical", "audio", "kindle"), books.map { it.syncId })
+        assertEquals(null, books.first().fileAsset)
+        assertEquals(5L, books.first().finishedReadingAt)
     }
 
     @Test

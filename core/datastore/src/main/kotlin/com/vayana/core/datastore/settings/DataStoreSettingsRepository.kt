@@ -21,6 +21,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -40,13 +41,20 @@ class DataStoreSettingsRepository @Inject constructor(
 
     private val dataStore = context.vayanaSettingsDataStore
 
-    override val snapshot: Flow<SettingsSnapshot> = dataStore.data.map { preferences -> preferences.toSnapshot() }
+    /**
+     * Deduplicated, so writes to keys outside the snapshot (launch marker, recent searches) don't wake its ~20
+     * collectors. Deliberately not shared: a replayed cache could hand a stale snapshot to a `first()` that runs
+     * straight after an [update].
+     */
+    override val snapshot: Flow<SettingsSnapshot> = dataStore.data
+        .map { preferences -> preferences.toSnapshot() }
+        .distinctUntilChanged()
 
     override val launchReadingProgressCheckMarker: Flow<LaunchReadingProgressCheckMarker?> =
         dataStore.data.map { preferences -> preferences.readLaunchReadingProgressCheckMarker() }
 
     override fun <T : Any> observe(setting: Setting<T>): Flow<T> =
-        dataStore.data.map { preferences -> preferences.read(setting) }
+        dataStore.data.map { preferences -> preferences.read(setting) }.distinctUntilChanged()
 
     override suspend fun <T : Any> update(setting: Setting<T>, value: T) {
         dataStore.edit { preferences -> preferences.write(setting, value) }

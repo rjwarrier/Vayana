@@ -33,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import com.vayana.core.designsystem.component.syncDeviceLabel
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import androidx.compose.ui.Alignment
@@ -464,8 +465,7 @@ internal fun ReadingProgressSyncDialog(
     val newPercent = (prompt.newPercent * 100).roundToInt()
     val localTimestamp = (prompt.previousLastReadAt ?: prompt.previousUpdatedAt).asAppDateTime()
     val syncedTimestamp = (prompt.syncedAt ?: prompt.newLastReadAt ?: prompt.newUpdatedAt).asAppDateTime()
-    val syncedDevice = prompt.syncedDeviceLabel?.trim()?.takeIf { it.isNotEmpty() }
-        ?: stringResource(R.string.sync_status_unknown_device)
+    val syncedDevice = syncDeviceLabel(prompt.syncedDeviceLabel)
     ExpressiveDialogSurface(onDismissRequest = onRevertSyncedProgress) {
         ExpressiveDialogHeader(
             icon = Icons.Outlined.Sync,
@@ -475,41 +475,35 @@ internal fun ReadingProgressSyncDialog(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         )
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val stackChoices = maxWidth < Sizes.compactChoiceBreakpoint
-            if (stackChoices) {
+            val localCard = @Composable { cardModifier: Modifier ->
+                ProgressChoiceCard(
+                    label = stringResource(R.string.library_book_progress_sync_prompt_local),
+                    percent = previousPercent,
+                    timestamp = localTimestamp,
+                    modifier = cardModifier,
+                )
+            }
+            val syncedCard = @Composable { cardModifier: Modifier ->
+                ProgressChoiceCard(
+                    label = stringResource(R.string.library_book_progress_sync_prompt_synced),
+                    percent = newPercent,
+                    timestamp = syncedTimestamp,
+                    device = syncedDevice,
+                    modifier = cardModifier,
+                )
+            }
+            if (maxWidth < Sizes.compactChoiceBreakpoint) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    ProgressChoiceCard(
-                        label = stringResource(R.string.library_book_progress_sync_prompt_local),
-                        percent = previousPercent,
-                        timestamp = localTimestamp,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    ProgressChoiceCard(
-                        label = stringResource(R.string.library_book_progress_sync_prompt_synced),
-                        percent = newPercent,
-                        timestamp = syncedTimestamp,
-                        device = syncedDevice,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    localCard(Modifier.fillMaxWidth())
+                    syncedCard(Modifier.fillMaxWidth())
                 }
             } else {
                 Row(
                     modifier = Modifier.height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    ProgressChoiceCard(
-                        label = stringResource(R.string.library_book_progress_sync_prompt_local),
-                        percent = previousPercent,
-                        timestamp = localTimestamp,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                    )
-                    ProgressChoiceCard(
-                        label = stringResource(R.string.library_book_progress_sync_prompt_synced),
-                        percent = newPercent,
-                        timestamp = syncedTimestamp,
-                        device = syncedDevice,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                    )
+                    localCard(Modifier.weight(1f).fillMaxHeight())
+                    syncedCard(Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }

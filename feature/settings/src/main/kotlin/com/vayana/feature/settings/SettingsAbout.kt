@@ -2,7 +2,6 @@ package com.vayana.feature.settings
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
@@ -180,18 +179,18 @@ internal fun HelpAndAboutDetail(
                             modifier = Modifier.padding(Paddings.card),
                             verticalArrangement = Arrangement.spacedBy(Spacing.md),
                         ) {
-                        SettingsNavigationCard(
-                            title = stringResource(R.string.settings_open_help_title),
-                            subtitle = stringResource(R.string.settings_open_help_subtitle),
-                            icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                            onClick = onHelpClick,
-                        )
-                        SettingsNavigationCard(
-                            title = stringResource(R.string.settings_open_diagnostics_title),
-                            subtitle = stringResource(R.string.settings_open_diagnostics_subtitle),
-                            icon = Icons.Outlined.BugReport,
-                            onClick = onDiagnosticsClick,
-                        )
+                            SettingsNavigationCard(
+                                title = stringResource(R.string.settings_open_help_title),
+                                subtitle = stringResource(R.string.settings_open_help_subtitle),
+                                icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                                onClick = onHelpClick,
+                            )
+                            SettingsNavigationCard(
+                                title = stringResource(R.string.settings_open_diagnostics_title),
+                                subtitle = stringResource(R.string.settings_open_diagnostics_subtitle),
+                                icon = Icons.Outlined.BugReport,
+                                onClick = onDiagnosticsClick,
+                            )
                         }
                     }
                     Text(
@@ -212,17 +211,7 @@ private fun SettingsAboutSection() {
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     var showShareDialog by rememberSaveable { mutableStateOf(false) }
-    val packageInfo = remember(context) {
-        context.packageManager.getPackageInfo(context.packageName, 0)
-    }
-    val versionCode = remember(packageInfo) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toLong()
-        }
-    }
+    val version = remember(context) { context.appVersion() }
     val shareTitle = stringResource(R.string.about_share)
     val shareText = stringResource(R.string.about_share_text)
     val initialShareTheme = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
@@ -280,8 +269,8 @@ private fun SettingsAboutSection() {
                     Text(
                         text = stringResource(
                             R.string.about_version,
-                            packageInfo.versionName ?: "0.1.0",
-                            versionCode.toString(),
+                            version.name ?: "0.1.0",
+                            version.code.toString(),
                         ),
                         modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
@@ -439,13 +428,12 @@ private fun OtherAppsCard() {
                 )
             }
 
-            relatedApps.chunked(RelatedAppsColumns).forEach { rowApps ->
+            relatedApps.withIndex().chunked(RelatedAppsColumns).forEach { rowApps ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    rowApps.forEach { app ->
-                        val appIndex = relatedApps.indexOf(app)
+                    rowApps.forEach { (appIndex, app) ->
                         val tint = tileColors[appIndex % tileColors.size]
                         Surface(
                             onClick = { uriHandler.openUri(app.playStoreUrl) },

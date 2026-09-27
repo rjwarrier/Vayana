@@ -1,5 +1,8 @@
 package com.vayana.feature.search
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.database.model.Annotation
@@ -126,7 +129,15 @@ class SearchViewModel @Inject constructor(
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GlobalSearchUiState())
 
+    /**
+     * The search box's text, as Compose state so the field updates in the same frame as the keystroke; waiting for
+     * [uiState] to echo it back let stale text overwrite new typing and made the cursor jump.
+     */
+    var searchText by mutableStateOf("")
+        private set
+
     fun updateQuery(value: String) {
+        searchText = value
         query.update { value }
     }
 

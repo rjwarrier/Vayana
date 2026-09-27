@@ -3,7 +3,6 @@ package com.vayana.feature.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -53,22 +52,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.core.content.FileProvider
+import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vayana.core.common.shareFile
 import com.vayana.core.designsystem.component.VayanaDropdownMenu
 import com.vayana.core.designsystem.component.VayanaMenuGroup
 import com.vayana.core.designsystem.component.VayanaMenuItem
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.PagedLazyColumn
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
@@ -78,27 +81,30 @@ import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticEvent
 import com.vayana.core.diagnostics.DiagnosticsEnvironment
-import com.vayana.core.diagnostics.buildDiagnosticsReport
 import com.vayana.core.resources.R
-import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 @Composable
 fun DiagnosticsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: DiagnosticsViewModel = hiltViewModel()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val environment = remember(context) { context.diagnosticsEnvironment() }
-    val report = remember(environment, events) { buildDiagnosticsReport(environment, events) }
 
     DiagnosticsScreen(
         modifier = modifier,
         events = events,
         onBack = onBack,
         onClear = viewModel::clear,
-        onCopyReport = { context.copyDiagnosticsReport(report) },
-        onShareReport = { context.shareDiagnosticsReport(report) },
+        onCopyReport = {
+            coroutineScope.launch { context.copyDiagnosticsReport(viewModel.buildReport(environment)) }
+        },
+        onShareReport = {
+            coroutineScope.launch { context.shareDiagnosticsReport(viewModel.buildReport(environment)) }
+        },
     )
 }
 
@@ -167,7 +173,7 @@ private fun DiagnosticsScreen(
                 start = Paddings.screenHorizontal,
                 end = Paddings.screenHorizontal,
                 top = innerPadding.calculateTopPadding() + Spacing.sm,
-                bottom = innerPadding.calculateBottomPadding() + Spacing.xl,
+                bottom = innerPadding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
@@ -220,14 +226,9 @@ private fun DiagnosticsShareCard(
     onCopyReport: () -> Unit,
     onShareReport: () -> Unit,
 ) {
-    val crashCount = events.count { it.category == DiagnosticCategory.CRASH }
-    val syncCount = events.count { it.category == DiagnosticCategory.SYNC }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-    ) {
+    val crashCount = remember(events) { events.count { it.category == DiagnosticCategory.CRASH } }
+    val syncCount = remember(events) { events.count { it.category == DiagnosticCategory.SYNC } }
+    DiagnosticsCard(shape = RoundedCornerShape(Radii.large)) {
         Column(
             modifier = Modifier.padding(Paddings.card),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -236,20 +237,7 @@ private fun DiagnosticsShareCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Surface(
-                    modifier = Modifier.size(Sizes.touchTarget),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Outlined.BugReport,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconMedium),
-                        )
-                    }
-                }
+                DiagnosticsIconBadge(icon = Icons.Outlined.BugReport, size = Sizes.touchTarget)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.diagnostics_share_title),
@@ -336,53 +324,32 @@ private fun DiagnosticCountPill(
 
 @Composable
 private fun DiagnosticsSectionHeader() {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.diagnostics_recent_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.diagnostics_recent_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = stringResource(R.string.diagnostics_recent_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.diagnostics_recent_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
 @Composable
 private fun DiagnosticsEmptyCard() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radii.medium),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-    ) {
+    DiagnosticsCard {
         Column(
             modifier = Modifier.padding(Spacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Surface(
-                modifier = Modifier.size(Sizes.touchTarget),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(Sizes.iconMedium),
-                    )
-                }
-            }
+            DiagnosticsIconBadge(icon = Icons.Outlined.CheckCircle, size = Sizes.touchTarget)
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text = stringResource(R.string.diagnostics_empty_title),
@@ -404,15 +371,8 @@ private fun DiagnosticsEmptyCard() {
 private fun DiagnosticEventCard(event: DiagnosticEvent) {
     var expanded by remember { mutableStateOf(false) }
     val isCrash = event.category == DiagnosticCategory.CRASH
-    val eventContainer = if (isCrash) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.tertiaryContainer
-    }
-    val eventContent = if (isCrash) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onTertiaryContainer
+    val (eventContainer, eventContent) = with(MaterialTheme.colorScheme) {
+        if (isCrash) errorContainer to onErrorContainer else tertiaryContainer to onTertiaryContainer
     }
     val expansionModifier = if (event.detail != null) {
         Modifier.clickable { expanded = !expanded }
@@ -420,14 +380,7 @@ private fun DiagnosticEventCard(event: DiagnosticEvent) {
         Modifier
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(expansionModifier),
-        shape = RoundedCornerShape(Radii.medium),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-    ) {
+    DiagnosticsCard(modifier = expansionModifier) {
         Column(
             modifier = Modifier.padding(Paddings.card),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -436,20 +389,12 @@ private fun DiagnosticEventCard(event: DiagnosticEvent) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Surface(
-                    modifier = Modifier.size(Sizes.badge),
-                    shape = CircleShape,
-                    color = eventContainer,
+                DiagnosticsIconBadge(
+                    icon = if (isCrash) Icons.Outlined.BugReport else Icons.Outlined.SyncProblem,
+                    size = Sizes.badge,
+                    containerColor = eventContainer,
                     contentColor = eventContent,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = if (isCrash) Icons.Outlined.BugReport else Icons.Outlined.SyncProblem,
-                            contentDescription = null,
-                            modifier = Modifier.size(Sizes.iconMedium),
-                        )
-                    }
-                }
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(
@@ -517,17 +462,46 @@ private fun DiagnosticEventCard(event: DiagnosticEvent) {
     }
 }
 
-@Suppress("DEPRECATION")
-private fun Context.diagnosticsEnvironment(): DiagnosticsEnvironment {
-    val packageInfo = packageManager.getPackageInfo(packageName, 0)
-    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        packageInfo.longVersionCode
-    } else {
-        packageInfo.versionCode.toLong()
+/** The outlined surface shared by every card on this screen. */
+@Composable
+private fun DiagnosticsCard(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(Radii.medium),
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        content = content,
+    )
+}
+
+@Composable
+private fun DiagnosticsIconBadge(
+    icon: ImageVector,
+    size: Dp,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+) {
+    Surface(
+        modifier = Modifier.size(size),
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(Sizes.iconMedium))
+        }
     }
+}
+
+private fun Context.diagnosticsEnvironment(): DiagnosticsEnvironment {
+    val version = appVersion()
     return DiagnosticsEnvironment(
-        appVersionName = packageInfo.versionName.orEmpty(),
-        appVersionCode = versionCode,
+        appVersionName = version.name.orEmpty(),
+        appVersionCode = version.code,
         androidVersion = Build.VERSION.RELEASE,
         sdkInt = Build.VERSION.SDK_INT,
         manufacturer = Build.MANUFACTURER,
@@ -541,20 +515,16 @@ private fun Context.copyDiagnosticsReport(report: String) {
     Toast.makeText(this, R.string.diagnostics_report_copied, Toast.LENGTH_SHORT).show()
 }
 
-private fun Context.shareDiagnosticsReport(report: String) {
+private suspend fun Context.shareDiagnosticsReport(report: String) {
     runCatching {
-        val directory = File(filesDir, DiagnosticsShareDirectory).apply { mkdirs() }
-        val reportFile = File(directory, DiagnosticsReportFileName).apply { writeText(report) }
-        val reportUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", reportFile)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.diagnostics_share_subject))
-            putExtra(Intent.EXTRA_TEXT, getString(R.string.diagnostics_share_message))
-            putExtra(Intent.EXTRA_STREAM, reportUri)
-            clipData = ClipData.newRawUri(getString(R.string.diagnostics_title), reportUri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(intent, getString(R.string.diagnostics_share_with_developer)))
+        shareFile(
+            content = report,
+            fileName = DiagnosticsReportFileName,
+            mimeType = "text/plain",
+            chooserTitle = getString(R.string.diagnostics_share_with_developer),
+            subject = getString(R.string.diagnostics_share_subject),
+            text = getString(R.string.diagnostics_share_message),
+        )
     }.onFailure {
         Toast.makeText(this, R.string.diagnostics_share_failed, Toast.LENGTH_LONG).show()
     }
@@ -563,5 +533,4 @@ private fun Context.shareDiagnosticsReport(report: String) {
 private fun Long.formatDiagnosticTimestamp(): String =
     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(this))
 
-private const val DiagnosticsShareDirectory = "shared_files"
 private const val DiagnosticsReportFileName = "vayana-diagnostics.txt"

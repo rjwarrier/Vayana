@@ -1,5 +1,6 @@
 package com.vayana.core.backup
 
+import com.vayana.core.database.model.BookFormat
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -39,7 +40,8 @@ data class PortableCloudBook(
     val tagsCsv: String?,
     val format: String,
     val fileHash: String,
-    val fileAsset: PortableAsset,
+    /** Null only for books read outside the app (physical, audiobook or another app's ebook), which have no file. */
+    val fileAsset: PortableAsset?,
     val coverAsset: PortableAsset?,
     val lastLocator: String?,
     val readingPercent: Float,
@@ -297,9 +299,10 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
             val syncId = book.optBoundedString("syncId", MaxSyncIdChars) ?: continue
             val title = book.optBoundedString("title", MaxTitleChars) ?: continue
             val format = book.optBoundedString("format", MaxFormatChars) ?: continue
-            if (format.equals("PHYSICAL", ignoreCase = true)) continue
             val fileHash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
-            val asset = book.optJSONObject("fileAsset")?.toPortableAssetOrNull() ?: continue
+            val asset = book.optJSONObject("fileAsset")?.toPortableAssetOrNull()
+            // A readable book is only useful here once its file is downloadable; one read outside the app has none.
+            if (asset == null && !format.isOfflineBookFormat()) continue
             val coverAsset = book.optJSONObject("coverAsset")?.toPortableAssetOrNull()
             val updatedAt = book.optPositiveLongOrNull("updatedAt") ?: continue
             add(
@@ -342,6 +345,9 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
         }
     }
 }
+
+private fun String.isOfflineBookFormat(): Boolean =
+    BookFormat.entries.any { it.isOffline && it.name.equals(this, ignoreCase = true) }
 
 fun parsePortableReadingProgressSnapshot(jsonText: String): PortableReadingProgressSnapshot {
     require(jsonText.length <= MaxPortableProgressJsonChars) { "Portable snapshot is too large" }

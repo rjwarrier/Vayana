@@ -27,9 +27,6 @@ interface ShelfDao {
     @Update
     suspend fun update(shelf: ShelfEntity)
 
-    @Query("UPDATE shelves SET name = :name, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun rename(id: Long, name: String, updatedAt: Long)
-
     @Query("DELETE FROM shelves WHERE id = :id")
     suspend fun delete(id: Long)
 
@@ -65,8 +62,9 @@ interface ShelfDao {
     )
     fun observeShelvesForBook(bookId: Long): Flow<List<ShelfEntity>>
 
-    @Query("SELECT COUNT(*) FROM book_shelf_cross_ref WHERE shelfId = :shelfId")
-    fun observeShelfBookCount(shelfId: Long): Flow<Int>
+    /** Book counts of every shelf that has books, in one query (shelves without books are absent). */
+    @Query("SELECT shelfId, COUNT(*) AS count FROM book_shelf_cross_ref GROUP BY shelfId")
+    fun observeShelfBookCounts(): Flow<List<ShelfBookCount>>
 
     @Query("SELECT * FROM shelves ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<ShelfEntity>
@@ -74,3 +72,5 @@ interface ShelfDao {
     @Query("SELECT * FROM book_shelf_cross_ref ORDER BY bookId ASC, shelfId ASC")
     suspend fun getMembershipsForSync(): List<BookShelfCrossRefEntity>
 }
+
+data class ShelfBookCount(val shelfId: Long, val count: Int)

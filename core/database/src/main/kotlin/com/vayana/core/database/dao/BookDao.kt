@@ -68,6 +68,9 @@ interface BookDao {
     @Query("UPDATE books SET startedReadingAt = :startedAt, finishedReadingAt = :finishedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?, updatedAt: Long)
 
+    @Query("UPDATE books SET format = :format, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateFormat(id: Long, format: String, updatedAt: Long)
+
     @Query(
         """
         UPDATE books
@@ -218,10 +221,14 @@ interface BookDao {
 
     /** The most recently read book whose file is on this device, so it can open in the reader. */
     @Query(
-        "SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt IS NOT NULL AND format != 'PHYSICAL' " +
+        "SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt IS NOT NULL AND filePath != '' " +
             "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
     )
     suspend fun lastReadOpenableBookId(): Long?
+
+    /** The most recently read active book, wherever its file is. */
+    @Query("SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt > 0 ORDER BY lastReadAt DESC LIMIT 1")
+    suspend fun lastReadBookId(): Long?
 
     /** Ids of active books matching an FTS [match], most recently read first. */
     @Query(

@@ -54,11 +54,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SelectableDates
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,6 +72,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.vayana.core.common.shareText as shareTextWithChooser
@@ -137,6 +134,8 @@ fun BookDetailRoute(
     onBack: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
     transitionSource: BookOpenTransitionSource? = null,
+    /** Opens the Goodreads picker once the book loads, e.g. right after adding a book read outside the app. */
+    openGoodreads: Boolean = false,
     onOpenNotes: ((Long) -> Unit)? = null,
     onReadFromStart: ((Long) -> Unit)? = null,
     useWideActions: Boolean = false,
@@ -180,6 +179,9 @@ fun BookDetailRoute(
         modifier = modifier,
         book = book,
         transitionSource = transitionSource,
+        openGoodreadsOnStart = openGoodreads,
+        onChangeOfflineFormat = { format -> viewModel.updateOfflineFormat(bookId, format) },
+        onUpdateOfflinePages = { pageCount, currentPage -> viewModel.updateOfflinePages(bookId, pageCount, currentPage) },
         showSyncReadingProgress = uiState.githubSyncReady,
         syncReadingProgressRunning = syncReadingProgressRunning,
         progressChangePrompt = progressChangePrompt,
@@ -309,6 +311,9 @@ private fun BookDetailScreen(
     modifier: Modifier = Modifier,
     book: Book?,
     transitionSource: BookOpenTransitionSource?,
+    openGoodreadsOnStart: Boolean,
+    onChangeOfflineFormat: (BookFormat) -> Unit,
+    onUpdateOfflinePages: (pageCount: Int?, currentPage: Int?) -> Unit,
     showSyncReadingProgress: Boolean,
     syncReadingProgressRunning: Boolean,
     progressChangePrompt: BookProgressChange?,
@@ -365,6 +370,15 @@ private fun BookDetailScreen(
     var showImportQuotesDialog by remember { mutableStateOf(false) }
     var showGoodreadsDialog by remember { mutableStateOf(false) }
     var goodreadsBrowserUrl by remember { mutableStateOf<String?>(null) }
+    var openGoodreadsHandled by rememberSaveable { mutableStateOf(false) }
+    var showOfflinePagesDialog by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(book != null) {
+        if (openGoodreadsOnStart && !openGoodreadsHandled && book != null) {
+            openGoodreadsHandled = true
+            onDismissGoodreads()
+            goodreadsBrowserUrl = book.goodreadsSearchUrl()
+        }
+    }
     var showResetStatsDialog by remember { mutableStateOf(false) }
     var showEditCoverDialog by remember { mutableStateOf(false) }
     var showCoverImageSearch by remember { mutableStateOf(false) }
@@ -529,11 +543,7 @@ private fun BookDetailScreen(
                                                 icon = Icons.Outlined.Link,
                                                 onClick = {
                                                     onDismissGoodreads()
-                                                    goodreadsBrowserUrl = goodreadsSearchUrl(
-                                                        listOf(book.title, book.author.orEmpty())
-                                                            .filter(String::isNotBlank)
-                                                            .joinToString(" "),
-                                                    )
+                                                    goodreadsBrowserUrl = book.goodreadsSearchUrl()
                                                 },
                                             ),
                                         )
@@ -566,11 +576,11 @@ private fun BookDetailScreen(
                                                 VayanaMenuItem(
                                                     label = stringResource(R.string.library_share_file),
                                                     icon = Icons.Outlined.Share,
-                                                    onClick = { context.shareBookFile(book) },
+                                                    onClick = { coroutineScope.launch { context.shareBookFile(book) } },
                                                 ),
                                             )
                                         }
-                                        if (book.format != BookFormat.PHYSICAL) {
+                                        if (!book.format.isOffline) {
                                             add(
                                                 VayanaMenuItem(
                                                     label = stringResource(R.string.library_replace_source_file),
@@ -801,7 +811,7 @@ private fun BookDetailScreen(
                 } else {
                     null
                 }
-                if (readingState == BookReadingState.NOT_STARTED) {
+                if (readingState == BookReadingState.NOT_STARTED && !book.format.isOffline) {
                     // Nothing read here yet, but another device may have started it: keep just the sync button.
                     if (syncAction != null) {
                         item {
@@ -813,9 +823,12 @@ private fun BookDetailScreen(
                         ReadingStatsCard(
                             book = book,
                             finished = readingState == BookReadingState.FINISHED,
-                            action = syncAction,
+                            // Reading-progress sync is about reader positions, which a book read elsewhere has none of.
+                            action = syncAction.takeUnless { book.format.isOffline },
                             onEditStarted = { editingReadingDate = ReadingDateField.STARTED },
                             onEditFinished = { editingReadingDate = ReadingDateField.FINISHED },
+                            onChangeFormat = onChangeOfflineFormat,
+                            onEditPages = { showOfflinePagesDialog = true },
                         )
                     }
                 }
@@ -893,9 +906,20 @@ private fun BookDetailScreen(
         null -> Unit
     }
 
+    if (showOfflinePagesDialog && book != null) {
+        OfflinePagesDialog(
+            book = book,
+            onDismiss = { showOfflinePagesDialog = false },
+            onSave = { pageCount, currentPage ->
+                showOfflinePagesDialog = false
+                onUpdateOfflinePages(pageCount, currentPage)
+            },
+        )
+    }
+
     val editingDate = editingReadingDate
     if (editingDate != null && book != null) {
-        ReadingDatePickerDialog(
+        BookReadingDatePickerDialog(
             field = editingDate,
             book = book,
             onConfirm = { started, finished ->
@@ -990,11 +1014,7 @@ private fun BookDetailScreen(
                 onBrowse = {
                     showGoodreadsDialog = false
                     onDismissGoodreads()
-                    goodreadsBrowserUrl = book.goodreadsUrl ?: goodreadsSearchUrl(
-                        listOf(book.title, book.author.orEmpty())
-                            .filter(String::isNotBlank)
-                            .joinToString(" "),
-                    )
+                    goodreadsBrowserUrl = book.goodreadsUrl ?: book.goodreadsSearchUrl()
                 },
                 onDismiss = {
                     showGoodreadsDialog = false
@@ -1083,6 +1103,11 @@ private fun BookDetailScreen(
     }
 
     if (showShareBookDialog && book != null) {
+        val shareStats = book.shareStats()
+        // Walks the whole library, so it isn't redone for every share-option toggle.
+        val yearlyGoalReadCount = remember(libraryBooks, book, yearlyBooksGoal) {
+            yearlyBookShareProgress(libraryBooks, book, yearlyBooksGoal)?.readCount
+        }
         ShareCardDialog(
             onDismiss = { showShareBookDialog = false },
             onShareText = {
@@ -1105,27 +1130,23 @@ private fun BookDetailScreen(
                     hasTags = book.tags().isNotEmpty(),
                     hasYearlyGoal = yearlyBooksGoal > 0,
                     onOptionsChange = { shareImageOptions = it },
+                    stats = shareStats,
                 )
             },
         ) {
-            val readSeconds = book.totalReadingSeconds
             BookShareCard(
                 title = book.title,
                 author = book.author,
                 series = book.seriesDisplay(),
-                statusLabel = if (book.finishedReadingAt != null) {
-                    stringResource(R.string.share_card_status_finished)
-                } else {
-                    stringResource(R.string.share_card_status_progress, (book.readingPercent * 100).toInt())
-                },
-                stat1Value = "${(book.readingPercent * 100).toInt()}%",
-                stat1Label = stringResource(R.string.share_card_stat_progress_label),
-                stat2Value = stringResource(R.string.share_card_stat_hours, (readSeconds / 3600).toInt(), ((readSeconds % 3600) / 60).toInt()),
-                stat2Label = stringResource(R.string.share_card_stat_read_time_label),
+                statusLabel = shareStats.statusLabel,
+                stat1Value = shareStats.stat1Value,
+                stat1Label = shareStats.stat1Label,
+                stat2Value = shareStats.stat2Value,
+                stat2Label = shareStats.stat2Label,
                 ratingValue = book.rating.takeIf { it > 0f }?.let { stringResource(R.string.share_card_stat_rating_value, it) },
                 ratingLabel = stringResource(R.string.share_card_stat_rating_label),
                 tags = book.tags(),
-                footerLeft = stringResource(R.string.library_imported_on, book.createdAt.formatDate()),
+                footerLeft = shareStats.footerLeft,
                 footerRight = stringResource(R.string.share_card_tagline),
                 watermark = stringResource(R.string.share_card_watermark),
                 theme = shareImageOptions.theme,
@@ -1141,10 +1162,8 @@ private fun BookDetailScreen(
                 showTagline = shareImageOptions.showTagline,
                 layout = shareImageOptions.layout,
                 backdropCoverAlpha = shareImageOptions.backdropCoverAlpha,
-                progressFraction = book.readingPercent,
-                yearlyGoalReadCount = if (shareImageOptions.showYearlyGoal && yearlyBooksGoal > 0) {
-                    yearlyBookShareProgress(libraryBooks, book, yearlyBooksGoal)?.readCount
-                } else null,
+                progressFraction = shareStats.progressFraction,
+                yearlyGoalReadCount = yearlyGoalReadCount.takeIf { shareImageOptions.showYearlyGoal },
                 yearlyGoalTarget = yearlyBooksGoal.takeIf { shareImageOptions.showYearlyGoal && it > 0 },
             ) {
                 // Fill whatever box the layout gives the cover, including Backdrop's full square.
@@ -1181,7 +1200,7 @@ private fun BookQuickActions(
                 onClick = onReadAgain,
                 modifier = Modifier.weight(1f),
             )
-        } else if (book.format != BookFormat.PHYSICAL && (state == BookReadingState.NOT_STARTED || queued)) {
+        } else if (!book.format.isOffline && (state == BookReadingState.NOT_STARTED || queued)) {
             BookQuickAction(
                 icon = if (queued) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.PlaylistAdd,
                 label = stringResource(if (queued) R.string.library_quick_read_next_queued else R.string.library_quick_read_next),
@@ -1259,12 +1278,20 @@ private fun BookQuickAction(
 private fun BookStatusLine(book: Book, modifier: Modifier = Modifier) {
     val status = when (book.readingState()) {
         BookReadingState.NOT_STARTED -> stringResource(R.string.library_status_not_started)
-        BookReadingState.READING -> stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
+        BookReadingState.READING -> if (book.format.isOffline && book.pageCount == null) {
+            stringResource(R.string.offline_book_status_reading)
+        } else {
+            stringResource(R.string.library_progress_value, (book.readingPercent * 100).roundToInt())
+        }
         BookReadingState.FINISHED -> book.finishedReadingAt?.let { stringResource(R.string.library_status_finished_on, it.formatDate()) }
             ?: stringResource(R.string.library_status_finished)
     }
     Text(
-        text = stringResource(R.string.library_status_line, book.format.name, status),
+        text = stringResource(
+            R.string.library_status_line,
+            book.format.displayLabel(),
+            status,
+        ),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
@@ -1308,76 +1335,39 @@ private fun BookReadingState.readActionLabel(): String = stringResource(
 )
 
 /**
- * Material date picker for correcting when reading started or finished. Future days, a start after the finish and a
- * finish before the start can't be picked; the chosen day keeps the stored time of day.
+ * Book details' date picker: corrects one reading date of [book] and hands both back. A book read here falls back to
+ * its reading history for a start that was never recorded; one read outside the app keeps its dates as entered.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReadingDatePickerDialog(
+private fun BookReadingDatePickerDialog(
     field: ReadingDateField,
     book: Book,
     onConfirm: (startedAt: Long?, finishedAt: Long?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val now = remember { System.currentTimeMillis() }
-    // What the reading card shows as the start when none was recorded.
-    val shownStart = book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
-    val current = when (field) {
-        ReadingDateField.STARTED -> shownStart
-        ReadingDateField.FINISHED -> book.finishedReadingAt ?: book.updatedAt
+    val shownStart = if (book.format.isOffline) {
+        book.startedReadingAt
+    } else {
+        book.startedReadingAt ?: book.lastReadAt ?: book.createdAt
     }
-    val otherStart = shownStart.takeIf { field == ReadingDateField.FINISHED }
-    val otherFinish = book.finishedReadingAt.takeIf { field == ReadingDateField.STARTED }
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = ReadingDates.toPickerMillis(current),
-        yearRange = ReadingDatesMinYear..ReadingDates.pickerDate(ReadingDates.toPickerMillis(now)).year,
-        selectableDates = remember(field, otherStart, otherFinish, now) {
-            object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                    ReadingDates.isSelectable(field, utcTimeMillis, otherStart, otherFinish, now)
+    ReadingDatePickerDialog(
+        field = field,
+        current = when (field) {
+            ReadingDateField.STARTED -> shownStart ?: now
+            ReadingDateField.FINISHED -> book.finishedReadingAt ?: if (book.format.isOffline) now else book.updatedAt
+        },
+        startedAt = shownStart,
+        finishedAt = book.finishedReadingAt,
+        onConfirm = { chosen ->
+            when (field) {
+                ReadingDateField.STARTED -> onConfirm(chosen, book.finishedReadingAt)
+                ReadingDateField.FINISHED -> onConfirm(shownStart, chosen)
             }
         },
+        onDismiss = onDismiss,
     )
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val picked = state.selectedDateMillis ?: return@TextButton onDismiss()
-                    val chosen = ReadingDates.resolve(field, picked, current, otherStart, otherFinish, now)
-                    when (field) {
-                        ReadingDateField.STARTED -> onConfirm(chosen, book.finishedReadingAt)
-                        ReadingDateField.FINISHED -> onConfirm(book.startedReadingAt ?: shownStart, chosen)
-                    }
-                },
-                enabled = state.selectedDateMillis != null,
-            ) {
-                Text(stringResource(R.string.library_reading_date_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.library_edit_metadata_cancel)) }
-        },
-    ) {
-        DatePicker(
-            state = state,
-            title = {
-                Text(
-                    text = stringResource(
-                        when (field) {
-                            ReadingDateField.STARTED -> R.string.library_reading_date_started_title
-                            ReadingDateField.FINISHED -> R.string.library_reading_date_finished_title
-                        },
-                    ),
-                    modifier = Modifier.padding(start = Spacing.lg, end = Spacing.md, top = Spacing.md),
-                )
-            },
-        )
-    }
 }
-
-/** Earliest year the reading-date picker offers. */
-private const val ReadingDatesMinYear = 1900
 
 /**
  * The book's description in a fixed-height scroll area with a scrollbar in the theme's colours; edges fade where
@@ -1712,3 +1702,6 @@ private fun Book.canRemoveLocalFileFromDevice(): Boolean =
         !fileAssetSha256.isNullOrBlank() &&
         fileAssetSizeBytes != null &&
         fileAssetUploadedAt != null
+
+private fun Book.goodreadsSearchUrl(): String =
+    goodreadsSearchUrl(listOf(title, author.orEmpty()).filter(String::isNotBlank).joinToString(" "))

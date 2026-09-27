@@ -14,6 +14,8 @@ import com.vayana.core.database.search.searchTokens
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.OfflinePages
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -180,7 +182,81 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?) {
-        bookDao.updateReadingDates(id, startedAt, finishedAt, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            val existing = bookDao.getById(id) ?: return@withTransaction
+            if (!BookFormat.valueOf(existing.format).isOffline) {
+                bookDao.updateReadingDates(id, startedAt, finishedAt, now)
+                return@withTransaction
+            }
+            // A book read outside the app has no reader position: a finish date puts it at the last page, and
+            // clearing one takes a finished book back to the start (its page progress is kept otherwise).
+            val percent = when {
+                finishedAt != null -> 1f
+                existing.readingPercent >= 1f -> 0f
+                else -> existing.readingPercent
+            }
+            bookDao.update(
+                existing.copy(startedReadingAt = startedAt, finishedReadingAt = finishedAt, readingPercent = percent, updatedAt = now),
+            )
+        }
+    }
+
+    override suspend fun updateOfflinePages(id: Long, pageCount: Int?, currentPage: Int?) {
+        database.withTransaction {
+            val existing = bookDao.getById(id)?.takeIf { BookFormat.valueOf(it.format).tracksPages } ?: return@withTransaction
+            val pages = OfflinePages.of(pageCount, currentPage)
+            val now = System.currentTimeMillis()
+            val percent = pages.percent
+            val updated = if (percent == null) {
+                existing.copy(pageEstimate = pages.total, updatedAt = now)
+            } else {
+                // The page decides where the reader is: reaching the last page finishes the book, and going back
+                // from it (a reread, or a mistyped page) makes it unfinished again.
+                val finished = percent >= 1f
+                existing.copy(
+                    pageEstimate = pages.total,
+                    readingPercent = percent,
+                    startedReadingAt = existing.startedReadingAt ?: now.takeIf { percent > 0f },
+                    finishedReadingAt = if (finished) existing.finishedReadingAt ?: now else null,
+                    updatedAt = now,
+                )
+            }
+            bookDao.update(updated)
+        }
+    }
+
+    override suspend fun updateOfflineFormat(id: Long, format: BookFormat) {
+        require(format.isOffline) { "Only books read outside the app can switch format" }
+        bookDao.updateFormat(id, format.name, System.currentTimeMillis())
+    }
+
+    override suspend fun insertOfflineBook(
+        title: String,
+        author: String?,
+        format: BookFormat,
+        startedAt: Long?,
+        finishedAt: Long?,
+        pageCount: Int?,
+        currentPage: Int?,
+    ): Book {
+        require(format.isOffline) { "Offline books must be PHYSICAL, AUDIOBOOK or OTHER_EBOOK" }
+        val pages = if (format.tracksPages) OfflinePages.of(pageCount, currentPage) else OfflinePages(null, null)
+        val entity = newLocalBookEntity(
+            title = title,
+            author = author,
+            format = format,
+            filePath = "",
+            // Unique per entry: two paper copies of the same title are still separate reads.
+            fileHash = "${format.name.lowercase()}:${UUID.randomUUID()}",
+        ).copy(
+            readingPercent = if (finishedAt != null) 1f else pages.percent ?: 0f,
+            pageEstimate = pages.total,
+            startedReadingAt = startedAt,
+            finishedReadingAt = finishedAt,
+        )
+        val id = bookDao.insert(entity)
+        return entity.copy(id = id).toDomain()
     }
 
     override suspend fun updateCover(id: Long, coverPath: String?) {
@@ -215,32 +291,17 @@ class BookRepositoryImpl @Inject constructor(
     ): Book? = database.withTransaction {
         if (bookDao.findByHash(fileHash) != null) return@withTransaction null
 
-        val now = System.currentTimeMillis()
-        val entity = BookEntity(
+        val entity = newLocalBookEntity(
             title = title,
             author = author,
+            format = format,
+            filePath = filePath,
+            fileHash = fileHash,
             series = series,
             seriesNumber = seriesNumber,
             description = description,
             tagsCsv = tagsCsv.normalizedBookTagsCsv(),
             coverPath = coverPath,
-            filePath = filePath,
-            fileAvailability = BookFileAvailability.LOCAL.name,
-            format = format.name,
-            fileHash = fileHash,
-            lastLocator = null,
-            readingPercent = 0f,
-            rating = 0f,
-            groupId = null,
-            isDeleted = false,
-            wordCount = null,
-            pageEstimate = null,
-            createdAt = now,
-            updatedAt = now,
-            lastReadAt = null,
-            startedReadingAt = null,
-            finishedReadingAt = null,
-            totalReadingSeconds = 0L,
         )
         val id = bookDao.insert(entity)
         entity.copy(id = id).toDomain()
@@ -398,6 +459,8 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun lastReadOpenableBookId(): Long? = bookDao.lastReadOpenableBookId()
 
+    override suspend fun lastReadBookId(): Long? = bookDao.lastReadBookId()
+
     override fun observeSearchIds(text: String, limit: Int): Flow<List<Long>> {
         val match = ftsPrefixMatch(searchTokens(text)) ?: return flowOf(emptyList())
         return bookDao.observeSearchIds(match, limit)
@@ -529,12 +592,15 @@ class BookRepositoryImpl @Inject constructor(
             // Restored on another device after it was deleted.
             tombstoneDao.deleteBySyncId(record.syncId)
         }
-        val deletedHere = bookDao.findAnyBySyncId(record.syncId)?.takeIf { it.isDeleted }
-        if (deletedHere != null) {
-            if (recordDeletionVersion <= (deletedHere.deletionUpdatedAt ?: 0L)) return CloudBookMergeResult.SKIPPED
-            bookDao.restoreFromSync(deletedHere.id, recordDeletionVersion)
+        val bySyncId = bookDao.findAnyBySyncId(record.syncId)
+        val activeBySyncId = if (bySyncId?.isDeleted == true) {
+            if (recordDeletionVersion <= (bySyncId.deletionUpdatedAt ?: 0L)) return CloudBookMergeResult.SKIPPED
+            bookDao.restoreFromSync(bySyncId.id, recordDeletionVersion)
+            bookDao.findBySyncId(record.syncId)
+        } else {
+            bySyncId
         }
-        val existing = bookDao.findBySyncId(record.syncId) ?: bookDao.findByHash(record.fileHash)
+        val existing = activeBySyncId ?: bookDao.findByHash(record.fileHash)
         if (existing != null) {
             if (existing.syncId != record.syncId) {
                 bookAliasDao.upsert(BookAliasEntity(syncId = record.syncId, fileHash = record.fileHash, createdAt = minOf(existing.createdAt, record.createdAt)))
@@ -552,7 +618,10 @@ class BookRepositoryImpl @Inject constructor(
             ) {
                 val shouldApplyRemoteMetadata = record.updatedAt > existing.updatedAt
                 val readNext = existing.readNextState().mergedWith(record.readNextState())
-                val merged = existing.copy(
+                val applyRemoteOfflineReading = shouldApplyRemoteMetadata &&
+                    record.format.isOffline && BookFormat.valueOf(existing.format).isOffline
+                val base = if (applyRemoteOfflineReading) existing.withOfflineReadingFrom(record) else existing
+                val merged = base.copy(
                     title = if (shouldApplyRemoteMetadata) record.title else existing.title,
                     author = if (shouldApplyRemoteMetadata) record.author else existing.author,
                     series = if (shouldApplyRemoteMetadata) record.series else existing.series,
@@ -652,6 +721,8 @@ internal fun BookEntity.toDomain(): Book = Book(
     originalPublicationYear = originalPublicationYear,
     customCoverPath = customCoverPath,
     goodreadsCoverPath = goodreadsCoverPath,
+    // Kept when an audiobook was switched from a paper book, but an audiobook has no pages to show.
+    pageCount = pageEstimate?.takeIf { it > 0 && BookFormat.valueOf(format).tracksPages },
 )
 
 /** Alternate cover choices are local files, so a cloud rewrite must carry them over. */
@@ -713,7 +784,8 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         tagsCsv = tagsCsv.normalizedBookTagsCsv(),
         coverPath = coverPath,
         filePath = "",
-        fileAvailability = BookFileAvailability.CLOUD_ONLY.name,
+        // Nothing to download for a book read outside the app: it is complete as soon as it lands.
+        fileAvailability = if (format.isOffline) BookFileAvailability.LOCAL.name else BookFileAvailability.CLOUD_ONLY.name,
         format = format.name,
         fileHash = fileHash,
         fileAssetId = assetId,
@@ -768,3 +840,54 @@ internal fun Float.sanitizedReadingPercent(): Float =
 
 private const val MaxReadNextQueueBooks = 2
 private const val RemoteProgressEventBufferCapacity = 32
+
+/** A new, unread book row with its file on this device (none for a book read outside the app). */
+private fun newLocalBookEntity(
+    title: String,
+    author: String?,
+    format: BookFormat,
+    filePath: String,
+    fileHash: String,
+    series: String? = null,
+    seriesNumber: String? = null,
+    description: String? = null,
+    tagsCsv: String? = null,
+    coverPath: String? = null,
+): BookEntity {
+    val now = System.currentTimeMillis()
+    return BookEntity(
+        title = title,
+        author = author,
+        series = series,
+        seriesNumber = seriesNumber,
+        description = description,
+        tagsCsv = tagsCsv,
+        coverPath = coverPath,
+        filePath = filePath,
+        fileAvailability = BookFileAvailability.LOCAL.name,
+        format = format.name,
+        fileHash = fileHash,
+        lastLocator = null,
+        readingPercent = 0f,
+        rating = 0f,
+        groupId = null,
+        isDeleted = false,
+        wordCount = null,
+        pageEstimate = null,
+        createdAt = now,
+        updatedAt = now,
+        lastReadAt = null,
+        startedReadingAt = null,
+        finishedReadingAt = null,
+        totalReadingSeconds = 0L,
+    )
+}
+
+/** A book read outside the app has no reader position to sync, so its type, dates and pages ride with its metadata. */
+private fun BookEntity.withOfflineReadingFrom(record: CloudBookRecord): BookEntity = copy(
+    format = record.format.name,
+    startedReadingAt = record.startedReadingAt,
+    finishedReadingAt = record.finishedReadingAt,
+    pageEstimate = record.pageEstimate,
+    readingPercent = record.readingPercent.sanitizedReadingPercent(),
+)

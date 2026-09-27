@@ -207,6 +207,10 @@ import com.vayana.reader.web.FoliateBookEngine
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.produceState
 import android.view.WindowManager
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -611,8 +615,11 @@ private fun PdfPageBrowserDialog(
                         gridItemsIndexed(pageLabels, key = { index, _ -> index }) { index, label ->
                             LaunchedEffect(index) { onLoadThumbnail(index, 240) }
                             val bytes = thumbnails[index]
-                            val bitmap = remember(bytes) {
-                                bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
+                            // Decoded off the main thread: the grid fills a cell at a time as thumbnails land.
+                            val bitmapState = produceState<ImageBitmap?>(initialValue = null, bytes) {
+                                value = bytes?.let {
+                                    withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+                                }
                             }
                             Surface(
                                 onClick = { onSelectPage(index) },
@@ -621,6 +628,7 @@ private fun PdfPageBrowserDialog(
                                 else MaterialTheme.colorScheme.surfaceContainerHighest,
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    val bitmap = bitmapState.value
                                     if (bitmap != null) {
                                         Image(
                                             bitmap = bitmap,
@@ -810,7 +818,6 @@ private fun ReaderScreen(
     var noteDialogVisible by remember { mutableStateOf(false) }
     var sharingSelection by remember { mutableStateOf<SelectionShare?>(null) }
     var footerShowsBookTime by remember { mutableStateOf(false) }
-    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
     val audioFeaturesEnabled = settings.readerAudioFeaturesEnabled
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
@@ -1005,18 +1012,6 @@ private fun ReaderScreen(
     val isEink = settings.displayProfile == DisplayProfile.E_INK
     val currentLocator = (uiState as? ReaderUiState.Loaded)?.currentLocator
     val currentLocatorCfi = currentLocator?.cfi
-    LaunchedEffect(isEink) {
-        // A clock that ticks on its own is a partial panel refresh in the middle of a page nobody turned: on E-Ink it
-        // only catches up when the page changes (below).
-        if (isEink) return@LaunchedEffect
-        while (true) {
-            nowMillis = System.currentTimeMillis()
-            delay(30_000)
-        }
-    }
-    LaunchedEffect(currentLocatorCfi) {
-        if (isEink) nowMillis = System.currentTimeMillis()
-    }
 
     // Successive partial E-Ink refreshes accumulate ghosting; periodically forcing one
     // maximal-area repaint (a brief full-black flash) makes the panel's controller do a clean
@@ -1233,7 +1228,8 @@ private fun ReaderScreen(
         if (settings.readerShowHeaders) {
             ReaderClockHeader(
                 modifier = Modifier.align(Alignment.TopCenter),
-                nowMillis = nowMillis,
+                isEink = isEink,
+                pageKey = currentLocatorCfi,
                 syncStatus = syncStatus,
                 headerGap = headerGap,
             )
@@ -1515,10 +1511,27 @@ private fun ReaderScreen(
 @Composable
 private fun ReaderClockHeader(
     modifier: Modifier = Modifier,
-    nowMillis: Long,
+    isEink: Boolean,
+    /** Changes with every page turn; on E-Ink the clock only catches up then. */
+    pageKey: Any?,
     syncStatus: ReaderSyncStatus,
     headerGap: Dp = readerHeaderTopPadding,
 ) {
+    // The clock ticks here rather than in the reader: its state lives in this small header, so each tick recomposes
+    // the chip alone instead of the whole reader.
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isEink) {
+        // A clock that ticks on its own is a partial panel refresh in the middle of a page nobody turned: on E-Ink it
+        // only catches up when the page changes (below).
+        if (isEink) return@LaunchedEffect
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    LaunchedEffect(pageKey) {
+        if (isEink) nowMillis = System.currentTimeMillis()
+    }
     val clockText = remember(nowMillis) { DateFormat.format("hh:mm a", nowMillis).toString() }
     Surface(
         modifier = modifier
@@ -2477,11 +2490,11 @@ private fun BookmarksPanel(
     onCreateBookmark: () -> Unit,
     onBookmarkClick: (Annotation) -> Unit,
 ) {
-    val bookmarks = (uiState as? ReaderUiState.Loaded)
-        ?.annotations
-        .orEmpty()
-        .filter { it.type == AnnotationType.BOOKMARK }
-        .sortedByDescending { it.createdAt }
+    // The reader state changes on every page turn; only a change to the annotations should re-sort them.
+    val annotations = (uiState as? ReaderUiState.Loaded)?.annotations.orEmpty()
+    val bookmarks = remember(annotations) {
+        annotations.filter { it.type == AnnotationType.BOOKMARK }.sortedByDescending { it.createdAt }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()

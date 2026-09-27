@@ -35,7 +35,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.vayana.core.database.model.Book
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
@@ -120,10 +120,12 @@ fun SeriesFolderScreenRoute(
     onBack: () -> Unit,
     onBookClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: LibraryViewModel = hiltViewModel(),
 ) {
-    val viewModel: LibraryViewModel = hiltViewModel()
-    val libraryBooks by viewModel.libraryBooks.collectAsStateWithLifecycle()
-    val books = libraryBooks.filter { it.series?.metadataKey() == seriesKey }.sortedForSeries()
+    val readableBooks by viewModel.readableBooks.collectAsStateWithLifecycle()
+    val books = remember(readableBooks, seriesKey) {
+        readableBooks.filter { it.series?.metadataKey() == seriesKey }.sortedForSeries()
+    }
     val title = books.firstOrNull()?.series?.trim().orEmpty()
 
     SeriesFolderScreen(title, books, onBack, onBookClick, modifier)
