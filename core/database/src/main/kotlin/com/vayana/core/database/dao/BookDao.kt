@@ -70,7 +70,9 @@ interface BookDao {
 
     @Query(
         "UPDATE books SET physicalOwnership = :ownership, borrowReturnAt = :borrowReturnAt, " +
-            "updatedAt = :updatedAt WHERE id = :id AND format = 'PHYSICAL'",
+            "updatedAt = :updatedAt WHERE id = :id AND format = 'PHYSICAL' " +
+            // Only a real change: an unchanged loan must not bump the version (and wake every books observer).
+            "AND (physicalOwnership IS NOT :ownership OR borrowReturnAt IS NOT :borrowReturnAt)",
     )
     suspend fun updatePhysicalBookLoan(id: Long, ownership: String, borrowReturnAt: Long?, updatedAt: Long): Int
 

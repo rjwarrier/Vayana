@@ -187,6 +187,9 @@ class BookRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         database.withTransaction {
             val existing = bookDao.getById(id) ?: return@withTransaction
+            // Re-saving the dates shown would still bump the version: every library observer re-queries and the
+            // next sync uploads the book again, for nothing.
+            if (existing.startedReadingAt == startedAt && existing.finishedReadingAt == finishedAt) return@withTransaction
             if (!BookFormat.valueOf(existing.format).isOffline) {
                 bookDao.updateReadingDates(id, startedAt, finishedAt, now)
                 return@withTransaction
@@ -224,7 +227,8 @@ class BookRepositoryImpl @Inject constructor(
                     updatedAt = now,
                 )
             }
-            bookDao.update(updated)
+            // Saving the pages dialog unchanged is not an edit (see updateReadingDates).
+            if (updated.copy(updatedAt = existing.updatedAt) != existing) bookDao.update(updated)
         }
     }
 

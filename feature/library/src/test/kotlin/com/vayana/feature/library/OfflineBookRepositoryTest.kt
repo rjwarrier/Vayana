@@ -162,6 +162,31 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun savingUnchangedValuesKeepsTheVersion() = runBlocking {
+        val book = repository.insertOfflineBook(
+            title = "Dune",
+            author = null,
+            format = BookFormat.PHYSICAL,
+            startedAt = 100,
+            finishedAt = null,
+            pageCount = 400,
+            currentPage = 100,
+            physicalOwnership = PhysicalBookOwnership.BORROWED,
+            borrowReturnAt = null,
+        )
+        val bookDao = database.bookDao()
+        bookDao.update(bookDao.getById(book.id)!!.copy(updatedAt = 1L))
+
+        repository.updateOfflinePages(book.id, pageCount = 400, currentPage = 100)
+        repository.updateReadingDates(book.id, startedAt = 100, finishedAt = null)
+        repository.updatePhysicalBookLoan(book.id, PhysicalBookOwnership.BORROWED, borrowReturnAt = null)
+        assertEquals(1L, repository.observeAll().first().single().updatedAt)
+
+        repository.updatePhysicalBookLoan(book.id, PhysicalBookOwnership.OWNED, borrowReturnAt = null)
+        assertTrue(repository.observeAll().first().single().updatedAt > 1L)
+    }
+
+    @Test
     fun nonPhysicalBookDiscardsPhysicalLoanDetails() = runBlocking {
         val book = repository.insertOfflineBook(
             title = "Listened",

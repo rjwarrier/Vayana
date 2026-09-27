@@ -525,7 +525,6 @@ class LibraryViewModel @Inject constructor(
         .map { books ->
             books.filter { it.format.isOffline }.sortedByDescending { it.finishedReadingAt ?: it.startedReadingAt ?: it.createdAt }
         }
-        .distinctUntilChanged()
         .flowOn(dispatchers.default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
