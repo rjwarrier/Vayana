@@ -2,9 +2,6 @@ package com.vayana.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.outlined.Edit
@@ -335,30 +332,24 @@ private fun BorrowedReadingPlanText(plan: BorrowedReadingPlan) {
 
 @Composable
 private fun ReadingStatGrid(stats: List<ReadingStat>) {
-    // Equal tiles in a fixed two-column grid: each row takes its tallest tile's height, every tile its share
-    // of the width, so the grid never wraps into uneven rows.
+    // Every tile has the same two single-line text slots, so equal-width tiles naturally share a height. Avoiding
+    // intrinsic measurement keeps this frequently recomposed card to a single measurement pass.
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        stats.chunked(ReadingStatColumns).forEach { row ->
+        for (rowStart in stats.indices step ReadingStatColumns) {
+            val first = stats[rowStart]
+            val second = stats.getOrNull(rowStart + 1)
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                if (row.size == 1) {
+                if (second == null) {
                     ReadingStatTile(
-                        stat = row.single(),
+                        stat = first,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    row.forEach { stat ->
-                        ReadingStatTile(
-                            stat = stat,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight(),
-                        )
-                    }
+                    ReadingStatTile(stat = first, modifier = Modifier.weight(1f))
+                    ReadingStatTile(stat = second, modifier = Modifier.weight(1f))
                 }
             }
         }

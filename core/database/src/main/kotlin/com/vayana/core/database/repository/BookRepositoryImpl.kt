@@ -715,58 +715,64 @@ private fun BookEntity.readingProgressVersion(): ReadingProgressVersion =
         updatedAt = updatedAt,
     )
 
-internal fun BookEntity.toDomain(): Book = Book(
-    id = id,
-    syncId = syncId,
-    title = title,
-    author = author,
-    series = series,
-    seriesNumber = seriesNumber,
-    description = description,
-    tagsCsv = tagsCsv,
-    coverPath = coverPath,
-    filePath = filePath,
-    fileAvailability = runCatching { BookFileAvailability.valueOf(fileAvailability) }.getOrDefault(BookFileAvailability.LOCAL),
-    format = BookFormat.valueOf(format),
-    fileHash = fileHash,
-    fileAssetId = fileAssetId,
-    fileAssetSha256 = fileAssetSha256,
-    fileAssetSizeBytes = fileAssetSizeBytes,
-    fileAssetUploadedAt = fileAssetUploadedAt,
-    coverAssetId = coverAssetId,
-    coverAssetSha256 = coverAssetSha256,
-    coverAssetSizeBytes = coverAssetSizeBytes,
-    coverAssetUploadedAt = coverAssetUploadedAt,
-    readingPercent = readingPercent.sanitizedReadingPercent(),
-    rating = rating,
-    createdAt = createdAt,
-    updatedAt = updatedAt,
-    lastReadAt = lastReadAt,
-    lastLocator = lastLocator,
-    startedReadingAt = startedReadingAt,
-    finishedReadingAt = finishedReadingAt,
-    totalReadingSeconds = totalReadingSeconds,
-    customFontSizePercent = customFontSizePercent,
-    customLineHeight = customLineHeight,
-    customFontFamily = customFontFamily,
-    customSideMarginPercent = customSideMarginPercent,
-    readNextAddedAt = readNextAddedAt,
-    readNextUpdatedAt = readNextUpdatedAt,
-    goodreadsUrl = goodreadsUrl,
-    goodreadsRating = goodreadsRating,
-    goodreadsRatingsCount = goodreadsRatingsCount,
-    originalPublicationYear = originalPublicationYear,
-    customCoverPath = customCoverPath,
-    goodreadsCoverPath = goodreadsCoverPath,
-    // Kept when an audiobook was switched from a paper book, but an audiobook has no pages to show.
-    pageCount = pageEstimate?.takeIf { it > 0 && BookFormat.valueOf(format).tracksPages },
-    physicalOwnership = physicalOwnership?.let { runCatching { PhysicalBookOwnership.valueOf(it) }.getOrNull() }
-        .takeIf { BookFormat.valueOf(format) == BookFormat.PHYSICAL },
-    borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
-        .takeIf {
-            BookFormat.valueOf(format) == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED.name
-        },
-)
+internal fun BookEntity.toDomain(): Book {
+    val bookFormat = BookFormat.valueOf(format)
+    val ownership = physicalOwnership
+        ?.let { runCatching { PhysicalBookOwnership.valueOf(it) }.getOrNull() }
+        .takeIf { bookFormat == BookFormat.PHYSICAL }
+    val normalizedBorrowReturnAt = borrowReturnAt
+        ?.takeIf { bookFormat == BookFormat.PHYSICAL && ownership == PhysicalBookOwnership.BORROWED }
+        ?.let(::normalizeBorrowReturnAt)
+
+    return Book(
+        id = id,
+        syncId = syncId,
+        title = title,
+        author = author,
+        series = series,
+        seriesNumber = seriesNumber,
+        description = description,
+        tagsCsv = tagsCsv,
+        coverPath = coverPath,
+        filePath = filePath,
+        fileAvailability = runCatching { BookFileAvailability.valueOf(fileAvailability) }.getOrDefault(BookFileAvailability.LOCAL),
+        format = bookFormat,
+        fileHash = fileHash,
+        fileAssetId = fileAssetId,
+        fileAssetSha256 = fileAssetSha256,
+        fileAssetSizeBytes = fileAssetSizeBytes,
+        fileAssetUploadedAt = fileAssetUploadedAt,
+        coverAssetId = coverAssetId,
+        coverAssetSha256 = coverAssetSha256,
+        coverAssetSizeBytes = coverAssetSizeBytes,
+        coverAssetUploadedAt = coverAssetUploadedAt,
+        readingPercent = readingPercent.sanitizedReadingPercent(),
+        rating = rating,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lastReadAt = lastReadAt,
+        lastLocator = lastLocator,
+        startedReadingAt = startedReadingAt,
+        finishedReadingAt = finishedReadingAt,
+        totalReadingSeconds = totalReadingSeconds,
+        customFontSizePercent = customFontSizePercent,
+        customLineHeight = customLineHeight,
+        customFontFamily = customFontFamily,
+        customSideMarginPercent = customSideMarginPercent,
+        readNextAddedAt = readNextAddedAt,
+        readNextUpdatedAt = readNextUpdatedAt,
+        goodreadsUrl = goodreadsUrl,
+        goodreadsRating = goodreadsRating,
+        goodreadsRatingsCount = goodreadsRatingsCount,
+        originalPublicationYear = originalPublicationYear,
+        customCoverPath = customCoverPath,
+        goodreadsCoverPath = goodreadsCoverPath,
+        // Kept when an audiobook was switched from a paper book, but an audiobook has no pages to show.
+        pageCount = pageEstimate?.takeIf { it > 0 && bookFormat.tracksPages },
+        physicalOwnership = ownership,
+        borrowReturnAt = normalizedBorrowReturnAt,
+    )
+}
 
 /** Alternate cover choices are local files, so a cloud rewrite must carry them over. */
 private fun BookEntity.withCoverAlternatesFrom(existing: BookEntity): BookEntity = copy(
