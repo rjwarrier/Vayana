@@ -22,15 +22,22 @@ class DiagnosticsLogStore internal constructor(private val logFile: File) {
         this(File(context.filesDir, "diagnostics/events.ndjson"))
 
     private val lock = Any()
+    private val exitCheckpointFile = File(logFile.absoluteFile.parentFile, ExitCheckpointFileName)
 
-    fun record(category: DiagnosticCategory, source: String, message: String, detail: String? = null) {
+    fun record(
+        category: DiagnosticCategory,
+        source: String,
+        message: String,
+        detail: String? = null,
+        timestamp: Long = System.currentTimeMillis(),
+    ) {
         val event = DiagnosticEvent(
             id = UUID.randomUUID().toString(),
-            timestamp = System.currentTimeMillis(),
+            timestamp = timestamp,
             category = category,
             source = source.take(MaxSourceChars),
             message = message.take(MaxMessageChars),
-            detail = detail?.take(MaxDetailChars),
+            detail = detail?.truncateDiagnosticDetail(),
         )
         synchronized(lock) {
             runCatching {
@@ -59,6 +66,19 @@ class DiagnosticsLogStore internal constructor(private val logFile: File) {
         }
     }
 
+    internal fun lastProcessedExitTimestamp(): Long = synchronized(lock) {
+        runCatching { exitCheckpointFile.readText().trim().toLong() }.getOrDefault(0L)
+    }
+
+    internal fun markExitTimestampProcessed(timestamp: Long) {
+        synchronized(lock) {
+            runCatching {
+                exitCheckpointFile.parentFile?.mkdirs()
+                exitCheckpointFile.writeText(timestamp.toString())
+            }
+        }
+    }
+
     private fun trimIfNeededLocked() {
         if (!logFile.isFile || logFile.length() <= MaxLogFileBytes) return
         runCatching {
@@ -66,6 +86,11 @@ class DiagnosticsLogStore internal constructor(private val logFile: File) {
             logFile.writeText(if (trimmed.isEmpty()) "" else trimmed.joinToString("\n", postfix = "\n"))
         }
     }
+}
+
+internal fun String.truncateDiagnosticDetail(): String {
+    if (length <= MaxDetailChars) return this
+    return take(MaxDetailChars - TruncatedSuffix.length) + TruncatedSuffix
 }
 
 private fun DiagnosticEvent.toJsonLine(): String =
@@ -98,6 +123,8 @@ private fun String.toDiagnosticEventOrNull(): DiagnosticEvent? {
 
 private const val MaxSourceChars = 200
 private const val MaxMessageChars = 2_000
-private const val MaxDetailChars = 8_000
+private const val MaxDetailChars = 32_000
 private const val MaxLogFileBytes = 2 * 1024 * 1024
 private const val MaxRetainedEvents = 500
+private const val ExitCheckpointFileName = "system-exit.checkpoint"
+private const val TruncatedSuffix = "\n… [truncated]"

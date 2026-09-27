@@ -40,7 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,10 +81,10 @@ fun StatisticsRoute(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: StatisticsViewModel = hiltViewModel()
-    val summary by viewModel.summary.collectAsState()
-    val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsState()
-    val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsState()
-    val highlightsDue by viewModel.highlightsDue.collectAsState()
+    val summary by viewModel.summary.collectAsStateWithLifecycle()
+    val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsStateWithLifecycle()
+    val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsStateWithLifecycle()
+    val highlightsDue by viewModel.highlightsDue.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.refreshHighlightDue() }
 
     StatisticsScreen(

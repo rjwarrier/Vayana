@@ -54,7 +54,7 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -117,7 +117,7 @@ fun VayanaFloatingBar(
         currentBackStackEntry?.savedStateHandle?.getStateFlow(BOOK_DETAIL_READABLE_KEY, false)
     }
     val bookDetailReadable = if (readableStateFlow != null) {
-        val readable by readableStateFlow.collectAsState()
+        val readable by readableStateFlow.collectAsStateWithLifecycle()
         readable
     } else {
         false

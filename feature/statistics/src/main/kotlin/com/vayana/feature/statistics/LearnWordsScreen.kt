@@ -24,7 +24,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +46,7 @@ import com.vayana.core.designsystem.theme.asAppDate
 @Composable
 fun LearnWordsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: LearnWordsViewModel = hiltViewModel()
-    val summary by viewModel.summary.collectAsState()
+    val summary by viewModel.summary.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,

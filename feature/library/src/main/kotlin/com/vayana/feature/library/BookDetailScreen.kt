@@ -72,7 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -145,20 +145,22 @@ fun BookDetailRoute(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val libraryBooks by viewModel.libraryBooks.collectAsState()
+    val libraryBooks by viewModel.libraryBooks.collectAsStateWithLifecycle()
     val bookFlow = remember(bookId) { viewModel.observeBook(bookId) }
-    val observedBook by bookFlow.collectAsState(initial = null)
+    val observedBook by bookFlow.collectAsStateWithLifecycle(initialValue = null)
     val book = observedBook ?: libraryBooks.firstOrNull { libraryBook -> libraryBook.id == bookId }
-    val uiState by viewModel.uiState.collectAsState()
-    val yearlyBooksGoal by viewModel.yearlyBooksGoal.collectAsState()
-    val detailMessage by viewModel.bookDetailMessage.collectAsState()
-    val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsState()
-    val allShelves by viewModel.shelves.collectAsState()
-    val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsState()
-    val goodreadsImport by viewModel.goodreadsImport.collectAsState()
-    val highlightCount by remember(bookId) { viewModel.observeAnnotationCount(bookId) }.collectAsState(initial = null)
-    val communityQuoteCount by remember(bookId) { viewModel.observeCommunityQuoteCount(bookId) }.collectAsState(initial = null)
-    val pendingLaunchProgressChange by viewModel.pendingLaunchProgressChange.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val yearlyBooksGoal by viewModel.yearlyBooksGoal.collectAsStateWithLifecycle()
+    val detailMessage by viewModel.bookDetailMessage.collectAsStateWithLifecycle()
+    val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsStateWithLifecycle()
+    val allShelves by viewModel.shelves.collectAsStateWithLifecycle()
+    val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsStateWithLifecycle()
+    val goodreadsImport by viewModel.goodreadsImport.collectAsStateWithLifecycle()
+    val highlightCount by remember(bookId) { viewModel.observeAnnotationCount(bookId) }
+        .collectAsStateWithLifecycle(initialValue = null)
+    val communityQuoteCount by remember(bookId) { viewModel.observeCommunityQuoteCount(bookId) }
+        .collectAsStateWithLifecycle(initialValue = null)
+    val pendingLaunchProgressChange by viewModel.pendingLaunchProgressChange.collectAsStateWithLifecycle()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
     var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
 

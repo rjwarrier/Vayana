@@ -61,7 +61,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,8 +116,8 @@ fun NotesRoute(
     onBack: (() -> Unit)? = null,
 ) {
     val viewModel: NotesViewModel = hiltViewModel()
-    val uiState by viewModel.uiState.collectAsState()
-    val kindleImportResult by viewModel.kindleImportResult.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val kindleImportResult by viewModel.kindleImportResult.collectAsStateWithLifecycle()
 
     NotesScreen(
         modifier = modifier,
@@ -265,7 +265,13 @@ private fun NotesScreen(
                             )
                         }
                         activeBookItem?.let { bookItem ->
-                            IconButton(onClick = { context.shareHighlightsMarkdown(bookItem.book, bookItem.annotations) }) {
+                            IconButton(
+                                onClick = {
+                                    scope.launch {
+                                        context.shareHighlightsMarkdown(bookItem.book, bookItem.annotations)
+                                    }
+                                },
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Description,
                                     contentDescription = stringResource(R.string.notes_export_markdown_content_description),
@@ -1408,7 +1414,7 @@ private fun Context.shareAnnotations(annotations: List<Annotation>) {
 }
 
 /** Exports [book]'s highlights/notes as a Markdown file, grouped by chapter, and shares it. */
-private fun Context.shareHighlightsMarkdown(book: Book, annotations: List<Annotation>) {
+private suspend fun Context.shareHighlightsMarkdown(book: Book, annotations: List<Annotation>) {
     val markdown = buildString {
         appendLine("# ${book.title}")
         book.author?.takeIf { it.isNotBlank() }?.let { author -> appendLine("*${author}*") }

@@ -109,7 +109,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -146,7 +146,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -216,21 +216,21 @@ import com.vayana.reader.api.Footnote
 @Composable
 fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocabulary: () -> Unit = {}) {
     val viewModel: ReaderViewModel = hiltViewModel()
-    val uiState by viewModel.uiState.collectAsState()
-    val settings by viewModel.effectiveSettings.collectAsState()
-    val usingCustomStyle by viewModel.usingCustomStyle.collectAsState()
-    val dictionaryLookup by viewModel.dictionaryLookup.collectAsState()
-    val readingPositionPrompt by viewModel.readingPositionPrompt.collectAsState()
-    val recentLookups by viewModel.recentLookups.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
-    val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsState()
-    val engineGeneration by viewModel.engineGeneration.collectAsState()
-    val readAloudVoices by viewModel.readAloudVoices.collectAsState()
-    val readAloudEngines by viewModel.readAloudEngines.collectAsState()
-    val pdfBookPreferences by viewModel.pdfBookPreferences.collectAsState()
-    val pdfPasswordPrompt by viewModel.pdfPasswordPrompt.collectAsState()
-    val pdfThumbnails by viewModel.pdfThumbnails.collectAsState()
-    val readerControlsRequest by viewModel.readerControlsRequest.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val settings by viewModel.effectiveSettings.collectAsStateWithLifecycle()
+    val usingCustomStyle by viewModel.usingCustomStyle.collectAsStateWithLifecycle()
+    val dictionaryLookup by viewModel.dictionaryLookup.collectAsStateWithLifecycle()
+    val readingPositionPrompt by viewModel.readingPositionPrompt.collectAsStateWithLifecycle()
+    val recentLookups by viewModel.recentLookups.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsStateWithLifecycle()
+    val engineGeneration by viewModel.engineGeneration.collectAsStateWithLifecycle()
+    val readAloudVoices by viewModel.readAloudVoices.collectAsStateWithLifecycle()
+    val readAloudEngines by viewModel.readAloudEngines.collectAsStateWithLifecycle()
+    val pdfBookPreferences by viewModel.pdfBookPreferences.collectAsStateWithLifecycle()
+    val pdfPasswordPrompt by viewModel.pdfPasswordPrompt.collectAsStateWithLifecycle()
+    val pdfThumbnails by viewModel.pdfThumbnails.collectAsStateWithLifecycle()
+    val readerControlsRequest by viewModel.readerControlsRequest.collectAsStateWithLifecycle()
     var showPdfPageBrowser by rememberSaveable { mutableStateOf(false) }
     val pdfPageControls = remember(viewModel, pdfBookPreferences?.rotationDegrees) {
         PdfPageControls(
@@ -284,12 +284,12 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
 
     // Routine auto-sync fires every few page turns; a snackbar per run interrupts reading (and on E-Ink
     // costs a full-screen refresh), so the outcome shows as a standing dot beside the clock instead.
-    val syncStatus by viewModel.syncStatus.collectAsState()
-    val footnote by viewModel.footnote.collectAsState()
-    val bookFinishedPrompt by viewModel.bookFinishedPrompt.collectAsState()
-    val readAloud by viewModel.readAloud.collectAsState()
-    val returnRecap by viewModel.returnRecap.collectAsState()
-    val chapterWords by viewModel.chapterWords.collectAsState()
+    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
+    val footnote by viewModel.footnote.collectAsStateWithLifecycle()
+    val bookFinishedPrompt by viewModel.bookFinishedPrompt.collectAsStateWithLifecycle()
+    val readAloud by viewModel.readAloud.collectAsStateWithLifecycle()
+    val returnRecap by viewModel.returnRecap.collectAsStateWithLifecycle()
+    val chapterWords by viewModel.chapterWords.collectAsStateWithLifecycle()
 
     Box(modifier = modifier.fillMaxSize()) {
     if (showNotesSidePanel) {

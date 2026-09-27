@@ -26,6 +26,10 @@
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
   </p>
+
+  <p>
+    <a href="https://www.buymeacoffee.com/ranjithj"><img alt="Buy me a coffee" src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=ranjithj&button_colour=FFDD00&font_colour=000000&font_family=Bree&outline_colour=000000&coffee_colour=ffffff" height="44"></a>
+  </p>
 </div>
 
 ## Why Vayana?
@@ -220,3 +224,9 @@ The app uses Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, WorkMan
 ## Feedback
 
 Use [GitHub Issues](https://github.com/rjwarrier/Vayana/issues) for reproducible bugs and focused feature requests. When reporting reader or sync problems, include the Android version, device model, display profile, and the diagnostic export where available—never include a GitHub token or sync passphrase.
+
+## Support
+
+If Vayana is useful to you, you can support development:
+
+<a href="https://www.buymeacoffee.com/ranjithj"><img alt="Buy me a coffee" src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=ranjithj&button_colour=FFDD00&font_colour=000000&font_family=Bree&outline_colour=000000&coffee_colour=ffffff" height="44"></a>

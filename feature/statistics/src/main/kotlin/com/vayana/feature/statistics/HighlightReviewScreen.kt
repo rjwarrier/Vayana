@@ -27,7 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,8 +53,8 @@ fun HighlightReviewRoute(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: HighlightReviewViewModel = hiltViewModel()
-    val session by viewModel.session.collectAsState()
-    val index by viewModel.index.collectAsState()
+    val session by viewModel.session.collectAsStateWithLifecycle()
+    val index by viewModel.index.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,

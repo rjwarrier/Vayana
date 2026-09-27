@@ -25,8 +25,8 @@ android {
 
     defaultConfig {
         applicationId = "com.vayana.app"
-        versionCode = 1
-        versionName = "0.85"
+        versionCode = 2
+        versionName = "0.87"
     }
 
     signingConfigs {
@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.compose.material.icons.extended)

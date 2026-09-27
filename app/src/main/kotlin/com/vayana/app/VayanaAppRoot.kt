@@ -13,7 +13,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,7 +47,7 @@ import com.vayana.feature.onboarding.OnboardingRoute
 fun VayanaAppRoot() {
     val settingsViewModel: AppSettingsViewModel = hiltViewModel()
     // Null until DataStore's first read: drawing defaults first would flash onboarding and the wrong theme.
-    val settings = settingsViewModel.settings.collectAsState().value ?: return
+    val settings = settingsViewModel.settings.collectAsStateWithLifecycle().value ?: return
 
     VayanaTheme(
         themeMode = settings.themeMode,
@@ -77,7 +77,7 @@ fun VayanaAppRoot() {
             settingsViewModel.lastReadBookId()?.let { bookId -> navController.navigate(ReaderRoute(bookId)) }
         }
         // A book opened or shared from another app is imported by the library, so show it.
-        val hasIncomingBooks by settingsViewModel.hasIncomingBooks.collectAsState()
+        val hasIncomingBooks by settingsViewModel.hasIncomingBooks.collectAsStateWithLifecycle()
         LaunchedEffect(hasIncomingBooks) {
             if (hasIncomingBooks) navController.navigateToTopLevel(TopLevelRoute.Library)
         }

@@ -37,7 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,8 +67,8 @@ import java.io.File
 @Composable
 fun ShelvesRoute(onBack: () -> Unit, onShelfClick: (Long) -> Unit, onBookClick: (Long) -> Unit, modifier: Modifier = Modifier) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val shelves by viewModel.shelves.collectAsState()
-    val readNextQueue by viewModel.readNextQueue.collectAsState()
+    val shelves by viewModel.shelves.collectAsStateWithLifecycle()
+    val readNextQueue by viewModel.readNextQueue.collectAsStateWithLifecycle()
 
     ShelvesScreen(
         modifier = modifier,
@@ -217,7 +217,7 @@ private fun ShelvesScreen(
 @Composable
 private fun ShelfRow(shelf: Shelf, onClick: () -> Unit, onDelete: () -> Unit) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val bookCount by remember(shelf.id) { viewModel.observeShelfBookCount(shelf.id) }.collectAsState()
+    val bookCount by remember(shelf.id) { viewModel.observeShelfBookCount(shelf.id) }.collectAsStateWithLifecycle()
 
     Surface(
         modifier = Modifier
@@ -322,8 +322,8 @@ private fun ReadNextRow(book: Book, onClick: () -> Unit, onRemove: () -> Unit) {
 @Composable
 fun ShelfDetailRoute(shelfId: Long, onBack: () -> Unit, onBookClick: (Long) -> Unit, modifier: Modifier = Modifier) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val shelf by remember(shelfId) { viewModel.observeShelf(shelfId) }.collectAsState()
-    val books by remember(shelfId) { viewModel.observeBooksForShelf(shelfId) }.collectAsState()
+    val shelf by remember(shelfId) { viewModel.observeShelf(shelfId) }.collectAsStateWithLifecycle()
+    val books by remember(shelfId) { viewModel.observeBooksForShelf(shelfId) }.collectAsStateWithLifecycle()
 
     ShelfDetailScreen(
         modifier = modifier,

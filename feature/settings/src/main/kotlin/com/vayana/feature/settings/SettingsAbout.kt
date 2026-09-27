@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,10 +28,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.LocalCafe
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -50,7 +59,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -60,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.FileProvider
 import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.tokens.Elevations
@@ -67,6 +79,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import java.io.File
 import android.graphics.Bitmap
@@ -78,6 +91,7 @@ import kotlinx.coroutines.withContext
 
 private val SettingsAboutBadgeSize = Sizes.badgeLarge
 private val SettingsAboutMarkSize = (Sizes.iconLarge + Spacing.sm) * 1.265f
+private val SupportButtonYellow = Color(0xFFFFDD00)
 private enum class SharePromoTheme(@param:DrawableRes val imageRes: Int) {
     LIGHT(R.drawable.vayana_share_light),
     DARK(R.drawable.vayana_share_dark_reader),
@@ -146,22 +160,26 @@ internal fun HelpAndAboutDetail(
             start = SettingsPagePadding,
             top = contentPadding.calculateTopPadding() + SettingsPagePadding,
             end = SettingsPagePadding,
-            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding,
+            bottom = contentPadding.calculateBottomPadding() + SettingsPagePadding + LocalFloatingNavigationInset.current,
         ),
         verticalArrangement = Arrangement.spacedBy(SettingsPagePadding),
     ) {
         item {
             SettingsContentContainer {
-                Surface(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(Radii.large),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = Elevations.none,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    Column(
-                        modifier = Modifier.padding(Paddings.card),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(Radii.large),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = Elevations.none,
                     ) {
+                        Column(
+                            modifier = Modifier.padding(Paddings.card),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                        ) {
                         SettingsNavigationCard(
                             title = stringResource(R.string.settings_open_help_title),
                             subtitle = stringResource(R.string.settings_open_help_subtitle),
@@ -174,14 +192,14 @@ internal fun HelpAndAboutDetail(
                             icon = Icons.Outlined.BugReport,
                             onClick = onDiagnosticsClick,
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        Text(
-                            text = stringResource(R.string.settings_about_section_title),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        SettingsAboutSection()
+                        }
                     }
+                    Text(
+                        text = stringResource(R.string.settings_about_section_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    SettingsAboutSection()
                 }
             }
         }
@@ -215,65 +233,78 @@ private fun SettingsAboutSection() {
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Surface(
-            modifier = Modifier.size(SettingsAboutBadgeSize),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.large),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = Elevations.none,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_vayana_mark),
-                    contentDescription = null,
-                    modifier = Modifier.size(SettingsAboutMarkSize),
+            Column(
+                modifier = Modifier.padding(Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Surface(
+                    modifier = Modifier.size(SettingsAboutBadgeSize),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_vayana_mark),
+                            contentDescription = null,
+                            modifier = Modifier.size(SettingsAboutMarkSize),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.app_tagline),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.about_version,
+                            packageInfo.versionName ?: "0.1.0",
+                            versionCode.toString(),
+                        ),
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = stringResource(R.string.about_credit),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = stringResource(R.string.about_made_in),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.app_tagline),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.about_version,
-                    packageInfo.versionName ?: "0.1.0",
-                    versionCode.toString(),
-                ),
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Text(
-            text = stringResource(R.string.about_credit),
-            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = stringResource(R.string.about_made_in),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             OutlinedButton(
                 onClick = { uriHandler.openUri(VAYANA_GITHUB_URL) },
@@ -300,6 +331,24 @@ private fun SettingsAboutSection() {
             Spacer(modifier = Modifier.width(Spacing.xs))
             Text(text = stringResource(R.string.about_website), textAlign = TextAlign.Center)
         }
+        Button(
+            onClick = { uriHandler.openUri(VAYANA_SUPPORT_URL) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SupportButtonYellow,
+                contentColor = Color.Black,
+            ),
+            border = BorderStroke(Strokes.outline, Color.Black),
+        ) {
+            Icon(imageVector = Icons.Outlined.LocalCafe, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+            Spacer(modifier = Modifier.width(Spacing.xs))
+            Text(
+                text = stringResource(R.string.about_support_dev),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+        }
+        OtherAppsCard()
     }
 
     if (showShareDialog) {
@@ -312,6 +361,139 @@ private fun SettingsAboutSection() {
                 coroutineScope.launch { context.shareApp(shareTitle, message, imageRes) }
             },
         )
+    }
+}
+
+private data class RelatedApp(
+    @param:StringRes val nameRes: Int,
+    @param:StringRes val taglineRes: Int,
+    val playStoreUrl: String,
+    val icon: ImageVector,
+)
+
+private val relatedApps = listOf(
+    RelatedApp(
+        nameRes = R.string.about_app_ultra,
+        taglineRes = R.string.about_app_ultra_tagline,
+        playStoreUrl = "https://play.google.com/store/apps/details?id=com.ultra.reminders",
+        icon = Icons.Outlined.Alarm,
+    ),
+    RelatedApp(
+        nameRes = R.string.about_app_yaja,
+        taglineRes = R.string.about_app_yaja_tagline,
+        playStoreUrl = "https://play.google.com/store/apps/details?id=com.mj.yaja",
+        icon = Icons.Outlined.Book,
+    ),
+    RelatedApp(
+        nameRes = R.string.about_app_yata,
+        taglineRes = R.string.about_app_yata_tagline,
+        playStoreUrl = "https://github.com/rjwarrier/yata/releases",
+        icon = Icons.Outlined.CheckCircle,
+    ),
+    RelatedApp(
+        nameRes = R.string.about_app_assetrack,
+        taglineRes = R.string.about_app_assetrack_tagline,
+        playStoreUrl = "https://play.google.com/store/apps/details?id=com.mj.assetrack",
+        icon = Icons.Outlined.Inventory2,
+    ),
+)
+
+@Composable
+private fun OtherAppsCard() {
+    val uriHandler = LocalUriHandler.current
+    val tileColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.error,
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.large),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(
+            width = Strokes.outline,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        ),
+        tonalElevation = Elevations.none,
+    ) {
+        Column(
+            modifier = Modifier.padding(Paddings.card),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                )
+                Text(
+                    text = stringResource(R.string.about_other_apps),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            relatedApps.chunked(RelatedAppsColumns).forEach { rowApps ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    rowApps.forEach { app ->
+                        val appIndex = relatedApps.indexOf(app)
+                        val tint = tileColors[appIndex % tileColors.size]
+                        Surface(
+                            onClick = { uriHandler.openUri(app.playStoreUrl) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(Radii.medium),
+                            color = tint.copy(alpha = 0.12f),
+                            border = BorderStroke(Strokes.outline, tint.copy(alpha = 0.3f)),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.md),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(Sizes.badge),
+                                    shape = CircleShape,
+                                    color = tint.copy(alpha = 0.2f),
+                                    contentColor = tint,
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = app.icon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(Sizes.iconSmall),
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = stringResource(app.nameRes),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Text(
+                                    text = stringResource(app.taglineRes),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                    }
+                    repeat(RelatedAppsColumns - rowApps.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -492,3 +674,4 @@ private fun android.content.Context.stageSharePromoImage(@DrawableRes imageRes: 
 }.getOrNull()
 
 private const val SharePromoJpegQuality = 92
+private const val RelatedAppsColumns = 2

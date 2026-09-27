@@ -69,12 +69,14 @@ fun Context.shareText(text: String, chooserTitle: String) {
     startActivity(Intent.createChooser(intent, chooserTitle))
 }
 
-/** Writes [content] to a cache file named [fileName] and shares it as [mimeType] via the system share sheet. */
-fun Context.shareFile(content: String, fileName: String, mimeType: String, chooserTitle: String) {
-    val dir = File(cacheDir, "shared_files").apply { mkdirs() }
-    val file = File(dir, fileName)
-    file.writeText(content)
-    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+/** Writes [content] off the main thread, then shares it as [mimeType] via the system share sheet. */
+suspend fun Context.shareFile(content: String, fileName: String, mimeType: String, chooserTitle: String) {
+    val uri = withContext(Dispatchers.IO) {
+        val dir = File(cacheDir, "shared_files").apply { mkdirs() }
+        val file = File(dir, fileName)
+        file.writeText(content)
+        FileProvider.getUriForFile(this@shareFile, "$packageName.fileprovider", file)
+    }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = mimeType
         putExtra(Intent.EXTRA_STREAM, uri)

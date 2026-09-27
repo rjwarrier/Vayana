@@ -75,4 +75,22 @@ class DiagnosticsLogStoreTest {
         assertTrue(nestedFile.isFile)
         assertEquals(1, nestedStore.readAll().size)
     }
+
+    @Test
+    fun `explicit timestamp is retained for recovered system exits`() {
+        store.record(DiagnosticCategory.CRASH, "Android system", "crash", timestamp = 1234L)
+
+        assertEquals(1234L, store.readAll().single().timestamp)
+    }
+
+    @Test
+    fun `system exit checkpoint is independent from clearing events`() {
+        store.markExitTimestampProcessed(9876L)
+        store.record(DiagnosticCategory.CRASH, "Android system", "crash")
+
+        store.clear()
+
+        assertEquals(9876L, store.lastProcessedExitTimestamp())
+        assertTrue(store.readAll().isEmpty())
+    }
 }

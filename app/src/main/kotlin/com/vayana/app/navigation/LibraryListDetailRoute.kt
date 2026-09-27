@@ -25,7 +25,7 @@ import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaf
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalConfiguration
@@ -65,8 +65,8 @@ fun LibraryListDetailRoute(
     onAddBookActionHandled: () -> Unit,
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val landscapeTwoColumnLayout by viewModel.landscapeTwoColumnLayout.collectAsState()
-    val libraryBooks by viewModel.libraryBooks.collectAsState()
+    val landscapeTwoColumnLayout by viewModel.landscapeTwoColumnLayout.collectAsStateWithLifecycle()
+    val libraryBooks by viewModel.libraryBooks.collectAsStateWithLifecycle()
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isTabletLandscape = isLandscape &&

@@ -5,7 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -133,7 +133,7 @@ fun VayanaNavHost(
         composable<TopLevelRoute.Library> { backStackEntry ->
             val addBookActionName by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(LIBRARY_ADD_ACTION_KEY, null)
-                .collectAsState()
+                .collectAsStateWithLifecycle()
             LibraryListDetailRoute(
                 navController = navController,
                 sharedTransitionScope = this@SharedTransitionLayout,

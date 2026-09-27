@@ -78,7 +78,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -164,14 +164,14 @@ fun LibraryRoute(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
-    val uiState by viewModel.uiState.collectAsState()
-    val importSummary by viewModel.importSummary.collectAsState()
-    val importProgress by viewModel.importProgress.collectAsState()
-    val syncProgress by viewModel.syncProgress.collectAsState()
-    val cloudBookDownloadProgress by viewModel.cloudBookDownloadProgress.collectAsState()
-    val readNextQueue by viewModel.readNextQueue.collectAsState()
-    val deletionNotice by viewModel.permanentDeletionNotice.collectAsState()
-    val remoteBookDeletions by viewModel.remoteBookDeletions.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val importSummary by viewModel.importSummary.collectAsStateWithLifecycle()
+    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
+    val syncProgress by viewModel.syncProgress.collectAsStateWithLifecycle()
+    val cloudBookDownloadProgress by viewModel.cloudBookDownloadProgress.collectAsStateWithLifecycle()
+    val readNextQueue by viewModel.readNextQueue.collectAsStateWithLifecycle()
+    val deletionNotice by viewModel.permanentDeletionNotice.collectAsStateWithLifecycle()
+    val remoteBookDeletions by viewModel.remoteBookDeletions.collectAsStateWithLifecycle()
 
     LibraryScreen(
         modifier = modifier,

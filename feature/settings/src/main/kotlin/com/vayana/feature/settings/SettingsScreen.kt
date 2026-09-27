@@ -66,7 +66,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -114,6 +114,7 @@ private fun settingsCategoryEntries(settings: SettingsSnapshot): List<Pair<Setti
 
 internal const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
 internal const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
+internal const val VAYANA_SUPPORT_URL = "https://www.buymeacoffee.com/ranjithj"
 
 private data class SettingsDestinationState(
     val group: SettingsGroup? = null,
@@ -129,15 +130,15 @@ fun SettingsRoute(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
-    val settings by viewModel.settings.collectAsState()
-    val backupState by viewModel.backupState.collectAsState()
-    val automaticBackup by viewModel.automaticBackup.collectAsState()
-    val backupFolderFiles by viewModel.backupFolderFiles.collectAsState()
-    val restorePreview by viewModel.restorePreview.collectAsState()
-    val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsState()
-    val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsState()
-    val pendingCloudDeletions by viewModel.pendingCloudDeletions.collectAsState()
-    val readerFontImportState by viewModel.readerFontImportState.collectAsState()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val backupState by viewModel.backupState.collectAsStateWithLifecycle()
+    val automaticBackup by viewModel.automaticBackup.collectAsStateWithLifecycle()
+    val backupFolderFiles by viewModel.backupFolderFiles.collectAsStateWithLifecycle()
+    val restorePreview by viewModel.restorePreview.collectAsStateWithLifecycle()
+    val githubSyncSettingsTransferState by viewModel.githubSyncSettingsTransferState.collectAsStateWithLifecycle()
+    val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsStateWithLifecycle()
+    val pendingCloudDeletions by viewModel.pendingCloudDeletions.collectAsStateWithLifecycle()
+    val readerFontImportState by viewModel.readerFontImportState.collectAsStateWithLifecycle()
 
     SettingsScreen(
         modifier = modifier,

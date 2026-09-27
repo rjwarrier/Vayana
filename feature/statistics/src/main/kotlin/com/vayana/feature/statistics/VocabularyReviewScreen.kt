@@ -23,6 +23,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.vayana.core.common.shareFile
@@ -36,7 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,15 +56,17 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun VocabularyReviewRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: VocabularyReviewViewModel = hiltViewModel()
-    val cards by viewModel.cards.collectAsState()
-    val index by viewModel.index.collectAsState()
-    val flipped by viewModel.flipped.collectAsState()
-    val loaded by viewModel.loaded.collectAsState()
+    val scope = rememberCoroutineScope()
+    val cards by viewModel.cards.collectAsStateWithLifecycle()
+    val index by viewModel.index.collectAsStateWithLifecycle()
+    val flipped by viewModel.flipped.collectAsStateWithLifecycle()
+    val loaded by viewModel.loaded.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -94,7 +97,14 @@ fun VocabularyReviewRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                         label = stringResource(format.labelRes),
                                         onClick = {
                                             viewModel.export(format, markdownTitle, otherWordsHeading) { content ->
-                                                context.shareFile(content, format.fileName, format.mimeType, chooserTitle)
+                                                scope.launch {
+                                                    context.shareFile(
+                                                        content,
+                                                        format.fileName,
+                                                        format.mimeType,
+                                                        chooserTitle,
+                                                    )
+                                                }
                                             }
                                         },
                                     )
