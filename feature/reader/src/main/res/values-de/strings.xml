@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="read_aloud_notification_channel">Vorlesen</string>
+    <string name="read_aloud_notification_title">Wird vorgelesen</string>
+    <string name="read_aloud_notification_text">Die Wiedergabe läuft auch bei ausgeschaltetem Bildschirm weiter</string>
+    <string name="read_aloud_notification_progress">%1$d %% abgeschlossen</string>
+    <string name="read_aloud_notification_pause">Pause</string>
+    <string name="read_aloud_notification_play">Abspielen</string>
+    <string name="read_aloud_notification_previous">Vorheriger Satz</string>
+    <string name="read_aloud_notification_next">Nächster Satz</string>
+</resources>
