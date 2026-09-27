@@ -1,5 +1,6 @@
 package com.vayana.feature.reader
 
+import com.vayana.core.designsystem.component.asString
 import android.Manifest
 import android.app.Activity
 import android.graphics.BitmapFactory
@@ -819,6 +820,7 @@ private fun ReaderScreen(
     var sharingSelection by remember { mutableStateOf<SelectionShare?>(null) }
     var footerShowsBookTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val citationPattern = stringResource(R.string.quote_citation)
     val audioFeaturesEnabled = settings.readerAudioFeaturesEnabled
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val onEngineReleasedState = rememberUpdatedState(onEngineReleased)
@@ -1272,7 +1274,7 @@ private fun ReaderScreen(
         }
         if (uiState is ReaderUiState.Failed) {
             Text(
-                text = uiState.message,
+                text = uiState.message.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -1419,6 +1421,7 @@ private fun ReaderScreen(
                             author = loadedState?.bookAuthor,
                             bookTitle = loadedState?.bookTitle,
                             chapterTitle = selection?.chapterTitle,
+                            pattern = citationPattern,
                         )
                         context.copyTextToClipboard(citation)
                         onClearSelection()
@@ -1964,13 +1967,13 @@ private fun DictionaryLookupContent(
             )
             state.entry.senses.take(MaxDisplayedDictionarySenses).forEach { sense ->
                 Text(
-                    text = "${sense.partOfSpeech.shortLabel()}  ${sense.definition}",
+                    text = stringResource(R.string.dictionary_sense, sense.partOfSpeech.shortLabel(), sense.definition),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = Spacing.xs),
                 )
                 sense.examples.firstOrNull()?.let { example ->
                     Text(
-                        text = "“$example”",
+                        text = stringResource(R.string.quoted_text, example),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2054,7 +2057,7 @@ private fun DictionaryLookupContent(
         )
         is DictionaryLookupState.Failed -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
             Text(
-                text = state.message,
+                text = state.message.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -2065,11 +2068,12 @@ private fun DictionaryLookupContent(
     }
 }
 
+@Composable
 private fun PartOfSpeech.shortLabel(): String = when (this) {
-    PartOfSpeech.NOUN -> "noun"
-    PartOfSpeech.VERB -> "verb"
-    PartOfSpeech.ADJECTIVE -> "adj."
-    PartOfSpeech.ADVERB -> "adv."
+    PartOfSpeech.NOUN -> stringResource(R.string.dictionary_part_of_speech_noun)
+    PartOfSpeech.VERB -> stringResource(R.string.dictionary_part_of_speech_verb)
+    PartOfSpeech.ADJECTIVE -> stringResource(R.string.dictionary_part_of_speech_adjective)
+    PartOfSpeech.ADVERB -> stringResource(R.string.dictionary_part_of_speech_adverb)
     PartOfSpeech.UNKNOWN -> ""
 }
 
@@ -2651,7 +2655,7 @@ private fun NotesSidePanel(
                             Column(modifier = Modifier.padding(Spacing.md)) {
                                 if (annotation.selectedText.isNotBlank()) {
                                     Text(
-                                        text = "“${annotation.selectedText}”",
+                                        text = stringResource(R.string.quoted_text, annotation.selectedText),
                                         style = MaterialTheme.typography.bodyMedium,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,

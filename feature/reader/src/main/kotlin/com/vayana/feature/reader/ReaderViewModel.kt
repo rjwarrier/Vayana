@@ -1,5 +1,8 @@
 package com.vayana.feature.reader
 
+import com.vayana.core.resources.R
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.UiText
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -91,7 +94,7 @@ sealed interface ReaderSyncStatus {
     data object Idle : ReaderSyncStatus
     data object Syncing : ReaderSyncStatus
     data object Synced : ReaderSyncStatus
-    data class Failed(val reason: String?) : ReaderSyncStatus
+    data class Failed(val reason: UiText?) : ReaderSyncStatus
 }
 
 sealed interface ReaderUiState {
@@ -115,7 +118,7 @@ sealed interface ReaderUiState {
         /** The page is larger than the screen (zoomed or fit-width PDF): drags scroll it instead of edge swipes. */
         val pageScrollable: Boolean = false,
     ) : ReaderUiState
-    data class Failed(val message: String) : ReaderUiState
+    data class Failed(val message: UiText) : ReaderUiState
 }
 
 /** The end-of-story question: finished? and, optionally, a rating ([rating] is the book's current one, 0 if none). */
@@ -148,7 +151,7 @@ sealed interface DictionaryLookupState {
     data class Found(val entry: DictionaryEntry, val savedStatus: SavedWordStatus = SavedWordStatus.NOT_SAVED) : DictionaryLookupState
     data class NotFound(val word: String) : DictionaryLookupState
     data class Installing(val word: String) : DictionaryLookupState
-    data class Failed(val word: String, val message: String) : DictionaryLookupState
+    data class Failed(val word: String, val message: UiText) : DictionaryLookupState
 }
 
 @HiltViewModel
@@ -311,7 +314,7 @@ class ReaderViewModel @Inject constructor(
             val book = bookRepository.getById(bookId)
             unfinishedWhenOpened = book != null && book.finishedReadingAt == null && book.readingPercent < 1f
             if (book == null) {
-                _uiState.value = ReaderUiState.Failed("Book not found")
+                _uiState.value = ReaderUiState.Failed(UiText.Res(R.string.reader_error_book_not_found))
                 return@launch
             }
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
@@ -329,17 +332,17 @@ class ReaderViewModel @Inject constructor(
             // Reading again from the start is not a return to where the reader left off.
             val previousReadAt = book.lastReadAt.takeIf { openTarget.isNullOrBlank() && !fromStart && book.readingPercent > 0f }
             if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
-                _uiState.value = ReaderUiState.Failed("This book is in your cloud library. Download support is being wired next.")
+                _uiState.value = ReaderUiState.Failed(UiText.Res(R.string.reader_error_cloud_only))
                 return@launch
             }
             if (book.fileAvailability != BookFileAvailability.LOCAL || book.filePath.isBlank()) {
-                _uiState.value = ReaderUiState.Failed("This book file is not available on this device.")
+                _uiState.value = ReaderUiState.Failed(UiText.Res(R.string.reader_error_file_unavailable))
                 return@launch
             }
 
             val localFile = storageRoots.resolve(book.filePath)
             if (!withContext(dispatchers.io) { localFile.isFile }) {
-                _uiState.value = ReaderUiState.Failed("This book file is missing from this device.")
+                _uiState.value = ReaderUiState.Failed(UiText.Res(R.string.reader_error_file_missing))
                 return@launch
             }
 
@@ -385,7 +388,7 @@ class ReaderViewModel @Inject constructor(
                     requestAutoProgressSync()
                 }
                 .onFailure { throwable ->
-                    _uiState.value = ReaderUiState.Failed(throwable.message ?: "Could not open book")
+                    _uiState.value = ReaderUiState.Failed(throwable.uiText(R.string.reader_error_open_failed))
                 }
         }
 
@@ -467,7 +470,7 @@ class ReaderViewModel @Inject constructor(
         readAloudPlayer.stop()
         flushPendingLocatorWrite()
         if (!rendererRestartPolicy.allowRestart(System.currentTimeMillis())) {
-            _uiState.value = ReaderUiState.Failed("The reader stopped working repeatedly. Close the book and open it again.")
+            _uiState.value = ReaderUiState.Failed(UiText.Res(R.string.reader_error_renderer_crashed))
             return
         }
         restartCfi = position
@@ -1030,7 +1033,7 @@ class ReaderViewModel @Inject constructor(
             } catch (throwable: Throwable) {
                 _dictionaryLookup.value = DictionaryLookupState.Failed(
                     word,
-                    throwable.message ?: "Dictionary installation failed",
+                    throwable.uiText(R.string.reader_error_dictionary_install_failed),
                 )
                 return@launch
             }
@@ -1359,9 +1362,9 @@ class ReaderViewModel @Inject constructor(
             -> ReaderSyncStatus.Synced
             // Config gaps and a missing cloud snapshot are things the user has to go fix, same as a hard
             // failure; the dot makes no distinction between them beyond the reason it carries.
-            ReadingProgressSyncStatus.CONFIG_INCOMPLETE -> ReaderSyncStatus.Failed("Sync is not fully configured")
-            ReadingProgressSyncStatus.CLOUD_MISSING -> ReaderSyncStatus.Failed("No snapshot in the cloud yet")
-            ReadingProgressSyncStatus.FAILED -> ReaderSyncStatus.Failed(result.failureMessage)
+            ReadingProgressSyncStatus.CONFIG_INCOMPLETE -> ReaderSyncStatus.Failed(UiText.Res(R.string.reader_sync_config_incomplete))
+            ReadingProgressSyncStatus.CLOUD_MISSING -> ReaderSyncStatus.Failed(UiText.Res(R.string.reader_sync_cloud_missing))
+            ReadingProgressSyncStatus.FAILED -> ReaderSyncStatus.Failed(result.failureMessage?.let(UiText::Raw))
             // Sync is switched off entirely - show no dot rather than a stale verdict from a previous session.
             ReadingProgressSyncStatus.SYNC_DISABLED -> ReaderSyncStatus.Idle
             ReadingProgressSyncStatus.THROTTLED -> return
@@ -1516,7 +1519,7 @@ class ReaderViewModel @Inject constructor(
             } catch (throwable: Throwable) {
                 _dictionaryLookup.value = DictionaryLookupState.Failed(
                     word,
-                    throwable.message ?: "Dictionary lookup failed",
+                    throwable.uiText(R.string.reader_error_dictionary_lookup_failed),
                 )
                 return@launch
             }

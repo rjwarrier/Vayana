@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.resources.UiText
 import com.vayana.core.datastore.settings.LaunchReadingProgressCheckMarker
 
 /**
@@ -12,7 +13,8 @@ import com.vayana.core.datastore.settings.LaunchReadingProgressCheckMarker
  */
 internal class LaunchReadingProgressPull(
     private val markers: LaunchProgressMarkerStore,
-    private val recordDiagnostic: (bookId: Long?, message: String, detail: String?) -> Unit,
+    /** Diagnostics are for the developer: [message] is plain English; the detail may be a reader-facing [UiText]. */
+    private val recordDiagnostic: (bookId: Long?, message: String, detail: UiText?) -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     suspend fun run(
@@ -26,7 +28,7 @@ internal class LaunchReadingProgressPull(
             recordDiagnostic(
                 bookId,
                 "Silent launch progress check skipped by fresh local marker",
-                "syncTarget=$syncTarget, checkedAt=${existingMarker.checkedAt}, outcome=${existingMarker.outcome}",
+                UiText.Raw("syncTarget=$syncTarget, checkedAt=${existingMarker.checkedAt}, outcome=${existingMarker.outcome}"),
             )
             return complete(outcome = LaunchProgressCheckOutcome.SKIPPED_FRESH_MARKER, skipped = 1)
         }
@@ -49,7 +51,7 @@ internal class LaunchReadingProgressPull(
             recordDiagnostic(
                 bookId,
                 "Silent launch progress check skipped by unchanged remote snapshot",
-                "syncTarget=$syncTarget, remoteSnapshotSha=${merge.remoteSnapshotSha.orEmpty()}",
+                UiText.Raw("syncTarget=$syncTarget, remoteSnapshotSha=${merge.remoteSnapshotSha.orEmpty()}"),
             )
             LaunchProgressCheckOutcome.SKIPPED_UNCHANGED_REMOTE
         } else {
@@ -87,7 +89,7 @@ internal class LaunchReadingProgressPull(
         conflicts: Int = 0,
         skipped: Int = 0,
         pullFailed: Boolean = false,
-        failureMessage: String? = null,
+        failureMessage: UiText? = null,
     ) = GitHubSyncNowResult.Complete(
         uploaded = 0,
         failed = 0,

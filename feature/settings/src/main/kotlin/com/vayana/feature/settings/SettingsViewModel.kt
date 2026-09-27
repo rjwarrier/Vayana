@@ -1,5 +1,9 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -43,15 +47,15 @@ sealed interface BackupUiState {
     data object Creating : BackupUiState
     data object Restoring : BackupUiState
     data object BackupComplete : BackupUiState
-    data class BackupFailed(val message: String) : BackupUiState
-    data class RestoreFailed(val message: String) : BackupUiState
-    data class RestoreIncompatible(val message: String) : BackupUiState
+    data class BackupFailed(val message: UiText) : BackupUiState
+    data class RestoreFailed(val message: UiText) : BackupUiState
+    data class RestoreIncompatible(val message: UiText) : BackupUiState
 }
 
 data class BackupFolderFilesState(
     val loading: Boolean = false,
     val files: List<BackupFolderFile> = emptyList(),
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 sealed interface GitHubSyncSettingsTransferState {
@@ -60,7 +64,7 @@ sealed interface GitHubSyncSettingsTransferState {
     data object ExportComplete : GitHubSyncSettingsTransferState
     data object ImportComplete : GitHubSyncSettingsTransferState
     data object MissingPassphrase : GitHubSyncSettingsTransferState
-    data class Failed(val message: String) : GitHubSyncSettingsTransferState
+    data class Failed(val message: UiText) : GitHubSyncSettingsTransferState
 }
 
 sealed interface GitHubConnectionTestState {
@@ -69,21 +73,21 @@ sealed interface GitHubConnectionTestState {
     data object Connected : GitHubConnectionTestState
     data object ReadyForInitialSync : GitHubConnectionTestState
     data object MissingConfig : GitHubConnectionTestState
-    data class Failed(val message: String) : GitHubConnectionTestState
+    data class Failed(val message: UiText) : GitHubConnectionTestState
 }
 
 sealed interface RestorePreviewState {
     data object Idle : RestorePreviewState
     data object Loading : RestorePreviewState
     data class Ready(val uri: Uri, val inspection: BackupInspection) : RestorePreviewState
-    data class Failed(val message: String) : RestorePreviewState
+    data class Failed(val message: UiText) : RestorePreviewState
 }
 
 sealed interface ReaderFontImportState {
     data object Idle : ReaderFontImportState
     data object Working : ReaderFontImportState
     data class Imported(val displayName: String) : ReaderFontImportState
-    data class Failed(val message: String) : ReaderFontImportState
+    data class Failed(val message: UiText) : ReaderFontImportState
 }
 
 @HiltViewModel
@@ -125,14 +129,14 @@ class SettingsViewModel @Inject constructor(
             _backupFolderFiles.value = BackupFolderFilesState(loading = true)
             _backupFolderFiles.value = automaticBackupSettings.listBackupFiles().fold(
                 onSuccess = { BackupFolderFilesState(files = it) },
-                onFailure = { BackupFolderFilesState(error = it.message ?: "Could not read the backup folder") },
+                onFailure = { BackupFolderFilesState(error = it.uiText(R.string.settings_error_could_not_read_backup_folder)) },
             )
         }
     }
 
     fun chooseAutomaticBackupFolder(uri: Uri) {
         automaticBackupSettings.chooseFolder(uri).onFailure { throwable ->
-            automaticBackupSettings.recordError(throwable.message ?: "Could not use the selected folder")
+            automaticBackupSettings.recordError(throwable.uiText(R.string.settings_error_could_not_use_selected_folder))
         }
     }
 
@@ -140,7 +144,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setAutomaticBackupFrequency(frequency: AutomaticBackupFrequency) {
         automaticBackupSettings.setFrequency(frequency).onFailure { throwable ->
-            automaticBackupSettings.recordError(throwable.message ?: "Could not update the backup schedule")
+            automaticBackupSettings.recordError(throwable.uiText(R.string.settings_error_could_not_update_backup_schedule))
         }
     }
 
@@ -190,7 +194,7 @@ class SettingsViewModel @Inject constructor(
                     _readerFontImportState.value = ReaderFontImportState.Imported(font.displayName)
                 },
                 onFailure = { throwable ->
-                    _readerFontImportState.value = ReaderFontImportState.Failed(throwable.message ?: "Could not import this font")
+                    _readerFontImportState.value = ReaderFontImportState.Failed(throwable.uiText(R.string.settings_error_could_not_import_font))
                 },
             )
         }
@@ -308,18 +312,19 @@ class SettingsViewModel @Inject constructor(
 private val SupportedFontExtensions = setOf("ttf", "otf", "woff", "woff2")
 
 private fun copyReaderFont(context: Context, storageRoots: StorageRoots, source: Uri): Result<ImportedFont> = runCatching {
-    val displayName = context.contentResolver.displayName(source)
+    val unnamed = context.getString(R.string.settings_reader_imported_font_default_name)
+    val displayName = context.contentResolver.displayName(source, unnamed)
     val extension = displayName.substringAfterLast('.', missingDelimiterValue = "")
         .lowercase(Locale.US)
         .takeIf { it in SupportedFontExtensions }
-        ?: throw IllegalArgumentException("Choose a .ttf, .otf, .woff, or .woff2 font file")
+        ?: throw LocalizedException(R.string.settings_error_choose_ttf_otf_woff_woff2_font)
     val id = UUID.randomUUID().toString()
     val fileName = "$id.$extension"
     val destination = storageRoots.fontsDir.resolve(fileName)
     context.contentResolver.openInputStream(source)?.use { input ->
         destination.outputStream().use { output -> input.copyTo(output) }
-    } ?: throw IllegalArgumentException("Could not read the selected font file")
-    ImportedFont(id = id, displayName = displayName.cleanDisplayName(), fileName = fileName)
+    } ?: throw LocalizedException(R.string.settings_error_could_not_read_selected_font_file)
+    ImportedFont(id = id, displayName = displayName.cleanDisplayName(unnamed), fileName = fileName)
 }
 
 /**
@@ -334,7 +339,7 @@ private fun pruneOrphanFontFiles(storageRoots: StorageRoots, fonts: List<Importe
     }
 }
 
-private fun android.content.ContentResolver.displayName(uri: Uri): String {
+private fun android.content.ContentResolver.displayName(uri: Uri, unnamed: String): String {
     query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
         val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
         if (index >= 0 && cursor.moveToFirst()) {
@@ -342,11 +347,11 @@ private fun android.content.ContentResolver.displayName(uri: Uri): String {
             if (!name.isNullOrBlank()) return name
         }
     }
-    return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "Imported font"
+    return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: unnamed
 }
 
-private fun String.cleanDisplayName(): String =
+private fun String.cleanDisplayName(unnamed: String): String =
     substringBeforeLast('.', missingDelimiterValue = this)
         .replace(Regex("\\s+"), " ")
         .trim()
-        .ifBlank { "Imported font" }
+        .ifBlank { unnamed }

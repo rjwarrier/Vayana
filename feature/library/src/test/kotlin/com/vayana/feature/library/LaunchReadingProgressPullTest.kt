@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.resources.UiText
 import com.vayana.core.datastore.settings.LaunchReadingProgressCheckMarker
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -102,7 +103,7 @@ class LaunchReadingProgressPullTest {
     @Test
     fun failedOrMissingSnapshotReportsFailureAndLeavesMarkerAlone() = runBlocking {
         val failed = pull.run(bookId = BookId, syncTarget = Target) {
-            ReadingProgressMergeSummary(failed = true, failureMessage = "boom")
+            ReadingProgressMergeSummary(failed = true, failureMessage = UiText.Raw("boom"))
         }
         val missing = pull.run(bookId = BookId, syncTarget = Target) {
             ReadingProgressMergeSummary(missingRemoteSnapshot = true)
@@ -113,7 +114,7 @@ class LaunchReadingProgressPullTest {
             assertTrue(result.pullFailed)
             assertNoUploads(result)
         }
-        assertEquals("boom", failed.failureMessage)
+        assertEquals(UiText.Raw("boom"), failed.failureMessage)
         assertTrue(markers.written.isEmpty())
     }
 

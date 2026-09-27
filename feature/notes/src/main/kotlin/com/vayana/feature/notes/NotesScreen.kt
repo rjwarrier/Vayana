@@ -1021,7 +1021,7 @@ private fun AnnotationCard(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "“${annotation.selectedText}”",
+                        text = stringResource(R.string.quoted_text, annotation.selectedText),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 5,

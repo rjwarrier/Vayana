@@ -1,5 +1,9 @@
 package com.vayana.feature.settings
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.ReadOnlyComposable
+import android.text.format.Formatter
+import com.vayana.core.designsystem.component.asString
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,17 +63,10 @@ import kotlin.math.roundToInt
 @androidx.compose.runtime.ReadOnlyComposable
 internal fun Long.formatBackupDate(): String = if (this <= 0L) "" else asAppDateTime()
 
-internal fun Long.formatByteSize(): String {
-    if (this < 1024) return "$this B"
-    val units = listOf("KB", "MB", "GB")
-    var value = this / 1024.0
-    var unitIndex = 0
-    while (value >= 1024.0 && unitIndex < units.lastIndex) {
-        value /= 1024.0
-        unitIndex++
-    }
-    return "%.1f %s".format(Locale.getDefault(), value, units[unitIndex])
-}
+/** A file size in the system's own localized units. */
+@Composable
+@ReadOnlyComposable
+internal fun Long.formatByteSize(): String = Formatter.formatShortFileSize(LocalContext.current, this)
 
 @Composable
 internal fun BackupRestoreCard(
@@ -158,17 +155,17 @@ internal fun BackupRestoreCard(
                     onDismiss = onDismissBackupState,
                 )
                 is BackupUiState.BackupFailed -> BackupStatusRow(
-                    message = stringResource(R.string.settings_backup_failed, backupState.message),
+                    message = stringResource(R.string.settings_backup_failed, backupState.message.asString()),
                     isError = true,
                     onDismiss = onDismissBackupState,
                 )
                 is BackupUiState.RestoreFailed -> BackupStatusRow(
-                    message = stringResource(R.string.settings_restore_failed, backupState.message),
+                    message = stringResource(R.string.settings_restore_failed, backupState.message.asString()),
                     isError = true,
                     onDismiss = onDismissBackupState,
                 )
                 is BackupUiState.RestoreIncompatible -> BackupStatusRow(
-                    message = backupState.message,
+                    message = backupState.message.asString(),
                     isError = true,
                     onDismiss = onDismissBackupState,
                 )
@@ -318,7 +315,7 @@ private fun BackupFolderFiles(
         when {
             state.loading -> VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
             state.error != null -> Text(
-                stringResource(R.string.settings_backup_files_error, state.error),
+                stringResource(R.string.settings_backup_files_error, state.error.asString()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )

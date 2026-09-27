@@ -186,7 +186,7 @@ private fun VocabularyReviewCardScreen(
                 Text(text = card.word, style = MaterialTheme.typography.displaySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 card.sentence?.takeIf { it.isNotBlank() }?.let { sentence ->
                     Text(
-                        text = "“$sentence”",
+                        text = stringResource(R.string.quoted_text, sentence),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,

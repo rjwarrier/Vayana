@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -213,7 +215,7 @@ data class CloudBookDownloadProgressState(
     val bookId: Long,
     val title: String,
     val step: CloudBookDownloadProgressStep,
-    val detail: String,
+    val detail: UiText,
     val completedSteps: Int,
     val totalSteps: Int = CloudBookDownloadProgressTotalSteps,
     val isRunning: Boolean = true,
@@ -233,13 +235,13 @@ sealed interface GitHubSyncNowResult {
         val skipped: Int,
         val pullFailed: Boolean,
         val metadataSynced: Boolean,
-        val failureMessage: String? = null,
+        val failureMessage: UiText? = null,
         val launchProgressCheckOutcome: LaunchProgressCheckOutcome = LaunchProgressCheckOutcome.NOT_APPLICABLE,
         val progressAppliedSyncIds: Set<String> = emptySet(),
         val syncedDeviceLabel: String? = null,
         val syncedAt: Long? = null,
     ) : GitHubSyncNowResult
-    data class InitialSyncConfirmationRequired(val message: String?) : GitHubSyncNowResult
+    data class InitialSyncConfirmationRequired(val message: UiText?) : GitHubSyncNowResult
     data object SyncDisabled : GitHubSyncNowResult
     data object ConfigIncomplete : GitHubSyncNowResult
 }
@@ -270,7 +272,7 @@ enum class GitHubSyncProgressStep {
 
 data class GitHubSyncProgressState(
     val step: GitHubSyncProgressStep,
-    val detail: String,
+    val detail: UiText,
     val completedSteps: Int,
     val totalSteps: Int = GitHubSyncProgressTotalSteps,
     val uploadedBooks: Int = 0,
@@ -297,7 +299,7 @@ internal data class ReadingProgressMergeSummary(
     val skipped: Int = 0,
     val failed: Boolean = false,
     val missingRemoteSnapshot: Boolean = false,
-    val failureMessage: String? = null,
+    val failureMessage: UiText? = null,
     val remoteSnapshot: RemotePortableSnapshotDocument? = null,
     val remoteSnapshotSha: String? = null,
     val remoteDeviceLabel: String? = null,
@@ -316,37 +318,38 @@ internal data class ReadingProgressMergeSummary(
 internal interface SyncMergeOutcome {
     val failed: Boolean
     val skipped: Int
-    val failureMessage: String?
+    val failureMessage: UiText?
 }
 
 private fun List<SyncMergeOutcome>.anyFailed(): Boolean = any { it.failed }
 private fun List<SyncMergeOutcome>.totalSkipped(): Int = sumOf { it.skipped }
-private fun List<SyncMergeOutcome>.firstFailureMessage(): String? = firstNotNullOfOrNull { it.failureMessage }
+private fun List<SyncMergeOutcome>.firstFailureMessage(): UiText? = firstNotNullOfOrNull { it.failureMessage }
 
-private fun PortableSnapshotPublishProgress.toSyncProgressDetail(): String =
+private fun PortableSnapshotPublishProgress.toSyncProgressDetail(): UiText =
     when (stage) {
-        PortableSnapshotPublishStage.DEVICE_SNAPSHOT -> "Saving this device snapshot"
+        PortableSnapshotPublishStage.DEVICE_SNAPSHOT -> UiText.Res(R.string.sync_detail_saving_device_snapshot)
         PortableSnapshotPublishStage.SNAPSHOT_SLICE -> {
             val sliceNumber = completedDocuments.coerceAtLeast(1) - 1
             val sliceTotal = (totalDocuments - 2).coerceAtLeast(1)
-            "Saving snapshot slice $sliceNumber of $sliceTotal: ${currentPath.toSnapshotSliceLabel()}"
+            UiText.Res(R.string.sync_detail_saving_slice, sliceNumber, sliceTotal, currentPath.toSnapshotSliceLabel())
         }
-        PortableSnapshotPublishStage.LATEST_POINTER -> "Publishing latest snapshot"
-        PortableSnapshotPublishStage.PRUNING -> "Cleaning old snapshot slices"
+        PortableSnapshotPublishStage.LATEST_POINTER -> UiText.Res(R.string.sync_detail_publishing_latest_snapshot)
+        PortableSnapshotPublishStage.PRUNING -> UiText.Res(R.string.sync_detail_cleaning_old_slices)
     }
 
-private fun String?.toSnapshotSliceLabel(): String =
+private fun String?.toSnapshotSliceLabel(): UiText = UiText.Res(
     when (this?.substringAfterLast('/')) {
-        "annotations.json" -> "annotations"
-        "shelves.json" -> "shelves"
-        "shelf-memberships.json" -> "shelf memberships"
-        "reading-sessions.json" -> "reading sessions"
-        "vocabulary-cards.json" -> "vocabulary cards"
-        "word-lookup-counters.json" -> "word lookup counters"
-        "book-aliases.json" -> "book aliases"
-        "tombstones.json" -> "deleted items"
-        else -> "library metadata"
+        "annotations.json" -> R.string.sync_slice_annotations
+        "shelves.json" -> R.string.sync_slice_shelves
+        "shelf-memberships.json" -> R.string.sync_slice_shelf_memberships
+        "reading-sessions.json" -> R.string.sync_slice_reading_sessions
+        "vocabulary-cards.json" -> R.string.sync_slice_vocabulary_cards
+        "word-lookup-counters.json" -> R.string.sync_slice_word_lookup_counters
+        "book-aliases.json" -> R.string.sync_slice_book_aliases
+        "tombstones.json" -> R.string.sync_slice_deleted_items
+        else -> R.string.sync_slice_library_metadata
     }
+)
 
 private data class CloudLibraryMergeSummary(
     val created: Int = 0,
@@ -354,21 +357,21 @@ private data class CloudLibraryMergeSummary(
     override val skipped: Int = 0,
     val coversDownloaded: Int = 0,
     override val failed: Boolean = false,
-    override val failureMessage: String? = null,
+    override val failureMessage: UiText? = null,
 ) : SyncMergeOutcome
 
 private data class ReadingSessionMergeSummary(
     val created: Int = 0,
     override val skipped: Int = 0,
     override val failed: Boolean = false,
-    override val failureMessage: String? = null,
+    override val failureMessage: UiText? = null,
 ) : SyncMergeOutcome
 
 private data class WordLookupCounterMergeSummary(
     val merged: Int = 0,
     override val skipped: Int = 0,
     override val failed: Boolean = false,
-    override val failureMessage: String? = null,
+    override val failureMessage: UiText? = null,
 ) : SyncMergeOutcome
 
 private data class AnnotationMergeSummary(
@@ -377,7 +380,7 @@ private data class AnnotationMergeSummary(
     override val skipped: Int = 0,
     val conflicts: Int = 0,
     override val failed: Boolean = false,
-    override val failureMessage: String? = null,
+    override val failureMessage: UiText? = null,
 ) : SyncMergeOutcome
 
 internal data class GenericSyncMergeSummary(
@@ -386,18 +389,18 @@ internal data class GenericSyncMergeSummary(
     override val skipped: Int = 0,
     val appliedDeletes: Int = 0,
     override val failed: Boolean = false,
-    override val failureMessage: String? = null,
+    override val failureMessage: UiText? = null,
 ) : SyncMergeOutcome
 
 private data class ReadingProgressOnlyPushSummary(
     val pushed: Int = 0,
     val failed: Boolean = false,
-    val failureMessage: String? = null,
+    val failureMessage: UiText? = null,
 )
 
 private data class SnapshotMetadataSaveResult(
     val synced: Boolean,
-    val failureMessage: String? = null,
+    val failureMessage: UiText? = null,
     val extraBooksCreated: Int = 0,
     val extraBooksUpdated: Int = 0,
     val extraSkipped: Int = 0,
@@ -603,7 +606,11 @@ class LibraryViewModel @Inject constructor(
                 settingsRepository.updateLaunchReadingProgressCheckMarker(marker)
         },
         recordDiagnostic = { bookId, message, detail ->
-            diagnosticsLogStore.recordLaunchProgressCheck(bookId = bookId, message = message, detail = detail)
+            diagnosticsLogStore.recordLaunchProgressCheck(
+                bookId = bookId,
+                message = message,
+                detail = detail?.resolve(appContext.resources),
+            )
         },
     )
 
@@ -985,11 +992,16 @@ class LibraryViewModel @Inject constructor(
     }
 
     suspend fun downloadCloudBook(book: Book): CloudBookDownloadResult = withContext(dispatchers.io) {
-        updateCloudBookDownloadProgress(book, CloudBookDownloadProgressStep.CHECKING_SETTINGS, "Checking GitHub settings", completedSteps = 0)
+        updateCloudBookDownloadProgress(
+            book,
+            CloudBookDownloadProgressStep.CHECKING_SETTINGS,
+            UiText.Res(R.string.sync_detail_checking_settings),
+            completedSteps = 0,
+        )
         val reference = book.fileAssetReference() ?: return@withContext finishCloudBookDownloadProgress(
             book = book,
             step = CloudBookDownloadProgressStep.FAILED,
-            detail = "Cloud book file is missing",
+            detail = UiText.Res(R.string.sync_detail_cloud_book_missing),
             result = CloudBookDownloadResult.ASSET_MISSING,
         )
         val settings = settingsRepository.snapshot.first()
@@ -997,14 +1009,14 @@ class LibraryViewModel @Inject constructor(
             return@withContext finishCloudBookDownloadProgress(
                 book = book,
                 step = CloudBookDownloadProgressStep.FAILED,
-                detail = "GitHub sync is turned off",
+                detail = UiText.Res(R.string.sync_detail_sync_off),
                 result = CloudBookDownloadResult.SYNC_DISABLED,
             )
         }
         val syncConfig = settings.gitHubSyncConfig() ?: return@withContext finishCloudBookDownloadProgress(
             book = book,
             step = CloudBookDownloadProgressStep.FAILED,
-            detail = "GitHub settings are incomplete",
+            detail = UiText.Res(R.string.sync_detail_settings_incomplete),
             result = CloudBookDownloadResult.CONFIG_INCOMPLETE,
         )
 
@@ -1012,7 +1024,12 @@ class LibraryViewModel @Inject constructor(
             val store = syncConfig.assetStore()
             val passphrase = syncConfig.passphrase.toCharArray()
             val staged = try {
-                updateCloudBookDownloadProgress(book, CloudBookDownloadProgressStep.DOWNLOADING_FILE, "Downloading book file", completedSteps = 1)
+                updateCloudBookDownloadProgress(
+                    book,
+                    CloudBookDownloadProgressStep.DOWNLOADING_FILE,
+                    UiText.Res(R.string.sync_detail_downloading_book),
+                    completedSteps = 1,
+                )
                 cloudBookAssetTransfer.downloadBookFile(
                     bookId = book.id,
                     reference = reference,
@@ -1024,13 +1041,13 @@ class LibraryViewModel @Inject constructor(
                             CloudBookFileDownloadPhase.ENCRYPTED_BYTES_DOWNLOADED -> updateCloudBookDownloadProgress(
                                 book = book,
                                 step = CloudBookDownloadProgressStep.DECRYPTING_FILE,
-                                detail = "Decrypting book file",
+                                detail = UiText.Res(R.string.sync_detail_decrypting_book),
                                 completedSteps = 2,
                             )
                             CloudBookFileDownloadPhase.PLAINTEXT_DECRYPTED -> updateCloudBookDownloadProgress(
                                 book = book,
                                 step = CloudBookDownloadProgressStep.SAVING_FILE,
-                                detail = "Saving book to this device",
+                                detail = UiText.Res(R.string.sync_detail_saving_book),
                                 completedSteps = 3,
                             )
                         }
@@ -1039,7 +1056,12 @@ class LibraryViewModel @Inject constructor(
             } finally {
                 passphrase.fill('\u0000')
             }
-            updateCloudBookDownloadProgress(book, CloudBookDownloadProgressStep.DOWNLOADING_COVER, "Checking cloud cover", completedSteps = 4)
+            updateCloudBookDownloadProgress(
+                book,
+                CloudBookDownloadProgressStep.DOWNLOADING_COVER,
+                UiText.Res(R.string.sync_detail_checking_cover),
+                completedSteps = 4,
+            )
             book.coverAssetReference()?.let { coverReference -> downloadCoverIfNeeded(book, coverReference, store) }
             // Older uploads (or books whose cover-upload never ran) carry no cover asset at
             // all in the cloud snapshot. Only fall back to extracting the cover straight from
@@ -1052,14 +1074,14 @@ class LibraryViewModel @Inject constructor(
             return@runCatchingCancellable finishCloudBookDownloadProgress(
                 book = book,
                 step = CloudBookDownloadProgressStep.COMPLETE,
-                detail = "Book downloaded",
+                detail = UiText.Res(R.string.sync_detail_book_downloaded),
                 result = CloudBookDownloadResult.DOWNLOADED,
             )
         }.getOrElse {
             finishCloudBookDownloadProgress(
                 book = book,
                 step = CloudBookDownloadProgressStep.FAILED,
-                detail = "Book download failed",
+                detail = UiText.Res(R.string.sync_detail_book_download_failed),
                 result = CloudBookDownloadResult.FAILED,
             )
         }
@@ -1082,7 +1104,7 @@ class LibraryViewModel @Inject constructor(
     private suspend fun extractLocalCoverFallback(bookId: Long, relativeFilePath: String, format: BookFormat): Boolean =
         runCatchingCancellable {
             val file = storageRoots.resolve(relativeFilePath)
-            val coverBytes = readBookFileMetadata(file, format, file.name).coverBytes ?: return@runCatchingCancellable false
+            val coverBytes = readBookFileMetadata(file, format, file.name, appContext.getString(R.string.library_untitled_book)).coverBytes ?: return@runCatchingCancellable false
             val coverFile = saveCover(coverBytes)
             bookRepository.updateCover(bookId, storageRoots.relativize(coverFile))
             true
@@ -1102,7 +1124,7 @@ class LibraryViewModel @Inject constructor(
                     source = "LibraryViewModel.syncNow",
                     message = buildString {
                         append(if (result.pullFailed) "Cloud progress pull failed" else "Metadata sync failed")
-                        result.failureMessage?.let { append(": ").append(it) }
+                        result.failureMessage?.let { append(": ").append(it.resolve(appContext.resources)) }
                     },
                 )
             }
@@ -1200,23 +1222,45 @@ class LibraryViewModel @Inject constructor(
         showProgress: Boolean,
         launchReadingProgressBookId: Long?,
     ): GitHubSyncNowResult = withContext(dispatchers.io) {
-        updateSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.PREPARING, "Checking GitHub settings", completedSteps = 0)
+        updateSyncProgress(
+            showProgress = showProgress,
+            GitHubSyncProgressStep.PREPARING,
+            UiText.Res(R.string.sync_detail_checking_settings),
+            completedSteps = 0,
+        )
         val settings = settingsRepository.snapshot.first()
         if (!settings.githubSyncEnabled) {
-            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub sync is turned off")
+            finishSyncProgress(
+                showProgress = showProgress,
+                GitHubSyncProgressStep.FAILED,
+                UiText.Res(R.string.sync_detail_sync_off),
+            )
             return@withContext GitHubSyncNowResult.SyncDisabled
         }
         val syncConfig = settings.gitHubSyncConfig()
         if (syncConfig == null) {
-            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub settings are incomplete")
+            finishSyncProgress(
+                showProgress = showProgress,
+                GitHubSyncProgressStep.FAILED,
+                UiText.Res(R.string.sync_detail_settings_incomplete),
+            )
             return@withContext GitHubSyncNowResult.ConfigIncomplete
         }
         val store = runCatchingCancellable { syncConfig.assetStore() }
             .getOrElse {
-                finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "GitHub settings are invalid")
+                finishSyncProgress(
+                    showProgress = showProgress,
+                    GitHubSyncProgressStep.FAILED,
+                    UiText.Res(R.string.sync_detail_settings_invalid),
+                )
                 return@withContext GitHubSyncNowResult.ConfigIncomplete
             }
-        updateSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.READING_CLOUD, "Reading cloud library", completedSteps = 1)
+        updateSyncProgress(
+            showProgress = showProgress,
+            GitHubSyncProgressStep.READING_CLOUD,
+            UiText.Res(R.string.sync_detail_reading_cloud),
+            completedSteps = 1,
+        )
         if (mode == GitHubSyncMode.READING_PROGRESS_PULL_ONLY) {
             val result = launchReadingProgressPull.run(
                 bookId = launchReadingProgressBookId,
@@ -1227,13 +1271,21 @@ class LibraryViewModel @Inject constructor(
                 pullReadingProgress(store, skipRemoteSnapshotSha, tombstones = TombstoneMergeScope.BOOK_DELETIONS)
             }
             if (result.pullFailed) {
-                finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
+                finishSyncProgress(
+                    showProgress = showProgress,
+                    GitHubSyncProgressStep.FAILED,
+                    UiText.Res(R.string.sync_detail_progress_unreadable),
+                )
             }
             return@withContext result
         }
         val progressMerge = pullReadingProgress(store)
         if (progressMerge.failed) {
-            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be read")
+            finishSyncProgress(
+                showProgress = showProgress,
+                GitHubSyncProgressStep.FAILED,
+                UiText.Res(R.string.sync_detail_progress_unreadable),
+            )
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
                 failed = 0,
@@ -1248,7 +1300,11 @@ class LibraryViewModel @Inject constructor(
             )
         }
         if (progressMerge.missingRemoteSnapshot && mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
-            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress could not be found")
+            finishSyncProgress(
+                showProgress = showProgress,
+                GitHubSyncProgressStep.FAILED,
+                UiText.Res(R.string.sync_detail_progress_missing),
+            )
             return@withContext GitHubSyncNowResult.Complete(
                 uploaded = 0,
                 failed = 0,
@@ -1264,14 +1320,18 @@ class LibraryViewModel @Inject constructor(
             )
         }
         if (progressMerge.missingRemoteSnapshot && !allowInitialSync) {
-            finishSyncProgress(showProgress = showProgress, GitHubSyncProgressStep.FAILED, "Cloud progress needs confirmation")
+            finishSyncProgress(
+                showProgress = showProgress,
+                GitHubSyncProgressStep.FAILED,
+                UiText.Res(R.string.sync_detail_progress_needs_confirmation),
+            )
             return@withContext GitHubSyncNowResult.InitialSyncConfirmationRequired(progressMerge.failureMessage)
         }
         if (mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
             updateSyncProgress(
                 showProgress = showProgress,
                 step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
-                detail = "Saving reading progress",
+                detail = UiText.Res(R.string.sync_detail_saving_progress),
                 completedSteps = 4,
                 progressUpdated = progressMerge.applied,
             )
@@ -1280,7 +1340,7 @@ class LibraryViewModel @Inject constructor(
             finishSyncProgress(
                 showProgress = showProgress,
                 step = if (progressPush.failed) GitHubSyncProgressStep.FAILED else GitHubSyncProgressStep.COMPLETE,
-                detail = if (progressPush.failed) "Reading progress save failed" else "Reading progress synced",
+                detail = if (progressPush.failed) UiText.Res(R.string.sync_detail_progress_save_failed) else UiText.Res(R.string.sync_detail_progress_synced),
                 progressUpdated = progressMerge.applied,
             )
             return@withContext GitHubSyncNowResult.Complete(
@@ -1303,7 +1363,7 @@ class LibraryViewModel @Inject constructor(
         updateSyncProgress(
             showProgress = showProgress,
             step = GitHubSyncProgressStep.ADDING_CLOUD_BOOKS,
-            detail = "Adding cloud books",
+            detail = UiText.Res(R.string.sync_detail_adding_cloud_books),
             completedSteps = 2,
             progressUpdated = progressMerge.applied,
         )
@@ -1371,7 +1431,11 @@ class LibraryViewModel @Inject constructor(
         updateSyncProgress(
             showProgress = showProgress,
             step = GitHubSyncProgressStep.UPLOADING_BOOKS,
-            detail = "Uploading ${uploadCandidates.size} books and ${coverUploadCandidates.size} covers",
+            detail = UiText.Res(
+                R.string.sync_detail_uploading,
+                UiText.Plural(R.plurals.sync_detail_book_count, uploadCandidates.size),
+                UiText.Plural(R.plurals.sync_detail_cover_count, coverUploadCandidates.size),
+            ),
             completedSteps = 3,
             progressUpdated = progressMerge.applied,
             cloudBooksCreated = cloudLibraryMerge.created,
@@ -1398,7 +1462,7 @@ class LibraryViewModel @Inject constructor(
             updateSyncProgress(
                 showProgress = showProgress,
                 step = GitHubSyncProgressStep.UPLOADING_BOOKS,
-                detail = "Uploaded $uploaded of ${uploadCandidates.size} local books",
+                detail = UiText.Res(R.string.sync_detail_uploaded_books, uploaded, uploadCandidates.size),
                 completedSteps = 3,
                 uploadedBooks = uploaded,
                 failedBooks = failed,
@@ -1424,7 +1488,7 @@ class LibraryViewModel @Inject constructor(
             updateSyncProgress(
                 showProgress = showProgress,
                 step = GitHubSyncProgressStep.UPLOADING_BOOKS,
-                detail = "Uploaded $uploadedCovers of ${coverUploadCandidates.size} covers",
+                detail = UiText.Res(R.string.sync_detail_uploaded_covers, uploadedCovers, coverUploadCandidates.size),
                 completedSteps = 3,
                 uploadedBooks = uploaded,
                 failedBooks = failed,
@@ -1438,7 +1502,7 @@ class LibraryViewModel @Inject constructor(
         updateSyncProgress(
             showProgress = showProgress,
             step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
-            detail = "Saving latest snapshot",
+            detail = UiText.Res(R.string.sync_detail_saving_latest_snapshot),
             completedSteps = 4,
             uploadedBooks = uploaded,
             failedBooks = failed,
@@ -1490,7 +1554,7 @@ class LibraryViewModel @Inject constructor(
             } else {
                 GitHubSyncProgressStep.FAILED
             },
-            detail = if (metadataSave.synced) "Sync finished" else "Snapshot save failed",
+            detail = if (metadataSave.synced) UiText.Res(R.string.sync_detail_finished) else UiText.Res(R.string.sync_detail_snapshot_save_failed),
             uploadedBooks = uploaded,
             failedBooks = failed,
             uploadedCovers = uploadedCovers,
@@ -1801,7 +1865,7 @@ class LibraryViewModel @Inject constructor(
         var rebaseBooksUpdated = 0
         var rebaseSkipped = 0
         var rebaseFailed = false
-        fun result(synced: Boolean, failureMessage: String? = null) = SnapshotMetadataSaveResult(
+        fun result(synced: Boolean, failureMessage: UiText? = null) = SnapshotMetadataSaveResult(
             synced = synced,
             failureMessage = failureMessage,
             extraBooksCreated = rebaseBooksCreated,
@@ -1826,7 +1890,10 @@ class LibraryViewModel @Inject constructor(
             saveAttempt.onSuccess { return result(synced = true) }
             val throwable = saveAttempt.exceptionOrNull()
             if (throwable?.isGitHubConflict() != true) {
-                return result(synced = false, failureMessage = throwable?.syncFailureMessage() ?: "Snapshot save failed")
+                return result(
+                    synced = false,
+                    failureMessage = throwable?.syncFailureMessage() ?: UiText.Res(R.string.sync_detail_snapshot_save_failed),
+                )
             }
             if (attemptIndex == MaxSnapshotMetadataSaveAttempts - 1) {
                 // The book/cover uploads earlier in this sync already succeeded; only this small metadata
@@ -1834,7 +1901,7 @@ class LibraryViewModel @Inject constructor(
                 // than surfacing the raw GitHub 409, which reads as if the whole sync failed.
                 return result(
                     synced = false,
-                    failureMessage = "Another device saved changes while this sync was uploading. Your uploads are safe - sync again to finish.",
+                    failureMessage = UiText.Res(R.string.sync_error_concurrent_save),
                 )
             }
 
@@ -1855,7 +1922,7 @@ class LibraryViewModel @Inject constructor(
             latestPreviousSnapshot = currentDocument
             latestConflicts = latestConflicts + rebase.summary.conflicts
         }
-        return result(synced = false, failureMessage = "Snapshot save failed")
+        return result(synced = false, failureMessage = UiText.Res(R.string.sync_detail_snapshot_save_failed))
     }
 
     private suspend fun mergeRemoteSnapshotForMetadataRebase(
@@ -2012,7 +2079,7 @@ class LibraryViewModel @Inject constructor(
     private fun updateCloudBookDownloadProgress(
         book: Book,
         step: CloudBookDownloadProgressStep,
-        detail: String,
+        detail: UiText,
         completedSteps: Int,
     ) {
         _cloudBookDownloadProgress.value = CloudBookDownloadProgressState(
@@ -2027,7 +2094,7 @@ class LibraryViewModel @Inject constructor(
     private fun finishCloudBookDownloadProgress(
         book: Book,
         step: CloudBookDownloadProgressStep,
-        detail: String,
+        detail: UiText,
         result: CloudBookDownloadResult,
     ): CloudBookDownloadResult {
         _cloudBookDownloadProgress.value = CloudBookDownloadProgressState(
@@ -2044,7 +2111,7 @@ class LibraryViewModel @Inject constructor(
     private fun updateSyncProgress(
         showProgress: Boolean = true,
         step: GitHubSyncProgressStep,
-        detail: String,
+        detail: UiText,
         completedSteps: Int,
         uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
         failedBooks: Int = _syncProgress.value?.failedBooks ?: 0,
@@ -2074,7 +2141,7 @@ class LibraryViewModel @Inject constructor(
     private fun finishSyncProgress(
         showProgress: Boolean = true,
         step: GitHubSyncProgressStep,
-        detail: String,
+        detail: UiText,
         uploadedBooks: Int = _syncProgress.value?.uploadedBooks ?: 0,
         failedBooks: Int = _syncProgress.value?.failedBooks ?: 0,
         uploadedCovers: Int = _syncProgress.value?.uploadedCovers ?: 0,
@@ -2210,7 +2277,12 @@ class LibraryViewModel @Inject constructor(
             val imported = bookFileImporter.import(uri, extension)
             importedFile = imported.file
             updateImportRow(candidate.id, ImportRowStatus.PARSING)
-            val metadata = readBookFileMetadata(imported.file, format, displayName)
+            val metadata = readBookFileMetadata(
+                imported.file,
+                format,
+                displayName,
+                appContext.getString(R.string.library_untitled_book),
+            )
             coverFile = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
 
             val book = bookRepository.insertIfNew(
@@ -2255,7 +2327,12 @@ class LibraryViewModel @Inject constructor(
         return runCatchingCancellable {
             val imported = bookFileImporter.import(uri, extension)
             importedFile = imported.file
-            val metadata = readBookFileMetadata(imported.file, format, displayName)
+            val metadata = readBookFileMetadata(
+                imported.file,
+                format,
+                displayName,
+                appContext.getString(R.string.library_untitled_book),
+            )
             coverFile = metadata.coverBytes?.let { bytes -> saveCover(bytes) }
             val replaced = bookRepository.replaceSource(
                 id = bookId,
@@ -2845,17 +2922,17 @@ private fun GitHubSyncConfig.canBuildRepository(): Boolean =
         )
     }.isSuccess
 
-private fun Throwable.syncFailureMessage(): String =
-    when (this) {
-        is GitHubAssetStoreException -> buildString {
-            append(message ?: "GitHub request failed")
-            responseBody.takeIf { it.isNotBlank() }?.let { body ->
-                append(": ")
-                append(body.take(MaxSyncFailureBodyChars))
-            }
+/** What went wrong, for the reader: GitHub's or the system's own words when there are any (not translatable). */
+private fun Throwable.syncFailureMessage(): UiText {
+    val technical = when (this) {
+        is GitHubAssetStoreException -> message?.let { status ->
+            responseBody.takeIf { it.isNotBlank() }?.let { body -> "$status: ${body.take(MaxSyncFailureBodyChars)}" } ?: status
         }
-        else -> message ?: "GitHub sync failed"
-    }.take(MaxSyncFailureMessageChars)
+        else -> message
+    }
+    return technical?.takeIf { it.isNotBlank() }?.let { UiText.Raw(it.take(MaxSyncFailureMessageChars)) }
+        ?: UiText.Res(if (this is GitHubAssetStoreException) R.string.sync_error_request_failed else R.string.sync_error_failed)
+}
 
 private fun Throwable.isMissingRemoteSnapshot(): Boolean =
     this is GitHubAssetStoreException &&

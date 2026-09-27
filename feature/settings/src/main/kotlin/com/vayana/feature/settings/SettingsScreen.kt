@@ -1,5 +1,8 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.designsystem.component.asString
+import androidx.compose.ui.platform.LocalContext
+import android.content.res.Resources
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -223,8 +226,9 @@ private fun SettingsScreen(
     var helpAndAboutOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
-    val visibleSettings = remember(query, settings.displayProfile) {
-        SettingsRegistry.all.filter { it.isVisibleFor(settings) }.filterByQuery(query)
+    val resources = LocalContext.current.resources
+    val visibleSettings = remember(query, settings.displayProfile, resources) {
+        SettingsRegistry.all.filter { it.isVisibleFor(settings) }.filterByQuery(query, resources)
     }
     val useTwoPane = LocalConfiguration.current.screenWidthDp.dp >= SettingsTwoColumnBreakpoint
 
@@ -508,7 +512,7 @@ private fun SettingsScreen(
                     }
                 },
                 title = { Text(stringResource(R.string.settings_restore_read_error_title)) },
-                text = { Text(restorePreview.message) },
+                text = { Text(restorePreview.message.asString()) },
                 confirmButton = {
                     Button(onClick = onDismissRestorePreview, shape = RoundedCornerShape(Radii.full)) {
                         Text(stringResource(R.string.settings_reset_all_cancel))
@@ -994,7 +998,10 @@ private fun ReaderCustomFontsCard(
                     onDismiss = onDismissImportState,
                 )
                 is ReaderFontImportState.Failed -> BackupStatusRow(
-                    message = stringResource(R.string.settings_reader_custom_fonts_failed, importState.message),
+                    message = stringResource(
+                        R.string.settings_reader_custom_fonts_failed,
+                        importState.message.asString(),
+                    ),
                     isError = true,
                     onDismiss = onDismissImportState,
                 )
@@ -1294,71 +1301,78 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     else -> setting.defaultValue
 }
 
-private fun List<Setting<out Any>>.filterByQuery(query: String): List<Setting<out Any>> {
+private fun List<Setting<out Any>>.filterByQuery(query: String, resources: Resources): List<Setting<out Any>> {
     val normalized = query.trim()
     if (normalized.isEmpty()) return this
     return filter { setting ->
-        setting.searchTokens().contains(normalized, ignoreCase = true)
+        setting.searchTokens(resources).contains(normalized, ignoreCase = true)
     }
 }
 
 private fun Setting<out Any>.isVisibleFor(settings: SettingsSnapshot): Boolean =
     this != SettingsRegistry.EinkAudioFeatures || settings.displayProfile == DisplayProfile.E_INK
 
-private fun Setting<out Any>.searchTokens(): String {
-    val synonyms = when (this) {
-        SettingsRegistry.ThemeMode -> "theme system light dark appearance display"
-        SettingsRegistry.DisplayProfile -> "display profile eink e ink contrast screen"
-        SettingsRegistry.EinkAudioFeatures -> "eink e ink audio sound speaker read aloud tts disable"
-        SettingsRegistry.DarkVariant -> "dark black oled softer night theme"
-        SettingsRegistry.Motion -> "motion animation reduce transitions"
-        SettingsRegistry.NavigationMode -> "navigation mode bottom bar floating bar panel tabs"
-        SettingsRegistry.ReaderFontSize -> "reader font size text scale typography"
-        SettingsRegistry.ReaderLineHeight -> "reader line height spacing text typography"
-        SettingsRegistry.ReaderFontFamily -> "reader font family serif sans mono custom imported font typography"
-        SettingsRegistry.ReaderTheme -> "reader page theme colors light sepia dark book"
-        SettingsRegistry.ReaderSideMargin -> "reader page margin side layout width"
-        SettingsRegistry.ReaderHeaderGap -> "reader header gap top edge spacing clock session layout"
-        SettingsRegistry.ReaderFooterGap -> "reader footer gap bottom edge spacing page progress layout"
-        SettingsRegistry.ReaderPublisherStyles -> "publisher style css page layout book"
-        SettingsRegistry.ReaderTapZoneMode -> "tap zone page turn navigation gestures"
-        SettingsRegistry.ReaderControlsTapMode -> "reader controls menu single double triple tap gesture"
-        SettingsRegistry.ReaderVolumeKeys -> "volume keys buttons page turn"
-        SettingsRegistry.ReaderKeepAwake -> "keep awake screen sleep reading"
-        SettingsRegistry.ReaderShowHeaders -> "reader show hide headers clock session time left"
-        SettingsRegistry.ReaderShowFooter -> "reader show hide footer page progress"
-        SettingsRegistry.ReaderAutoMarkSelection -> "highlight select selection auto mark color"
-        SettingsRegistry.ReaderBionicReading -> "bionic bold word lead focus text"
-        SettingsRegistry.ReaderBolderText -> "bolder text bold weight thicker heavier contrast crisp eink e ink thin"
-        SettingsRegistry.ReaderTextAlign -> "text align alignment justify justified left ragged paragraph"
-        SettingsRegistry.ReaderHyphenation -> "hyphenation hyphens break words syllables line end"
-        SettingsRegistry.ReaderFullScreen -> "full screen immersive hide navigation bar status bar"
-        SettingsRegistry.ReaderPageTurnAnimation -> "page turn animation slide transition swipe"
-        SettingsRegistry.EinkRefreshEveryPages -> "eink e ink refresh flash ghosting pages"
-        SettingsRegistry.FinishedPercent -> "finished read complete percent threshold done"
-        SettingsRegistry.ReadingAutoSyncEveryPages -> "auto sync while reading page turns position progress"
-        SettingsRegistry.DynamicColor -> "dynamic color material you wallpaper accent palette"
-        SettingsRegistry.DateFormat -> "date format day month iso calendar"
-        SettingsRegistry.StartScreen -> "open on start screen startup launch continue last book resume tab"
-        SettingsRegistry.RecentlyDeletedRetention -> "recently deleted trash empty auto purge retention days"
-        SettingsRegistry.WeekStart -> "week start first day sunday monday calendar heatmap"
-        SettingsRegistry.ReadAloudRate -> "read aloud tts text to speech voice speed rate listen"
-        SettingsRegistry.ReadAloudPitch -> "read aloud tts text to speech voice pitch deeper higher tone listen"
-        SettingsRegistry.ReaderBrightness -> "brightness light screen dim night"
-        SettingsRegistry.ReaderWarmLight -> "warm light night amber blue filter"
-        SettingsRegistry.ReaderEdgeSwipeLight -> "swipe edge brightness warm light gesture"
-        SettingsRegistry.DefaultCoverSource -> "default cover source goodreads yours custom book covers library import"
-        SettingsRegistry.LandscapeTwoColumnLayout -> "landscape two column layout wide screen tablet foldable"
-        SettingsRegistry.KindleDeviceName -> "device name label phone tablet sync history conflicts"
-        SettingsRegistry.GithubSyncEnabled -> "github sync cloud enable repository books notes settings"
-        SettingsRegistry.GithubOwner -> "github owner username organization account sync repository"
-        SettingsRegistry.GithubRepository -> "github repository repo cloud sync books notes settings"
-        SettingsRegistry.GithubBranch -> "github branch main cloud sync repository"
-        SettingsRegistry.GithubToken -> "github token personal access token pat credential sync"
-        SettingsRegistry.GithubSyncPassphrase -> "github sync passphrase password encryption cloud assets books"
-        else -> ""
+private fun Setting<out Any>.searchTokens(resources: Resources): String {
+    // Title, subtitle and keywords are resources, so settings search works in the reader's language.
+    val keywords: Int? = when (this) {
+        SettingsRegistry.ThemeMode -> R.string.settings_search_keywords_theme_mode
+        SettingsRegistry.DisplayProfile -> R.string.settings_search_keywords_display_profile
+        SettingsRegistry.EinkAudioFeatures -> R.string.settings_search_keywords_eink_audio_features
+        SettingsRegistry.DarkVariant -> R.string.settings_search_keywords_dark_variant
+        SettingsRegistry.Motion -> R.string.settings_search_keywords_motion
+        SettingsRegistry.NavigationMode -> R.string.settings_search_keywords_navigation_mode
+        SettingsRegistry.ReaderFontSize -> R.string.settings_search_keywords_reader_font_size
+        SettingsRegistry.ReaderLineHeight -> R.string.settings_search_keywords_reader_line_height
+        SettingsRegistry.ReaderFontFamily -> R.string.settings_search_keywords_reader_font_family
+        SettingsRegistry.ReaderTheme -> R.string.settings_search_keywords_reader_theme
+        SettingsRegistry.ReaderSideMargin -> R.string.settings_search_keywords_reader_side_margin
+        SettingsRegistry.ReaderHeaderGap -> R.string.settings_search_keywords_reader_header_gap
+        SettingsRegistry.ReaderFooterGap -> R.string.settings_search_keywords_reader_footer_gap
+        SettingsRegistry.ReaderPublisherStyles -> R.string.settings_search_keywords_reader_publisher_styles
+        SettingsRegistry.ReaderTapZoneMode -> R.string.settings_search_keywords_reader_tap_zone_mode
+        SettingsRegistry.ReaderControlsTapMode -> R.string.settings_search_keywords_reader_controls_tap_mode
+        SettingsRegistry.ReaderVolumeKeys -> R.string.settings_search_keywords_reader_volume_keys
+        SettingsRegistry.ReaderKeepAwake -> R.string.settings_search_keywords_reader_keep_awake
+        SettingsRegistry.ReaderShowHeaders -> R.string.settings_search_keywords_reader_show_headers
+        SettingsRegistry.ReaderShowFooter -> R.string.settings_search_keywords_reader_show_footer
+        SettingsRegistry.ReaderAutoMarkSelection -> R.string.settings_search_keywords_reader_auto_mark_selection
+        SettingsRegistry.ReaderBionicReading -> R.string.settings_search_keywords_reader_bionic_reading
+        SettingsRegistry.ReaderBolderText -> R.string.settings_search_keywords_reader_bolder_text
+        SettingsRegistry.ReaderTextAlign -> R.string.settings_search_keywords_reader_text_align
+        SettingsRegistry.ReaderHyphenation -> R.string.settings_search_keywords_reader_hyphenation
+        SettingsRegistry.ReaderFullScreen -> R.string.settings_search_keywords_reader_full_screen
+        SettingsRegistry.ReaderPageTurnAnimation -> R.string.settings_search_keywords_reader_page_turn_animation
+        SettingsRegistry.EinkRefreshEveryPages -> R.string.settings_search_keywords_eink_refresh_every_pages
+        SettingsRegistry.FinishedPercent -> R.string.settings_search_keywords_finished_percent
+        SettingsRegistry.ReadingAutoSyncEveryPages -> R.string.settings_search_keywords_reading_auto_sync_every_pages
+        SettingsRegistry.DynamicColor -> R.string.settings_search_keywords_dynamic_color
+        SettingsRegistry.DateFormat -> R.string.settings_search_keywords_date_format
+        SettingsRegistry.StartScreen -> R.string.settings_search_keywords_start_screen
+        SettingsRegistry.RecentlyDeletedRetention -> R.string.settings_search_keywords_recently_deleted_retention
+        SettingsRegistry.WeekStart -> R.string.settings_search_keywords_week_start
+        SettingsRegistry.ReadAloudRate -> R.string.settings_search_keywords_read_aloud_rate
+        SettingsRegistry.ReadAloudPitch -> R.string.settings_search_keywords_read_aloud_pitch
+        SettingsRegistry.ReaderBrightness -> R.string.settings_search_keywords_reader_brightness
+        SettingsRegistry.ReaderWarmLight -> R.string.settings_search_keywords_reader_warm_light
+        SettingsRegistry.ReaderEdgeSwipeLight -> R.string.settings_search_keywords_reader_edge_swipe_light
+        SettingsRegistry.DefaultCoverSource -> R.string.settings_search_keywords_default_cover_source
+        SettingsRegistry.LandscapeTwoColumnLayout -> R.string.settings_search_keywords_landscape_two_column_layout
+        SettingsRegistry.KindleDeviceName -> R.string.settings_search_keywords_kindle_device_name
+        SettingsRegistry.GithubSyncEnabled -> R.string.settings_search_keywords_github_sync_enabled
+        SettingsRegistry.GithubOwner -> R.string.settings_search_keywords_github_owner
+        SettingsRegistry.GithubRepository -> R.string.settings_search_keywords_github_repository
+        SettingsRegistry.GithubBranch -> R.string.settings_search_keywords_github_branch
+        SettingsRegistry.GithubToken -> R.string.settings_search_keywords_github_token
+        SettingsRegistry.GithubSyncPassphrase -> R.string.settings_search_keywords_github_sync_passphrase
+        else -> null
     }
-    return "${key} ${group.name} $synonyms"
+    return listOfNotNull(
+        key,
+        group.name,
+        resources.getString(titleRes),
+        subtitleRes?.let(resources::getString),
+        keywords?.let(resources::getString),
+    ).joinToString(" ")
 }
 
 @Composable

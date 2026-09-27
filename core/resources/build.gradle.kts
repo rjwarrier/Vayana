@@ -7,3 +7,9 @@ android {
 
     androidResources.enable = true
 }
+
+dependencies {
+    api(libs.androidx.annotation)
+
+    testImplementation(kotlin("test"))
+}

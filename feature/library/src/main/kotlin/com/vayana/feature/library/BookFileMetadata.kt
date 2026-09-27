@@ -42,13 +42,19 @@ internal class BookFileMetadata(
  *
  * Password-protected PDFs are imported with filename metadata; the reader asks for the password when opened.
  */
-internal fun readBookFileMetadata(file: File, format: BookFormat, displayName: String): BookFileMetadata = when (format) {
+internal fun readBookFileMetadata(
+    file: File,
+    format: BookFormat,
+    displayName: String,
+    /** The title for a file whose name leaves nothing to use, in the reader's language. */
+    untitled: String,
+): BookFileMetadata = when (format) {
     BookFormat.PDF -> try {
-        PdfParser.parse(file, fallbackTitle = titleFromFileName(displayName)).let { pdf ->
+        PdfParser.parse(file, fallbackTitle = titleFromFileName(displayName, untitled)).let { pdf ->
             BookFileMetadata(title = pdf.title, author = pdf.author, coverBytes = pdf.coverBytes)
         }
     } catch (_: PdfPasswordProtectedException) {
-        BookFileMetadata(title = titleFromFileName(displayName), author = null, coverBytes = null)
+        BookFileMetadata(title = titleFromFileName(displayName, untitled), author = null, coverBytes = null)
     }
     else -> EpubParser.parse(file).let { epub ->
         BookFileMetadata(
@@ -63,10 +69,10 @@ internal fun readBookFileMetadata(file: File, format: BookFormat, displayName: S
     }
 }
 
-/** "The_Art-of Reading.pdf" -> "The Art-of Reading". */
-internal fun titleFromFileName(displayName: String): String =
+/** "The_Art-of Reading.pdf" -> "The Art-of Reading"; [untitled] when nothing is left of the name. */
+internal fun titleFromFileName(displayName: String, untitled: String): String =
     displayName.substringBeforeLast('.')
         .replace('_', ' ')
         .replace(Regex("\\s+"), " ")
         .trim()
-        .ifEmpty { "Untitled" }
+        .ifEmpty { untitled }

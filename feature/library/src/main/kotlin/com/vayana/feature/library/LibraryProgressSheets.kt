@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import com.vayana.core.designsystem.component.asString
+import com.vayana.core.resources.UiText
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -197,7 +199,7 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
                                 style = MaterialTheme.typography.titleLarge,
                             )
                             Text(
-                                text = progress.detail,
+                                text = progress.detail.asString(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -242,7 +244,7 @@ internal fun GitHubSyncProgressSheet(progress: GitHubSyncProgressState, onDismis
                     GitHubSyncProgressRow(
                         label = step.label(),
                         status = status,
-                        detail = progress.detailFor(step, status),
+                        detail = progress.detailFor(step, status)?.asString(),
                     )
                 }
             }
@@ -339,7 +341,7 @@ internal fun CloudBookDownloadProgressSheet(
                 modifier = Modifier.padding(top = Spacing.xs),
             )
             Text(
-                text = progress.detail,
+                text = progress.detail.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.xs),
@@ -448,7 +450,7 @@ private fun GitHubSyncProgressState.statusFor(step: GitHubSyncProgressStep): Git
     }
 }
 
-private fun GitHubSyncProgressState.detailFor(step: GitHubSyncProgressStep, status: GitHubSyncStepStatus): String? =
+private fun GitHubSyncProgressState.detailFor(step: GitHubSyncProgressStep, status: GitHubSyncStepStatus): UiText? =
     detail.takeIf {
         step == GitHubSyncProgressStep.SAVING_SNAPSHOT &&
             this.step == step &&
@@ -549,7 +551,7 @@ private fun ProgressChoiceCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "$percent%",
+                text = stringResource(R.string.percent_value, percent),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,

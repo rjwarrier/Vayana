@@ -1,5 +1,9 @@
 package com.vayana.feature.settings.backup
 
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -64,9 +68,7 @@ class AutomaticBackupSettings @Inject constructor(@ApplicationContext private va
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
         )
-        val folder = requireNotNull(DocumentFile.fromTreeUri(context, uri)?.takeIf { it.isDirectory && it.canWrite() }) {
-            "Choose a writable folder"
-        }
+        val folder = (DocumentFile.fromTreeUri(context, uri)?.takeIf { it.isDirectory && it.canWrite() } ?: throw LocalizedException(R.string.settings_error_choose_writable_folder))
         val editor = preferences.edit().putString("folder_uri", uri.toString()).putString("folder_name", folder.name)
             .remove("last_error")
         if (preferences.getString("folder_uri", null) != uri.toString()) {
@@ -101,8 +103,9 @@ class AutomaticBackupSettings @Inject constructor(@ApplicationContext private va
         refresh()
     }
 
-    fun recordError(message: String) {
-        preferences.edit().putString("last_error", message).apply()
+    fun recordError(message: UiText) {
+        // Stored as words (it outlives the process), in the app's language when the backup failed.
+        preferences.edit().putString("last_error", message.resolve(context.resources)).apply()
         refresh()
     }
 
@@ -110,7 +113,7 @@ class AutomaticBackupSettings @Inject constructor(@ApplicationContext private va
         val uri = state.value.folderUri?.let(Uri::parse) ?: return@withContext Result.success(emptyList())
         runCatchingCancellable {
             val folder = DocumentFile.fromTreeUri(context, uri)?.takeIf { it.isDirectory }
-                ?: error("The selected backup folder is unavailable. Choose it again in Settings.")
+                ?: throw LocalizedException(R.string.settings_error_selected_backup_folder_unavailable_choose_again)
             folder.listFiles().asSequence()
                 .filter { it.isFile && isBackupFolderDisplayFile(it.name) }
                 .mapNotNull { file ->
@@ -164,21 +167,21 @@ class AutomaticBackupWorker(context: Context, params: WorkerParameters) : Corout
         return try {
             val folder = DocumentFile.fromTreeUri(applicationContext, uri)
                 ?.takeIf { it.isDirectory && it.canWrite() }
-                ?: error("The selected backup folder is unavailable. Choose it again in Settings.")
+                ?: throw LocalizedException(R.string.settings_error_selected_backup_folder_unavailable_choose_again)
             folder.listFiles().filter { isAutomaticBackupPendingFile(it.name) }.forEach { it.delete() }
             val fileName = "vayana-auto-${System.currentTimeMillis()}.zip"
             val file = folder.createFile("application/octet-stream", "$fileName.pending")
-                ?: error("Could not create a file in the backup folder")
+                ?: throw LocalizedException(R.string.settings_error_could_not_create_file_backup_folder)
             when (val outcome = dependencies.backupManager().createBackup(file.uri)) {
                 BackupOutcome.Success -> {
                     if (!file.renameTo(fileName)) {
                         file.delete()
-                        error("Could not finish the backup file in the selected folder")
+                        throw LocalizedException(R.string.settings_error_could_not_finish_backup_file_selected)
                     }
                     val savedName = file.name ?: fileName
                     if (!isAutomaticBackupFile(savedName)) {
                         file.delete()
-                        error("The selected folder changed the backup file name")
+                        throw LocalizedException(R.string.settings_error_selected_folder_changed_backup_file_name)
                     }
                     val oldFiles = folder.listFiles()
                         .filter { it.isFile && isAutomaticBackupFile(it.name) }
@@ -188,7 +191,7 @@ class AutomaticBackupWorker(context: Context, params: WorkerParameters) : Corout
                     val pruningFailed = oldFiles.map { it.delete() }.any { !it }
                     settings.recordSuccess(savedName)
                     if (pruningFailed) {
-                        settings.recordError("Some older backups could not be removed")
+                        settings.recordError(UiText.Res(R.string.settings_error_some_older_backups_could_not_removed))
                     }
                     Result.success()
                 }
@@ -201,7 +204,7 @@ class AutomaticBackupWorker(context: Context, params: WorkerParameters) : Corout
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (exception: Exception) {
-            settings.recordError(exception.message ?: "Automatic backup failed")
+            settings.recordError(exception.uiText(R.string.settings_error_automatic_backup_failed))
             Result.failure()
         }
     }

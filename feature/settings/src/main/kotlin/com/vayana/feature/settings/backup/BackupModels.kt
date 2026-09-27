@@ -1,5 +1,7 @@
 package com.vayana.feature.settings.backup
 
+import com.vayana.core.resources.UiText
+
 data class BackupManifest(
     val appVersion: String,
     val backupFormatVersion: Int,
@@ -9,13 +11,13 @@ data class BackupManifest(
 
 sealed interface BackupOutcome {
     data object Success : BackupOutcome
-    data class Failed(val message: String) : BackupOutcome
+    data class Failed(val message: UiText) : BackupOutcome
 }
 
 sealed interface RestoreOutcome {
     data object Success : RestoreOutcome
-    data class Incompatible(val message: String) : RestoreOutcome
-    data class Failed(val message: String) : RestoreOutcome
+    data class Incompatible(val message: UiText) : RestoreOutcome
+    data class Failed(val message: UiText) : RestoreOutcome
 }
 
 data class BackupInspection(
@@ -32,5 +34,5 @@ data class BackupInspection(
 
 sealed interface InspectOutcome {
     data class Success(val inspection: BackupInspection) : InspectOutcome
-    data class Failed(val message: String) : InspectOutcome
+    data class Failed(val message: UiText) : InspectOutcome
 }

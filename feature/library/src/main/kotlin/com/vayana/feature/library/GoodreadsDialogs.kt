@@ -603,7 +603,11 @@ internal fun ImportQuotesDialog(
                         }
                         if (parsedQuotes.size > 3) {
                             Text(
-                                text = "+ ${parsedQuotes.size - 3} more",
+                                text = pluralStringResource(
+                                    R.plurals.goodreads_quotes_more,
+                                    parsedQuotes.size - 3,
+                                    parsedQuotes.size - 3,
+                                ),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
                                 modifier = Modifier.padding(top = Spacing.xs),

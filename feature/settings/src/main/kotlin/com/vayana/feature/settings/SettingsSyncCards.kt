@@ -1,5 +1,6 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.designsystem.component.asString
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -235,7 +236,7 @@ internal fun GitHubConnectionTestCard(
                     onDismiss = onDismiss,
                 )
                 is GitHubConnectionTestState.Failed -> SyncWarningCallout(
-                    message = stringResource(R.string.settings_github_connection_test_failed, state.message),
+                    message = stringResource(R.string.settings_github_connection_test_failed, state.message.asString()),
                     onDismiss = onDismiss,
                 )
                 GitHubConnectionTestState.Idle -> Unit
@@ -335,7 +336,7 @@ internal fun GitHubSyncSettingsTransferCard(
                     onDismiss = onDismiss,
                 )
                 is GitHubSyncSettingsTransferState.Failed -> SyncWarningCallout(
-                    message = stringResource(R.string.settings_github_transfer_failed, state.message),
+                    message = stringResource(R.string.settings_github_transfer_failed, state.message.asString()),
                     onDismiss = onDismiss,
                 )
                 GitHubSyncSettingsTransferState.Idle -> Unit

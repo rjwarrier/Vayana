@@ -45,9 +45,10 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.net.URLEncoder
 
-internal fun coverImageSearchUrl(bookTitle: String): String =
+/** [query] is what to search for, e.g. the title followed by "cover image" in the reader's language. */
+internal fun coverImageSearchUrl(query: String): String =
     "https://www.google.com/search?tbm=isch&safe=active&q=" +
-        URLEncoder.encode("$bookTitle cover image", Charsets.UTF_8.name())
+        URLEncoder.encode(query, Charsets.UTF_8.name())
 
 @Composable
 internal fun CoverImageSearchBrowser(
@@ -57,7 +58,8 @@ internal fun CoverImageSearchBrowser(
     onDismiss: () -> Unit,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
-    var currentUrl by remember { mutableStateOf(coverImageSearchUrl(bookTitle)) }
+    val searchQuery = stringResource(R.string.library_cover_search_query, bookTitle)
+    var currentUrl by remember { mutableStateOf(coverImageSearchUrl(searchQuery)) }
     var loadingProgress by remember { mutableIntStateOf(0) }
     var pendingImage by remember { mutableStateOf<CoverImageRequest?>(null) }
 

@@ -9,6 +9,7 @@ android {
 
 dependencies {
     implementation(project(":dictionary:api"))
+    implementation(project(":core:resources"))
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(kotlin("test"))

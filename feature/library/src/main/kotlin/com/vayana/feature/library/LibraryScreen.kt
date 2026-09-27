@@ -372,7 +372,7 @@ private fun LibraryScreen(
                 snackbarHostState.currentSnackbarData?.dismiss()
                 val message = if (mode == GitHubSyncMode.READING_PROGRESS_ONLY) {
                     when {
-                        result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage.orEmpty())
+                        result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage?.resolve(context.resources).orEmpty())
                         result.conflicts > 0 -> syncProgressOnlyConflictsMessage.format(
                             result.progressUpdated,
                             result.progressUploaded,
@@ -382,11 +382,11 @@ private fun LibraryScreen(
                     }
                 } else {
                     when {
-                        result.pullFailed -> syncPullFailedMessage.format(result.failureMessage.orEmpty())
+                        result.pullFailed -> syncPullFailedMessage.format(result.failureMessage?.resolve(context.resources).orEmpty())
                         !result.metadataSynced -> syncMetadataFailedMessage.format(
                             result.uploaded,
                             result.failed,
-                            result.failureMessage.orEmpty(),
+                            result.failureMessage?.resolve(context.resources).orEmpty(),
                         )
                         result.conflicts > 0 -> syncConflictMessage.format(result.uploaded, result.progressUpdated, result.conflicts)
                         result.failed == 0 && (result.cloudBooksCreated > 0 || result.cloudBooksUpdated > 0) -> syncCompleteWithCloudMessage.format(
@@ -405,7 +405,7 @@ private fun LibraryScreen(
                 syncBadge = LibrarySyncBadge.FAILED
                 startedSnackbar.cancel()
                 snackbarHostState.currentSnackbarData?.dismiss()
-                initialSyncConfirmationMessage = result.message
+                initialSyncConfirmationMessage = result.message?.resolve(context.resources)
             }
             GitHubSyncNowResult.SyncDisabled -> {
                 syncBadge = LibrarySyncBadge.FAILED
@@ -1595,7 +1595,7 @@ private fun LibraryHeroCard(
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = "${(book.readingPercent * 100).toInt()}%",
+                            text = stringResource(R.string.percent_value, (book.readingPercent * 100).toInt()),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

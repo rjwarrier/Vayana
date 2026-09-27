@@ -456,7 +456,7 @@ private fun BookDetailScreen(
                     startedSnackbar.cancel()
                     snackbarHostState.currentSnackbarData?.dismiss()
                     val message = when {
-                        result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage.orEmpty())
+                        result.pullFailed || !result.metadataSynced -> syncProgressOnlyFailedMessage.format(result.failureMessage?.resolve(context.resources).orEmpty())
                         result.conflicts > 0 -> syncProgressOnlyConflictsMessage.format(
                             result.progressUpdated,
                             result.progressUploaded,
@@ -469,7 +469,7 @@ private fun BookDetailScreen(
                 is GitHubSyncNowResult.InitialSyncConfirmationRequired -> {
                     startedSnackbar.cancel()
                     snackbarHostState.currentSnackbarData?.dismiss()
-                    snackbarHostState.showSnackbar(syncProgressOnlyFailedMessage.format(result.message))
+                    snackbarHostState.showSnackbar(syncProgressOnlyFailedMessage.format(result.message?.resolve(context.resources).orEmpty()))
                 }
                 GitHubSyncNowResult.SyncDisabled -> {
                     startedSnackbar.cancel()

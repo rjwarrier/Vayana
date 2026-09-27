@@ -1,5 +1,10 @@
 package com.vayana.feature.settings.backup
 
+import com.vayana.core.resources.failUnless
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -14,13 +19,15 @@ import java.io.File
 internal fun validateStagedBackup(context: Context, stagingDir: File, declaredVersion: Int) {
     val stagedDb = File(stagingDir, "database/vayana.db")
     SQLiteDatabase.openDatabase(stagedDb.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
-        check(db.version in 1..DATABASE_VERSION && db.version == declaredVersion) {
-            "Backup database version does not match its manifest"
-        }
+        failUnless(
+            db.version in 1..DATABASE_VERSION && db.version == declaredVersion,
+            R.string.settings_error_backup_database_version_does_not_match,
+        )
         db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
-            check(cursor.moveToFirst() && cursor.getString(0) == "ok" && !cursor.moveToNext()) {
-                "Backup database is damaged"
-            }
+            failUnless(
+                cursor.moveToFirst() && cursor.getString(0) == "ok" && !cursor.moveToNext(),
+                R.string.settings_error_backup_database_damaged,
+            )
         }
         // Force Room to inspect the actual schema, even if an invalid database contains
         // a copied identity hash. Older versions are migrated with the app's migrations.
@@ -34,7 +41,7 @@ internal fun validateStagedBackup(context: Context, stagingDir: File, declaredVe
     try {
         val db = validationDb.openHelper.writableDatabase
         db.query("PRAGMA foreign_key_check").use { cursor ->
-            check(!cursor.moveToFirst()) { "Backup database contains broken references" }
+            failUnless(!cursor.moveToFirst(), R.string.settings_error_backup_database_contains_broken_references)
         }
         db.query("SELECT filePath, coverPath, format, fileAvailability FROM books WHERE isDeleted = 0").use { cursor ->
             while (cursor.moveToNext()) {
@@ -55,7 +62,10 @@ internal fun validateStagedBackup(context: Context, stagingDir: File, declaredVe
 private fun requireStagedFile(stagingDir: File, relativePath: String, directory: String) {
     val root = File(stagingDir, directory).canonicalFile
     val file = File(stagingDir, relativePath).canonicalFile
-    check(file.path.startsWith(root.path + File.separator) && file.isFile && file.length() > 0L) {
-        "Backup is missing a valid $directory file: $relativePath"
-    }
+    failUnless(
+        file.path.startsWith(root.path + File.separator) && file.isFile && file.length() > 0L,
+        R.string.settings_error_backup_missing_file,
+        directory,
+        relativePath,
+    )
 }

@@ -40,9 +40,11 @@ fun cloudSyncStatusText(syncedAt: Long?, deviceLabel: String?): String {
         )
         CloudSyncTimePresentation.OnAnotherDay -> {
             val locale = LocalLocale.current.platformLocale
+            // The pattern is a resource so each language can order the day, month and time its own way.
+            val pattern = stringResource(R.string.sync_status_date_time_pattern)
             val dateTime = Instant.ofEpochMilli(syncedAt)
                 .atZone(ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern("dd-MMM-yy '@' HH:mm", locale))
+                .format(DateTimeFormatter.ofPattern(pattern, locale))
             stringResource(R.string.sync_status_on_date, dateTime, device)
         }
     }

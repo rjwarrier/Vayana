@@ -13,7 +13,7 @@ class CoverImageSearchTest {
     fun searchUsesBookTitleAndCoverImagePhrase() {
         assertEquals(
             "https://www.google.com/search?tbm=isch&safe=active&q=Countdown+City+cover+image",
-            coverImageSearchUrl("Countdown City"),
+            coverImageSearchUrl("Countdown City cover image"),
         )
     }
 

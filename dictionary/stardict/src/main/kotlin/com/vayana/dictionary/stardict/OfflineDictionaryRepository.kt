@@ -1,7 +1,10 @@
 package com.vayana.dictionary.stardict
 
+import com.vayana.core.resources.failUnless
 import android.content.Context
 import android.net.Uri
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.R
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.DictionaryPackState
 import com.vayana.dictionary.api.DictionaryRepository
@@ -58,23 +61,23 @@ internal class OfflineDictionaryRepository @Inject constructor(
             _englishPackState.value = DictionaryPackState.Installing
             try {
                 stagingDirectory.deleteRecursively()
-                check(stagingDirectory.mkdirs()) { "Could not prepare dictionary storage" }
+                failUnless(stagingDirectory.mkdirs(), R.string.dictionary_error_prepare_storage)
                 val input = context.contentResolver.openInputStream(Uri.parse(sourceUri))
-                    ?: error("The selected dictionary file could not be opened")
+                    ?: throw LocalizedException(R.string.dictionary_error_open_file)
                 input.use { stream -> extractPack(ZipInputStream(stream.buffered()), stagingDirectory) }
-                check(isValidPack(stagingDirectory)) { "This is not an Open English WordNet 2025 dictionary ZIP" }
+                failUnless(isValidPack(stagingDirectory), R.string.dictionary_error_not_wordnet)
 
                 backupDirectory.deleteRecursively()
                 if (packDirectory.exists()) {
-                    check(packDirectory.renameTo(backupDirectory)) { "Could not preserve the existing dictionary" }
+                    failUnless(packDirectory.renameTo(backupDirectory), R.string.dictionary_error_preserve_existing)
                 }
                 if (!stagingDirectory.renameTo(packDirectory)) {
                     val restored = backupDirectory.exists() && backupDirectory.renameTo(packDirectory)
-                    error(
+                    throw LocalizedException(
                         if (restored) {
-                            "Could not finish installing the dictionary"
+                            R.string.dictionary_error_finish_install
                         } else {
-                            "Could not finish installing the dictionary and could not restore the previous one"
+                            R.string.dictionary_error_finish_install_no_restore
                         },
                     )
                 }
@@ -90,7 +93,7 @@ internal class OfflineDictionaryRepository @Inject constructor(
                 _englishPackState.value = if (isValidPack(packDirectory)) {
                     DictionaryPackState.Installed
                 } else {
-                    DictionaryPackState.Failed(throwable.message ?: "Dictionary installation failed")
+                    DictionaryPackState.Failed
                 }
                 throw throwable
             }
@@ -114,20 +117,20 @@ internal class OfflineDictionaryRepository @Inject constructor(
         zip.use { input ->
             while (true) {
                 val entry = input.nextEntry ?: break
-                check(++entryCount <= MaxArchiveEntries) { "Dictionary archive contains too many entries" }
+                failUnless(++entryCount <= MaxArchiveEntries, R.string.dictionary_error_too_many_entries)
                 val name = entry.name.substringAfterLast('/')
                 // Real-world WordNet distributions bundle a LICENSE/README/citation file alongside
                 // the dict data; only extract the files we actually use and ignore the rest.
                 if (!entry.isDirectory && name in AllowedFiles) {
-                    check(extractedFiles.add(name)) { "Dictionary archive contains duplicate files" }
-                    check(entry.size <= MaxExtractedBytes) { "Dictionary file is unexpectedly large" }
+                    failUnless(extractedFiles.add(name), R.string.dictionary_error_duplicate_files)
+                    failUnless(entry.size <= MaxExtractedBytes, R.string.dictionary_error_file_too_large)
                     val outputFile = File(destination, name)
                     FileOutputStream(outputFile).buffered().use { output ->
                         while (true) {
                             val count = input.read(buffer)
                             if (count < 0) break
                             totalBytes += count
-                            check(totalBytes <= MaxExtractedBytes) { "Dictionary archive is unexpectedly large" }
+                            failUnless(totalBytes <= MaxExtractedBytes, R.string.dictionary_error_archive_too_large)
                             output.write(buffer, 0, count)
                         }
                     }

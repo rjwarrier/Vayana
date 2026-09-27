@@ -146,3 +146,28 @@ to the same page (tests/fixed-layout.test.mjs).
 the trailer's Info dictionary by scanning the file's head and tail (`PdfInfoReader`), falling back to the file name
 when Info sits in a compressed object stream or the file is encrypted; the cover is page 1 rendered by Android's
 `PdfRenderer`. A PDF that needs a password is reported as unsupported.
+
+## Translatable text — string resources everywhere, enforced by a test
+
+**All reader-facing text lives in `core/resources/src/main/res/values/strings.xml`.** Adding a language is a
+`values-<lang>/strings.xml` with the same names; no Kotlin changes. That includes the Help screen (descriptions as
+strings, tips as `string-array`s), settings search keywords (`settings_search_keywords_*`; search now also matches each
+setting's translated title and subtitle), quotation marks (`quoted_text`, `quote_citation`), percentages
+(`percent_value`) and the two hand-picked date patterns (`sync_status_date_time_pattern`,
+`library_stats_share_date_pattern`, `DateTimeFormatter` syntax) so each language can reorder them. File sizes use the
+system's `Formatter.formatShortFileSize`.
+
+**Code outside the UI returns `UiText`, not `String`.** `core:resources` has `UiText` (`Res` / `Plural` with arguments
+that may themselves be `UiText`, or `Raw` for text with no translation: a server's or the system's own message, or
+user input). View models, backup, sync and the dictionary installer build `UiText`; the UI resolves it with
+`asString()` (`core:designsystem`) or `resolve(resources)`. Code that reports failures by throwing uses
+`LocalizedException` / `failUnless(condition, R.string.x)` (an `IllegalStateException`, like `check`), and callers show
+`throwable.uiText(R.string.fallback)`: our own message translated, a system message as-is, else the fallback. The last
+automatic-backup error is stored as resolved words because it outlives the process.
+
+**`HardcodedTextKonsistTest` keeps it that way.** A literal with words in `Text(...)`, `text`/`title`/`subtitle`/
+`description`/`contentDescription`/`supportingText`/`placeholder = "…"`, or `Failed`/`Incompatible`/`recordError("…")`
+fails the build. Deliberately left in English: diagnostics log messages and the shareable diagnostics report (read by
+the developer), protocol and parsing strings (HTTP headers, Goodreads page parsing, PDF metadata keys, SQL, CSS), the
+WordNet attribution, and the default device name `My Vayana` / committer `Vayana Sync` — the device label becomes the
+sync snapshot path, so translating the default would move a device's snapshot when its language changes.

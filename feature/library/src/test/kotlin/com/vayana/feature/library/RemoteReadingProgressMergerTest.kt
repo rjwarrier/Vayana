@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.resources.UiText
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.ReadingProgressMergeResult
 import com.vayana.core.sync.snapshot.RemotePortableSnapshotDocument
@@ -97,13 +98,13 @@ class RemoteReadingProgressMergerTest {
         val failing = RemoteReadingProgressMerger(
             bookRepository = bookRepository,
             localDeviceLabel = { "Phone" },
-            mergeTombstones = { _, _ -> GenericSyncMergeSummary(failed = true, failureMessage = "bad tombstones") },
+            mergeTombstones = { _, _ -> GenericSyncMergeSummary(failed = true, failureMessage = UiText.Raw("bad tombstones")) },
         )
 
         val summary = failing.merge(document(), tombstones = TombstoneMergeScope.ALL)
 
         assertTrue(summary.failed)
-        assertEquals("bad tombstones", summary.failureMessage)
+        assertEquals(UiText.Raw("bad tombstones"), summary.failureMessage)
         assertTrue(repositoryCalls.isEmpty())
     }
 

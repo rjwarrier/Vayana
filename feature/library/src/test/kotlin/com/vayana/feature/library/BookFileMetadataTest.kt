@@ -24,8 +24,8 @@ class BookFileMetadataTest {
 
     @Test
     fun `a PDF without its own title is named after its file`() {
-        assertEquals("The Art-of Reading", titleFromFileName("The_Art-of  Reading.pdf"))
-        assertEquals("notes.v2", titleFromFileName("notes.v2.pdf"))
-        assertEquals("Untitled", titleFromFileName(".pdf"))
+        assertEquals("The Art-of Reading", titleFromFileName("The_Art-of  Reading.pdf", "Untitled"))
+        assertEquals("notes.v2", titleFromFileName("notes.v2.pdf", "Untitled"))
+        assertEquals("Untitled", titleFromFileName(".pdf", "Untitled"))
     }
 }

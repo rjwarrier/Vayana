@@ -15,7 +15,7 @@ class LibraryStatsShareRenderTest {
         val context = RuntimeEnvironment.getApplication()
         val copy = LibraryStatsShareCopy("My library", "Every spine is a book in my library.",
             "A snapshot of my library shelves.", "Books", "Authors", "Read",
-            "33% of my library read", "Books read", "Made with Vayana")
+            "33% of my library read", "Books read", "Made with Vayana", "dd MMM yyyy")
         val fonts = LibraryShareFonts(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.DEFAULT)
         val books = (1L..80L).map { LibraryStatsBook(it, it, "Author ${it % 12}", it % 3L == 0L) }
         val snapshot = LibraryStatsSnapshot(books, 12, books.count(LibraryStatsBook::read))

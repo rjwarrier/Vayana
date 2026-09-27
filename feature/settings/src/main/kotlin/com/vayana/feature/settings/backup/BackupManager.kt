@@ -1,5 +1,10 @@
 package com.vayana.feature.settings.backup
 
+import com.vayana.core.resources.failUnless
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
@@ -54,9 +59,12 @@ class BackupManager @Inject constructor(
         operationMutex.withLock {
             try {
                 checkpointDatabase()
-                check(context.getDatabasePath(DatabaseFileName).isFile) { "Could not find the app database" }
+                failUnless(
+                    context.getDatabasePath(DatabaseFileName).isFile,
+                    R.string.settings_error_could_not_find_app_database,
+                )
                 val output = context.contentResolver.openOutputStream(destination)
-                    ?: return@withContext BackupOutcome.Failed("Could not open the selected location")
+                    ?: return@withContext BackupOutcome.Failed(UiText.Res(R.string.settings_error_could_not_open_selected_location))
                 output.use {
                     ZipOutputStream(BufferedOutputStream(it)).use { zip ->
                         writeManifest(zip)
@@ -72,7 +80,7 @@ class BackupManager @Inject constructor(
                 throw cancellation
             } catch (throwable: Throwable) {
                 runCatchingCancellable { context.contentResolver.delete(destination, null, null) }
-                BackupOutcome.Failed(throwable.message ?: "Backup failed")
+                BackupOutcome.Failed(throwable.uiText(R.string.settings_error_backup_failed))
             }
         }
     }
@@ -90,14 +98,17 @@ class BackupManager @Inject constructor(
                 var totalBytes = 0L
                 val seenEntries = HashSet<String>()
                 val input = context.contentResolver.openInputStream(source)
-                    ?: return@withContext InspectOutcome.Failed("Could not open the selected file")
+                    ?: return@withContext InspectOutcome.Failed(UiText.Res(R.string.settings_error_could_not_open_selected_file))
                 ZipInputStream(BufferedInputStream(input)).use { zip ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var entryCount = 0
                     while (true) {
                         currentCoroutineContext().ensureActive()
                         val entry = zip.nextEntry ?: break
-                        check(++entryCount <= MaxBackupEntries) { "Backup archive contains too many entries" }
+                        failUnless(
+                            ++entryCount <= MaxBackupEntries,
+                            R.string.settings_error_backup_archive_contains_too_many_entries,
+                        )
                         validateEntryName(entry.name, seenEntries)
                         if (!entry.isDirectory) {
                             when (entry.name) {
@@ -118,9 +129,9 @@ class BackupManager @Inject constructor(
                     }
                 }
                 val finalManifest = manifest
-                    ?: return@withContext InspectOutcome.Failed("This doesn't look like a Vayana backup")
+                    ?: return@withContext InspectOutcome.Failed(UiText.Res(R.string.settings_error_not_a_vayana_backup))
                 if (!sawDatabase) {
-                    return@withContext InspectOutcome.Failed("This backup doesn't contain a database - nothing to restore")
+                    return@withContext InspectOutcome.Failed(UiText.Res(R.string.settings_error_backup_has_no_database))
                 }
                 val (bookCount, annotationCount) = countRows(tempDb, fileBookCount)
                 InspectOutcome.Success(
@@ -137,7 +148,7 @@ class BackupManager @Inject constructor(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (throwable: Throwable) {
-                InspectOutcome.Failed(throwable.message ?: "Could not read this backup")
+                InspectOutcome.Failed(throwable.uiText(R.string.settings_error_could_not_read_backup))
             } finally {
                 tempDb.delete()
             }
@@ -148,9 +159,10 @@ class BackupManager @Inject constructor(
         if (!dbFile.isFile) return fallbackBookCount to 0
         return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
             db.rawQuery("PRAGMA quick_check", null).use { cursor ->
-                check(cursor.moveToFirst() && cursor.getString(0) == "ok" && !cursor.moveToNext()) {
-                    "Backup database is damaged"
-                }
+                failUnless(
+                    cursor.moveToFirst() && cursor.getString(0) == "ok" && !cursor.moveToNext(),
+                    R.string.settings_error_backup_database_damaged,
+                )
             }
             val books = countTable(db, "SELECT COUNT(*) FROM books WHERE isDeleted = 0") ?: fallbackBookCount
             val annotations = countTable(db, "SELECT COUNT(*) FROM annotations") ?: 0
@@ -170,7 +182,7 @@ class BackupManager @Inject constructor(
             val count = zip.read(buffer)
             if (count < 0) break
             output.write(buffer, 0, count)
-            check(output.size() <= limit) { "Backup metadata is unexpectedly large" }
+            failUnless(output.size() <= limit, R.string.settings_error_backup_metadata_unexpectedly_large)
         }
         return output.toString("UTF-8")
     }
@@ -181,7 +193,7 @@ class BackupManager @Inject constructor(
             currentCoroutineContext().ensureActive()
             val count = zip.read(buffer)
             if (count < 0) break
-            check(total <= MaxRestoreTotalBytes - count) { "This backup is unexpectedly large" }
+            failUnless(total <= MaxRestoreTotalBytes - count, R.string.settings_error_backup_unexpectedly_large)
             total += count
             output?.write(buffer, 0, count)
         }
@@ -195,25 +207,21 @@ class BackupManager @Inject constructor(
                 stagingDir.deleteRecursively()
                 stagingDir.mkdirs()
                 val input = context.contentResolver.openInputStream(source)
-                    ?: return@withContext RestoreOutcome.Failed("Could not open the selected file")
+                    ?: return@withContext RestoreOutcome.Failed(UiText.Res(R.string.settings_error_could_not_open_selected_file))
                 ZipInputStream(BufferedInputStream(input)).use { zip -> extractAll(zip, stagingDir) }
 
                 val manifest = readManifest(File(stagingDir, "manifest.json"))
-                    ?: return@withContext RestoreOutcome.Failed("This doesn't look like a Vayana backup")
+                    ?: return@withContext RestoreOutcome.Failed(UiText.Res(R.string.settings_error_not_a_vayana_backup))
                 if (manifest.backupFormatVersion > CurrentBackupFormatVersion) {
-                    return@withContext RestoreOutcome.Incompatible(
-                        "This backup was made by a newer version of Vayana. Update the app first.",
-                    )
+                    return@withContext RestoreOutcome.Incompatible(UiText.Res(R.string.settings_error_backup_format_too_new))
                 }
                 if (manifest.databaseVersion > DATABASE_VERSION) {
-                    return@withContext RestoreOutcome.Incompatible(
-                        "This backup's data is newer than this version of Vayana supports. Update the app first.",
-                    )
+                    return@withContext RestoreOutcome.Incompatible(UiText.Res(R.string.settings_error_backup_data_too_new))
                 }
 
                 val stagedDb = File(stagingDir, "database/$DatabaseFileName")
                 if (!stagedDb.isFile) {
-                    return@withContext RestoreOutcome.Failed("This backup doesn't contain a database - nothing was changed")
+                    return@withContext RestoreOutcome.Failed(UiText.Res(R.string.settings_error_backup_has_no_database_unchanged))
                 }
 
                 val settingsFile = File(stagingDir, "settings.json")
@@ -251,14 +259,19 @@ class BackupManager @Inject constructor(
                     runCatchingCancellable { stashed.forEach { unstash(it) } }
                     stagingDir.deleteRecursively()
                     restartApp()
-                    RestoreOutcome.Failed((throwable.message ?: "Restore failed") + " Your previous data was restored.")
+                    RestoreOutcome.Failed(
+                        UiText.Res(
+                            R.string.settings_error_restore_rolled_back,
+                            throwable.uiText(R.string.settings_error_restore_failed),
+                        ),
+                    )
                 }
             } catch (cancellation: CancellationException) {
                 stagingDir.deleteRecursively()
                 throw cancellation
             } catch (throwable: Throwable) {
                 stagingDir.deleteRecursively()
-                RestoreOutcome.Failed(throwable.message ?: "Restore failed")
+                RestoreOutcome.Failed(throwable.uiText(R.string.settings_error_restore_failed))
             }
         }
     }
@@ -295,7 +308,10 @@ class BackupManager @Inject constructor(
         if (!dbFile.isFile) return
         SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
             db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { cursor ->
-                check(cursor.moveToFirst() && cursor.getInt(0) == 0) { "Could not save pending database changes" }
+                failUnless(
+                    cursor.moveToFirst() && cursor.getInt(0) == 0,
+                    R.string.settings_error_could_not_save_pending_database_changes,
+                )
             }
         }
     }
@@ -343,22 +359,34 @@ class BackupManager @Inject constructor(
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         while (true) {
             val entry = zip.nextEntry ?: break
-            check(++entryCount <= MaxBackupEntries) { "Backup archive contains too many entries" }
+            failUnless(
+                ++entryCount <= MaxBackupEntries,
+                R.string.settings_error_backup_archive_contains_too_many_entries,
+            )
             validateEntryName(entry.name, seenEntries)
             if (!entry.isDirectory) {
                 val outFile = File(destination, entry.name).canonicalFile
-                check(outFile.path.startsWith(destinationRoot)) { "Backup archive contains an invalid entry" }
+                failUnless(
+                    outFile.path.startsWith(destinationRoot),
+                    R.string.settings_error_backup_archive_contains_invalid_entry,
+                )
                 outFile.parentFile?.mkdirs()
                 FileOutputStream(outFile).use { output ->
                     var entryBytes = 0L
                     while (true) {
                         val count = zip.read(buffer)
                         if (count < 0) break
-                        check(cumulativeBytes <= MaxRestoreTotalBytes - count) { "This backup is unexpectedly large" }
+                        failUnless(
+                            cumulativeBytes <= MaxRestoreTotalBytes - count,
+                            R.string.settings_error_backup_unexpectedly_large,
+                        )
                         cumulativeBytes += count
                         entryBytes += count
                         if (entry.name == "manifest.json" || entry.name == "settings.json") {
-                            check(entryBytes <= MaxMetadataBytes) { "Backup metadata is unexpectedly large" }
+                            failUnless(
+                                entryBytes <= MaxMetadataBytes,
+                                R.string.settings_error_backup_metadata_unexpectedly_large,
+                            )
                         }
                         output.write(buffer, 0, count)
                     }
@@ -375,9 +403,10 @@ class BackupManager @Inject constructor(
 
     private fun parseManifestJson(text: String): BackupManifest {
         val json = JSONObject(text)
-        check(json.optInt("backupFormatVersion", 1) > 0 && json.optInt("databaseVersion", 0) > 0) {
-            "Backup manifest has invalid version information"
-        }
+        failUnless(
+            json.optInt("backupFormatVersion", 1) > 0 && json.optInt("databaseVersion", 0) > 0,
+            R.string.settings_error_backup_manifest_has_invalid_version_information,
+        )
         return BackupManifest(
             appVersion = json.optString("appVersion", ""),
             backupFormatVersion = json.optInt("backupFormatVersion", 1),
@@ -413,8 +442,9 @@ class BackupManager @Inject constructor(
 
 internal fun validateEntryName(name: String, seenEntries: MutableSet<String>) {
     val path = name.removeSuffix("/")
-    check(path.isNotEmpty() && '\\' !in path && path.split('/').all { it.isNotEmpty() && it != "." && it != ".." }) {
-        "Backup archive contains an invalid entry"
-    }
-    check(seenEntries.add(path)) { "Backup archive contains duplicate entries" }
+    failUnless(
+        path.isNotEmpty() && '\\' !in path && path.split('/').all { it.isNotEmpty() && it != "." && it != ".." },
+        R.string.settings_error_backup_archive_contains_invalid_entry,
+    )
+    failUnless(seenEntries.add(path), R.string.settings_error_backup_archive_contains_duplicate_entries)
 }

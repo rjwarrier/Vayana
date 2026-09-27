@@ -1,5 +1,9 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
@@ -15,7 +19,7 @@ sealed interface GitHubConnectionTestOutcome {
     data object Connected : GitHubConnectionTestOutcome
     data object ReadyForInitialSync : GitHubConnectionTestOutcome
     data object MissingConfig : GitHubConnectionTestOutcome
-    data class Failed(val message: String) : GitHubConnectionTestOutcome
+    data class Failed(val message: UiText) : GitHubConnectionTestOutcome
 }
 
 class GitHubConnectionTester @Inject constructor(
@@ -45,11 +49,12 @@ class GitHubConnectionTester @Inject constructor(
                 GitHubConnectionTestResult.ReadyForInitialSync -> GitHubConnectionTestOutcome.ReadyForInitialSync
             }
         } catch (exception: GitHubAssetStoreException) {
-            GitHubConnectionTestOutcome.Failed("${exception.statusCode}: ${exception.responseBody}")
+            // GitHub's own words: not translatable.
+            GitHubConnectionTestOutcome.Failed(UiText.Raw("${exception.statusCode}: ${exception.responseBody}"))
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (throwable: Throwable) {
-            GitHubConnectionTestOutcome.Failed(throwable.message ?: "GitHub connection test failed")
+            GitHubConnectionTestOutcome.Failed(throwable.uiText(R.string.settings_error_github_connection_test_failed))
         }
     }
 }

@@ -1145,4 +1145,261 @@
     <string name="settings_reader_warm_light_subtitle">Tint the page amber for night reading. Not used with the e-ink profile.</string>
     <string name="settings_reader_edge_swipe_light_title">Swipe edges for light</string>
     <string name="settings_reader_edge_swipe_light_subtitle">Swipe up or down along the left edge for brightness and the right edge for warm light.</string>
+
+    <!-- Help screen -->
+    <string name="help_section_library_description">Your bookshelf — everything you\'re reading, have read, or plan to.</string>
+    <string-array name="help_section_library_tips">
+        <item>Tap a book\'s cover to jump straight into the reader.</item>
+        <item>Open a book\'s details to edit metadata, change covers, add shelves, or remove it.</item>
+        <item>Use shelves to group books by series, genre, or mood.</item>
+        <item>Pull down to sync recent changes from your other devices.</item>
+    </string-array>
+    <string name="help_section_reader_description">The reading view itself, with highlights, notes, and typography controls.</string>
+    <string-array name="help_section_reader_tips">
+        <item>Tap the center of the page to show or hide the reading toolbar.</item>
+        <item>Select text to highlight it or attach a note.</item>
+        <item>Open the type settings to change font, size, line spacing, and theme.</item>
+        <item>Use the table of contents to jump between chapters instantly.</item>
+        <item>Your position syncs automatically as you read.</item>
+    </string-array>
+    <string name="help_section_notes_description">All highlights and notes you\'ve captured across every book, in one place.</string>
+    <string-array name="help_section_notes_tips">
+        <item>Filter notes by book, type, or source to find something quickly.</item>
+        <item>Tap a note to jump back to that exact spot in the book.</item>
+        <item>Edit or delete a note directly from this list.</item>
+        <item>Export notes to share or back them up outside the app.</item>
+    </string-array>
+    <string name="help_section_statistics_description">Reading streaks, time spent, and vocabulary you\'ve been building.</string>
+    <string-array name="help_section_statistics_tips">
+        <item>Check your daily and weekly reading streaks at a glance.</item>
+        <item>See time spent per book and overall reading pace.</item>
+        <item>Review vocabulary you\'ve looked up with spaced-repetition flashcards.</item>
+        <item>Trends update automatically as you keep reading.</item>
+    </string-array>
+    <string name="help_section_search_description">Find any book, note, or highlight across your entire library.</string>
+    <string-array name="help_section_search_tips">
+        <item>Search matches titles, authors, notes, and highlighted text.</item>
+        <item>Tap a result to open it at the exact matching location.</item>
+        <item>Use search from within a book to jump to other mentions of a phrase.</item>
+    </string-array>
+    <string name="help_section_sync_description">Keep your library, notes, and progress backed up and synced across devices.</string>
+    <string-array name="help_section_sync_tips">
+        <item>Connect a GitHub repository to sync your data automatically.</item>
+        <item>Create a manual backup file any time from Settings.</item>
+        <item>Restore from a backup file to recover your library on a new device.</item>
+        <item>Test your connection if sync ever stops working.</item>
+    </string-array>
+    <string name="help_section_trash_description">Recently removed books are kept here before they\'re gone for good.</string>
+    <string-array name="help_section_trash_tips">
+        <item>Restore a deleted book back to your library from the Recently deleted screen.</item>
+        <item>Permanently delete a book to free up space immediately.</item>
+        <item>Use permanent delete only when you are sure the book should be gone.</item>
+    </string-array>
+    <string name="help_section_settings_description">Customize appearance, reading behavior, goals, and data.</string>
+    <string-array name="help_section_settings_tips">
+        <item>Search settings directly instead of hunting through categories.</item>
+        <item>Adjust appearance, typography, and layout to match your taste.</item>
+        <item>Set reading goals to track progress over time.</item>
+        <item>Reset a single setting or everything back to defaults.</item>
+    </string-array>
+
+    <!-- Settings search keywords: space-separated words (and synonyms) people might type to find each setting -->
+    <string name="settings_search_keywords_theme_mode">theme system light dark appearance display</string>
+    <string name="settings_search_keywords_display_profile">display profile eink e ink contrast screen</string>
+    <string name="settings_search_keywords_eink_audio_features">eink e ink audio sound speaker read aloud tts disable</string>
+    <string name="settings_search_keywords_dark_variant">dark black oled softer night theme</string>
+    <string name="settings_search_keywords_motion">motion animation reduce transitions</string>
+    <string name="settings_search_keywords_navigation_mode">navigation mode bottom bar floating bar panel tabs</string>
+    <string name="settings_search_keywords_reader_font_size">reader font size text scale typography</string>
+    <string name="settings_search_keywords_reader_line_height">reader line height spacing text typography</string>
+    <string name="settings_search_keywords_reader_font_family">reader font family serif sans mono custom imported font typography</string>
+    <string name="settings_search_keywords_reader_theme">reader page theme colors light sepia dark book</string>
+    <string name="settings_search_keywords_reader_side_margin">reader page margin side layout width</string>
+    <string name="settings_search_keywords_reader_header_gap">reader header gap top edge spacing clock session layout</string>
+    <string name="settings_search_keywords_reader_footer_gap">reader footer gap bottom edge spacing page progress layout</string>
+    <string name="settings_search_keywords_reader_publisher_styles">publisher style css page layout book</string>
+    <string name="settings_search_keywords_reader_tap_zone_mode">tap zone page turn navigation gestures</string>
+    <string name="settings_search_keywords_reader_controls_tap_mode">reader controls menu single double triple tap gesture</string>
+    <string name="settings_search_keywords_reader_volume_keys">volume keys buttons page turn</string>
+    <string name="settings_search_keywords_reader_keep_awake">keep awake screen sleep reading</string>
+    <string name="settings_search_keywords_reader_show_headers">reader show hide headers clock session time left</string>
+    <string name="settings_search_keywords_reader_show_footer">reader show hide footer page progress</string>
+    <string name="settings_search_keywords_reader_auto_mark_selection">highlight select selection auto mark color</string>
+    <string name="settings_search_keywords_reader_bionic_reading">bionic bold word lead focus text</string>
+    <string name="settings_search_keywords_reader_bolder_text">bolder text bold weight thicker heavier contrast crisp eink e ink thin</string>
+    <string name="settings_search_keywords_reader_text_align">text align alignment justify justified left ragged paragraph</string>
+    <string name="settings_search_keywords_reader_hyphenation">hyphenation hyphens break words syllables line end</string>
+    <string name="settings_search_keywords_reader_full_screen">full screen immersive hide navigation bar status bar</string>
+    <string name="settings_search_keywords_reader_page_turn_animation">page turn animation slide transition swipe</string>
+    <string name="settings_search_keywords_eink_refresh_every_pages">eink e ink refresh flash ghosting pages</string>
+    <string name="settings_search_keywords_finished_percent">finished read complete percent threshold done</string>
+    <string name="settings_search_keywords_reading_auto_sync_every_pages">auto sync while reading page turns position progress</string>
+    <string name="settings_search_keywords_dynamic_color">dynamic color material you wallpaper accent palette</string>
+    <string name="settings_search_keywords_date_format">date format day month iso calendar</string>
+    <string name="settings_search_keywords_start_screen">open on start screen startup launch continue last book resume tab</string>
+    <string name="settings_search_keywords_recently_deleted_retention">recently deleted trash empty auto purge retention days</string>
+    <string name="settings_search_keywords_week_start">week start first day sunday monday calendar heatmap</string>
+    <string name="settings_search_keywords_read_aloud_rate">read aloud tts text to speech voice speed rate listen</string>
+    <string name="settings_search_keywords_read_aloud_pitch">read aloud tts text to speech voice pitch deeper higher tone listen</string>
+    <string name="settings_search_keywords_reader_brightness">brightness light screen dim night</string>
+    <string name="settings_search_keywords_reader_warm_light">warm light night amber blue filter</string>
+    <string name="settings_search_keywords_reader_edge_swipe_light">swipe edge brightness warm light gesture</string>
+    <string name="settings_search_keywords_default_cover_source">default cover source goodreads yours custom book covers library import</string>
+    <string name="settings_search_keywords_landscape_two_column_layout">landscape two column layout wide screen tablet foldable</string>
+    <string name="settings_search_keywords_kindle_device_name">device name label phone tablet sync history conflicts</string>
+    <string name="settings_search_keywords_github_sync_enabled">github sync cloud enable repository books notes settings</string>
+    <string name="settings_search_keywords_github_owner">github owner username organization account sync repository</string>
+    <string name="settings_search_keywords_github_repository">github repository repo cloud sync books notes settings</string>
+    <string name="settings_search_keywords_github_branch">github branch main cloud sync repository</string>
+    <string name="settings_search_keywords_github_token">github token personal access token pat credential sync</string>
+    <string name="settings_search_keywords_github_sync_passphrase">github sync passphrase password encryption cloud assets books</string>
+
+    <!-- Sync and cloud download progress -->
+    <string name="sync_detail_saving_device_snapshot">Saving this device snapshot</string>
+    <string name="sync_detail_publishing_latest_snapshot">Publishing latest snapshot</string>
+    <string name="sync_detail_cleaning_old_slices">Cleaning old snapshot slices</string>
+    <string name="sync_detail_checking_settings">Checking GitHub settings</string>
+    <string name="sync_detail_cloud_book_missing">Cloud book file is missing</string>
+    <string name="sync_detail_sync_off">GitHub sync is turned off</string>
+    <string name="sync_detail_settings_incomplete">GitHub settings are incomplete</string>
+    <string name="sync_detail_settings_invalid">GitHub settings are invalid</string>
+    <string name="sync_detail_downloading_book">Downloading book file</string>
+    <string name="sync_detail_decrypting_book">Decrypting book file</string>
+    <string name="sync_detail_saving_book">Saving book to this device</string>
+    <string name="sync_detail_checking_cover">Checking cloud cover</string>
+    <string name="sync_detail_book_downloaded">Book downloaded</string>
+    <string name="sync_detail_book_download_failed">Book download failed</string>
+    <string name="sync_detail_reading_cloud">Reading cloud library</string>
+    <string name="sync_detail_progress_unreadable">Cloud progress could not be read</string>
+    <string name="sync_detail_progress_missing">Cloud progress could not be found</string>
+    <string name="sync_detail_progress_needs_confirmation">Cloud progress needs confirmation</string>
+    <string name="sync_detail_saving_progress">Saving reading progress</string>
+    <string name="sync_detail_progress_save_failed">Reading progress save failed</string>
+    <string name="sync_detail_progress_synced">Reading progress synced</string>
+    <string name="sync_detail_adding_cloud_books">Adding cloud books</string>
+    <string name="sync_detail_saving_latest_snapshot">Saving latest snapshot</string>
+    <string name="sync_detail_finished">Sync finished</string>
+    <string name="sync_detail_snapshot_save_failed">Snapshot save failed</string>
+    <string name="sync_error_concurrent_save">Another device saved changes while this sync was uploading. Your uploads are safe - sync again to finish.</string>
+    <string name="sync_error_request_failed">GitHub request failed</string>
+    <string name="sync_error_failed">GitHub sync failed</string>
+    <string name="sync_slice_annotations">annotations</string>
+    <string name="sync_slice_shelves">shelves</string>
+    <string name="sync_slice_shelf_memberships">shelf memberships</string>
+    <string name="sync_slice_reading_sessions">reading sessions</string>
+    <string name="sync_slice_vocabulary_cards">vocabulary cards</string>
+    <string name="sync_slice_word_lookup_counters">word lookup counters</string>
+    <string name="sync_slice_book_aliases">book aliases</string>
+    <string name="sync_slice_deleted_items">deleted items</string>
+    <string name="sync_slice_library_metadata">library metadata</string>
+    <string name="sync_detail_saving_slice">Saving snapshot slice %1$d of %2$d: %3$s</string>
+    <string name="sync_detail_uploading">Uploading %1$s and %2$s</string>
+    <plurals name="sync_detail_book_count">
+        <item quantity="one">%d book</item>
+        <item quantity="other">%d books</item>
+    </plurals>
+    <plurals name="sync_detail_cover_count">
+        <item quantity="one">%d cover</item>
+        <item quantity="other">%d covers</item>
+    </plurals>
+    <string name="sync_detail_uploaded_books">Uploaded %1$d of %2$d local books</string>
+    <string name="sync_detail_uploaded_covers">Uploaded %1$d of %2$d covers</string>
+
+    <!-- Library: Goodreads quotes, untitled imports, cover search -->
+    <plurals name="goodreads_quotes_more">
+        <item quantity="one">+ %d more</item>
+        <item quantity="other">+ %d more</item>
+    </plurals>
+    <string name="library_untitled_book">Untitled</string>
+    <string name="library_cover_search_query">%1$s cover image</string>
+
+    <!-- Offline dictionary install errors -->
+    <string name="dictionary_error_prepare_storage">Could not prepare dictionary storage</string>
+    <string name="dictionary_error_not_wordnet">This is not an Open English WordNet 2025 dictionary ZIP</string>
+    <string name="dictionary_error_preserve_existing">Could not preserve the existing dictionary</string>
+    <string name="dictionary_error_too_many_entries">Dictionary archive contains too many entries</string>
+    <string name="dictionary_error_duplicate_files">Dictionary archive contains duplicate files</string>
+    <string name="dictionary_error_file_too_large">Dictionary file is unexpectedly large</string>
+    <string name="dictionary_error_archive_too_large">Dictionary archive is unexpectedly large</string>
+    <string name="dictionary_error_open_file">The selected dictionary file could not be opened</string>
+    <string name="dictionary_error_finish_install">Could not finish installing the dictionary</string>
+    <string name="dictionary_error_finish_install_no_restore">Could not finish installing the dictionary and could not restore the previous one</string>
+
+    <!-- Reader errors and sync status -->
+    <string name="reader_error_book_not_found">Book not found</string>
+    <string name="reader_error_cloud_only">This book is in your cloud library. Download it from its details to read it here.</string>
+    <string name="reader_error_file_unavailable">This book file is not available on this device.</string>
+    <string name="reader_error_file_missing">This book file is missing from this device.</string>
+    <string name="reader_error_open_failed">Could not open book</string>
+    <string name="reader_error_renderer_crashed">The reader stopped working repeatedly. Close the book and open it again.</string>
+    <string name="reader_error_dictionary_install_failed">Dictionary installation failed</string>
+    <string name="reader_error_dictionary_lookup_failed">Dictionary lookup failed</string>
+    <string name="reader_sync_config_incomplete">Sync is not fully configured</string>
+    <string name="reader_sync_cloud_missing">No snapshot in the cloud yet</string>
+
+    <!-- Backup, restore, font import and GitHub settings transfer errors -->
+    <string name="settings_error_could_not_find_app_database">Could not find the app database</string>
+    <string name="settings_error_backup_archive_contains_too_many_entries">Backup archive contains too many entries</string>
+    <string name="settings_error_backup_database_damaged">Backup database is damaged</string>
+    <string name="settings_error_backup_metadata_unexpectedly_large">Backup metadata is unexpectedly large</string>
+    <string name="settings_error_backup_unexpectedly_large">This backup is unexpectedly large</string>
+    <string name="settings_error_could_not_save_pending_database_changes">Could not save pending database changes</string>
+    <string name="settings_error_backup_archive_contains_invalid_entry">Backup archive contains an invalid entry</string>
+    <string name="settings_error_backup_manifest_has_invalid_version_information">Backup manifest has invalid version information</string>
+    <string name="settings_error_backup_archive_contains_duplicate_entries">Backup archive contains duplicate entries</string>
+    <string name="settings_error_backup_failed">Backup failed</string>
+    <string name="settings_error_could_not_read_backup">Could not read this backup</string>
+    <string name="settings_error_restore_failed">Restore failed</string>
+    <string name="settings_error_could_not_open_selected_location">Could not open the selected location</string>
+    <string name="settings_error_could_not_open_selected_file">Could not open the selected file</string>
+    <string name="settings_error_not_a_vayana_backup">This doesn\'t look like a Vayana backup</string>
+    <string name="settings_error_backup_has_no_database">This backup doesn\'t contain a database - nothing to restore</string>
+    <string name="settings_error_backup_format_too_new">This backup was made by a newer version of Vayana. Update the app first.</string>
+    <string name="settings_error_backup_data_too_new">This backup\'s data is newer than this version of Vayana supports. Update the app first.</string>
+    <string name="settings_error_backup_has_no_database_unchanged">This backup doesn\'t contain a database - nothing was changed</string>
+    <string name="settings_error_backup_database_version_does_not_match">Backup database version does not match its manifest</string>
+    <string name="settings_error_backup_database_contains_broken_references">Backup database contains broken references</string>
+    <string name="settings_error_choose_writable_folder">Choose a writable folder</string>
+    <string name="settings_error_selected_backup_folder_unavailable_choose_again">The selected backup folder is unavailable. Choose it again in Settings.</string>
+    <string name="settings_error_could_not_create_file_backup_folder">Could not create a file in the backup folder</string>
+    <string name="settings_error_could_not_finish_backup_file_selected">Could not finish the backup file in the selected folder</string>
+    <string name="settings_error_selected_folder_changed_backup_file_name">The selected folder changed the backup file name</string>
+    <string name="settings_error_automatic_backup_failed">Automatic backup failed</string>
+    <string name="settings_error_some_older_backups_could_not_removed">Some older backups could not be removed</string>
+    <string name="settings_error_choose_ttf_otf_woff_woff2_font">Choose a .ttf, .otf, .woff, or .woff2 font file</string>
+    <string name="settings_error_could_not_read_selected_font_file">Could not read the selected font file</string>
+    <string name="settings_error_could_not_read_backup_folder">Could not read the backup folder</string>
+    <string name="settings_error_could_not_use_selected_folder">Could not use the selected folder</string>
+    <string name="settings_error_could_not_update_backup_schedule">Could not update the backup schedule</string>
+    <string name="settings_error_could_not_import_font">Could not import this font</string>
+    <string name="settings_error_github_sync_settings_export_too_large">GitHub sync settings export is too large</string>
+    <string name="settings_error_github_sync_settings_import_too_large">GitHub sync settings import is too large</string>
+    <string name="settings_error_not_vayana_github_sync_settings_file">This is not a Vayana GitHub sync settings file</string>
+    <string name="settings_error_unsupported_github_sync_settings_version">Unsupported GitHub sync settings version</string>
+    <string name="settings_error_github_sync_settings_value_too_large">GitHub sync settings value is too large</string>
+    <string name="settings_error_github_sync_settings_file_too_large">GitHub sync settings file is too large</string>
+    <string name="settings_error_github_sync_settings_export_failed">GitHub sync settings export failed</string>
+    <string name="settings_error_github_sync_settings_import_failed">GitHub sync settings import failed</string>
+    <string name="settings_error_github_connection_test_failed">GitHub connection test failed</string>
+
+    <!-- Backup restore details -->
+    <string name="settings_error_restore_rolled_back">%1$s Your previous data was restored.</string>
+    <string name="settings_error_backup_missing_file">Backup is missing a valid %1$s file: %2$s</string>
+
+    <!-- Imported reader fonts -->
+    <string name="settings_reader_imported_font_default_name">Imported font</string>
+
+    <!-- Date patterns (java.time DateTimeFormatter syntax; reorder for the language, keep letters in quotes literal) -->
+    <string name="sync_status_date_time_pattern">dd-MMM-yy \'@\' HH:mm</string>
+    <string name="library_stats_share_date_pattern">dd MMM yyyy</string>
+
+    <!-- Shared formats: quotation marks, percentages, dictionary senses -->
+    <string name="quoted_text">“%1$s”</string>
+    <string name="quote_citation">“%1$s”\n— %2$s</string>
+    <string name="percent_value">%1$d%%</string>
+    <string name="dictionary_sense">%1$s  %2$s</string>
+    <string name="dictionary_part_of_speech_noun">noun</string>
+    <string name="dictionary_part_of_speech_verb">verb</string>
+    <string name="dictionary_part_of_speech_adjective">adj.</string>
+    <string name="dictionary_part_of_speech_adverb">adv.</string>
 </resources>

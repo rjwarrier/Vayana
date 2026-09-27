@@ -1,5 +1,10 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.resources.failUnless
+import com.vayana.core.resources.uiText
+import com.vayana.core.resources.LocalizedException
+import com.vayana.core.resources.UiText
+import com.vayana.core.resources.R
 import android.content.Context
 import android.net.Uri
 import com.vayana.core.common.DispatcherProvider
@@ -17,7 +22,7 @@ import org.json.JSONObject
 sealed interface GitHubSyncSettingsTransferOutcome {
     data object Success : GitHubSyncSettingsTransferOutcome
     data object MissingPassphrase : GitHubSyncSettingsTransferOutcome
-    data class Failed(val message: String) : GitHubSyncSettingsTransferOutcome
+    data class Failed(val message: UiText) : GitHubSyncSettingsTransferOutcome
 }
 
 @Singleton
@@ -35,16 +40,19 @@ class GitHubSyncSettingsTransfer @Inject constructor(
         try {
             val plaintext = buildPlaintext(settings).toByteArray(Charsets.UTF_8)
             val encrypted = cipher.encrypt(plaintext, passphrase, TransferAad)
-            check(encrypted.size <= MaxEncryptedTransferBytes) { "GitHub sync settings export is too large" }
+            failUnless(
+                encrypted.size <= MaxEncryptedTransferBytes,
+                R.string.settings_error_github_sync_settings_export_too_large,
+            )
             val output = context.contentResolver.openOutputStream(destination)
-                ?: return@withContext GitHubSyncSettingsTransferOutcome.Failed("Could not open the selected location")
+                ?: return@withContext GitHubSyncSettingsTransferOutcome.Failed(UiText.Res(R.string.settings_error_could_not_open_selected_location))
             output.use { it.write(encrypted) }
             GitHubSyncSettingsTransferOutcome.Success
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (throwable: Throwable) {
             runCatchingCancellable { context.contentResolver.delete(destination, null, null) }
-            GitHubSyncSettingsTransferOutcome.Failed(throwable.message ?: "GitHub sync settings export failed")
+            GitHubSyncSettingsTransferOutcome.Failed(throwable.uiText(R.string.settings_error_github_sync_settings_export_failed))
         } finally {
             passphrase.fill('\u0000')
         }
@@ -55,17 +63,20 @@ class GitHubSyncSettingsTransfer @Inject constructor(
         if (currentPassphrase.isEmpty()) return@withContext GitHubSyncSettingsTransferOutcome.MissingPassphrase
         try {
             val input = context.contentResolver.openInputStream(source)
-                ?: return@withContext GitHubSyncSettingsTransferOutcome.Failed("Could not open the selected file")
+                ?: return@withContext GitHubSyncSettingsTransferOutcome.Failed(UiText.Res(R.string.settings_error_could_not_open_selected_file))
             val encrypted = input.use { it.readBytesLimited(MaxEncryptedTransferBytes) }
             val plaintext = cipher.decrypt(encrypted, currentPassphrase, TransferAad)
-            check(plaintext.size <= MaxPlaintextTransferBytes) { "GitHub sync settings import is too large" }
+            failUnless(
+                plaintext.size <= MaxPlaintextTransferBytes,
+                R.string.settings_error_github_sync_settings_import_too_large,
+            )
             val values = parsePlaintext(plaintext.toString(Charsets.UTF_8))
             settingsRepository.importFromMap(values)
             GitHubSyncSettingsTransferOutcome.Success
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (throwable: Throwable) {
-            GitHubSyncSettingsTransferOutcome.Failed(throwable.message ?: "GitHub sync settings import failed")
+            GitHubSyncSettingsTransferOutcome.Failed(throwable.uiText(R.string.settings_error_github_sync_settings_import_failed))
         } finally {
             currentPassphrase.fill('\u0000')
         }
@@ -85,16 +96,28 @@ class GitHubSyncSettingsTransfer @Inject constructor(
     }
 
     private fun parsePlaintext(jsonText: String): Map<String, String> {
-        require(jsonText.length <= MaxPlaintextTransferBytes) { "GitHub sync settings import is too large" }
+        failUnless(
+            jsonText.length <= MaxPlaintextTransferBytes,
+            R.string.settings_error_github_sync_settings_import_too_large,
+        )
         val root = JSONObject(jsonText)
-        require(root.optString("format") == "vayana.github-sync-settings") { "This is not a Vayana GitHub sync settings file" }
-        require(root.optInt("formatVersion") == TransferVersion) { "Unsupported GitHub sync settings version" }
+        failUnless(
+            root.optString("format") == "vayana.github-sync-settings",
+            R.string.settings_error_not_vayana_github_sync_settings_file,
+        )
+        failUnless(
+            root.optInt("formatVersion") == TransferVersion,
+            R.string.settings_error_unsupported_github_sync_settings_version,
+        )
         val settings = root.getJSONObject("settings")
         return buildMap {
             GitHubSyncSettingKeys.forEach { key ->
                 if (settings.has(key) && !settings.isNull(key)) {
                     val value = settings.optString(key)
-                    require(value.length <= MaxSettingValueChars) { "GitHub sync settings value is too large" }
+                    failUnless(
+                        value.length <= MaxSettingValueChars,
+                        R.string.settings_error_github_sync_settings_value_too_large,
+                    )
                     put(key, value)
                 }
             }
@@ -110,7 +133,7 @@ private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
         val read = read(buffer)
         if (read == -1) break
         total += read
-        check(total <= maxBytes) { "GitHub sync settings file is too large" }
+        failUnless(total <= maxBytes, R.string.settings_error_github_sync_settings_file_too_large)
         output.write(buffer, 0, read)
     }
     return output.toByteArray()

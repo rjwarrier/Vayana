@@ -26,5 +26,6 @@ sealed interface DictionaryPackState {
     data object NotInstalled : DictionaryPackState
     data object Installing : DictionaryPackState
     data object Installed : DictionaryPackState
-    data class Failed(val message: String) : DictionaryPackState
+    /** The install failed; why is reported by the exception [DictionaryRepository.installEnglish] throws. */
+    data object Failed : DictionaryPackState
 }

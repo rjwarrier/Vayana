@@ -83,13 +83,20 @@ fun QuoteShareDialog(
     val seriesLabel = shareSeriesLabel(series, seriesNumber)
     val context = LocalContext.current
     val textChooserTitle = stringResource(R.string.share_card_share_text)
+    val citationPattern = stringResource(R.string.quote_citation)
     var options by remember { mutableStateOf(QuoteShareOptions()) }
     val availableCover = remember(coverPath) { coverPath?.takeIf { File(it).exists() } }
     ShareCardDialog(
         onDismiss = onDismiss,
         onShareText = {
             context.shareText(
-                QuoteCitation.format(text = text, author = author, bookTitle = bookTitle, chapterTitle = chapterTitle),
+                QuoteCitation.format(
+                    text = text,
+                    author = author,
+                    bookTitle = bookTitle,
+                    chapterTitle = chapterTitle,
+                    pattern = citationPattern,
+                ),
                 textChooserTitle,
             )
             onDismiss()

@@ -111,6 +111,7 @@ internal fun LibraryStatsShareDialog(books: List<Book>, onDismiss: () -> Unit) {
         percentRead = stringResource(R.string.library_stats_share_percent_read, snapshot.readPercent),
         readLegend = stringResource(R.string.library_stats_share_read_legend),
         footer = stringResource(R.string.library_stats_share_footer),
+        datePattern = stringResource(R.string.library_stats_share_date_pattern),
     )
     val bitmap by produceState<Bitmap?>(null, snapshot, format, palette, date, copy, spineStyle, fonts) {
         value = withContext(Dispatchers.Default) {
@@ -230,6 +231,8 @@ internal data class LibraryStatsShareCopy(
     val percentRead: String,
     val readLegend: String,
     val footer: String,
+    /** `DateTimeFormatter` pattern for the card's date, so each language orders it its own way. */
+    val datePattern: String,
 )
 
 internal data class LibraryShareFonts(val serif: Typeface, val sans: Typeface)
@@ -274,7 +277,8 @@ internal fun renderLibraryStatsCard(
         paint.textAlign = if (right) Paint.Align.RIGHT else Paint.Align.LEFT
         canvas.drawText(value, x, y, paint)
     }
-    val shortDate = date.format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())).uppercase(Locale.getDefault())
+    val shortDate = date.format(DateTimeFormatter.ofPattern(copy.datePattern, Locale.getDefault()))
+        .uppercase(Locale.getDefault())
     runCatching { ContextCompat.getDrawable(context, R.drawable.ic_vayana_mark) }.getOrNull()?.mutate()?.let { glyph ->
         glyph.setTint(colors.ink)
         glyph.setBounds(27, 24, 72, 69)
