@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="read_aloud_notification_channel">உரக்க வாசித்தல்</string>
+    <string name="read_aloud_notification_title">உரக்க வாசிக்கிறது</string>
+    <string name="read_aloud_notification_text">திரை அணைந்திருந்தாலும் வாசிப்பு தொடரும்</string>
+    <string name="read_aloud_notification_progress">%1$d%% முடிந்தது</string>
+    <string name="read_aloud_notification_pause">இடைநிறுத்து</string>
+    <string name="read_aloud_notification_play">இயக்கு</string>
+    <string name="read_aloud_notification_previous">முந்தைய வாக்கியம்</string>
+    <string name="read_aloud_notification_next">அடுத்த வாக்கியம்</string>
+</resources>
