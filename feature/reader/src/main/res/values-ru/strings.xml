@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="read_aloud_notification_channel">Чтение вслух</string>
+    <string name="read_aloud_notification_title">Чтение вслух</string>
+    <string name="read_aloud_notification_text">Воспроизведение может продолжаться при выключенном экране</string>
+    <string name="read_aloud_notification_progress">Выполнено %1$d%%</string>
+    <string name="read_aloud_notification_pause">Пауза</string>
+    <string name="read_aloud_notification_play">Воспроизвести</string>
+    <string name="read_aloud_notification_previous">Предыдущее предложение</string>
+    <string name="read_aloud_notification_next">Следующее предложение</string>
+</resources>
