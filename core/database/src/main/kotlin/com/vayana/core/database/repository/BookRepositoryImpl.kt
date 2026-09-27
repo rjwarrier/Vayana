@@ -15,6 +15,8 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.OfflinePages
+import com.vayana.core.database.model.PhysicalBookOwnership
+import com.vayana.core.database.model.normalizeBorrowReturnAt
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -228,7 +230,37 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun updateOfflineFormat(id: Long, format: BookFormat) {
         require(format.isOffline) { "Only books read outside the app can switch format" }
-        bookDao.updateFormat(id, format.name, System.currentTimeMillis())
+        database.withTransaction {
+            val existing = bookDao.getById(id)?.takeIf { BookFormat.valueOf(it.format).isOffline } ?: return@withTransaction
+            bookDao.update(
+                existing.copy(
+                    format = format.name,
+                    physicalOwnership = if (format == BookFormat.PHYSICAL) {
+                        existing.physicalOwnership ?: PhysicalBookOwnership.OWNED.name
+                    } else {
+                        null
+                    },
+                    borrowReturnAt = existing.borrowReturnAt.takeIf {
+                        format == BookFormat.PHYSICAL && existing.physicalOwnership == PhysicalBookOwnership.BORROWED.name
+                    },
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+    }
+
+    override suspend fun updatePhysicalBookLoan(
+        id: Long,
+        ownership: PhysicalBookOwnership,
+        borrowReturnAt: Long?,
+    ) {
+        bookDao.updatePhysicalBookLoan(
+            id = id,
+            ownership = ownership.name,
+            borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
+                .takeIf { ownership == PhysicalBookOwnership.BORROWED },
+            updatedAt = System.currentTimeMillis(),
+        )
     }
 
     override suspend fun insertOfflineBook(
@@ -239,6 +271,8 @@ class BookRepositoryImpl @Inject constructor(
         finishedAt: Long?,
         pageCount: Int?,
         currentPage: Int?,
+        physicalOwnership: PhysicalBookOwnership,
+        borrowReturnAt: Long?,
     ): Book {
         require(format.isOffline) { "Offline books must be PHYSICAL, AUDIOBOOK or OTHER_EBOOK" }
         val pages = if (format.tracksPages) OfflinePages.of(pageCount, currentPage) else OfflinePages(null, null)
@@ -254,6 +288,9 @@ class BookRepositoryImpl @Inject constructor(
             pageEstimate = pages.total,
             startedReadingAt = startedAt,
             finishedReadingAt = finishedAt,
+            physicalOwnership = physicalOwnership.name.takeIf { format == BookFormat.PHYSICAL },
+            borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
+                .takeIf { format == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED },
         )
         val id = bookDao.insert(entity)
         return entity.copy(id = id).toDomain()
@@ -723,6 +760,12 @@ internal fun BookEntity.toDomain(): Book = Book(
     goodreadsCoverPath = goodreadsCoverPath,
     // Kept when an audiobook was switched from a paper book, but an audiobook has no pages to show.
     pageCount = pageEstimate?.takeIf { it > 0 && BookFormat.valueOf(format).tracksPages },
+    physicalOwnership = physicalOwnership?.let { runCatching { PhysicalBookOwnership.valueOf(it) }.getOrNull() }
+        .takeIf { BookFormat.valueOf(format) == BookFormat.PHYSICAL },
+    borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
+        .takeIf {
+            BookFormat.valueOf(format) == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED.name
+        },
 )
 
 /** Alternate cover choices are local files, so a cloud rewrite must carry them over. */
@@ -820,7 +863,11 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         goodreadsRating = goodreadsRating?.coerceIn(0f, 5f),
         goodreadsRatingsCount = goodreadsRatingsCount,
         originalPublicationYear = originalPublicationYear,
-)
+        physicalOwnership = (physicalOwnership ?: PhysicalBookOwnership.OWNED).name
+            .takeIf { format == BookFormat.PHYSICAL },
+        borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
+            .takeIf { format == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED },
+    )
 
 private fun CloudBookRecord.hasCoverAsset(): Boolean =
     coverAssetId != null &&
@@ -890,4 +937,15 @@ private fun BookEntity.withOfflineReadingFrom(record: CloudBookRecord): BookEnti
     finishedReadingAt = record.finishedReadingAt,
     pageEstimate = record.pageEstimate,
     readingPercent = record.readingPercent.sanitizedReadingPercent(),
+    physicalOwnership = when {
+        record.format != BookFormat.PHYSICAL -> null
+        record.physicalOwnership != null -> record.physicalOwnership.name
+        else -> physicalOwnership
+    },
+    borrowReturnAt = when {
+        record.format != BookFormat.PHYSICAL -> null
+        record.physicalOwnership == PhysicalBookOwnership.BORROWED -> normalizeBorrowReturnAt(record.borrowReturnAt)
+        record.physicalOwnership == PhysicalBookOwnership.OWNED -> null
+        else -> borrowReturnAt
+    },
 )

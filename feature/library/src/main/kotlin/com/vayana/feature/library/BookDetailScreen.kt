@@ -110,6 +110,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -182,6 +183,7 @@ fun BookDetailRoute(
         openGoodreadsOnStart = openGoodreads,
         onChangeOfflineFormat = { format -> viewModel.updateOfflineFormat(bookId, format) },
         onUpdateOfflinePages = { pageCount, currentPage -> viewModel.updateOfflinePages(bookId, pageCount, currentPage) },
+        onUpdatePhysicalBookLoan = { ownership, returnAt -> viewModel.updatePhysicalBookLoan(bookId, ownership, returnAt) },
         showSyncReadingProgress = uiState.githubSyncReady,
         syncReadingProgressRunning = syncReadingProgressRunning,
         progressChangePrompt = progressChangePrompt,
@@ -314,6 +316,7 @@ private fun BookDetailScreen(
     openGoodreadsOnStart: Boolean,
     onChangeOfflineFormat: (BookFormat) -> Unit,
     onUpdateOfflinePages: (pageCount: Int?, currentPage: Int?) -> Unit,
+    onUpdatePhysicalBookLoan: (ownership: PhysicalBookOwnership, returnAt: Long?) -> Unit,
     showSyncReadingProgress: Boolean,
     syncReadingProgressRunning: Boolean,
     progressChangePrompt: BookProgressChange?,
@@ -372,6 +375,7 @@ private fun BookDetailScreen(
     var goodreadsBrowserUrl by remember { mutableStateOf<String?>(null) }
     var openGoodreadsHandled by rememberSaveable { mutableStateOf(false) }
     var showOfflinePagesDialog by rememberSaveable { mutableStateOf(false) }
+    var showBorrowReturnDateDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(book != null) {
         if (openGoodreadsOnStart && !openGoodreadsHandled && book != null) {
             openGoodreadsHandled = true
@@ -829,6 +833,10 @@ private fun BookDetailScreen(
                             onEditFinished = { editingReadingDate = ReadingDateField.FINISHED },
                             onChangeFormat = onChangeOfflineFormat,
                             onEditPages = { showOfflinePagesDialog = true },
+                            onChangeOwnership = { ownership ->
+                                onUpdatePhysicalBookLoan(ownership, book.borrowReturnAt)
+                            },
+                            onEditBorrowReturnDate = { showBorrowReturnDateDialog = true },
                         )
                     }
                 }
@@ -927,6 +935,21 @@ private fun BookDetailScreen(
                 onUpdateReadingDates(started, finished)
             },
             onDismiss = { editingReadingDate = null },
+        )
+    }
+
+    if (showBorrowReturnDateDialog && book?.format == BookFormat.PHYSICAL) {
+        BorrowReturnDatePickerDialog(
+            current = book.borrowReturnAt,
+            onConfirm = { returnAt ->
+                showBorrowReturnDateDialog = false
+                onUpdatePhysicalBookLoan(PhysicalBookOwnership.BORROWED, returnAt)
+            },
+            onClear = {
+                showBorrowReturnDateDialog = false
+                onUpdatePhysicalBookLoan(PhysicalBookOwnership.BORROWED, null)
+            },
+            onDismiss = { showBorrowReturnDateDialog = false },
         )
     }
 

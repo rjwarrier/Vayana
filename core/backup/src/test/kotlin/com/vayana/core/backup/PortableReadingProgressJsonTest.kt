@@ -1,5 +1,6 @@
 package com.vayana.core.backup
 
+import com.vayana.core.database.model.PhysicalBookOwnership
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -165,6 +166,30 @@ class PortableReadingProgressJsonTest {
         assertEquals(listOf("physical", "audio", "kindle"), books.map { it.syncId })
         assertEquals(null, books.first().fileAsset)
         assertEquals(5L, books.first().finishedReadingAt)
+    }
+
+    @Test
+    fun parsesPhysicalBookLoanDetails() {
+        val book = parsePortableCloudBooks(
+            """
+            {
+              "books": [
+                {
+                  "syncId":"physical",
+                  "title":"Borrowed",
+                  "format":"PHYSICAL",
+                  "fileHash":"physical:1",
+                  "updatedAt":1,
+                  "physicalOwnership":"BORROWED",
+                  "borrowReturnAt":5000
+                }
+              ]
+            }
+            """.trimIndent(),
+        ).single()
+
+        assertEquals(PhysicalBookOwnership.BORROWED, book.physicalOwnership)
+        assertEquals(5_000L, book.borrowReturnAt)
     }
 
     @Test

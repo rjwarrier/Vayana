@@ -20,6 +20,16 @@ internal object ReadingDates {
 
     fun pickerDate(pickerMillis: Long): LocalDate = Instant.ofEpochMilli(pickerMillis).atZone(ZoneOffset.UTC).toLocalDate()
 
+    /** Resolves an unrestricted calendar date (such as a loan return date), retaining its prior time of day. */
+    fun resolvePickerDate(
+        pickerMillis: Long,
+        previous: Long?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Long {
+        val time = previous?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime() } ?: LocalTime.NOON
+        return pickerDate(pickerMillis).atTime(time).atZone(zone).toInstant().toEpochMilli()
+    }
+
     /**
      * Whether [pickerMillis] may be chosen for [field]: never after today, a start never after the finish, and a
      * finish never before the start. The other date is compared by calendar day only.

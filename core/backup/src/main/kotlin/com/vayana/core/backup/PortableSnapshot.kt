@@ -56,6 +56,8 @@ data class PortableBook(
     val goodreadsRating: Float? = null,
     val goodreadsRatingsCount: Int? = null,
     val originalPublicationYear: Int? = null,
+    val physicalOwnership: String? = null,
+    val borrowReturnAt: Long? = null,
 )
 
 data class PortableAsset(

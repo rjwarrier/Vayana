@@ -462,6 +462,23 @@
     <string name="offline_book_pages_title">Update reading progress</string>
     <string name="offline_book_pages_body">Reaching the last page marks the book finished.</string>
     <string name="offline_book_pages_too_high">Can\'t be past the last page</string>
+    <string name="offline_book_ownership_label">Ownership</string>
+    <string name="offline_book_owned">Owned</string>
+    <string name="offline_book_borrowed">Borrowed</string>
+    <string name="offline_book_return_date_label">Return date</string>
+    <string name="offline_book_return_date_value">Return %1$s</string>
+    <string name="offline_book_return_date_title">Choose return date</string>
+    <string name="offline_book_change_ownership">Change ownership</string>
+    <string name="offline_book_edit_return_date">Edit return date</string>
+    <plurals name="offline_book_days_remaining">
+        <item quantity="one">%1$d day remaining</item>
+        <item quantity="other">%1$d days remaining</item>
+    </plurals>
+    <plurals name="offline_book_pages_per_day">
+        <item quantity="one">Read %1$d page per day to finish by %2$s</item>
+        <item quantity="other">Read %1$d pages per day to finish by %2$s</item>
+    </plurals>
+    <string name="offline_book_no_reading_days_remaining">No reading days remain before the return date</string>
     <string name="share_card_stat_format_label">format</string>
     <string name="share_card_stat_days_label">days</string>
     <string name="share_card_image_options_format">Format</string>

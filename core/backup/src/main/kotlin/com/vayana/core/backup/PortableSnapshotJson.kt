@@ -472,6 +472,8 @@ private fun PortableBook.toJson(): JSONObject =
         .putOptional("goodreadsRating", goodreadsRating?.toDouble())
         .putOptional("goodreadsRatingsCount", goodreadsRatingsCount)
         .putOptional("originalPublicationYear", originalPublicationYear)
+        .putOptional("physicalOwnership", physicalOwnership)
+        .putOptional("borrowReturnAt", borrowReturnAt)
 
 private fun PortableAsset.toJson(): JSONObject =
     JSONObject()

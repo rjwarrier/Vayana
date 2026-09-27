@@ -95,8 +95,7 @@ queues the chosen one.
 `BookRepositoryImpl.insertOfflineBook` / `updateOfflineFormat` / `mergeCloudBook`.
 
 - Books read outside the app are ordinary `books` rows with format `PHYSICAL`, `AUDIOBOOK` or `OTHER_EBOOK` (an ebook
-  read in another app or device), `filePath = ""` and a unique `fileHash` (`<format>:<uuid>`). No schema change:
-  `format` is stored as text.
+  read in another app or device), `filePath = ""` and a unique `fileHash` (`<format>:<uuid>`).
 - Library menu (three dots) → **Offline books** lists them; they are kept off the Books list, series folders and
   Read Next, but appear in Search, Shelves, Notes and Statistics.
 - Adding one asks for title, author, type, optional start/finish dates, and "Fetch details from Goodreads" (on by
@@ -106,6 +105,10 @@ queues the chosen one.
 - **Pages:** total pages live in the existing `pageEstimate` column (`Book.pageCount`); the current page is
   `readingPercent × pageCount`, so page progress needs no schema change and syncs with the book. Reaching the last
   page finishes the book and going back un-finishes it (`BookRepositoryImpl.updateOfflinePages`).
+- Physical books can be marked **Owned** or **Borrowed**. A borrowed book may include a return date; ownership and
+  return date are editable from Book details and travel with the synced book metadata. Sunday return dates move to
+  Saturday. While pages remain, Book details shows the available reading days and the rounded-up pages-per-day target
+  needed to finish by the day before return.
 - Book details shows the wavy progress bar (once pages are known) and page, start, finish, days and type tiles, each
   editable (tapping type cycles Physical → Audiobook → Other ebook); the share card shows format and days in place of progress and
   reading time.

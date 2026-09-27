@@ -2,6 +2,7 @@ package com.vayana.core.database.repository
 
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.PhysicalBookOwnership
 import kotlinx.coroutines.flow.Flow
 
 sealed interface ReadingProgressMergeResult {
@@ -79,6 +80,9 @@ data class CloudBookRecord(
     val goodreadsRating: Float?,
     val goodreadsRatingsCount: Int?,
     val originalPublicationYear: Int?,
+    /** Optional physical-book loan metadata; null for older clients and non-physical formats. */
+    val physicalOwnership: PhysicalBookOwnership? = null,
+    val borrowReturnAt: Long? = null,
     /** When the book was last deleted or restored on the device that exported it; null from older app versions. */
     val deletionUpdatedAt: Long? = null,
 )
@@ -154,6 +158,9 @@ interface BookRepository {
     /** Switches a book read outside the app to another offline type ([BookFormat.isOffline]). */
     suspend fun updateOfflineFormat(id: Long, format: BookFormat)
 
+    /** Updates ownership and optional return date for a physical book. */
+    suspend fun updatePhysicalBookLoan(id: Long, ownership: PhysicalBookOwnership, borrowReturnAt: Long?)
+
     /** Adds a file-less entry for a book read outside the app (see [BookFormat.isOffline]). */
     suspend fun insertOfflineBook(
         title: String,
@@ -163,6 +170,8 @@ interface BookRepository {
         finishedAt: Long?,
         pageCount: Int? = null,
         currentPage: Int? = null,
+        physicalOwnership: PhysicalBookOwnership = PhysicalBookOwnership.OWNED,
+        borrowReturnAt: Long? = null,
     ): Book
 
     /**

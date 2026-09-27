@@ -68,8 +68,11 @@ interface BookDao {
     @Query("UPDATE books SET startedReadingAt = :startedAt, finishedReadingAt = :finishedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateReadingDates(id: Long, startedAt: Long?, finishedAt: Long?, updatedAt: Long)
 
-    @Query("UPDATE books SET format = :format, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun updateFormat(id: Long, format: String, updatedAt: Long)
+    @Query(
+        "UPDATE books SET physicalOwnership = :ownership, borrowReturnAt = :borrowReturnAt, " +
+            "updatedAt = :updatedAt WHERE id = :id AND format = 'PHYSICAL'",
+    )
+    suspend fun updatePhysicalBookLoan(id: Long, ownership: String, borrowReturnAt: Long?, updatedAt: Long): Int
 
     @Query(
         """

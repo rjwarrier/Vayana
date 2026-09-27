@@ -4,9 +4,13 @@ import androidx.room.Room
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.database.repository.BookRepositoryImpl
 import com.vayana.core.database.repository.CloudBookMergeResult
 import com.vayana.core.database.repository.CloudBookRecord
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -134,6 +138,46 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun physicalBookStoresBorrowedStatusAndReturnDate() = runBlocking {
+        val zone = ZoneId.systemDefault()
+        val sunday = LocalDate.of(2026, 9, 27).atTime(LocalTime.NOON).atZone(zone).toInstant().toEpochMilli()
+        val saturday = LocalDate.of(2026, 9, 26).atTime(LocalTime.NOON).atZone(zone).toInstant().toEpochMilli()
+        val book = repository.insertOfflineBook(
+            title = "The Library Book",
+            author = null,
+            format = BookFormat.PHYSICAL,
+            startedAt = null,
+            finishedAt = null,
+            physicalOwnership = PhysicalBookOwnership.BORROWED,
+            borrowReturnAt = sunday,
+        )
+
+        assertEquals(PhysicalBookOwnership.BORROWED, book.physicalOwnership)
+        assertEquals(saturday, book.borrowReturnAt)
+
+        repository.updatePhysicalBookLoan(book.id, PhysicalBookOwnership.OWNED, 9_000L)
+        val owned = repository.observeAll().first().single()
+        assertEquals(PhysicalBookOwnership.OWNED, owned.physicalOwnership)
+        assertNull(owned.borrowReturnAt)
+    }
+
+    @Test
+    fun nonPhysicalBookDiscardsPhysicalLoanDetails() = runBlocking {
+        val book = repository.insertOfflineBook(
+            title = "Listened",
+            author = null,
+            format = BookFormat.AUDIOBOOK,
+            startedAt = null,
+            finishedAt = null,
+            physicalOwnership = PhysicalBookOwnership.BORROWED,
+            borrowReturnAt = 5_000L,
+        )
+
+        assertNull(book.physicalOwnership)
+        assertNull(book.borrowReturnAt)
+    }
+
+    @Test
     fun pageInputRejectsACurrentPagePastTheEnd() {
         assertTrue(offlinePagesInput("300", "301").currentTooHigh)
         assertEquals(OfflinePagesInput(total = 300, current = 12, currentTooHigh = false), offlinePagesInput("300", "12"))
@@ -168,6 +212,24 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun newerSyncedPhysicalBookUpdatesLoanDetails() = runBlocking {
+        repository.mergeCloudBook(offlineRecord(updatedAt = 10, finishedAt = null))
+
+        repository.mergeCloudBook(
+            offlineRecord(
+                updatedAt = 20,
+                finishedAt = null,
+                physicalOwnership = PhysicalBookOwnership.BORROWED,
+                borrowReturnAt = 8_000L,
+            ),
+        )
+
+        val book = repository.observeAll().first().single()
+        assertEquals(PhysicalBookOwnership.BORROWED, book.physicalOwnership)
+        assertEquals(8_000L, book.borrowReturnAt)
+    }
+
+    @Test
     fun olderSyncedOfflineBookLeavesLocalDatesAlone() = runBlocking {
         repository.mergeCloudBook(offlineRecord(updatedAt = 20, finishedAt = 400))
 
@@ -182,6 +244,8 @@ class OfflineBookRepositoryTest {
         format: BookFormat = BookFormat.PHYSICAL,
         readingPercent: Float = if (finishedAt != null) 1f else 0f,
         pageCount: Int? = null,
+        physicalOwnership: PhysicalBookOwnership? = null,
+        borrowReturnAt: Long? = null,
     ) = CloudBookRecord(
         syncId = "offline-a",
         title = "Paper Book",
@@ -221,5 +285,7 @@ class OfflineBookRepositoryTest {
         goodreadsRating = null,
         goodreadsRatingsCount = null,
         originalPublicationYear = null,
+        physicalOwnership = physicalOwnership,
+        borrowReturnAt = borrowReturnAt,
     )
 }

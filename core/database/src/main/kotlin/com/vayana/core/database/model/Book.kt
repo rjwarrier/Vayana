@@ -1,5 +1,9 @@
 package com.vayana.core.database.model
 
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.ZoneId
+
 /**
  * Formats accepted at import time (docs/PRODUCT_SPEC.md §3). Only EPUB is parsed natively so far.
  * [PHYSICAL], [AUDIOBOOK] and [OTHER_EBOOK] (an ebook read in another app or device) are file-less entries for books
@@ -40,6 +44,23 @@ enum class BookFileAvailability {
     CLOUD_ONLY,
     MISSING,
     UPLOAD_PENDING,
+}
+
+/** Whether a physical book belongs to the reader or must be returned. */
+enum class PhysicalBookOwnership {
+    OWNED,
+    BORROWED,
+}
+
+/** Moves a Sunday loan return date to the preceding Saturday and rejects non-positive instants. */
+fun normalizeBorrowReturnAt(returnAt: Long?, zone: ZoneId = ZoneId.systemDefault()): Long? {
+    val instant = returnAt?.takeIf { it > 0L } ?: return null
+    val dateTime = Instant.ofEpochMilli(instant).atZone(zone)
+    return if (dateTime.dayOfWeek == DayOfWeek.SUNDAY) {
+        dateTime.minusDays(1).toInstant().toEpochMilli()
+    } else {
+        instant
+    }
 }
 
 /**
@@ -96,4 +117,8 @@ data class Book(
      * needs no reader position.
      */
     val pageCount: Int? = null,
+    /** Set only for physical books. Older records are treated as owned when presented to the reader. */
+    val physicalOwnership: PhysicalBookOwnership? = null,
+    /** Optional date by which a borrowed physical book should be returned. */
+    val borrowReturnAt: Long? = null,
 )

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.OfflinePages
+import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.tokens.Paddings
@@ -59,6 +60,8 @@ internal data class OfflineBookDraft(
     val finishedAt: Long?,
     val pageCount: Int?,
     val currentPage: Int?,
+    val physicalOwnership: PhysicalBookOwnership,
+    val borrowReturnAt: Long?,
     val fetchGoodreads: Boolean,
 )
 
@@ -78,9 +81,12 @@ internal fun AddOfflineBookDialog(
     var finishedAt by rememberSaveable { mutableStateOf<Long?>(null) }
     var totalPagesText by rememberSaveable { mutableStateOf("") }
     var currentPageText by rememberSaveable { mutableStateOf("") }
+    var physicalOwnership by rememberSaveable { mutableStateOf(PhysicalBookOwnership.OWNED) }
+    var borrowReturnAt by rememberSaveable { mutableStateOf<Long?>(null) }
     val pages = offlinePagesInput(totalPagesText, currentPageText)
     var fetchGoodreads by rememberSaveable { mutableStateOf(true) }
     var editingDate by rememberSaveable { mutableStateOf<ReadingDateField?>(null) }
+    var editingReturnDate by rememberSaveable { mutableStateOf(false) }
     val textFieldColors = expressiveTextFieldColors()
 
     ExpressiveDialogSurface(onDismissRequest = onDismiss, scrollable = true) {
@@ -127,6 +133,37 @@ internal fun AddOfflineBookDialog(
                 ) {
                     Text(option.displayLabel())
                 }
+            }
+        }
+
+        if (format == BookFormat.PHYSICAL) {
+            Text(
+                text = stringResource(R.string.offline_book_ownership_label),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                PhysicalBookOwnership.entries.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = physicalOwnership == option,
+                        onClick = {
+                            physicalOwnership = option
+                            if (option == PhysicalBookOwnership.OWNED) borrowReturnAt = null
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index, PhysicalBookOwnership.entries.size),
+                    ) {
+                        Text(option.displayLabel())
+                    }
+                }
+            }
+            if (physicalOwnership == PhysicalBookOwnership.BORROWED) {
+                OfflineDateField(
+                    label = stringResource(R.string.offline_book_return_date_label),
+                    value = borrowReturnAt,
+                    onClick = { editingReturnDate = true },
+                    onClear = { borrowReturnAt = null },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
 
@@ -201,6 +238,10 @@ internal fun AddOfflineBookDialog(
                             finishedAt = finishedAt,
                             pageCount = pages.total.takeIf { format.tracksPages },
                             currentPage = pages.current.takeIf { format.tracksPages },
+                            physicalOwnership = physicalOwnership,
+                            borrowReturnAt = borrowReturnAt.takeIf {
+                                format == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED
+                            },
                             fetchGoodreads = fetchGoodreads,
                         ),
                     )
@@ -232,7 +273,25 @@ internal fun AddOfflineBookDialog(
             onDismiss = { editingDate = null },
         )
     }
+    if (editingReturnDate) {
+        BorrowReturnDatePickerDialog(
+            current = borrowReturnAt,
+            onConfirm = { chosen ->
+                borrowReturnAt = chosen
+                editingReturnDate = false
+            },
+            onDismiss = { editingReturnDate = false },
+        )
+    }
 }
+
+@Composable
+internal fun PhysicalBookOwnership.displayLabel(): String = stringResource(
+    when (this) {
+        PhysicalBookOwnership.OWNED -> R.string.offline_book_owned
+        PhysicalBookOwnership.BORROWED -> R.string.offline_book_borrowed
+    },
+)
 
 @Composable
 private fun OfflineDateField(

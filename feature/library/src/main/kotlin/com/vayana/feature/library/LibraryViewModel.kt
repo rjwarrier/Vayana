@@ -52,6 +52,7 @@ import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.model.Shelf
 import com.vayana.core.database.repository.AnnotationMergeResult
@@ -2145,6 +2146,8 @@ class LibraryViewModel @Inject constructor(
                     finishedAt = draft.finishedAt,
                     pageCount = draft.pageCount,
                     currentPage = draft.currentPage,
+                    physicalOwnership = draft.physicalOwnership,
+                    borrowReturnAt = draft.borrowReturnAt,
                 )
             }
             onCreated(book.id)
@@ -2157,6 +2160,14 @@ class LibraryViewModel @Inject constructor(
 
     fun updateOfflineFormat(bookId: Long, format: BookFormat) {
         viewModelScope.launch { bookRepository.updateOfflineFormat(bookId, format) }
+    }
+
+    fun updatePhysicalBookLoan(
+        bookId: Long,
+        ownership: PhysicalBookOwnership,
+        borrowReturnAt: Long?,
+    ) {
+        viewModelScope.launch { bookRepository.updatePhysicalBookLoan(bookId, ownership, borrowReturnAt) }
     }
 
     private data class ImportCandidate(val uri: Uri, val displayName: String) {
@@ -2666,6 +2677,8 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         goodreadsRating = goodreadsRating,
         goodreadsRatingsCount = goodreadsRatingsCount,
         originalPublicationYear = originalPublicationYear,
+        physicalOwnership = physicalOwnership,
+        borrowReturnAt = borrowReturnAt,
     )
 }
 

@@ -1,6 +1,7 @@
 package com.vayana.core.backup
 
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.PhysicalBookOwnership
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -65,6 +66,8 @@ data class PortableCloudBook(
     val goodreadsRating: Float? = null,
     val goodreadsRatingsCount: Int? = null,
     val originalPublicationYear: Int? = null,
+    val physicalOwnership: PhysicalBookOwnership? = null,
+    val borrowReturnAt: Long? = null,
 )
 
 data class PortableReadingProgressPatch(
@@ -340,6 +343,12 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                     goodreadsRating = book.optFiniteFloatOrNull("goodreadsRating", min = 0f, max = 5f),
                     goodreadsRatingsCount = book.optPositiveIntOrNull("goodreadsRatingsCount")?.takeIf { it <= MaxGoodreadsRatingsCount },
                     originalPublicationYear = book.optPublicationYearOrNull(),
+                    physicalOwnership = book.optBoundedString("physicalOwnership", MaxFormatChars)
+                        ?.uppercase()
+                        ?.let { runCatching { PhysicalBookOwnership.valueOf(it) }.getOrNull() }
+                        ?.takeIf { format.equals(BookFormat.PHYSICAL.name, ignoreCase = true) },
+                    borrowReturnAt = book.optPositiveLongOrNull("borrowReturnAt")
+                        .takeIf { format.equals(BookFormat.PHYSICAL.name, ignoreCase = true) },
                 ),
             )
         }

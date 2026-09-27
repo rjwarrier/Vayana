@@ -71,4 +71,7 @@ data class BookEntity(
      */
     val customCoverPath: String? = null,
     val goodreadsCoverPath: String? = null,
+    /** Ownership and return details apply only to physical books. */
+    val physicalOwnership: String? = null,
+    val borrowReturnAt: Long? = null,
 )

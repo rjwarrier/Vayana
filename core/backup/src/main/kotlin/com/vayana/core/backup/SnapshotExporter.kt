@@ -19,6 +19,7 @@ import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.entity.VocabularyCardEntity
 import com.vayana.core.database.entity.WordLookupStatEntity
 import com.vayana.core.database.model.BookFileAvailability
+import com.vayana.core.database.model.normalizeBorrowReturnAt
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.filesystem.StorageRoots
@@ -121,6 +122,8 @@ class SnapshotExporter @Inject constructor(
         goodreadsRating = goodreadsRating,
         goodreadsRatingsCount = goodreadsRatingsCount,
         originalPublicationYear = originalPublicationYear,
+        physicalOwnership = physicalOwnership,
+        borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt),
     )
 
     private fun AnnotationEntity.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableAnnotation? {

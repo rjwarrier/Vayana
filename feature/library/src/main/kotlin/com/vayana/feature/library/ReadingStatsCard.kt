@@ -1,13 +1,14 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,9 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -59,6 +64,10 @@ internal fun ReadingStatsCard(
     onChangeFormat: ((BookFormat) -> Unit)? = null,
     /** For a book read outside the app: opens the page editor. */
     onEditPages: (() -> Unit)? = null,
+    /** For a physical book: switches between owned and borrowed. */
+    onChangeOwnership: ((PhysicalBookOwnership) -> Unit)? = null,
+    /** For a borrowed physical book: opens its return-date editor. */
+    onEditBorrowReturnDate: (() -> Unit)? = null,
 ) {
     if (book.format.isOffline) {
         OfflineReadingStatsCard(
@@ -69,6 +78,8 @@ internal fun ReadingStatsCard(
             onEditFinished = onEditFinished,
             onChangeFormat = onChangeFormat,
             onEditPages = onEditPages,
+            onChangeOwnership = onChangeOwnership,
+            onEditBorrowReturnDate = onEditBorrowReturnDate,
         )
         return
     }
@@ -144,11 +155,14 @@ private fun OfflineReadingStatsCard(
     onEditFinished: (() -> Unit)?,
     onChangeFormat: ((BookFormat) -> Unit)?,
     onEditPages: (() -> Unit)?,
+    onChangeOwnership: ((PhysicalBookOwnership) -> Unit)?,
+    onEditBorrowReturnDate: (() -> Unit)?,
 ) {
     val context = LocalContext.current
     val notSet = stringResource(R.string.offline_book_date_not_set)
     val pageCount = book.pageCount
     val currentPage = book.currentPage()
+    val borrowReturnAt = book.borrowReturnAt
     val startedAt = book.startedReadingAt
     val daysText = remember(startedAt, book.finishedReadingAt, context) {
         startedAt?.let { formatDaysTaken(calculateDaysTaken(it, book.finishedReadingAt), context) }
@@ -156,6 +170,25 @@ private fun OfflineReadingStatsCard(
     // Each tap moves to the next type, wrapping round: Physical, Audiobook, Other ebook.
     val offline = BookFormat.Offline
     val otherFormat = offline[(offline.indexOf(book.format) + 1) % offline.size]
+    val ownership = book.physicalOwnership ?: PhysicalBookOwnership.OWNED
+    val otherOwnership = if (ownership == PhysicalBookOwnership.OWNED) {
+        PhysicalBookOwnership.BORROWED
+    } else {
+        PhysicalBookOwnership.OWNED
+    }
+    val readingPlan = remember(book.format, ownership, borrowReturnAt, pageCount, currentPage) {
+        if (
+            book.format == BookFormat.PHYSICAL &&
+            ownership == PhysicalBookOwnership.BORROWED &&
+            borrowReturnAt != null &&
+            pageCount != null &&
+            currentPage != null
+        ) {
+            borrowedReadingPlan(pageCount, currentPage, borrowReturnAt)
+        } else {
+            null
+        }
+    }
     val stats = listOfNotNull(
         // An audiobook has no pages, so it gets no page tile.
         if (!book.format.tracksPages) null else ReadingStat(
@@ -184,12 +217,6 @@ private fun OfflineReadingStatsCard(
             label = stringResource(if (finished) R.string.library_stat_days_taken else R.string.library_stat_days_so_far),
             value = daysText ?: notSet,
         ),
-        ReadingStat(
-            label = stringResource(R.string.offline_book_type_label),
-            value = book.format.displayLabel(),
-            onClick = onChangeFormat?.let { change -> { change(otherFormat) } },
-            clickLabel = stringResource(R.string.offline_book_change_type),
-        ),
     )
     BookDetailSection(
         icon = book.format.offlineIcon(),
@@ -202,12 +229,107 @@ private fun OfflineReadingStatsCard(
         modifier = modifier,
     ) {
         if (!finished && pageCount != null) {
-            VayanaLinearWavyProgressIndicator(
-                progress = { book.readingPercent.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                VayanaLinearWavyProgressIndicator(
+                    progress = { book.readingPercent.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                readingPlan?.let { BorrowedReadingPlanText(it) }
+            }
         }
+        OfflineBookMetadataChips(
+            book = book,
+            ownership = ownership,
+            otherFormat = otherFormat,
+            otherOwnership = otherOwnership,
+            onChangeFormat = onChangeFormat,
+            onChangeOwnership = onChangeOwnership,
+            onEditBorrowReturnDate = onEditBorrowReturnDate,
+        )
         ReadingStatGrid(stats)
+    }
+}
+
+@Composable
+private fun OfflineBookMetadataChips(
+    book: Book,
+    ownership: PhysicalBookOwnership,
+    otherFormat: BookFormat,
+    otherOwnership: PhysicalBookOwnership,
+    onChangeFormat: ((BookFormat) -> Unit)?,
+    onChangeOwnership: ((PhysicalBookOwnership) -> Unit)?,
+    onEditBorrowReturnDate: (() -> Unit)?,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        AssistChip(
+            onClick = { onChangeFormat?.invoke(otherFormat) },
+            enabled = onChangeFormat != null,
+            label = { Text(book.format.displayLabel()) },
+            leadingIcon = {
+                Icon(
+                    imageVector = book.format.offlineIcon(),
+                    contentDescription = null,
+                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                )
+            },
+        )
+        if (book.format == BookFormat.PHYSICAL) {
+            AssistChip(
+                onClick = { onChangeOwnership?.invoke(otherOwnership) },
+                enabled = onChangeOwnership != null,
+                label = { Text(ownership.displayLabel()) },
+            )
+            if (ownership == PhysicalBookOwnership.BORROWED) {
+                AssistChip(
+                    onClick = { onEditBorrowReturnDate?.invoke() },
+                    enabled = onEditBorrowReturnDate != null,
+                    label = {
+                        Text(
+                            book.borrowReturnAt?.let {
+                                stringResource(R.string.offline_book_return_date_value, it.formatDate())
+                            } ?: stringResource(R.string.offline_book_return_date_label),
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Event,
+                            contentDescription = null,
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BorrowedReadingPlanText(plan: BorrowedReadingPlan) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Text(
+            text = pluralStringResource(
+                R.plurals.offline_book_days_remaining,
+                plan.daysRemaining,
+                plan.daysRemaining,
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = plan.pagesPerDay?.let { pagesPerDay ->
+                pluralStringResource(
+                    R.plurals.offline_book_pages_per_day,
+                    pagesPerDay,
+                    pagesPerDay,
+                    plan.finishByAt.formatDate(),
+                )
+            } ?: stringResource(R.string.offline_book_no_reading_days_remaining),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -223,15 +345,21 @@ private fun ReadingStatGrid(stats: List<ReadingStat>) {
                     .height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                row.forEach { stat ->
+                if (row.size == 1) {
                     ReadingStatTile(
-                        stat = stat,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
+                        stat = row.single(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                } else {
+                    row.forEach { stat ->
+                        ReadingStatTile(
+                            stat = stat,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                        )
+                    }
                 }
-                repeat(ReadingStatColumns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
             }
         }
     }

@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 26
+
+Adds nullable `books.physicalOwnership` (`OWNED` or `BORROWED`) and `books.borrowReturnAt` (epoch millis) for physical
+books. Existing physical books migrate as owned; other formats keep both fields null. Both fields are included in
+portable backup and GitHub sync metadata.
+
 ## Version 25
 
 Repairs book tag lists containing the literal `null` tag introduced by earlier JSON and Goodreads imports. Migration 24→25 normalizes only affected `books.tagsCsv` values, dropping that tag while preserving other tags. There is no schema change.
