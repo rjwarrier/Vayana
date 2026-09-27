@@ -18,6 +18,11 @@ object AppLanguage {
     /** Languages the app is translated into (BCP 47). Keep in step with the `values-*` resource folders. */
     val Supported: List<String> = listOf("en", "es", "pt", "ru", "de", "fr", "it", "ml", "ta")
 
+    /** Stable, alphabetized labels shared by every language-picker composition. */
+    val SupportedDisplayNames: List<Pair<String, String>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        Supported.map { it to displayName(it) }.sortedBy { it.second }
+    }
+
     private const val PreferencesName = "app_language"
     private const val TagKey = "language_tag"
 

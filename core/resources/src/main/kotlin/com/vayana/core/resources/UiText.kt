@@ -26,7 +26,10 @@ sealed interface UiText {
 }
 
 private fun List<Any>.resolved(resources: Resources): Array<Any> =
-    map { if (it is UiText) it.resolve(resources) else it }.toTypedArray()
+    Array(size) { index ->
+        val argument = this[index]
+        if (argument is UiText) argument.resolve(resources) else argument
+    }
 
 /**
  * A failure whose message is a string resource, for code that reports errors by throwing; [uiText] shows it

@@ -46,12 +46,13 @@ internal fun AppLanguageCard(modifier: Modifier = Modifier) {
     // Read once: choosing a language recreates the screen, which reads it again.
     var selected by remember { mutableStateOf(AppLanguage.current(context)) }
     var expanded by remember { mutableStateOf(false) }
-    val languages = remember {
-        AppLanguage.Supported.map { it to AppLanguage.displayName(it) }.sortedBy { it.second }
-    }
     val systemLabel = stringResource(R.string.settings_app_language_system)
-    val options: List<Pair<String?, String>> = listOf<Pair<String?, String>>(null to systemLabel) + languages
-    val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: systemLabel
+    val options: List<Pair<String?, String>> = remember(systemLabel) {
+        listOf<Pair<String?, String>>(null to systemLabel) + AppLanguage.SupportedDisplayNames
+    }
+    val selectedLabel = remember(options, selected) {
+        options.firstOrNull { it.first == selected }?.second ?: systemLabel
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
