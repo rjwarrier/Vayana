@@ -1454,4 +1454,35 @@
     <string name="settings_app_language_title">Idioma</string>
     <string name="settings_app_language_subtitle">Idioma dos menus e mensagens do Vayana. Os livros mantêm o próprio idioma.</string>
     <string name="settings_app_language_system">Idioma do celular</string>
+    <string name="settings_reading_reminder_title">Lembrete de leitura</string>
+    <string name="settings_reading_reminder_subtitle">Um aviso nos dias em que você ainda não atingiu sua meta diária de leitura.</string>
+    <string name="settings_reading_reminder_hour_title">Horário do lembrete</string>
+    <string name="settings_reading_reminder_hour_subtitle">Quando o lembrete de leitura chega.</string>
+    <string name="settings_borrow_reminders_title">Lembretes de livros emprestados</string>
+    <string name="settings_borrow_reminders_subtitle">Três dias e um dia antes de devolver um livro emprestado, e no próprio dia.</string>
+    <string name="reminder_channel_name">Lembretes</string>
+    <string name="reminder_reading_title">Hora de ler</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">Hoje você leu %1$d de %2$d minutos.</item>
+        <item quantity="many">Hoje você leu %1$d de %2$d minutos.</item>
+        <item quantity="other">Hoje você leu %1$d de %2$d minutos.</item>
+    </plurals>
+    <string name="reminder_borrow_title">Hora de devolver “%1$s”</string>
+    <string name="reminder_borrow_due_today">A devolução é hoje.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">Hoje você leu %1$d de %2$d minutos. Mantenha sua sequência de %3$d dia.</item>
+        <item quantity="many">Hoje você leu %1$d de %2$d minutos. Mantenha sua sequência de %3$d dias.</item>
+        <item quantity="other">Hoje você leu %1$d de %2$d minutos. Mantenha sua sequência de %3$d dias.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">A devolução é em %1$d dia.</item>
+        <item quantity="many">A devolução é em %1$d dias.</item>
+        <item quantity="other">A devolução é em %1$d dias.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">Com %1$d página por dia você termina a tempo.</item>
+        <item quantity="many">Com %1$d páginas por dia você termina a tempo.</item>
+        <item quantity="other">Com %1$d páginas por dia você termina a tempo.</item>
+    </plurals>
 </resources>

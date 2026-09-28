@@ -1442,4 +1442,31 @@
     <string name="settings_app_language_title">மொழி</string>
     <string name="settings_app_language_subtitle">Vayana-வின் பட்டியல்கள், செய்திகளின் மொழி. நூல்கள் அவற்றின் சொந்த மொழியிலேயே இருக்கும்.</string>
     <string name="settings_app_language_system">கைபேசியின் மொழி</string>
+    <string name="settings_reading_reminder_title">வாசிப்பு நினைவூட்டல்</string>
+    <string name="settings_reading_reminder_subtitle">தினசரி வாசிப்பு இலக்கை இன்னும் எட்டாத நாட்களில் ஒரு நினைவூட்டல்.</string>
+    <string name="settings_reading_reminder_hour_title">நினைவூட்டல் நேரம்</string>
+    <string name="settings_reading_reminder_hour_subtitle">வாசிப்பு நினைவூட்டல் எப்போது வரும் என்பது.</string>
+    <string name="settings_borrow_reminders_title">இரவல் புத்தக நினைவூட்டல்கள்</string>
+    <string name="settings_borrow_reminders_subtitle">இரவல் புத்தகத்தைத் திருப்பித் தர வேண்டிய நாளுக்கு மூன்று நாள் முன்பும் ஒரு நாள் முன்பும், அன்றும்.</string>
+    <string name="reminder_channel_name">நினைவூட்டல்கள்</string>
+    <string name="reminder_reading_title">வாசிக்கும் நேரம்</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">இன்று %2$d நிமிடங்களில் %1$d வாசித்தீர்கள்.</item>
+        <item quantity="other">இன்று %2$d நிமிடங்களில் %1$d வாசித்தீர்கள்.</item>
+    </plurals>
+    <string name="reminder_borrow_title">“%1$s” திருப்பித் தர வேண்டும்</string>
+    <string name="reminder_borrow_due_today">இன்று திருப்பித் தர வேண்டும்.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">இன்று %2$d நிமிடங்களில் %1$d வாசித்தீர்கள். உங்கள் %3$d நாள் தொடரைத் தொடருங்கள்.</item>
+        <item quantity="other">இன்று %2$d நிமிடங்களில் %1$d வாசித்தீர்கள். உங்கள் %3$d நாள் தொடரைத் தொடருங்கள்.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">நாளை திருப்பித் தர வேண்டும்.</item>
+        <item quantity="other">%1$d நாட்களில் திருப்பித் தர வேண்டும்.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">நாளுக்கு %1$d பக்கம் வாசித்தால் நேரத்தில் முடிக்கலாம்.</item>
+        <item quantity="other">நாளுக்கு %1$d பக்கங்கள் வாசித்தால் நேரத்தில் முடிக்கலாம்.</item>
+    </plurals>
 </resources>

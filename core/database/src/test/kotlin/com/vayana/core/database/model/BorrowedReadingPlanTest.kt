@@ -1,11 +1,11 @@
-package com.vayana.feature.library
+package com.vayana.core.database.model
 
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 
 class BorrowedReadingPlanTest {
     @Test

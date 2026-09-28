@@ -1442,4 +1442,31 @@
     <string name="settings_app_language_title">ഭാഷ</string>
     <string name="settings_app_language_subtitle">Vayana-യുടെ മെനുകളുടെയും സന്ദേശങ്ങളുടെയും ഭാഷ. പുസ്തകങ്ങൾ അവയുടെ സ്വന്തം ഭാഷയിൽ തുടരും.</string>
     <string name="settings_app_language_system">ഫോണിലെ ഭാഷ</string>
+    <string name="settings_reading_reminder_title">വായനാ ഓർമ്മപ്പെടുത്തൽ</string>
+    <string name="settings_reading_reminder_subtitle">ദിവസേനയുള്ള വായനാലക്ഷ്യം ഇനിയും എത്താത്ത ദിവസങ്ങളിൽ ഒരു ഓർമ്മപ്പെടുത്തൽ.</string>
+    <string name="settings_reading_reminder_hour_title">ഓർമ്മപ്പെടുത്തൽ സമയം</string>
+    <string name="settings_reading_reminder_hour_subtitle">വായനാ ഓർമ്മപ്പെടുത്തൽ എപ്പോൾ വരുമെന്ന്.</string>
+    <string name="settings_borrow_reminders_title">കടം വാങ്ങിയ പുസ്തകങ്ങളുടെ ഓർമ്മപ്പെടുത്തൽ</string>
+    <string name="settings_borrow_reminders_subtitle">കടം വാങ്ങിയ പുസ്തകം തിരികെ നൽകേണ്ടതിന് മൂന്നു ദിവസവും ഒരു ദിവസവും മുമ്പ്, പിന്നെ അന്നും.</string>
+    <string name="reminder_channel_name">ഓർമ്മപ്പെടുത്തലുകൾ</string>
+    <string name="reminder_reading_title">വായിക്കാൻ സമയമായി</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">ഇന്ന് %2$d-ൽ %1$d മിനിറ്റ് വായിച്ചു.</item>
+        <item quantity="other">ഇന്ന് %2$d-ൽ %1$d മിനിറ്റ് വായിച്ചു.</item>
+    </plurals>
+    <string name="reminder_borrow_title">“%1$s” തിരികെ നൽകണം</string>
+    <string name="reminder_borrow_due_today">ഇന്ന് തിരികെ നൽകണം.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">ഇന്ന് %2$d-ൽ %1$d മിനിറ്റ് വായിച്ചു. %3$d ദിവസത്തെ തുടർച്ച നിലനിർത്തൂ.</item>
+        <item quantity="other">ഇന്ന് %2$d-ൽ %1$d മിനിറ്റ് വായിച്ചു. %3$d ദിവസത്തെ തുടർച്ച നിലനിർത്തൂ.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">നാളെ തിരികെ നൽകണം.</item>
+        <item quantity="other">%1$d ദിവസത്തിനുള്ളിൽ തിരികെ നൽകണം.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">ദിവസം %1$d പേജ് വായിച്ചാൽ സമയത്തിന് തീരും.</item>
+        <item quantity="other">ദിവസം %1$d പേജ് വായിച്ചാൽ സമയത്തിന് തീരും.</item>
+    </plurals>
 </resources>

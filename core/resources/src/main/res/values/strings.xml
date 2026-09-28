@@ -1442,4 +1442,31 @@
     <string name="settings_app_language_title">Language</string>
     <string name="settings_app_language_subtitle">Language of Vayana\'s menus and messages. Books keep their own language.</string>
     <string name="settings_app_language_system">Phone language</string>
+    <string name="settings_reading_reminder_title">Reading reminder</string>
+    <string name="settings_reading_reminder_subtitle">A nudge on days you haven’t reached your daily reading goal yet.</string>
+    <string name="settings_reading_reminder_hour_title">Reminder time</string>
+    <string name="settings_reading_reminder_hour_subtitle">When the reading reminder arrives.</string>
+    <string name="settings_borrow_reminders_title">Borrowed book reminders</string>
+    <string name="settings_borrow_reminders_subtitle">Three days and one day before a borrowed book is due back, and on the day.</string>
+    <string name="reminder_channel_name">Reminders</string>
+    <string name="reminder_reading_title">Time to read</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">%1$d of %2$d minutes read today.</item>
+        <item quantity="other">%1$d of %2$d minutes read today.</item>
+    </plurals>
+    <string name="reminder_borrow_title">“%1$s” is due back</string>
+    <string name="reminder_borrow_due_today">Due back today.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">%1$d of %2$d minutes read today. Keep your %3$d-day streak going.</item>
+        <item quantity="other">%1$d of %2$d minutes read today. Keep your %3$d-day streak going.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">Due back tomorrow.</item>
+        <item quantity="other">Due back in %1$d days.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">%1$d page a day finishes it in time.</item>
+        <item quantity="other">%1$d pages a day finish it in time.</item>
+    </plurals>
 </resources>

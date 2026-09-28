@@ -1,5 +1,8 @@
 package com.vayana.feature.settings
 
+import java.time.format.FormatStyle
+import java.time.format.DateTimeFormatter
+import java.time.LocalTime
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.horizontalScroll
@@ -190,6 +193,10 @@ private fun IntSetting.intDisplay(): (Int) -> String = when (this) {
     SettingsRegistry.ReaderHeaderGap -> { value -> "${value}dp" }
     SettingsRegistry.ReaderFooterGap -> { value -> "${value}dp" }
     SettingsRegistry.DailyReadingGoalMinutes -> { value -> value.toString() }
+    // An hour of the day in the phone's own clock style (20:00 or 8:00 PM).
+    SettingsRegistry.ReadingReminderHour -> { value ->
+        LocalTime.of(value, 0).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    }
     SettingsRegistry.YearlyBooksGoal -> { value -> value.toString() }
     else -> { value -> value.toString() }
 }

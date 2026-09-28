@@ -1,5 +1,10 @@
 package com.vayana.feature.settings
 
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.LaunchedEffect
+import android.os.Build
+import android.content.pm.PackageManager
+import android.Manifest
 import com.vayana.core.designsystem.component.asString
 import androidx.compose.ui.platform.LocalContext
 import android.content.res.Resources
@@ -142,6 +147,7 @@ fun SettingsRoute(
     val githubConnectionTestState by viewModel.githubConnectionTestState.collectAsStateWithLifecycle()
     val pendingCloudDeletions by viewModel.pendingCloudDeletions.collectAsStateWithLifecycle()
     val readerFontImportState by viewModel.readerFontImportState.collectAsStateWithLifecycle()
+    RequestNotificationPermissionFor(settings.readingReminderEnabled)
 
     SettingsScreen(
         modifier = modifier,
@@ -1293,6 +1299,9 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderWarmLight -> readerWarmLightPercent
     SettingsRegistry.ReaderEdgeSwipeLight -> readerEdgeSwipeLight
     SettingsRegistry.DailyReadingGoalMinutes -> dailyReadingGoalMinutes
+    SettingsRegistry.ReadingReminderEnabled -> readingReminderEnabled
+    SettingsRegistry.ReadingReminderHour -> readingReminderHour
+    SettingsRegistry.BorrowReminders -> borrowRemindersEnabled
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     SettingsRegistry.DefaultCoverSource -> defaultCoverSource
     SettingsRegistry.LandscapeTwoColumnLayout -> landscapeTwoColumnLayout
@@ -1390,4 +1399,20 @@ internal fun SettingsGroup.icon(): ImageVector = when (this) {
     SettingsGroup.GOALS -> Icons.Outlined.Flag
     SettingsGroup.SYNC -> Icons.Outlined.Sync
     SettingsGroup.BACKUP -> Icons.Outlined.Backup
+}
+
+/**
+ * Turning the reading reminder on needs Android 13's notification permission; asked for then, when it matters, and
+ * once per turn-on. (Borrowed-book reminders ride on the same permission once granted.)
+ */
+@Composable
+private fun RequestNotificationPermissionFor(enabled: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(enabled) {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (enabled && !granted) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
 }

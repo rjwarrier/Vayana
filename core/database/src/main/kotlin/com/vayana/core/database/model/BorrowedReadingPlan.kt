@@ -1,18 +1,17 @@
-package com.vayana.feature.library
+package com.vayana.core.database.model
 
-import com.vayana.core.database.model.normalizeBorrowReturnAt
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /** Daily target for finishing a borrowed physical book no later than the day before it is returned. */
-internal data class BorrowedReadingPlan(
+data class BorrowedReadingPlan(
     val daysRemaining: Int,
     val pagesPerDay: Int?,
     val finishByAt: Long,
 )
 
-internal fun borrowedReadingPlan(
+fun borrowedReadingPlan(
     pageCount: Int,
     currentPage: Int,
     returnAt: Long,

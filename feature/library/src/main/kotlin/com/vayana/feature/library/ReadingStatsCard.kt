@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.BorrowedReadingPlan
+import com.vayana.core.database.model.borrowedReadingPlan
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.semantics.Role

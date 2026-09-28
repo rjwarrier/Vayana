@@ -1442,4 +1442,31 @@
     <string name="settings_app_language_title">Sprache</string>
     <string name="settings_app_language_subtitle">Sprache der Menüs und Meldungen von Vayana. Bücher behalten ihre eigene Sprache.</string>
     <string name="settings_app_language_system">Sprache des Smartphones</string>
+    <string name="settings_reading_reminder_title">Leseerinnerung</string>
+    <string name="settings_reading_reminder_subtitle">Ein Hinweis an Tagen, an denen du dein tägliches Leseziel noch nicht erreicht hast.</string>
+    <string name="settings_reading_reminder_hour_title">Uhrzeit der Erinnerung</string>
+    <string name="settings_reading_reminder_hour_subtitle">Wann die Leseerinnerung kommt.</string>
+    <string name="settings_borrow_reminders_title">Erinnerungen für geliehene Bücher</string>
+    <string name="settings_borrow_reminders_subtitle">Drei Tage und einen Tag vor der Rückgabe eines geliehenen Buchs und am Tag selbst.</string>
+    <string name="reminder_channel_name">Erinnerungen</string>
+    <string name="reminder_reading_title">Zeit zum Lesen</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">Heute %1$d von %2$d Minuten gelesen.</item>
+        <item quantity="other">Heute %1$d von %2$d Minuten gelesen.</item>
+    </plurals>
+    <string name="reminder_borrow_title">„%1$s“ muss zurück</string>
+    <string name="reminder_borrow_due_today">Heute zurückgeben.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">Heute %1$d von %2$d Minuten gelesen. Halte deine Serie von %3$d Tag.</item>
+        <item quantity="other">Heute %1$d von %2$d Minuten gelesen. Halte deine Serie von %3$d Tagen.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">Morgen zurückgeben.</item>
+        <item quantity="other">In %1$d Tagen zurückgeben.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">Mit %1$d Seite am Tag schaffst du es rechtzeitig.</item>
+        <item quantity="other">Mit %1$d Seiten am Tag schaffst du es rechtzeitig.</item>
+    </plurals>
 </resources>

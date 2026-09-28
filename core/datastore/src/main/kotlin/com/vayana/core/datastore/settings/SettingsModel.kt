@@ -124,6 +124,11 @@ data class SettingsSnapshot(
     val einkRefreshEveryPages: Int = 6,
     val einkAudioFeaturesEnabled: Boolean = true,
     val dailyReadingGoalMinutes: Int = 20,
+    /** A notification on days the daily goal isn't met yet, at [readingReminderHour]. */
+    val readingReminderEnabled: Boolean = false,
+    val readingReminderHour: Int = 20,
+    /** Notifications before a borrowed physical book is due back. */
+    val borrowRemindersEnabled: Boolean = true,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
     val finishedPercent: Int = 98,
@@ -635,6 +640,29 @@ object SettingsRegistry {
         range = 0..180,
         step = 5,
     )
+    val ReadingReminderEnabled: BooleanSetting = BooleanSetting(
+        key = "reminders.reading_enabled",
+        defaultValue = false,
+        titleRes = R.string.settings_reading_reminder_title,
+        subtitleRes = R.string.settings_reading_reminder_subtitle,
+        group = SettingsGroup.GOALS,
+    )
+    val ReadingReminderHour: IntSetting = IntSetting(
+        key = "reminders.reading_hour",
+        defaultValue = 20,
+        titleRes = R.string.settings_reading_reminder_hour_title,
+        subtitleRes = R.string.settings_reading_reminder_hour_subtitle,
+        group = SettingsGroup.GOALS,
+        range = 6..23,
+        step = 1,
+    )
+    val BorrowReminders: BooleanSetting = BooleanSetting(
+        key = "reminders.borrowed_enabled",
+        defaultValue = true,
+        titleRes = R.string.settings_borrow_reminders_title,
+        subtitleRes = R.string.settings_borrow_reminders_subtitle,
+        group = SettingsGroup.GOALS,
+    )
     val YearlyBooksGoal: IntSetting = IntSetting(
         key = "goals.yearly_books",
         defaultValue = 12,
@@ -765,6 +793,9 @@ object SettingsRegistry {
         ReaderAutoMarkSelection,
         ReaderKeepAwake,
         DailyReadingGoalMinutes,
+        ReadingReminderEnabled,
+        ReadingReminderHour,
+        BorrowReminders,
         YearlyBooksGoal,
         WeekStart,
         GithubSyncEnabled,

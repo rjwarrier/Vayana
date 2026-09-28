@@ -37,6 +37,7 @@ include(":feature:statistics")
 include(":feature:search")
 include(":feature:settings")
 include(":feature:help")
+include(":feature:reminders")
 include(":feature:onboarding")
 
 include(":reader:engine-api")

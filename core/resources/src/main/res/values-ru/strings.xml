@@ -1466,4 +1466,39 @@
     <string name="settings_app_language_title">Язык</string>
     <string name="settings_app_language_subtitle">Язык меню и сообщений Vayana. Книги остаются на своём языке.</string>
     <string name="settings_app_language_system">Язык телефона</string>
+    <string name="settings_reading_reminder_title">Напоминание о чтении</string>
+    <string name="settings_reading_reminder_subtitle">Напоминание в дни, когда дневная цель чтения ещё не достигнута.</string>
+    <string name="settings_reading_reminder_hour_title">Время напоминания</string>
+    <string name="settings_reading_reminder_hour_subtitle">Когда приходит напоминание о чтении.</string>
+    <string name="settings_borrow_reminders_title">Напоминания о взятых книгах</string>
+    <string name="settings_borrow_reminders_subtitle">За три дня и за день до возврата взятой книги, а также в день возврата.</string>
+    <string name="reminder_channel_name">Напоминания</string>
+    <string name="reminder_reading_title">Время читать</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">Сегодня прочитано %1$d из %2$d мин.</item>
+        <item quantity="few">Сегодня прочитано %1$d из %2$d мин.</item>
+        <item quantity="many">Сегодня прочитано %1$d из %2$d мин.</item>
+        <item quantity="other">Сегодня прочитано %1$d из %2$d мин.</item>
+    </plurals>
+    <string name="reminder_borrow_title">Пора вернуть «%1$s»</string>
+    <string name="reminder_borrow_due_today">Вернуть сегодня.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">Сегодня прочитано %1$d из %2$d мин. Не прерывайте серию: %3$d день подряд.</item>
+        <item quantity="few">Сегодня прочитано %1$d из %2$d мин. Не прерывайте серию: %3$d дня подряд.</item>
+        <item quantity="many">Сегодня прочитано %1$d из %2$d мин. Не прерывайте серию: %3$d дней подряд.</item>
+        <item quantity="other">Сегодня прочитано %1$d из %2$d мин. Не прерывайте серию: %3$d дня подряд.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">Вернуть через %1$d день.</item>
+        <item quantity="few">Вернуть через %1$d дня.</item>
+        <item quantity="many">Вернуть через %1$d дней.</item>
+        <item quantity="other">Вернуть через %1$d дня.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">%1$d страница в день — и вы успеете дочитать.</item>
+        <item quantity="few">%1$d страницы в день — и вы успеете дочитать.</item>
+        <item quantity="many">%1$d страниц в день — и вы успеете дочитать.</item>
+        <item quantity="other">%1$d страницы в день — и вы успеете дочитать.</item>
+    </plurals>
 </resources>

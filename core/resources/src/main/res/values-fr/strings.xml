@@ -1454,4 +1454,35 @@
     <string name="settings_app_language_title">Langue</string>
     <string name="settings_app_language_subtitle">Langue des menus et messages de Vayana. Les livres gardent leur propre langue.</string>
     <string name="settings_app_language_system">Langue du téléphone</string>
+    <string name="settings_reading_reminder_title">Rappel de lecture</string>
+    <string name="settings_reading_reminder_subtitle">Un rappel les jours où vous n’avez pas encore atteint votre objectif de lecture quotidien.</string>
+    <string name="settings_reading_reminder_hour_title">Heure du rappel</string>
+    <string name="settings_reading_reminder_hour_subtitle">Quand arrive le rappel de lecture.</string>
+    <string name="settings_borrow_reminders_title">Rappels des livres empruntés</string>
+    <string name="settings_borrow_reminders_subtitle">Trois jours et un jour avant de rendre un livre emprunté, et le jour même.</string>
+    <string name="reminder_channel_name">Rappels</string>
+    <string name="reminder_reading_title">C’est l’heure de lire</string>
+    <plurals name="reminder_reading_body">
+        <item quantity="one">Aujourd’hui : %1$d minutes lues sur %2$d.</item>
+        <item quantity="many">Aujourd’hui : %1$d minutes lues sur %2$d.</item>
+        <item quantity="other">Aujourd’hui : %1$d minutes lues sur %2$d.</item>
+    </plurals>
+    <string name="reminder_borrow_title">« %1$s » est à rendre</string>
+    <string name="reminder_borrow_due_today">À rendre aujourd’hui.</string>
+    <string name="reminder_borrow_body_with_pages">%1$s %2$s</string>
+    <plurals name="reminder_reading_body_streak">
+        <item quantity="one">Aujourd’hui : %1$d minutes sur %2$d. Gardez votre série de %3$d jour.</item>
+        <item quantity="many">Aujourd’hui : %1$d minutes sur %2$d. Gardez votre série de %3$d jours.</item>
+        <item quantity="other">Aujourd’hui : %1$d minutes sur %2$d. Gardez votre série de %3$d jours.</item>
+    </plurals>
+    <plurals name="reminder_borrow_due_days">
+        <item quantity="one">À rendre dans %1$d jour.</item>
+        <item quantity="many">À rendre dans %1$d jours.</item>
+        <item quantity="other">À rendre dans %1$d jours.</item>
+    </plurals>
+    <plurals name="reminder_borrow_pages_per_day">
+        <item quantity="one">%1$d page par jour suffit pour finir à temps.</item>
+        <item quantity="many">%1$d pages par jour suffisent pour finir à temps.</item>
+        <item quantity="other">%1$d pages par jour suffisent pour finir à temps.</item>
+    </plurals>
 </resources>
