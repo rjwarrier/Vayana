@@ -103,6 +103,7 @@ import com.vayana.core.sync.snapshot.pushPortableReadingProgress
 import com.vayana.core.sync.snapshot.putPortableSnapshotDocuments
 import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.ResolvedBooks
+import com.vayana.core.filesystem.CoverImages
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.format.pdf.PdfPasswordProtectedException
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -2611,10 +2612,11 @@ class LibraryViewModel @Inject constructor(
 
     private fun Flow<List<Book>>.withAbsolutePaths(): Flow<List<Book>> = resolvedBooks.resolveAll(this)
 
+    /** Stored shrunk to the size covers are shown at (see [CoverImages]); books and Goodreads supply megabytes. */
     private fun saveCover(bytes: ByteArray, extension: String = "jpg"): File {
         val safeExtension = extension.takeIf { it in SupportedCoverExtensions } ?: "jpg"
         val coverFile = File(storageRoots.coversDir, "${UUID.randomUUID()}.$safeExtension")
-        coverFile.writeBytes(bytes)
+        coverFile.writeBytes(CoverImages.compact(bytes, safeExtension))
         return coverFile
     }
 
@@ -2628,6 +2630,8 @@ class LibraryViewModel @Inject constructor(
         contentResolver.openInputStream(uri)?.use { input ->
             coverFile.outputStream().use { output -> input.copyTo(output) }
         } ?: error("Cover image could not be opened")
+        // A photo picked as a cover is usually camera-sized.
+        CoverImages.compactFile(coverFile)
         return coverFile
     }
 

@@ -45,6 +45,8 @@ class BookRepositoryImpl @Inject constructor(
     override val remoteReadingProgressApplied: Flow<RemoteReadingProgressApplied> =
         _remoteReadingProgressApplied.asSharedFlow()
 
+    override suspend fun referencedCoverPaths(): Set<String> = bookDao.referencedCoverPaths().toSet()
+
     override fun observeAll(): Flow<List<Book>> =
         bookDao.observeAll().map { entities -> entities.map { it.toDomain() } }
 

@@ -72,6 +72,10 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- The web engine would otherwise keep usage metrics (megabytes) in the app's storage. -->
+        <meta-data
+            android:name="android.webkit.WebView.MetricsOptOut"
+            android:value="true" />
     </application>
 
 </manifest>

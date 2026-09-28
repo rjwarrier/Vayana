@@ -132,6 +132,8 @@ internal fun CoverImageSearchBrowser(
                     onRelease = { view ->
                         if (webView === view) webView = null
                         view.stopLoading()
+                        // Its pages (ads and trackers included) would otherwise stay in the app's web cache.
+                        view.clearCache(true)
                         view.destroy()
                     },
                 )

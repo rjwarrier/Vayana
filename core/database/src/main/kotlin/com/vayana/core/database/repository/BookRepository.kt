@@ -98,6 +98,9 @@ interface BookRepository {
 
     suspend fun hasAnyBooks(): Boolean
 
+    /** Root-relative paths of every cover file any book (deleted ones included) still uses. */
+    suspend fun referencedCoverPaths(): Set<String>
+
     /** The most recently read book that can open in the reader on this device, or null. */
     suspend fun lastReadOpenableBookId(): Long?
 

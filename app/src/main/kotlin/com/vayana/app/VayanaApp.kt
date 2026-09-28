@@ -3,14 +3,22 @@ package com.vayana.app
 import android.app.Application
 import android.content.Context
 import com.vayana.core.common.AppLanguage
+import com.vayana.core.common.ApplicationScope
+import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.diagnostics.CrashReporter
+import com.vayana.core.filesystem.StorageMaintenance
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class VayanaApp : Application() {
 
     @Inject lateinit var crashReporter: CrashReporter
+    @Inject lateinit var storageMaintenance: StorageMaintenance
+    @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppLanguage.wrap(base))
@@ -19,5 +27,12 @@ class VayanaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         crashReporter.install()
+        // Housekeeping waits until launch has settled, so it never competes with the first screen.
+        applicationScope.launch {
+            delay(StorageMaintenanceDelayMillis)
+            runCatchingCancellable { storageMaintenance.runIfDue() }
+        }
     }
 }
+
+private const val StorageMaintenanceDelayMillis = 15_000L

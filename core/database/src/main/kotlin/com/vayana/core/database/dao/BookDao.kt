@@ -13,6 +13,14 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE isDeleted = 0 ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<BookEntity>>
 
+    /** Every cover file a book points to, deleted books (still restorable) and alternates included. */
+    @Query(
+        "SELECT coverPath FROM books WHERE coverPath IS NOT NULL " +
+            "UNION SELECT customCoverPath FROM books WHERE customCoverPath IS NOT NULL " +
+            "UNION SELECT goodreadsCoverPath FROM books WHERE goodreadsCoverPath IS NOT NULL",
+    )
+    suspend fun referencedCoverPaths(): List<String>
+
     @Query("SELECT * FROM books WHERE isDeleted = 1 ORDER BY updatedAt DESC")
     fun observeDeleted(): Flow<List<BookEntity>>
 
