@@ -66,11 +66,22 @@ class StorageMaintenance @Inject constructor(
         }
     }
 
-    /** Covers stored far larger than they are ever shown; see [CoverImages]. Once shrunk, a cover is skipped. */
+    /**
+     * Covers stored far larger than they are ever shown; see [CoverImages]. A shrunk cover falls under the threshold;
+     * one that stays over it (it barely compresses) is remembered by name and size, so it isn't decoded and
+     * re-encoded for nothing every day. A replaced file has a new size, so it's looked at again.
+     */
     private fun compactCovers() {
+        val checked = preferences.getStringSet(CheckedCoversKey, emptySet()).orEmpty()
+        val stillLarge = mutableSetOf<String>()
         File(storageRoots.rootDir, CoversDirectoryName).listFiles()
             ?.filter { it.isFile && it.length() >= CoverImages.CompactThresholdBytes }
-            ?.forEach(CoverImages::compactFile)
+            ?.forEach { file ->
+                val key = "${file.name}:${file.length()}"
+                if (key !in checked) CoverImages.compactFile(file)
+                if (file.length() >= CoverImages.CompactThresholdBytes) stillLarge += "${file.name}:${file.length()}"
+            }
+        preferences.edit().putStringSet(CheckedCoversKey, stillLarge).apply()
     }
 
     /** Usage metrics the web engine wrote before the app opted out of them (see the manifest). */
@@ -97,6 +108,7 @@ class StorageMaintenance @Inject constructor(
         const val LastRunKey = "last_run"
         const val LastDatabaseOptimizeKey = "last_database_optimize"
         const val BrowserCacheClearedKey = "browser_cache_cleared_v1"
+        const val CheckedCoversKey = "checked_large_covers"
         const val CoversDirectoryName = "covers"
         const val WebViewMetricsDirectory = ".webview/BrowserMetrics"
         val ShareCacheDirectories = listOf("shared_books", "shared_files", "shared_images")
