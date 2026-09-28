@@ -1,5 +1,9 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.sync.setup.GitHubConnectionTestOutcome
+import com.vayana.core.sync.setup.GitHubConnectionTester
+import com.vayana.core.sync.setup.GitHubSyncSettingsTransfer
+import com.vayana.core.sync.setup.GitHubSyncSettingsTransferOutcome
 import com.vayana.core.resources.uiText
 import com.vayana.core.resources.LocalizedException
 import com.vayana.core.resources.UiText

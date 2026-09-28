@@ -1,4 +1,4 @@
-package com.vayana.feature.settings
+package com.vayana.core.sync.setup
 
 import com.vayana.core.resources.uiText
 import com.vayana.core.resources.LocalizedException

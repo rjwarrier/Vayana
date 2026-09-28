@@ -10,6 +10,7 @@ android {
 dependencies {
     implementation(project(":core:backup"))
     implementation(project(":core:common"))
+    implementation(project(":core:resources"))
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:diagnostics"))
