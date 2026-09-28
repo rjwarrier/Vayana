@@ -1469,4 +1469,6 @@
         <item quantity="one">நாளுக்கு %1$d பக்கம் வாசித்தால் நேரத்தில் முடிக்கலாம்.</item>
         <item quantity="other">நாளுக்கு %1$d பக்கங்கள் வாசித்தால் நேரத்தில் முடிக்கலாம்.</item>
     </plurals>
+    <string name="widget_description">நீங்கள் வாசிக்கும் புத்தகமும் முன்னேற்றமும், ஒரு தொடுதலில் வாசிப்புக்கு.</string>
+    <string name="widget_empty">Vayana-வில் ஒரு புத்தகத்தைத் திறந்தால் அது இங்கே தோன்றும்.</string>
 </resources>

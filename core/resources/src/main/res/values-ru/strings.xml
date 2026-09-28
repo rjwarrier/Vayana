@@ -1501,4 +1501,6 @@
         <item quantity="many">%1$d страниц в день — и вы успеете дочитать.</item>
         <item quantity="other">%1$d страницы в день — и вы успеете дочитать.</item>
     </plurals>
+    <string name="widget_description">Текущая книга и прогресс — одно касание, и вы читаете.</string>
+    <string name="widget_empty">Откройте книгу в Vayana, и она появится здесь.</string>
 </resources>

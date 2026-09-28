@@ -1485,4 +1485,6 @@
         <item quantity="many">Con %1$d páginas al día lo terminas a tiempo.</item>
         <item quantity="other">Con %1$d páginas al día lo terminas a tiempo.</item>
     </plurals>
+    <string name="widget_description">Tu libro actual y tu progreso, a un toque de seguir leyendo.</string>
+    <string name="widget_empty">Abre un libro en Vayana y aparecerá aquí.</string>
 </resources>

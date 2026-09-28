@@ -8,6 +8,7 @@ import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.NavigationMode
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.app.widget.OpenBookRequests
 import com.vayana.feature.library.IncomingBookFiles
 import com.vayana.feature.library.RecentlyDeletedAutoPurge
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,7 +29,13 @@ class AppSettingsViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val recentlyDeletedAutoPurge: RecentlyDeletedAutoPurge,
     incomingBookFiles: IncomingBookFiles,
+    private val openBookRequests: OpenBookRequests,
 ) : ViewModel() {
+    /** A book the home-screen widget asked to open, until navigation has opened it. */
+    val openBookRequest: StateFlow<Long?> = openBookRequests.pending
+
+    fun consumeOpenBookRequest(bookId: Long) = openBookRequests.consume(bookId)
+
     /** True while book files from another app wait to be imported, so the app can bring the library forward. */
     val hasIncomingBooks: StateFlow<Boolean> = incomingBookFiles.pending
         .map { it.isNotEmpty() }

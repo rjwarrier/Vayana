@@ -81,6 +81,13 @@ fun VayanaAppRoot() {
         LaunchedEffect(hasIncomingBooks) {
             if (hasIncomingBooks) navController.navigateToTopLevel(TopLevelRoute.Library)
         }
+        // The home-screen widget's book, straight into the reader.
+        val openBookRequest by settingsViewModel.openBookRequest.collectAsStateWithLifecycle()
+        LaunchedEffect(openBookRequest) {
+            val bookId = openBookRequest ?: return@LaunchedEffect
+            navController.navigate(ReaderRoute(bookId)) { launchSingleTop = true }
+            settingsViewModel.consumeOpenBookRequest(bookId)
+        }
         val currentDestination = navController.currentBackStackEntryAsState().value?.destination
         val showNavigation = currentDestination?.hasRoute(ReaderRoute::class) != true
 

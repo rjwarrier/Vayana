@@ -7,6 +7,7 @@ import com.vayana.core.common.ApplicationScope
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.diagnostics.CrashReporter
 import com.vayana.core.filesystem.StorageMaintenance
+import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.feature.reminders.ReminderScheduler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -20,6 +21,7 @@ class VayanaApp : Application() {
     @Inject lateinit var crashReporter: CrashReporter
     @Inject lateinit var storageMaintenance: StorageMaintenance
     @Inject lateinit var reminderScheduler: ReminderScheduler
+    @Inject lateinit var continueReadingWidgetUpdater: ContinueReadingWidgetUpdater
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
 
     override fun attachBaseContext(base: Context) {
@@ -30,6 +32,7 @@ class VayanaApp : Application() {
         super.onCreate()
         crashReporter.install()
         reminderScheduler.start()
+        continueReadingWidgetUpdater.start()
         // Housekeeping waits until launch has settled, so it never competes with the first screen.
         applicationScope.launch {
             delay(StorageMaintenanceDelayMillis)

@@ -1469,4 +1469,6 @@
         <item quantity="one">Mit %1$d Seite am Tag schaffst du es rechtzeitig.</item>
         <item quantity="other">Mit %1$d Seiten am Tag schaffst du es rechtzeitig.</item>
     </plurals>
+    <string name="widget_description">Dein aktuelles Buch und dein Fortschritt – ein Tippen, und du liest weiter.</string>
+    <string name="widget_empty">Öffne ein Buch in Vayana, dann erscheint es hier.</string>
 </resources>

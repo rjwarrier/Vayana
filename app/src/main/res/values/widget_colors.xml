@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Before Android 12: Vayana's own light palette (values-night: dark). From 12 on: the wallpaper's (values-v31). -->
+<resources>
+    <color name="widget_background">#FFF4F7F5</color>
+    <color name="widget_text">#FF191C1B</color>
+    <color name="widget_text_secondary">#FF3F4945</color>
+    <color name="widget_accent">#FF006B5F</color>
+    <color name="widget_track">#FFDAE5E1</color>
+</resources>

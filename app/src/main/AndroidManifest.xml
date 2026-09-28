@@ -72,6 +72,18 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <receiver
+            android:name=".widget.ContinueReadingWidget"
+            android:exported="false"
+            android:label="@string/library_continue_reading">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_continue_reading_info" />
+        </receiver>
+
         <!-- The web engine would otherwise keep usage metrics (megabytes) in the app's storage. -->
         <meta-data
             android:name="android.webkit.WebView.MetricsOptOut"

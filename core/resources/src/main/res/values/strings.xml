@@ -1469,4 +1469,6 @@
         <item quantity="one">%1$d page a day finishes it in time.</item>
         <item quantity="other">%1$d pages a day finish it in time.</item>
     </plurals>
+    <string name="widget_description">Your current book and progress, one tap from reading.</string>
+    <string name="widget_empty">Open a book in Vayana and it appears here.</string>
 </resources>

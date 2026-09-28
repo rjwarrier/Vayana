@@ -1469,4 +1469,6 @@
         <item quantity="one">ദിവസം %1$d പേജ് വായിച്ചാൽ സമയത്തിന് തീരും.</item>
         <item quantity="other">ദിവസം %1$d പേജ് വായിച്ചാൽ സമയത്തിന് തീരും.</item>
     </plurals>
+    <string name="widget_description">ഇപ്പോൾ വായിക്കുന്ന പുസ്തകവും പുരോഗതിയും, ഒരു തൊടലിൽ വായനയിലേക്ക്.</string>
+    <string name="widget_empty">Vayana-യിൽ ഒരു പുസ്തകം തുറന്നാൽ അത് ഇവിടെ കാണാം.</string>
 </resources>

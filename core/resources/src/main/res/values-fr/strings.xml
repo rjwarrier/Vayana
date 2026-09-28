@@ -1485,4 +1485,6 @@
         <item quantity="many">%1$d pages par jour suffisent pour finir à temps.</item>
         <item quantity="other">%1$d pages par jour suffisent pour finir à temps.</item>
     </plurals>
+    <string name="widget_description">Votre livre en cours et votre progression, à un toucher de la lecture.</string>
+    <string name="widget_empty">Ouvrez un livre dans Vayana et il apparaîtra ici.</string>
 </resources>
