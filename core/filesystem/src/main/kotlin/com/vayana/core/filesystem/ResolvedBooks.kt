@@ -9,8 +9,8 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 
 /**
@@ -36,9 +36,25 @@ class ResolvedBooks @Inject constructor(
         goodreadsCoverPath = book.goodreadsCoverPath?.let { storageRoots.resolve(it) }?.takeIf { it.isFile }?.absolutePath,
     )
 
-    /** Runs on the IO dispatcher: resolving alternates stats two cover files per book on every emission. */
-    fun resolveAll(books: Flow<List<Book>>): Flow<List<Book>> =
-        books.map { list -> list.map(::resolve) }.flowOn(dispatchers.io)
+    /**
+     * Runs on the IO dispatcher: resolving alternates stats two cover files per book. Usually one book changes per
+     * emission (a progress write, a sync), so a book whose row is unchanged since the previous emission of this
+     * collection keeps its resolved copy instead of being copied and stat'ed again.
+     */
+    fun resolveAll(books: Flow<List<Book>>): Flow<List<Book>> = flow {
+        var previous = emptyMap<Long, ResolvedBook>()
+        books.collect { list ->
+            val next = HashMap<Long, ResolvedBook>(list.size)
+            val resolved = list.map { book ->
+                val cached = previous[book.id]?.takeIf { it.source == book }
+                (cached ?: ResolvedBook(book, resolve(book))).also { next[book.id] = it }.resolved
+            }
+            previous = next
+            emit(resolved)
+        }
+    }.flowOn(dispatchers.io)
+
+    private class ResolvedBook(val source: Book, val resolved: Book)
 }
 
 private const val StopTimeoutMillis = 5_000L

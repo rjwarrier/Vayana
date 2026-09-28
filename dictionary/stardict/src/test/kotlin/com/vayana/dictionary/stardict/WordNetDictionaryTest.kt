@@ -75,6 +75,29 @@ class WordNetDictionaryTest {
     }
 
     @Test
+    fun `index search misses words outside the entries and tolerates CRLF and trailing blank lines`() {
+        val directory = createTempDirectory("wordnet-test").toFile()
+        try {
+            File(directory, "index.noun").writeText(
+                "  1 license line  \r\n  2 more license  \r\n" +
+                    "beta n 1 0 1 0 00000000  \r\ngamma n 1 0 1 0 00000000  \r\n\r\n\n",
+            )
+            File(directory, "data.noun").writeText("00000000 00 n 01 beta 0 000 | a letter\r\n")
+
+            val dictionary = WordNetDictionary(directory)
+
+            assertEquals("a letter", dictionary.lookup("beta")?.senses?.single()?.definition)
+            assertEquals("gamma", dictionary.lookup("gamma")?.headword)
+            assertNull(dictionary.lookup("alpha"))
+            assertNull(dictionary.lookup("bet"))
+            assertNull(dictionary.lookup("betamax"))
+            assertNull(dictionary.lookup("zeta"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `falls back to regular morphology when an exception is absent`() {
         val directory = createTempDirectory("wordnet-test").toFile()
         try {
