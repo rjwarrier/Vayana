@@ -26,12 +26,20 @@ android {
     // Lists the translated languages (values-*) for Android 13+ per-app language settings.
     androidResources {
         generateLocaleConfig = true
+        // Only the languages Vayana is translated into (keep in step with AppLanguage.Supported); the libraries'
+        // translations into dozens more would otherwise ship in resources.arsc for nothing.
+        localeFilters += listOf("en", "es", "pt", "ru", "de", "fr", "it", "ml", "ta")
     }
 
     defaultConfig {
         applicationId = "com.vayana.app"
         versionCode = 2
         versionName = "0.87"
+        // ARM phones and tablets, plus 64-bit x86 (emulators, Chromebooks). 32-bit x86 Android devices are gone;
+        // its copy of ML Kit's native code was 1.3 MB.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     signingConfigs {
