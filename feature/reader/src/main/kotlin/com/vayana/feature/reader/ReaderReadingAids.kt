@@ -1,5 +1,10 @@
 package com.vayana.feature.reader
 
+import com.vayana.core.designsystem.tokens.Strokes
+import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,7 +52,6 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.designsystem.dialog.ConfirmActionDialog
 import com.vayana.core.designsystem.dialog.ExpressiveDialogHeader
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
-import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
@@ -80,9 +84,9 @@ internal fun ReadAloudBar(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
-        shadowElevation = Elevations.shadowSmall,
+        // Over the page by surface tier, not shadow (design spec); outlined on E-Ink, where tiers don't show.
+        color = readingAidSurfaceColor(),
+        border = readingAidBorder(),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             when (adjustment.value) {
@@ -254,9 +258,9 @@ internal fun ReturnRecapCard(
             .padding(horizontal = Paddings.screenHorizontal)
             .clickable(onClick = onDismiss),
         shape = RoundedCornerShape(Radii.large),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = Elevations.shadowSmall,
-        shadowElevation = Elevations.shadowSmall,
+        // Over the page by surface tier, not shadow (design spec); outlined on E-Ink, where tiers don't show.
+        color = readingAidSurfaceColor(),
+        border = readingAidBorder(),
     ) {
         Column(modifier = Modifier.padding(Paddings.card), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(text = stringResource(R.string.reader_return_recap_title), style = MaterialTheme.typography.titleSmall)
@@ -390,3 +394,13 @@ private val RateFormat = DecimalFormat("0.##")
 
 /** "1×", "1.5×": how a speed or pitch multiplier reads. */
 internal fun Float.asMultiplier(): String = "${RateFormat.format(this)}×"
+
+@Composable
+private fun readingAidSurfaceColor(): Color =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) MaterialTheme.colorScheme.surface
+    else MaterialTheme.colorScheme.surfaceContainerHighest
+
+@Composable
+private fun readingAidBorder(): BorderStroke? =
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK) BorderStroke(Strokes.hairlineEink, MaterialTheme.colorScheme.outline)
+    else null

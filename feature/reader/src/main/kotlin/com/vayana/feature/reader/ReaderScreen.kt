@@ -1717,11 +1717,12 @@ private fun readerHudElevation() =
     if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs
 
 @Composable
+/** Raised over the page by surface tier rather than a shadow (design spec). */
 private fun readerChromeSurfaceColor(): Color =
     if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
         MaterialTheme.colorScheme.surface
     } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
+        MaterialTheme.colorScheme.surfaceContainerHighest
     }
 
 @Composable
@@ -1731,10 +1732,6 @@ private fun readerChromeTopBorderColor(settings: SettingsSnapshot, chromeColor: 
     if (!pageColor.isSameIshAs(chromeColor)) return null
     return if ((pageColor.luminance() + chromeColor.luminance()) / 2f > 0.5f) Palette.Amoled else Palette.White
 }
-
-@Composable
-private fun readerChromeElevation() =
-    if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm
 
 @Composable
 private fun readerChromeHandleColor(): Color =
@@ -1928,8 +1925,6 @@ private fun ReaderChrome(
         modifier = surfaceModifier,
         color = chromeSurfaceColor,
         shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
-        tonalElevation = readerChromeElevation(),
-        shadowElevation = readerChromeElevation(),
     ) {
         Column(
             modifier = Modifier
