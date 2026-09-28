@@ -1050,6 +1050,10 @@ private fun LibrarySyncStatusBadge(
 
 
 private data class LibraryDisplayBooks(val hero: Book?, val rows: List<Book>)
+
+/** The "Continue reading" book stays in its series folder, but on its own it would just repeat the card above. */
+private fun List<SeriesLibraryItem>.withoutLoneHero(hero: Book?): List<SeriesLibraryItem> =
+    if (hero == null) this else filterNot { it is SeriesLibraryItem.Single && it.book.id == hero.id }
 private data class LibraryGroupSection(val label: String, val books: List<Book>)
 @Composable
 private fun LibraryGrid(
@@ -1067,17 +1071,13 @@ private fun LibraryGrid(
     onRemoveFromReadNext: (Book) -> Unit,
     onViewAllReadNext: () -> Unit,
 ) {
-    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) {
-        remember(books) { LibraryDisplayBooks(null, books) }
-    } else {
-        rememberLibraryDisplayBooks(books)
-    }
+    val displayBooks = rememberLibraryDisplayBooks(books, keepHeroInRows = groupBy == LibraryGroupBy.SERIES_FOLDERS)
     val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
     // Grouping walks and sorts the whole library: only redo it when the rows change, not on every recomposition
     // (selection, download progress).
-    val folderItems = remember(displayBooks.rows, groupBy) {
-        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
+    val folderItems = remember(displayBooks, groupBy) {
+        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows).withoutLoneHero(displayBooks.hero) else emptyList()
     }
     val placementSpec = rememberLazyItemPlacementSpec()
 
@@ -1196,17 +1196,13 @@ private fun LibraryList(
     onRemoveFromReadNext: (Book) -> Unit,
     onViewAllReadNext: () -> Unit,
 ) {
-    val displayBooks = if (groupBy == LibraryGroupBy.SERIES_FOLDERS) {
-        remember(books) { LibraryDisplayBooks(null, books) }
-    } else {
-        rememberLibraryDisplayBooks(books)
-    }
+    val displayBooks = rememberLibraryDisplayBooks(books, keepHeroInRows = groupBy == LibraryGroupBy.SERIES_FOLDERS)
     val readNextBooks = rememberReadNextShelfBooks(readNextQueue, showReadNextSuggestions, books, displayBooks.hero)
     val sections = displayBooks.rows.toGroupSections(groupBy)
     // Grouping walks and sorts the whole library: only redo it when the rows change, not on every recomposition
     // (selection, download progress).
-    val folderItems = remember(displayBooks.rows, groupBy) {
-        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows) else emptyList()
+    val folderItems = remember(displayBooks, groupBy) {
+        if (groupBy == LibraryGroupBy.SERIES_FOLDERS) seriesLibraryItems(displayBooks.rows).withoutLoneHero(displayBooks.hero) else emptyList()
     }
     val placementSpec = rememberLazyItemPlacementSpec()
 
@@ -1308,13 +1304,17 @@ private fun LibraryList(
 }
 
 @Composable
-private fun rememberLibraryDisplayBooks(books: List<Book>): LibraryDisplayBooks =
-    remember(books) {
+/**
+ * The most recently read book as the "Continue reading" card, in every view mode and grouping. It leaves the rows,
+ * except with [keepHeroInRows]: series folders keep all their books, so a folder's count and contents stay whole.
+ */
+private fun rememberLibraryDisplayBooks(books: List<Book>, keepHeroInRows: Boolean): LibraryDisplayBooks =
+    remember(books, keepHeroInRows) {
         val hero = books.maxByOrNull { it.lastReadAt ?: 0L }
             ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
         LibraryDisplayBooks(
             hero = hero,
-            rows = if (hero == null) books else books.filter { it.id != hero.id },
+            rows = if (hero == null || keepHeroInRows) books else books.filter { it.id != hero.id },
         )
     }
 
