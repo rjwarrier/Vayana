@@ -119,6 +119,8 @@ sealed interface ReaderUiState {
         val pageLabels: List<String> = emptyList(),
         /** The page is larger than the screen (zoomed or fit-width PDF): drags scroll it instead of edge swipes. */
         val pageScrollable: Boolean = false,
+        /** The book's declared language, so web lookups use that language's Wikipedia and Wiktionary entries. */
+        val bookLanguage: String? = null,
     ) : ReaderUiState
     data class Failed(val message: UiText) : ReaderUiState
 }
@@ -381,6 +383,7 @@ class ReaderViewModel @Inject constructor(
                         toc = openBook.toc,
                         currentLocator = resumeLocator,
                         fixedLayout = openBook.fixedLayout,
+                        bookLanguage = openBook.language,
                         pageLabels = openBook.pageLabels,
                     )
                     observeAnnotations(engine)
@@ -899,7 +902,7 @@ class ReaderViewModel @Inject constructor(
         dictionaryLookupJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.Online(word, source, OnlineLookupStatus.LOOKING_UP)
             val entry = try {
-                onlineDictionary.lookup(word, source)
+                onlineDictionary.lookup(word, source, (uiState.value as? ReaderUiState.Loaded)?.bookLanguage)
             } catch (throwable: CancellationException) {
                 throw throwable
             } catch (_: Throwable) {
@@ -1681,7 +1684,7 @@ private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when
     AnnotationType.NOTE -> ReaderAnnotationType.NOTE
 }
 
-private fun String.toDictionaryWord(): String? {
+internal fun String.toDictionaryWord(): String? {
     val candidate = trim().trim(*SelectionEdgePunctuation)
     return candidate.takeIf { DictionarySelectionWordRegex.matches(it) }
 }
@@ -1729,7 +1732,8 @@ private const val IdleSessionTimeoutMs = 5 * 60 * 1000L
 private const val SessionContinuationGraceMs = 60 * 1000L
 
 private const val SearchDebounceMillis = 400L
-private val DictionarySelectionWordRegex = Regex("^[\\p{L}]+(?:['’\\-][\\p{L}]+)*$")
+// Letters and the marks joined to them: Malayalam and Tamil vowel signs (and viramas) are marks, not letters.
+private val DictionarySelectionWordRegex = Regex("^[\\p{L}\\p{M}]+(?:['’\\-][\\p{L}\\p{M}]+)*$")
 
 private data class ReadAloudNotificationSnapshot(
     val active: Boolean,

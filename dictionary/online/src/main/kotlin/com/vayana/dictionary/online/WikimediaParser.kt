@@ -9,14 +9,15 @@ import org.json.JSONObject
 /** Turns Wikimedia REST responses into dictionary entries. Pure, so it is tested without the network. */
 internal object WikimediaParser {
     /**
-     * `page/definition/{word}` on Wiktionary: senses grouped by language, then part of speech. English senses only
-     * when there are any; otherwise the other languages', each marked with its language ("(Latin) whisper").
+     * `page/definition/{word}` on Wiktionary: senses grouped by language, then part of speech. Only [language]'s senses
+     * (the book's language) when there are any, else only English's; otherwise the other languages', each marked with
+     * its language ("(Latin) whisper").
      */
-    fun wiktionary(headword: String, json: String, pageUrl: String): DictionaryEntry? {
+    fun wiktionary(headword: String, json: String, pageUrl: String, language: String = EnglishKey): DictionaryEntry? {
         val root = JSONObject(json)
-        val english = root.optJSONArray(EnglishKey)
-        val usages = if (english != null && english.length() > 0) {
-            english.objects().map { it to null }
+        val own = listOf(language, EnglishKey).firstNotNullOfOrNull { key -> root.optJSONArray(key)?.takeIf { it.length() > 0 } }
+        val usages = if (own != null) {
+            own.objects().map { it to null }
         } else {
             root.keys().asSequence().toList().flatMap { key ->
                 root.optJSONArray(key)?.objects().orEmpty().map { it to it.optString("language").ifBlank { null } }

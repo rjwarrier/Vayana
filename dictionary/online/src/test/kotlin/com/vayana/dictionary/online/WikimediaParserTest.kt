@@ -35,6 +35,28 @@ class WikimediaParserTest {
     }
 
     @Test
+    fun `prefers the book's language section, then English`() {
+        val json = """
+            {"en":[{"partOfSpeech":"Noun","language":"English","definitions":[{"definition":"a present"}]}],
+             "de":[{"partOfSpeech":"Noun","language":"German","definitions":[{"definition":"poison"}]}]}
+        """.trimIndent()
+
+        assertEquals("poison", WikimediaParser.wiktionary("Gift", json, "url", language = "de")!!.senses.single().definition)
+        assertEquals("a present", WikimediaParser.wiktionary("gift", json, "url", language = "ml")!!.senses.single().definition)
+        assertEquals("a present", WikimediaParser.wiktionary("gift", json, "url")!!.senses.single().definition)
+    }
+
+    @Test
+    fun `book languages become wiki subdomains or nothing`() {
+        assertEquals("ml", wikiLanguageOrNull("ml-IN"))
+        assertEquals("pt", wikiLanguageOrNull("PT_br"))
+        assertEquals("ta", wikiLanguageOrNull(" ta "))
+        assertNull(wikiLanguageOrNull(null))
+        assertNull(wikiLanguageOrNull(""))
+        assertNull(wikiLanguageOrNull("evil.example.com/"))
+    }
+
+    @Test
     fun `puts word senses ahead of symbols`() {
         val json = """
             {"en":[{"partOfSpeech":"Symbol","language":"English","definitions":[{"definition":"a code"}]},

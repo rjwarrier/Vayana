@@ -35,6 +35,8 @@ data class OpenBook(
     val fixedLayout: Boolean = false,
     /** Printed page labels supplied by a PDF (for example "iv", "1", "A-3"), in page order. */
     val pageLabels: List<String> = emptyList(),
+    /** The book's language as its metadata declares it (a primary subtag like "ml"), or null when it doesn't. */
+    val language: String? = null,
 )
 
 enum class ReaderAnnotationType {

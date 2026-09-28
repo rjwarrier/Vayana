@@ -561,6 +561,8 @@ async function open(bookUrl, lastLocatorCfi) {
             title: bookTitle(view.book.metadata),
             fixedLayout,
             pageLabels: fixedLayout ? view.book.pageLabels ?? [] : [],
+            // The book's own language (its primary subtag, "ml" for ml-IN), for looking words up in that language.
+            language: view.language?.locale?.language ?? null,
         })
         if (!fixedLayout) {
             for (const { doc, index } of view.renderer.getContents()) {

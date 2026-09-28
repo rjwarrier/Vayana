@@ -618,6 +618,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                     pageLabels = payload.optJSONArray("pageLabels")?.let { labels ->
                         List(labels.length()) { index -> labels.optString(index, (index + 1).toString()) }
                     }.orEmpty(),
+                    language = payload.optString("language").takeIf { it.isNotBlank() && it != "null" },
                 )
                 waitingForPdfPassword = false
                 openResult?.complete(Result.success(openBook))

@@ -8,6 +8,10 @@ enum class OnlineDictionarySource { WIKTIONARY, WIKIPEDIA }
  * unlike the offline dictionary.
  */
 interface OnlineDictionary {
-    /** [word]'s entry on [source], or null when it has none. Throws when the site can't be reached. */
-    suspend fun lookup(word: String, source: OnlineDictionarySource): DictionaryEntry?
+    /**
+     * [word]'s entry on [source], or null when it has none. Throws when the site can't be reached. [language] is the
+     * book's (a primary subtag like "ml"): Wikipedia is searched in that language first, and Wiktionary's entry for a
+     * word in that language comes first.
+     */
+    suspend fun lookup(word: String, source: OnlineDictionarySource, language: String? = null): DictionaryEntry?
 }

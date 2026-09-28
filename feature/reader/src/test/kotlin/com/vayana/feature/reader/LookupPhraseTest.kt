@@ -14,6 +14,15 @@ class LookupPhraseTest {
     }
 
     @Test
+    fun wordsInScriptsWithVowelSignsAreWords() {
+        // Malayalam and Tamil vowel signs and viramas are combining marks, not letters.
+        assertEquals("പുസ്തകം", "പുസ്തകം".toDictionaryWord())
+        assertEquals("புத்தகம்", "“புத்தகம்”".toDictionaryWord())
+        assertEquals("can’t", "can’t".toDictionaryWord())
+        assertNull("two words".toDictionaryWord())
+    }
+
+    @Test
     fun rejectsSingleWordsPassagesAndBrokenText() {
         assertNull("Byzantium".toLookupPhrase())
         assertNull("one two three four five six seven".toLookupPhrase())

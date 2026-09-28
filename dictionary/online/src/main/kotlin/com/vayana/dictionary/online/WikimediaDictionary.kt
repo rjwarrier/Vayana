@@ -30,33 +30,42 @@ import kotlinx.coroutines.withContext
 internal class WikimediaDictionary @Inject constructor(
     private val dispatchers: DispatcherProvider,
 ) : OnlineDictionary {
-    private val cache = object : LinkedHashMap<Pair<OnlineDictionarySource, String>, DictionaryEntry?>(CacheSize, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<OnlineDictionarySource, String>, DictionaryEntry?>?) =
+    private val cache = object : LinkedHashMap<Triple<OnlineDictionarySource, String, String>, DictionaryEntry?>(CacheSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<OnlineDictionarySource, String, String>, DictionaryEntry?>?) =
             size > CacheSize
     }
 
-    override suspend fun lookup(word: String, source: OnlineDictionarySource): DictionaryEntry? = withContext(dispatchers.io) {
-        // Books curl their apostrophes (“can’t”); Wikimedia titles use the straight one.
-        val query = word.trim().replace('’', '\'')
-        if (query.isEmpty()) return@withContext null
-        val key = source to query
-        synchronized(cache) { if (cache.containsKey(key)) return@withContext cache[key] }
-        val entry = when (source) {
-            OnlineDictionarySource.WIKTIONARY -> lookUpWiktionary(query)
-            OnlineDictionarySource.WIKIPEDIA -> lookUpWikipedia(query)
+    override suspend fun lookup(word: String, source: OnlineDictionarySource, language: String?): DictionaryEntry? =
+        withContext(dispatchers.io) {
+            // Books curl their apostrophes (“can’t”); Wikimedia titles use the straight one.
+            val query = word.trim().replace('’', '\'')
+            if (query.isEmpty()) return@withContext null
+            val bookLanguage = wikiLanguageOrNull(language)
+            val key = Triple(source, query, bookLanguage ?: EnglishLanguage)
+            synchronized(cache) { if (cache.containsKey(key)) return@withContext cache[key] }
+            val entry = when (source) {
+                OnlineDictionarySource.WIKTIONARY -> lookUpWiktionary(query, bookLanguage ?: EnglishLanguage)
+                // The book's own Wikipedia first (a Malayalam novel's places and people), then English's.
+                OnlineDictionarySource.WIKIPEDIA -> bookLanguage?.takeIf { it != EnglishLanguage }
+                    ?.let { lookUpWikipedia(query, wikipediaHost(it)) }
+                    ?: lookUpWikipedia(query, wikipediaHost(EnglishLanguage))
+            }
+            synchronized(cache) { cache[key] = entry }
+            entry
         }
-        synchronized(cache) { cache[key] = entry }
-        entry
-    }
 
-    private suspend fun lookUpWiktionary(word: String): DictionaryEntry? {
+    /**
+     * Only English Wiktionary serves definitions through the REST API, but it defines words of every language in
+     * English; [language]'s section comes first (the German "Gift" is poison, not a present).
+     */
+    private suspend fun lookUpWiktionary(word: String, language: String): DictionaryEntry? {
         // Wiktionary titles are case-sensitive: a capitalised word from the start of a sentence is usually listed in
         // lower case.
         for (title in listOf(word, word.lowercase(Locale.ROOT)).distinct()) {
             currentCoroutineContext().ensureActive()
             val path = title.toTitlePath()
             val body = get("$WiktionaryHost/api/rest_v1/page/definition/$path") ?: continue
-            WikimediaParser.wiktionary(title, body, "$WiktionaryHost/wiki/$path")?.let { return it }
+            WikimediaParser.wiktionary(title, body, "$WiktionaryHost/wiki/$path", language)?.let { return it }
         }
         return null
     }
@@ -66,20 +75,20 @@ internal class WikimediaDictionary @Inject constructor(
      * words and phrases. The rest of a title is case-sensitive, so on a miss this searches for the title and takes a
      * result only if it is the query itself in other capitalisation ("hagia sophia"), never a merely similar page.
      */
-    private suspend fun lookUpWikipedia(query: String): DictionaryEntry? {
-        get(summaryUrl(query))?.let { return WikimediaParser.wikipedia(it) }
+    private suspend fun lookUpWikipedia(query: String, host: String): DictionaryEntry? {
+        get(summaryUrl(host, query))?.let { return WikimediaParser.wikipedia(it) }
         // Each request is blocking and can't be interrupted, but a cancelled lookup needn't start the next one.
         currentCoroutineContext().ensureActive()
         val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
-        val title = get("$WikipediaHost/w/api.php?action=opensearch&format=json&namespace=0&limit=$SearchLimit&search=$encodedQuery")
+        val title = get("$host/w/api.php?action=opensearch&format=json&namespace=0&limit=$SearchLimit&search=$encodedQuery")
             ?.let(WikimediaParser::openSearchTitles)
             ?.firstOrNull { it != query && it.equals(query, ignoreCase = true) }
             ?: return null
         currentCoroutineContext().ensureActive()
-        return get(summaryUrl(title))?.let(WikimediaParser::wikipedia)
+        return get(summaryUrl(host, title))?.let(WikimediaParser::wikipedia)
     }
 
-    private fun summaryUrl(title: String) = "$WikipediaHost/api/rest_v1/page/summary/${title.toTitlePath()}"
+    private fun summaryUrl(host: String, title: String) = "$host/api/rest_v1/page/summary/${title.toTitlePath()}"
 
     /** The body of a 200 response, or null for a 404 (no such page). Anything else throws. */
     private fun get(url: String): String? {
@@ -116,7 +125,7 @@ internal class WikimediaDictionary @Inject constructor(
 
     private companion object {
         const val WiktionaryHost = "https://en.wiktionary.org"
-        const val WikipediaHost = "https://en.wikipedia.org"
+        const val EnglishLanguage = "en"
         const val UserAgent = "Vayana/1.0 (https://github.com/rjwarrier/Vayana)"
         const val TimeoutMillis = 10_000
         const val MaxResponseBytes = 1024 * 1024
@@ -131,3 +140,11 @@ internal abstract class OnlineDictionaryModule {
     @Binds
     abstract fun bindOnlineDictionary(implementation: WikimediaDictionary): OnlineDictionary
 }
+
+/** A book's language as a Wikipedia subdomain ("ml" for ml-IN), or null for anything that isn't a plain language code. */
+internal fun wikiLanguageOrNull(language: String?): String? =
+    language?.trim()?.lowercase(Locale.ROOT)?.substringBefore('-')?.substringBefore('_')?.takeIf { it.matches(WikiLanguageRegex) }
+
+internal fun wikipediaHost(language: String) = "https://$language.wikipedia.org"
+
+private val WikiLanguageRegex = Regex("[a-z]{2,3}")
