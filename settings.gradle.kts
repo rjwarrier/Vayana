@@ -18,6 +18,7 @@ dependencyResolutionManagement {
 rootProject.name = "vayana"
 
 include(":app")
+include(":baselineprofile")
 
 include(":core:designsystem")
 include(":core:resources")

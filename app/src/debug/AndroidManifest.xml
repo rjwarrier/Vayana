@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug builds only: lets Vayana see the baseline-profile test app's sample-book provider, so the profile
+         journey can open a book through "open with" (see docs/BASELINE_PROFILE.md). Release builds never have it. -->
+    <queries>
+        <provider android:authorities="com.vayana.baselineprofile.books" />
+    </queries>
+</manifest>

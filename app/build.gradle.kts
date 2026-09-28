@@ -105,4 +105,6 @@ dependencies {
     implementation(libs.compose.material3.adaptive.layout)
     implementation(libs.compose.material3.adaptive.navigation)
     implementation(libs.kotlinx.serialization.core)
+    // Installs app/src/main/baseline-prof.txt on first launch, including for APKs sideloaded from GitHub releases.
+    implementation(libs.androidx.profileinstaller)
 }
