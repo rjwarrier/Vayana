@@ -18,6 +18,8 @@ import java.util.LinkedHashMap
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /**
@@ -47,10 +49,11 @@ internal class WikimediaDictionary @Inject constructor(
         entry
     }
 
-    private fun lookUpWiktionary(word: String): DictionaryEntry? {
+    private suspend fun lookUpWiktionary(word: String): DictionaryEntry? {
         // Wiktionary titles are case-sensitive: a capitalised word from the start of a sentence is usually listed in
         // lower case.
         for (title in listOf(word, word.lowercase(Locale.ROOT)).distinct()) {
+            currentCoroutineContext().ensureActive()
             val path = title.toTitlePath()
             val body = get("$WiktionaryHost/api/rest_v1/page/definition/$path") ?: continue
             WikimediaParser.wiktionary(title, body, "$WiktionaryHost/wiki/$path")?.let { return it }
@@ -63,13 +66,16 @@ internal class WikimediaDictionary @Inject constructor(
      * words and phrases. The rest of a title is case-sensitive, so on a miss this searches for the title and takes a
      * result only if it is the query itself in other capitalisation ("hagia sophia"), never a merely similar page.
      */
-    private fun lookUpWikipedia(query: String): DictionaryEntry? {
+    private suspend fun lookUpWikipedia(query: String): DictionaryEntry? {
         get(summaryUrl(query))?.let { return WikimediaParser.wikipedia(it) }
+        // Each request is blocking and can't be interrupted, but a cancelled lookup needn't start the next one.
+        currentCoroutineContext().ensureActive()
         val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
         val title = get("$WikipediaHost/w/api.php?action=opensearch&format=json&namespace=0&limit=$SearchLimit&search=$encodedQuery")
             ?.let(WikimediaParser::openSearchTitles)
             ?.firstOrNull { it != query && it.equals(query, ignoreCase = true) }
             ?: return null
+        currentCoroutineContext().ensureActive()
         return get(summaryUrl(title))?.let(WikimediaParser::wikipedia)
     }
 

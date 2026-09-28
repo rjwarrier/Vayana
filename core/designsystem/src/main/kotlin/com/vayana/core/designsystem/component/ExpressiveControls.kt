@@ -38,7 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.designsystem.theme.DisplayProfile
@@ -137,7 +139,10 @@ private fun RowScope.ConnectedButtonItem(
     )
     Surface(
         onClick = button.onClick,
-        modifier = Modifier.weight(1f).heightIn(min = if (eink) Sizes.touchTargetEink else Sizes.touchTarget),
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = if (eink) Sizes.touchTargetEink else Sizes.touchTarget)
+            .semantics { role = Role.Button },
         shape = shape,
         color = if (eink) MaterialTheme.colorScheme.surface else containerColor,
         contentColor = if (eink) MaterialTheme.colorScheme.onSurface else contentColor,
@@ -199,7 +204,10 @@ fun VayanaSwatchButton(color: Color, label: String, onClick: () -> Unit, modifie
     ) {
         Surface(
             onClick = onClick,
-            modifier = Modifier.size(Sizes.iconLarge).semantics { contentDescription = label },
+            modifier = Modifier.size(Sizes.iconLarge).semantics {
+                contentDescription = label
+                role = Role.Button
+            },
             shape = RoundedCornerShape(percent = cornerPercent),
             color = color,
             border = if (eink) BorderStroke(Strokes.hairlineEink, MaterialTheme.colorScheme.outline) else null,

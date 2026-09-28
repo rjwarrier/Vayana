@@ -1692,6 +1692,9 @@ private fun String.toDictionaryWord(): String? {
  * reading, not a name or an idiom. Full stops stay allowed, for "St. Petersburg" and "J. R. R. Tolkien".
  */
 internal fun String.toLookupPhrase(): String? {
+    // Selections change on every handle drag and can span pages: rule long ones out before any regex work. Even
+    // collapsed whitespace can't shrink a phrase's worth of text past this.
+    if (length > MaxLookupPhraseChars * MaxRawPhraseCharsFactor) return null
     val phrase = trim().trim(*SelectionEdgePunctuation).replace(SelectionWhitespaceRegex, " ")
     if (phrase.length > MaxLookupPhraseChars || phrase.any { it in PhraseBreakCharacters }) return null
     val words = phrase.split(' ')
@@ -1704,6 +1707,7 @@ private const val PhraseBreakCharacters = "!?;:\"“”()[]{}…"
 private val SelectionWhitespaceRegex = Regex("\\s+")
 private const val MaxLookupPhraseWords = 6
 private const val MaxLookupPhraseChars = 80
+private const val MaxRawPhraseCharsFactor = 2
 
 private const val SpeechInteractionIntervalMillis = 30_000L
 private const val MaxChapterWords = 25

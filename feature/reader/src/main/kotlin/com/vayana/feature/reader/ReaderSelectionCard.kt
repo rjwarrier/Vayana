@@ -41,6 +41,7 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -50,7 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import com.vayana.core.designsystem.component.ConnectedButton
 import com.vayana.core.designsystem.component.VayanaConnectedButtonGroup
@@ -65,7 +65,6 @@ import com.vayana.core.designsystem.theme.vayanaFadeIn
 import com.vayana.core.designsystem.theme.vayanaFadeOut
 import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Paddings
-import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
@@ -131,15 +130,21 @@ internal fun SelectionActions(
                     if (dictionaryLookup != DictionaryLookupState.Hidden) Spacer(modifier = Modifier.height(Spacing.lg))
                     SelectionMarkRow(onHighlight = onHighlight, onUnderline = onUnderline)
                     Spacer(modifier = Modifier.height(Spacing.sm))
+                    val copy = stringResource(R.string.reader_selection_copy)
+                    val note = stringResource(R.string.reader_selection_note)
+                    val share = stringResource(R.string.reader_selection_share)
+                    val readAloud = stringResource(R.string.reader_selection_read_aloud)
+                    // Remembered: the card recomposes as the selection moves, and a fresh list defeats skipping.
+                    val actions = remember(copy, note, share, readAloud, readAloudAvailable, onCopy, onNote, onShare, onReadAloud) {
+                        buildList {
+                            add(ConnectedButton(copy, Icons.Outlined.ContentCopy, onCopy))
+                            add(ConnectedButton(note, Icons.Outlined.EditNote, onNote))
+                            add(ConnectedButton(share, Icons.Outlined.Share, onShare))
+                            if (readAloudAvailable) add(ConnectedButton(readAloud, Icons.Outlined.Headphones, onReadAloud))
+                        }
+                    }
                     VayanaConnectedButtonGroup(
-                        buttons = buildList {
-                            add(ConnectedButton(stringResource(R.string.reader_selection_copy), Icons.Outlined.ContentCopy, onCopy))
-                            add(ConnectedButton(stringResource(R.string.reader_selection_note), Icons.Outlined.EditNote, onNote))
-                            add(ConnectedButton(stringResource(R.string.reader_selection_share), Icons.Outlined.Share, onShare))
-                            if (readAloudAvailable) {
-                                add(ConnectedButton(stringResource(R.string.reader_selection_read_aloud), Icons.Outlined.Headphones, onReadAloud))
-                            }
-                        },
+                        buttons = actions,
                         iconAboveLabel = true,
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     )
@@ -213,16 +218,9 @@ private fun DictionaryLookupContent(
                     LookupMessage(stringResource(R.string.reader_dictionary_not_found, current.word))
                     OnlineLookupButtons(onLookupOnline = onLookupOnline)
                 }
-                // No offline lookup for a phrase: the card offers the web, where names and idioms have pages.
-                is DictionaryLookupState.Phrase -> {
-                    Text(
-                        text = current.phrase,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    OnlineLookupButtons(onLookupOnline = onLookupOnline)
-                }
+                // No offline lookup for a phrase: just the web buttons, compact, since most short selections are
+                // made to highlight rather than to look up, and the phrase is already marked on the page.
+                is DictionaryLookupState.Phrase -> OnlineLookupButtons(onLookupOnline = onLookupOnline, labelled = false)
                 is DictionaryLookupState.Online -> OnlineLookupContent(current, onLookupOnline)
                 is DictionaryLookupState.Failed -> {
                     LookupMessage(current.message.asString(), isError = true)
@@ -457,11 +455,23 @@ private fun OnlineLookupContent(state: DictionaryLookupState.Online, onLookupOnl
 
 /** Looks the word up on the web: only on this tap, since it sends the word to Wikimedia. */
 @Composable
-private fun OnlineLookupButtons(onLookupOnline: (OnlineDictionarySource) -> Unit) {
-    SectionLabel(stringResource(R.string.reader_dictionary_look_up_online))
+private fun OnlineLookupButtons(onLookupOnline: (OnlineDictionarySource) -> Unit, labelled: Boolean = true) {
+    if (labelled) SectionLabel(stringResource(R.string.reader_dictionary_look_up_online))
+    val wiktionary = OnlineDictionarySource.WIKTIONARY.displayName()
+    val wikipedia = OnlineDictionarySource.WIKIPEDIA.displayName()
+    val buttons = remember(wiktionary, wikipedia, onLookupOnline) {
+        listOf(
+            ConnectedButton(wiktionary, OnlineDictionarySource.WIKTIONARY.icon) { onLookupOnline(OnlineDictionarySource.WIKTIONARY) },
+            ConnectedButton(wikipedia, OnlineDictionarySource.WIKIPEDIA.icon) { onLookupOnline(OnlineDictionarySource.WIKIPEDIA) },
+        )
+    }
+    // Unlabelled (a selected phrase) they're an aside to highlighting, so neutral rather than filled.
     VayanaConnectedButtonGroup(
-        buttons = OnlineDictionarySource.entries.map { source ->
-            ConnectedButton(label = source.displayName(), icon = source.icon, onClick = { onLookupOnline(source) })
+        buttons = buttons,
+        containerColor = if (labelled) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
         },
     )
 }
