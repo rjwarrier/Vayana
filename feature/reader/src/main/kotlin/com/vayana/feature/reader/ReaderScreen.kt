@@ -73,6 +73,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Close
@@ -148,6 +149,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -200,6 +202,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import com.vayana.dictionary.api.DictionaryEntry
+import com.vayana.dictionary.api.OnlineDictionarySource
 import com.vayana.dictionary.api.PartOfSpeech
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.Locator
@@ -316,6 +319,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onSearchResultClick = viewModel::openSearchResult,
                 onClearSearch = viewModel::clearSearch,
                 onLookupWord = viewModel::lookupWord,
+                onLookupOnline = viewModel::lookupOnline,
                 onSaveLookupAsNote = viewModel::saveLookupAsNote,
                 onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
                 onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
@@ -428,6 +432,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onSearchResultClick = viewModel::openSearchResult,
         onClearSearch = viewModel::clearSearch,
         onLookupWord = viewModel::lookupWord,
+        onLookupOnline = viewModel::lookupOnline,
         onSaveLookupAsNote = viewModel::saveLookupAsNote,
         onSaveLookupAsVocabulary = viewModel::saveLookupAsVocabularyCard,
         onAcceptReadingPositionPrompt = viewModel::acceptReadingPositionPrompt,
@@ -751,6 +756,7 @@ private fun ReaderScreen(
     onSearchResultClick: (com.vayana.reader.api.SearchResult) -> Unit,
     onClearSearch: () -> Unit,
     onLookupWord: (String) -> Unit,
+    onLookupOnline: (OnlineDictionarySource) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
     onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
     readingPositionPrompt: ReadingPositionPrompt?,
@@ -1442,6 +1448,7 @@ private fun ReaderScreen(
                     onDownloadDictionary = onDownloadDictionary,
                     onInstallDictionary = onInstallDictionary,
                     onLookupWord = onLookupWord,
+                    onLookupOnline = onLookupOnline,
                     onSaveLookupAsNote = onSaveLookupAsNote,
                     onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
                 )
@@ -1814,6 +1821,7 @@ private fun SelectionActions(
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
+    onLookupOnline: (OnlineDictionarySource) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
     onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
 ) {
@@ -1839,6 +1847,7 @@ private fun SelectionActions(
                 onDownloadDictionary = onDownloadDictionary,
                 onInstallDictionary = onInstallDictionary,
                 onLookupWord = onLookupWord,
+                onLookupOnline = onLookupOnline,
                 onSaveLookupAsNote = onSaveLookupAsNote,
                 onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
             )
@@ -1902,10 +1911,12 @@ private fun DictionaryLookupContent(
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
+    onLookupOnline: (OnlineDictionarySource) -> Unit,
     onSaveLookupAsNote: (DictionaryEntry) -> Unit,
     onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     when (state) {
         DictionaryLookupState.Hidden -> Unit
         is DictionaryLookupState.LookingUp,
@@ -1941,6 +1952,7 @@ private fun DictionaryLookupContent(
                     Text(stringResource(R.string.reader_dictionary_install_zip))
                 }
             }
+            OnlineLookupButtons(onLookupOnline = onLookupOnline)
             if (recentLookups.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.reader_dictionary_recent_lookups),
@@ -1966,8 +1978,13 @@ private fun DictionaryLookupContent(
                 style = MaterialTheme.typography.titleLarge,
             )
             state.entry.senses.take(MaxDisplayedDictionarySenses).forEach { sense ->
+                val partOfSpeech = sense.partOfSpeech.shortLabel()
                 Text(
-                    text = stringResource(R.string.dictionary_sense, sense.partOfSpeech.shortLabel(), sense.definition),
+                    text = if (partOfSpeech.isEmpty()) {
+                        sense.definition
+                    } else {
+                        stringResource(R.string.dictionary_sense, partOfSpeech, sense.definition)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = Spacing.xs),
                 )
@@ -2009,6 +2026,15 @@ private fun DictionaryLookupContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
+                state.entry.sourceUrl?.let { url ->
+                    IconButton(onClick = { runCatching { uriHandler.openUri(url) } }) {
+                        Icon(
+                            imageVector = Icons.Outlined.OpenInNew,
+                            contentDescription = stringResource(R.string.reader_dictionary_open_source),
+                            modifier = Modifier.size(Sizes.iconSmall),
+                        )
+                    }
+                }
                 IconButton(onClick = {
                     val definition = state.entry.senses.firstOrNull()?.definition.orEmpty()
                     context.copyTextToClipboard("${state.entry.headword}: $definition")
@@ -2049,12 +2075,46 @@ private fun DictionaryLookupContent(
                 }
             }
         }
-        is DictionaryLookupState.NotFound -> Text(
-            text = stringResource(R.string.reader_dictionary_not_found, state.word),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.sm),
-        )
+        is DictionaryLookupState.NotFound -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
+            Text(
+                text = stringResource(R.string.reader_dictionary_not_found, state.word),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OnlineLookupButtons(onLookupOnline = onLookupOnline)
+        }
+        is DictionaryLookupState.Online -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
+            val sourceName = state.source.displayName()
+            when (state.status) {
+                OnlineLookupStatus.LOOKING_UP -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
+                    Text(
+                        text = stringResource(R.string.reader_dictionary_online_looking_up, sourceName),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                OnlineLookupStatus.NOT_FOUND, OnlineLookupStatus.FAILED -> {
+                    Text(
+                        text = if (state.status == OnlineLookupStatus.FAILED) {
+                            stringResource(R.string.reader_dictionary_online_failed, sourceName)
+                        } else {
+                            stringResource(R.string.reader_dictionary_online_not_found, sourceName, state.word)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (state.status == OnlineLookupStatus.FAILED) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                    // Both sources again: after a failure, trying the same one is the retry.
+                    OnlineLookupButtons(onLookupOnline = onLookupOnline)
+                }
+            }
+        }
         is DictionaryLookupState.Failed -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
             Text(
                 text = state.message.asString(),
@@ -2084,8 +2144,35 @@ private fun DictionaryLookupState.wordOrNull(): String? = when (this) {
     is DictionaryLookupState.NotFound -> word
     is DictionaryLookupState.Installing -> word
     is DictionaryLookupState.Failed -> word
+    is DictionaryLookupState.Online -> word
     is DictionaryLookupState.Found -> entry.headword
 }
+
+/** Looks the word up on the web: only on this tap, since it sends the word to Wikimedia. */
+@Composable
+private fun OnlineLookupButtons(onLookupOnline: (OnlineDictionarySource) -> Unit) {
+    Text(
+        text = stringResource(R.string.reader_dictionary_look_up_online),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = Spacing.sm),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        OnlineDictionarySource.entries.forEach { source ->
+            TextButton(onClick = { onLookupOnline(source) }) {
+                Text(source.displayName())
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnlineDictionarySource.displayName(): String = stringResource(
+    when (this) {
+        OnlineDictionarySource.WIKTIONARY -> R.string.reader_dictionary_source_wiktionary
+        OnlineDictionarySource.WIKIPEDIA -> R.string.reader_dictionary_source_wikipedia
+    },
+)
 
 @Composable
 private fun NoteDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {

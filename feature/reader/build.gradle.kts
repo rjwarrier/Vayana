@@ -16,5 +16,6 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":dictionary:api"))
     implementation(project(":dictionary:stardict"))
+    implementation(project(":dictionary:online"))
     testImplementation(kotlin("test"))
 }

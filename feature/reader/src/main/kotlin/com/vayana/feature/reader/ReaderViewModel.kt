@@ -37,6 +37,8 @@ import com.vayana.core.sync.progress.ReadingProgressSyncStatus
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.DictionaryPackState
 import com.vayana.dictionary.api.DictionaryRepository
+import com.vayana.dictionary.api.OnlineDictionary
+import com.vayana.dictionary.api.OnlineDictionarySource
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.BookHyphenation
 import com.vayana.reader.api.BookStyle
@@ -152,7 +154,12 @@ sealed interface DictionaryLookupState {
     data class NotFound(val word: String) : DictionaryLookupState
     data class Installing(val word: String) : DictionaryLookupState
     data class Failed(val word: String, val message: UiText) : DictionaryLookupState
+
+    /** [word] being looked up on, or missing from, [source] on the web; an entry found there is shown as [Found]. */
+    data class Online(val word: String, val source: OnlineDictionarySource, val status: OnlineLookupStatus) : DictionaryLookupState
 }
+
+enum class OnlineLookupStatus { LOOKING_UP, NOT_FOUND, FAILED }
 
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -162,6 +169,7 @@ class ReaderViewModel @Inject constructor(
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
     private val dictionaryRepository: DictionaryRepository,
+    private val onlineDictionary: OnlineDictionary,
     private val wordLookupStatRepository: WordLookupStatRepository,
     private val readingSessionRepository: ReadingSessionRepository,
     private val vocabularyCardRepository: VocabularyCardRepository,
@@ -881,6 +889,28 @@ class ReaderViewModel @Inject constructor(
         lookupSelection(word)
     }
 
+    /** Looks the word the dictionary card is showing up on [source]; only ever on the reader's tap, as it goes online. */
+    fun lookupOnline(source: OnlineDictionarySource) {
+        val word = currentLookupWord() ?: return
+        dictionaryLookupJob?.cancel()
+        dictionaryLookupJob = viewModelScope.launch {
+            _dictionaryLookup.value = DictionaryLookupState.Online(word, source, OnlineLookupStatus.LOOKING_UP)
+            val entry = try {
+                onlineDictionary.lookup(word, source)
+            } catch (throwable: CancellationException) {
+                throw throwable
+            } catch (_: Throwable) {
+                _dictionaryLookup.value = DictionaryLookupState.Online(word, source, OnlineLookupStatus.FAILED)
+                return@launch
+            }
+            _dictionaryLookup.value = if (entry == null) {
+                DictionaryLookupState.Online(word, source, OnlineLookupStatus.NOT_FOUND)
+            } else {
+                DictionaryLookupState.Found(entry, vocabularyCardRepository.findByWord(entry.headword).toSavedWordStatus())
+            }
+        }
+    }
+
     fun saveLookupAsNote(entry: DictionaryEntry) {
         val definition = entry.senses.firstOrNull()?.definition ?: return
         createNote("${entry.headword}: $definition")
@@ -1535,6 +1565,8 @@ class ReaderViewModel @Inject constructor(
         is DictionaryLookupState.PackRequired -> state.word
         is DictionaryLookupState.Installing -> state.word
         is DictionaryLookupState.Failed -> state.word
+        is DictionaryLookupState.NotFound -> state.word
+        is DictionaryLookupState.Online -> state.word
         else -> pendingDictionaryWord
     }
 }

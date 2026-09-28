@@ -1114,6 +1114,13 @@
     <string name="reader_light_warmth">Warm light %1$d%%</string>
     <string name="reader_dictionary_saved_to_vocabulary">Saved to vocabulary</string>
     <string name="reader_dictionary_known_word">Known</string>
+    <string name="reader_dictionary_look_up_online">Look it up online</string>
+    <string name="reader_dictionary_source_wiktionary">Wiktionary</string>
+    <string name="reader_dictionary_source_wikipedia">Wikipedia</string>
+    <string name="reader_dictionary_online_looking_up">Looking up on %1$s…</string>
+    <string name="reader_dictionary_online_not_found">%1$s has no entry for “%2$s”.</string>
+    <string name="reader_dictionary_online_failed">Couldn’t reach %1$s. Check your connection and try again.</string>
+    <string name="reader_dictionary_open_source">Open on the web</string>
     <string name="reader_return_recap_due_words">%1$d words due for review</string>
     <string name="reader_return_recap_review">Review</string>
     <string name="reader_words_content_description">Words in this chapter</string>

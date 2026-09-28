@@ -1130,6 +1130,13 @@
     <string name="reader_light_warmth">Тёплый свет %1$d%%</string>
     <string name="reader_dictionary_saved_to_vocabulary">Сохранено в словарь</string>
     <string name="reader_dictionary_known_word">Знаю</string>
+    <string name="reader_dictionary_look_up_online">Найти в интернете</string>
+    <string name="reader_dictionary_source_wiktionary">Викисловарь</string>
+    <string name="reader_dictionary_source_wikipedia">Википедия</string>
+    <string name="reader_dictionary_online_looking_up">Поиск: %1$s…</string>
+    <string name="reader_dictionary_online_not_found">%1$s: статья «%2$s» не найдена.</string>
+    <string name="reader_dictionary_online_failed">Не удалось подключиться: %1$s. Проверьте соединение и повторите попытку.</string>
+    <string name="reader_dictionary_open_source">Открыть в браузере</string>
     <string name="reader_return_recap_due_words">Слов к повторению: %1$d</string>
     <string name="reader_return_recap_review">Повторить</string>
     <string name="reader_words_content_description">Слова этой главы</string>

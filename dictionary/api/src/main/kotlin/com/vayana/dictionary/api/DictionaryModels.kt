@@ -4,6 +4,8 @@ data class DictionaryEntry(
     val headword: String,
     val senses: List<DictionarySense>,
     val attribution: String,
+    /** The entry's page on the web, for entries looked up online. */
+    val sourceUrl: String? = null,
 )
 
 data class DictionarySense(

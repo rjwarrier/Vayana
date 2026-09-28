@@ -1114,6 +1114,13 @@
     <string name="reader_light_warmth">வெதுவெதுப்பான ஒளி %1$d%%</string>
     <string name="reader_dictionary_saved_to_vocabulary">சொல்வளத்தில் சேமிக்கப்பட்டது</string>
     <string name="reader_dictionary_known_word">தெரியும்</string>
+    <string name="reader_dictionary_look_up_online">இணையத்தில் தேடு</string>
+    <string name="reader_dictionary_source_wiktionary">விக்சனரி</string>
+    <string name="reader_dictionary_source_wikipedia">விக்கிப்பீடியா</string>
+    <string name="reader_dictionary_online_looking_up">%1$s இல் தேடுகிறது…</string>
+    <string name="reader_dictionary_online_not_found">%1$s இல் “%2$s” என்பதற்குப் பதிவு இல்லை.</string>
+    <string name="reader_dictionary_online_failed">%1$s ஐ அணுக முடியவில்லை. இணைய இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.</string>
+    <string name="reader_dictionary_open_source">இணையத்தில் திற</string>
     <string name="reader_return_recap_due_words">%1$d சொற்கள் மீள்பார்வைக்கு உள்ளன</string>
     <string name="reader_return_recap_review">மீள்பார்வை</string>
     <string name="reader_words_content_description">இந்த அத்தியாயத்தின் சொற்கள்</string>

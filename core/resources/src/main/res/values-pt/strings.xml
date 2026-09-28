@@ -1122,6 +1122,13 @@
     <string name="reader_light_warmth">Luz quente %1$d%%</string>
     <string name="reader_dictionary_saved_to_vocabulary">Salva no vocabulário</string>
     <string name="reader_dictionary_known_word">Conhecida</string>
+    <string name="reader_dictionary_look_up_online">Pesquisar na internet</string>
+    <string name="reader_dictionary_source_wiktionary">Wikcionário</string>
+    <string name="reader_dictionary_source_wikipedia">Wikipédia</string>
+    <string name="reader_dictionary_online_looking_up">Pesquisando em %1$s…</string>
+    <string name="reader_dictionary_online_not_found">%1$s não tem nenhum verbete para “%2$s”.</string>
+    <string name="reader_dictionary_online_failed">Não foi possível acessar %1$s. Verifique sua conexão e tente novamente.</string>
+    <string name="reader_dictionary_open_source">Abrir na web</string>
     <string name="reader_return_recap_due_words">%1$d palavras para revisar</string>
     <string name="reader_return_recap_review">Revisar</string>
     <string name="reader_words_content_description">Palavras deste capítulo</string>

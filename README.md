@@ -79,7 +79,7 @@ E‑Ink is a first-class display profile rather than a colour filter:
 
 ### Reading that becomes learning
 
-- Double-tap a word for the bundled offline dictionary.
+- Double-tap a word for the bundled offline dictionary; words it lacks can be looked up on Wiktionary or Wikipedia with a tap.
 - Save looked-up words directly to a spaced-review deck.
 - Discover unusual words from the current chapter with definitions.
 - Export vocabulary to Anki-compatible CSV or readable Markdown.
@@ -119,7 +119,7 @@ Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to 
 | **Typography** | Font family and size, line height, custom fonts, alignment, hyphenation, bolder text and optional bionic reading |
 | **Annotations** | Highlights, underlines, bookmarks, notes, annotation tags, overlapping-highlight merge, footnote popups and direct navigation back to a passage |
 | **Notes and quotes** | Global and per-book Notes views, Kindle `My Clippings.txt` import, Markdown export, Goodreads quote import and shareable quote-card images |
-| **Dictionary** | Offline lookup, saved vocabulary, chapter words, spaced review, known-word tracking and Anki/Markdown export |
+| **Dictionary** | Offline lookup, on-tap Wiktionary/Wikipedia fallback, saved vocabulary, chapter words, spaced review, known-word tracking and Anki/Markdown export |
 | **Search** | Fast full-text search across books, metadata, highlighted text, notes and chapter names, with prefix matching and recent searches |
 | **Statistics** | Reading time and sessions, streaks, daily/yearly goals, finished books, date-based activity and book-level reading history |
 | **Backup** | Manual portable ZIP backup/restore and automatic backups to a selected folder with daily, weekly or 30-day schedules and retention controls |
@@ -150,7 +150,7 @@ Release certificate SHA-256
 ## Current scope
 
 - **Readable ebook format:** EPUB. Physical books can be tracked without a file.
-- **Online access:** Core reading, notes, dictionary and statistics work locally. Goodreads enrichment, cover browsing and GitHub sync require internet access when used.
+- **Online access:** Core reading, notes, dictionary and statistics work locally. Goodreads enrichment, cover browsing, Wiktionary/Wikipedia lookups and GitHub sync require internet access when used; a word is sent to Wikimedia only when you tap to look it up there.
 - **E‑Ink refresh:** Portable Android behavior is implemented. Vendor-specific refresh modes such as Onyx/Boox SDK modes are not yet integrated.
 - **Cloud history:** Permanently deleted encrypted files may remain in older commits of the GitHub sync repository because Git history is immutable unless rewritten.
 
@@ -206,7 +206,7 @@ feature/                Library, reader, notes, search, statistics, settings and
 reader/engine-api/      Reader engine contract
 reader/engine-web/      Foliate-based EPUB engine and WebView bridge
 format/epub/            EPUB metadata and import support
-dictionary/             Dictionary API and bundled StarDict implementation
+dictionary/             Dictionary API, bundled StarDict implementation and Wikimedia online lookup
 build-logic/            Shared Android and Kotlin build conventions
 ```
 

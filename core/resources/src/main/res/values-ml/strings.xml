@@ -1114,6 +1114,13 @@
     <string name="reader_light_warmth">ചൂടുള്ള വെളിച്ചം %1$d%%</string>
     <string name="reader_dictionary_saved_to_vocabulary">പദസമ്പത്തിൽ സൂക്ഷിച്ചു</string>
     <string name="reader_dictionary_known_word">അറിയാം</string>
+    <string name="reader_dictionary_look_up_online">ഓൺലൈനിൽ തിരയുക</string>
+    <string name="reader_dictionary_source_wiktionary">വിക്കിനിഘണ്ടു</string>
+    <string name="reader_dictionary_source_wikipedia">വിക്കിപീഡിയ</string>
+    <string name="reader_dictionary_online_looking_up">%1$s-ൽ തിരയുന്നു…</string>
+    <string name="reader_dictionary_online_not_found">%1$s-ൽ “%2$s” എന്നതിന് ലേഖനമില്ല.</string>
+    <string name="reader_dictionary_online_failed">%1$s-ലേക്ക് എത്താനായില്ല. ഇന്റർനെറ്റ് ബന്ധം പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക.</string>
+    <string name="reader_dictionary_open_source">വെബിൽ തുറക്കുക</string>
     <string name="reader_return_recap_due_words">%1$d വാക്കുകൾ ആവർത്തിക്കാനുണ്ട്</string>
     <string name="reader_return_recap_review">ആവർത്തിക്കുക</string>
     <string name="reader_words_content_description">ഈ അധ്യായത്തിലെ വാക്കുകൾ</string>
