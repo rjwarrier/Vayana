@@ -650,6 +650,15 @@
     <string name="statistics_library_total_title">Библиотека</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">Читаю: %1$d · прочитано: %2$d</string>
+    <string name="statistics_storage_title">Размер библиотеки</string>
+    <plurals name="statistics_storage_support">
+        <item quantity="one">%1$d книга · в среднем %2$s</item>
+        <item quantity="few">%1$d книги · в среднем %2$s</item>
+        <item quantity="many">%1$d книг · в среднем %2$s</item>
+        <item quantity="other">%1$d книги · в среднем %2$s</item>
+    </plurals>
+    <string name="statistics_storage_largest">Самая большая</string>
+    <string name="statistics_storage_smallest">Самая маленькая</string>
     <string name="statistics_average_progress_title">Средний прогресс</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">По активным книгам этой библиотеки.</string>

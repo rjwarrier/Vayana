@@ -634,6 +634,13 @@
     <string name="statistics_library_total_title">நூலகம்</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">%1$d வாசிப்பில் · %2$d முடிந்தவை</string>
+    <string name="statistics_storage_title">நூலகத்தின் அளவு</string>
+    <plurals name="statistics_storage_support">
+        <item quantity="one">%1$d புத்தகம்</item>
+        <item quantity="other">%1$d புத்தகங்கள் · சராசரி %2$s</item>
+    </plurals>
+    <string name="statistics_storage_largest">மிகப் பெரியது</string>
+    <string name="statistics_storage_smallest">மிகச் சிறியது</string>
     <string name="statistics_average_progress_title">சராசரி முன்னேற்றம்</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">இந்த நூலகத்திலுள்ள செயலில் உள்ள நூல்களில்.</string>

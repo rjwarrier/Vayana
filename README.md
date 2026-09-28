@@ -121,7 +121,7 @@ Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to 
 | **Notes and quotes** | Global and per-book Notes views, Kindle `My Clippings.txt` import, Markdown export, Goodreads quote import and shareable quote-card images |
 | **Dictionary** | Offline lookup, on-tap Wiktionary/Wikipedia fallback, saved vocabulary, chapter words, spaced review, known-word tracking and Anki/Markdown export |
 | **Search** | Fast full-text search across books, metadata, highlighted text, notes and chapter names, with prefix matching and recent searches |
-| **Statistics** | Reading time and sessions, streaks, daily/yearly goals, finished books, date-based activity and book-level reading history |
+| **Statistics** | Reading time and sessions, streaks, daily/yearly goals, finished books, date-based activity, book-level reading history and library size (total, largest, smallest, per format) |
 | **Backup** | Manual portable ZIP backup/restore and automatic backups to a selected folder with daily, weekly or 30-day schedules and retention controls |
 | **Appearance** | Material 3, system/light/dark modes, true black, optional Material You colour, Standard/E‑Ink profiles, motion controls and adaptive phone/tablet navigation |
 

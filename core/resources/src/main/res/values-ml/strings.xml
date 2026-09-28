@@ -634,6 +634,13 @@
     <string name="statistics_library_total_title">പുസ്തകശാല</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">%1$d വായിക്കുന്നു · %2$d തീർന്നു</string>
+    <string name="statistics_storage_title">പുസ്തകശാലയുടെ വലുപ്പം</string>
+    <plurals name="statistics_storage_support">
+        <item quantity="one">%1$d പുസ്തകം</item>
+        <item quantity="other">%1$d പുസ്തകങ്ങൾ · ശരാശരി %2$s</item>
+    </plurals>
+    <string name="statistics_storage_largest">ഏറ്റവും വലുത്</string>
+    <string name="statistics_storage_smallest">ഏറ്റവും ചെറുത്</string>
     <string name="statistics_average_progress_title">ശരാശരി പുരോഗതി</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">ഈ പുസ്തകശാലയിലെ സജീവ പുസ്തകങ്ങളിലുടനീളം.</string>

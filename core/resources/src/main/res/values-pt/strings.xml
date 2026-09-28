@@ -642,6 +642,14 @@
     <string name="statistics_library_total_title">Biblioteca</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">%1$d lendo · %2$d concluídos</string>
+    <string name="statistics_storage_title">Tamanho da biblioteca</string>
+    <plurals name="statistics_storage_support">
+        <item quantity="one">%1$d livro</item>
+        <item quantity="many">%1$d livros · média de %2$s</item>
+        <item quantity="other">%1$d livros · média de %2$s</item>
+    </plurals>
+    <string name="statistics_storage_largest">Maior</string>
+    <string name="statistics_storage_smallest">Menor</string>
     <string name="statistics_average_progress_title">Progresso médio</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">Entre os livros ativos desta biblioteca.</string>

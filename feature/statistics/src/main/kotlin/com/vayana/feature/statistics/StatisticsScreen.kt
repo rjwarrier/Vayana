@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -49,7 +50,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +70,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
+import android.text.format.Formatter
 import java.time.LocalDate
 import com.vayana.core.designsystem.theme.asAppDate
 import java.time.format.TextStyle
@@ -85,6 +89,7 @@ fun StatisticsRoute(
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsStateWithLifecycle()
     val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsStateWithLifecycle()
     val highlightsDue by viewModel.highlightsDue.collectAsStateWithLifecycle()
+    val libraryStorage by viewModel.libraryStorage.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.refreshHighlightDue() }
 
     StatisticsScreen(
@@ -93,6 +98,7 @@ fun StatisticsRoute(
         vocabularyCardCount = vocabularyCardCount,
         vocabularyDueCount = vocabularyDueCount,
         highlightsDue = highlightsDue,
+        libraryStorage = libraryStorage,
         onReviewVocabulary = onReviewVocabulary,
         onOpenLearnWords = onOpenLearnWords,
         onReviewHighlights = onReviewHighlights,
@@ -106,6 +112,7 @@ private fun StatisticsScreen(
     vocabularyCardCount: Int,
     vocabularyDueCount: Int,
     highlightsDue: List<Annotation>,
+    libraryStorage: LibraryStorage?,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -129,6 +136,7 @@ private fun StatisticsScreen(
                 vocabularyCardCount = vocabularyCardCount,
                 vocabularyDueCount = vocabularyDueCount,
                 highlightsDue = highlightsDue,
+                libraryStorage = libraryStorage,
                 onReviewVocabulary = onReviewVocabulary,
                 onOpenLearnWords = onOpenLearnWords,
                 onReviewHighlights = onReviewHighlights,
@@ -144,6 +152,7 @@ private fun StatisticsDashboard(
     vocabularyCardCount: Int,
     vocabularyDueCount: Int,
     highlightsDue: List<Annotation>,
+    libraryStorage: LibraryStorage?,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -197,6 +206,9 @@ private fun StatisticsDashboard(
                     summary.finishedBooks,
                 ),
             )
+        }
+        libraryStorage?.let { storage ->
+            item { LibraryStorageCard(storage) }
         }
         if (summary.readingBooks > 0) {
             item {
@@ -389,6 +401,119 @@ private fun StatisticsOverviewCard(summary: StatisticsSummary) {
         }
     }
 }
+
+/** Total size, then the largest and smallest book, then each format's share as one stacked bar with a legend. */
+@Composable
+private fun LibraryStorageCard(storage: LibraryStorage) {
+    val context = LocalContext.current
+    // Locale-aware units (MB, GB), the same as the system's storage screens: the total precise, the rest short.
+    val size = remember(context) { { bytes: Long -> Formatter.formatShortFileSize(context, bytes) } }
+    val formatColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.outline,
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(Paddings.card)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Icon(
+                    imageVector = Icons.Outlined.Storage,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                )
+                Text(text = stringResource(R.string.statistics_storage_title), style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                text = Formatter.formatFileSize(context, storage.totalBytes),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = Spacing.sm),
+            )
+            Text(
+                text = pluralStringResource(
+                    R.plurals.statistics_storage_support,
+                    storage.bookCount,
+                    storage.bookCount,
+                    size(storage.averageBytes),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (storage.bookCount > 1) {
+                BookSizeRow(stringResource(R.string.statistics_storage_largest), storage.largest, size, Modifier.padding(top = Spacing.md))
+                BookSizeRow(stringResource(R.string.statistics_storage_smallest), storage.smallest, size, Modifier.padding(top = Spacing.sm))
+            }
+            if (storage.byFormat.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = Spacing.lg)
+                        .fillMaxWidth()
+                        .height(Sizes.iconSmall / 2)
+                        .clip(RoundedCornerShape(Radii.full)),
+                    horizontalArrangement = Arrangement.spacedBy(Strokes.outline),
+                ) {
+                    storage.byFormat.forEachIndexed { index, format ->
+                        Box(
+                            modifier = Modifier
+                                // A sliver stays visible however small the share.
+                                .weight(format.bytes.coerceAtLeast(storage.totalBytes / MinFormatShareDivisor + 1).toFloat())
+                                .fillMaxHeight()
+                                .background(formatColors[index.coerceAtMost(formatColors.lastIndex)]),
+                        )
+                    }
+                }
+                FlowRow(
+                    modifier = Modifier.padding(top = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    storage.byFormat.forEachIndexed { index, format ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(Sizes.iconSmall / 2)
+                                    .clip(RoundedCornerShape(Radii.full))
+                                    .background(formatColors[index.coerceAtMost(formatColors.lastIndex)]),
+                            )
+                            Text(
+                                // Format names (EPUB, PDF) are the same in every language.
+                                text = format.format.name + " " + size(format.bytes),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookSizeRow(label: String, book: BookSize, size: (Long) -> String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Text(
+                text = book.title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(text = size(book.bytes), style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
+/** No format's slice of the bar is drawn narrower than 1/this of it. */
+private const val MinFormatShareDivisor = 50L
 
 @Composable
 private fun formatSessionDuration(seconds: Long): String {

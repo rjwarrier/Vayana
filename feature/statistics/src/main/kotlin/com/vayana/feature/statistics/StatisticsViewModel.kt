@@ -14,6 +14,7 @@ import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.SettingsRepository
+import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.DayOfWeek
 import java.time.Instant
@@ -130,7 +131,12 @@ class StatisticsViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
     vocabularyCardRepository: VocabularyCardRepository,
     highlightReviewRepository: HighlightReviewRepository,
+    storageRoots: StorageRoots,
 ) : ViewModel() {
+    /** One live query shared by the summary and the library size, instead of two. */
+    private val books = bookRepository.observeAll()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
     /** One live query shared by the summary and the due-highlights list, instead of two. */
     private val annotations = annotationRepository.observeAll()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
@@ -147,7 +153,7 @@ class StatisticsViewModel @Inject constructor(
         .distinctUntilChanged()
 
     private val coreInputs = combine(
-        bookRepository.observeAll(),
+        books,
         annotations,
         wordLookupStatRepository.observeTop(TopLookedUpWordsLimit),
         readingSessionRepository.observeAll(),
@@ -177,6 +183,17 @@ class StatisticsViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+
+    /**
+     * How much room the book files take. Measured again only when a book's file changes (added, replaced, removed),
+     * not on every progress save that re-emits the books: each measurement stats every file.
+     */
+    val libraryStorage: StateFlow<LibraryStorage?> = books
+        .map { it.fileRefs() }
+        .distinctUntilChanged()
+        .map { refs -> libraryStorage(refs) { path -> storageRoots.resolve(path).takeIf { it.isFile }?.length() } }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Highlights whose review has come round, or that were never reviewed, ready for the review screen. */
     private val highlightDueNow = MutableStateFlow(System.currentTimeMillis())
