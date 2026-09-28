@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class LibraryStorageTest {
-    private fun ref(id: Long, format: BookFormat = BookFormat.EPUB, path: String = "books/$id", cloud: Long? = null) =
-        BookFileRef(id, "Book $id", format, path, "hash$id", cloud)
+    private fun ref(id: Long, format: BookFormat = BookFormat.EPUB, path: String = "books/$id") =
+        BookFileRef(id, "Book $id", format, path, "hash$id")
 
     @Test
     fun sumsLocalFilesAndFindsLargestSmallestAndFormatShares() {
@@ -27,21 +27,11 @@ class LibraryStorageTest {
     }
 
     @Test
-    fun fallsBackToTheCloudCopySizeAndSkipsBooksWithNoSize() {
-        val storage = libraryStorage(
-            listOf(ref(1, path = "", cloud = 2_000L), ref(2, cloud = 900L), ref(3)),
-            localSize = { null },
-        )!!
-
-        assertEquals(2_900L, storage.totalBytes)
-        assertEquals(2, storage.bookCount)
-    }
-
-    @Test
-    fun localFileWinsOverTheCloudSize() {
-        val storage = libraryStorage(listOf(ref(1, cloud = 1L)), localSize = { 42L })!!
+    fun skipsBooksWhoseFileIsNotOnThisDevice() {
+        val storage = libraryStorage(listOf(ref(1), ref(2, path = ""), ref(3)), localSize = { if (it == "books/1") 42L else null })!!
 
         assertEquals(42L, storage.totalBytes)
+        assertEquals(1, storage.bookCount)
     }
 
     @Test

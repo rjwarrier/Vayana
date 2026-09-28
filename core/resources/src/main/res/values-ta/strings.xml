@@ -634,13 +634,22 @@
     <string name="statistics_library_total_title">நூலகம்</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">%1$d வாசிப்பில் · %2$d முடிந்தவை</string>
-    <string name="statistics_storage_title">நூலகத்தின் அளவு</string>
+    <string name="statistics_storage_title">பயன்படுத்திய சேமிப்பிடம்</string>
     <plurals name="statistics_storage_support">
         <item quantity="one">%1$d புத்தகம்</item>
         <item quantity="other">%1$d புத்தகங்கள் · சராசரி %2$s</item>
     </plurals>
     <string name="statistics_storage_largest">மிகப் பெரியது</string>
     <string name="statistics_storage_smallest">மிகச் சிறியது</string>
+    <string name="statistics_storage_on_device">இந்தச் சாதனத்தில்</string>
+    <string name="statistics_storage_category_books">புத்தகங்கள்</string>
+    <string name="statistics_storage_category_covers">அட்டைப்படங்கள்</string>
+    <string name="statistics_storage_category_library_data">குறிப்புகள், மேற்கோள்கள், வாசிப்புத் தரவு</string>
+    <string name="statistics_storage_category_dictionary">அகராதி</string>
+    <string name="statistics_storage_category_fonts">எழுத்துருக்கள்</string>
+    <string name="statistics_storage_category_cache">தற்காலிகத் தரவு</string>
+    <string name="statistics_storage_category_other">மற்றவை</string>
+    <string name="statistics_storage_outside_note">ஒத்திசைவு நிலைப்படங்களும் காப்புப்பிரதிகளும் செயலிக்கு வெளியே வைக்கப்படுவதால் அவை கணக்கிடப்படுவதில்லை.</string>
     <string name="statistics_average_progress_title">சராசரி முன்னேற்றம்</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">இந்த நூலகத்திலுள்ள செயலில் உள்ள நூல்களில்.</string>

@@ -11,15 +11,13 @@ data class BookFileRef(
     val filePath: String,
     /** Changes when the file is replaced, so a new file at the same path is measured again. */
     val fileHash: String,
-    /** The synced copy's size, for a book whose file isn't on this device. */
-    val cloudSizeBytes: Long?,
 )
 
 data class BookSize(val bookId: Long, val title: String, val bytes: Long)
 
 data class FormatSize(val format: BookFormat, val bytes: Long, val bookCount: Int)
 
-/** How much room the library's book files take: covers and the app's own data aren't counted. */
+/** How much room the book files on this device take; a book only in the sync repository isn't here to count. */
 data class LibraryStorage(
     val totalBytes: Long,
     val bookCount: Int,
@@ -34,17 +32,13 @@ data class LibraryStorage(
 /** Books read outside the app have no file, so they have no size either. */
 fun List<Book>.fileRefs(): List<BookFileRef> = mapNotNull { book ->
     if (book.format.isOffline) return@mapNotNull null
-    BookFileRef(book.id, book.title, book.format, book.filePath, book.fileHash, book.fileAssetSizeBytes)
+    BookFileRef(book.id, book.title, book.format, book.filePath, book.fileHash)
 }
 
-/**
- * Sizes [books] by their file on this device ([localSize], null when it isn't there), else by the size recorded for
- * their synced copy. Books with neither are left out. Null when no book has a size.
- */
+/** Sizes [books] by their file on this device ([localSize], null when it isn't there). Null when none is. */
 fun libraryStorage(books: List<BookFileRef>, localSize: (filePath: String) -> Long?): LibraryStorage? {
     val sized = books.mapNotNull { book ->
-        val bytes = book.filePath.takeIf { it.isNotBlank() }?.let(localSize) ?: book.cloudSizeBytes
-        bytes?.takeIf { it >= 0 }?.let { book to it }
+        book.filePath.takeIf { it.isNotBlank() }?.let(localSize)?.takeIf { it >= 0 }?.let { book to it }
     }
     if (sized.isEmpty()) return null
     val largest = sized.maxBy { it.second }

@@ -634,13 +634,22 @@
     <string name="statistics_library_total_title">Library</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">%1$d reading · %2$d finished</string>
-    <string name="statistics_storage_title">Library size</string>
+    <string name="statistics_storage_title">Storage used</string>
     <plurals name="statistics_storage_support">
         <item quantity="one">%1$d book</item>
         <item quantity="other">%1$d books · average %2$s</item>
     </plurals>
     <string name="statistics_storage_largest">Largest</string>
     <string name="statistics_storage_smallest">Smallest</string>
+    <string name="statistics_storage_on_device">On this device</string>
+    <string name="statistics_storage_category_books">Books</string>
+    <string name="statistics_storage_category_covers">Covers</string>
+    <string name="statistics_storage_category_library_data">Notes, quotes &amp; reading data</string>
+    <string name="statistics_storage_category_dictionary">Dictionary</string>
+    <string name="statistics_storage_category_fonts">Fonts</string>
+    <string name="statistics_storage_category_cache">Cache</string>
+    <string name="statistics_storage_category_other">Other</string>
+    <string name="statistics_storage_outside_note">Sync snapshots and backups are kept outside the app, so they aren’t counted.</string>
     <string name="statistics_average_progress_title">Average progress</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">Across active books in this library.</string>

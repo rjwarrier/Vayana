@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
@@ -90,6 +91,7 @@ fun StatisticsRoute(
     val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsStateWithLifecycle()
     val highlightsDue by viewModel.highlightsDue.collectAsStateWithLifecycle()
     val libraryStorage by viewModel.libraryStorage.collectAsStateWithLifecycle()
+    val deviceStorage by viewModel.deviceStorage.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.refreshHighlightDue() }
 
     StatisticsScreen(
@@ -99,6 +101,7 @@ fun StatisticsRoute(
         vocabularyDueCount = vocabularyDueCount,
         highlightsDue = highlightsDue,
         libraryStorage = libraryStorage,
+        deviceStorage = deviceStorage,
         onReviewVocabulary = onReviewVocabulary,
         onOpenLearnWords = onOpenLearnWords,
         onReviewHighlights = onReviewHighlights,
@@ -113,6 +116,7 @@ private fun StatisticsScreen(
     vocabularyDueCount: Int,
     highlightsDue: List<Annotation>,
     libraryStorage: LibraryStorage?,
+    deviceStorage: DeviceStorage?,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -137,6 +141,7 @@ private fun StatisticsScreen(
                 vocabularyDueCount = vocabularyDueCount,
                 highlightsDue = highlightsDue,
                 libraryStorage = libraryStorage,
+                deviceStorage = deviceStorage,
                 onReviewVocabulary = onReviewVocabulary,
                 onOpenLearnWords = onOpenLearnWords,
                 onReviewHighlights = onReviewHighlights,
@@ -153,6 +158,7 @@ private fun StatisticsDashboard(
     vocabularyDueCount: Int,
     highlightsDue: List<Annotation>,
     libraryStorage: LibraryStorage?,
+    deviceStorage: DeviceStorage?,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -207,8 +213,8 @@ private fun StatisticsDashboard(
                 ),
             )
         }
-        libraryStorage?.let { storage ->
-            item { LibraryStorageCard(storage) }
+        if (deviceStorage != null || libraryStorage != null) {
+            item { StorageCard(device = deviceStorage, books = libraryStorage) }
         }
         if (summary.readingBooks > 0) {
             item {
@@ -402,18 +408,15 @@ private fun StatisticsOverviewCard(summary: StatisticsSummary) {
     }
 }
 
-/** Total size, then the largest and smallest book, then each format's share as one stacked bar with a legend. */
+/**
+ * Everything the app keeps on this device as one total, split by what it's for in a stacked bar and a list; then the
+ * book files themselves (count, average, largest, smallest, formats).
+ */
 @Composable
-private fun LibraryStorageCard(storage: LibraryStorage) {
+private fun StorageCard(device: DeviceStorage?, books: LibraryStorage?) {
     val context = LocalContext.current
     // Locale-aware units (MB, GB), the same as the system's storage screens: the total precise, the rest short.
     val size = remember(context) { { bytes: Long -> Formatter.formatShortFileSize(context, bytes) } }
-    val formatColors = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.outline,
-    )
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.medium),
@@ -429,58 +432,67 @@ private fun LibraryStorageCard(storage: LibraryStorage) {
                 )
                 Text(text = stringResource(R.string.statistics_storage_title), style = MaterialTheme.typography.titleMedium)
             }
-            Text(
-                text = Formatter.formatFileSize(context, storage.totalBytes),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = Spacing.sm),
-            )
-            Text(
-                text = pluralStringResource(
-                    R.plurals.statistics_storage_support,
-                    storage.bookCount,
-                    storage.bookCount,
-                    size(storage.averageBytes),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (storage.bookCount > 1) {
-                BookSizeRow(stringResource(R.string.statistics_storage_largest), storage.largest, size, Modifier.padding(top = Spacing.md))
-                BookSizeRow(stringResource(R.string.statistics_storage_smallest), storage.smallest, size, Modifier.padding(top = Spacing.sm))
-            }
-            if (storage.byFormat.size > 1) {
-                Row(
-                    modifier = Modifier
-                        .padding(top = Spacing.lg)
-                        .fillMaxWidth()
-                        .height(Sizes.iconSmall / 2)
-                        .clip(RoundedCornerShape(Radii.full)),
-                    horizontalArrangement = Arrangement.spacedBy(Strokes.outline),
-                ) {
-                    storage.byFormat.forEachIndexed { index, format ->
-                        Box(
-                            modifier = Modifier
-                                // A sliver stays visible however small the share.
-                                .weight(format.bytes.coerceAtLeast(storage.totalBytes / MinFormatShareDivisor + 1).toFloat())
-                                .fillMaxHeight()
-                                .background(formatColors[index.coerceAtMost(formatColors.lastIndex)]),
+            device?.let { storage ->
+                Text(
+                    text = Formatter.formatFileSize(context, storage.totalBytes),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+                Text(
+                    text = stringResource(R.string.statistics_storage_on_device),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val colors = storage.categories.map { it.category.color() }
+                StackedShareBar(
+                    shares = storage.categories.map { it.bytes },
+                    colors = colors,
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
+                storage.categories.forEachIndexed { index, category ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        LegendDot(colors[index])
+                        Text(
+                            text = stringResource(category.category.labelRes()),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
                         )
+                        Text(text = size(category.bytes), style = MaterialTheme.typography.titleSmall)
                     }
                 }
-                FlowRow(
-                    modifier = Modifier.padding(top = Spacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    storage.byFormat.forEachIndexed { index, format ->
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(Sizes.iconSmall / 2)
-                                    .clip(RoundedCornerShape(Radii.full))
-                                    .background(formatColors[index.coerceAtMost(formatColors.lastIndex)]),
-                            )
+            }
+            books?.let { storage ->
+                Text(
+                    text = stringResource(R.string.statistics_storage_category_books),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = Spacing.lg),
+                )
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.statistics_storage_support,
+                        storage.bookCount,
+                        storage.bookCount,
+                        size(storage.averageBytes),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (storage.bookCount > 1) {
+                    BookSizeRow(stringResource(R.string.statistics_storage_largest), storage.largest, size, Modifier.padding(top = Spacing.sm))
+                    BookSizeRow(stringResource(R.string.statistics_storage_smallest), storage.smallest, size, Modifier.padding(top = Spacing.sm))
+                }
+                if (storage.byFormat.size > 1) {
+                    FlowRow(
+                        modifier = Modifier.padding(top = Spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        storage.byFormat.forEach { format ->
                             Text(
                                 // Format names (EPUB, PDF) are the same in every language.
                                 text = format.format.name + " " + size(format.bytes),
@@ -491,8 +503,68 @@ private fun LibraryStorageCard(storage: LibraryStorage) {
                     }
                 }
             }
+            Text(
+                text = stringResource(R.string.statistics_storage_outside_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.md),
+            )
         }
     }
+}
+
+/** One bar split into [shares] in [colors]; a sliver stays visible however small a share is. */
+@Composable
+private fun StackedShareBar(shares: List<Long>, colors: List<Color>, modifier: Modifier = Modifier) {
+    val total = shares.sum().coerceAtLeast(1L)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(Sizes.iconSmall / 2)
+            .clip(RoundedCornerShape(Radii.full)),
+        horizontalArrangement = Arrangement.spacedBy(Strokes.outline),
+    ) {
+        shares.forEachIndexed { index, share ->
+            Box(
+                modifier = Modifier
+                    .weight(share.coerceAtLeast(total / MinShareDivisor + 1).toFloat())
+                    .fillMaxHeight()
+                    .background(colors[index]),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(Sizes.iconSmall / 2)
+            .clip(RoundedCornerShape(Radii.full))
+            .background(color),
+    )
+}
+
+/** Fixed per category, so a category keeps its colour however the sizes rank. */
+@Composable
+private fun StorageCategory.color(): Color = when (this) {
+    StorageCategory.BOOKS -> MaterialTheme.colorScheme.primary
+    StorageCategory.COVERS -> MaterialTheme.colorScheme.tertiary
+    StorageCategory.LIBRARY_DATA -> MaterialTheme.colorScheme.secondary
+    StorageCategory.DICTIONARY -> MaterialTheme.colorScheme.primary.copy(alpha = SecondaryShareAlpha)
+    StorageCategory.FONTS -> MaterialTheme.colorScheme.tertiary.copy(alpha = SecondaryShareAlpha)
+    StorageCategory.CACHE -> MaterialTheme.colorScheme.outline
+    StorageCategory.OTHER -> MaterialTheme.colorScheme.outlineVariant
+}
+
+private fun StorageCategory.labelRes(): Int = when (this) {
+    StorageCategory.BOOKS -> R.string.statistics_storage_category_books
+    StorageCategory.COVERS -> R.string.statistics_storage_category_covers
+    StorageCategory.LIBRARY_DATA -> R.string.statistics_storage_category_library_data
+    StorageCategory.DICTIONARY -> R.string.statistics_storage_category_dictionary
+    StorageCategory.FONTS -> R.string.statistics_storage_category_fonts
+    StorageCategory.CACHE -> R.string.statistics_storage_category_cache
+    StorageCategory.OTHER -> R.string.statistics_storage_category_other
 }
 
 @Composable
@@ -512,8 +584,9 @@ private fun BookSizeRow(label: String, book: BookSize, size: (Long) -> String, m
     }
 }
 
-/** No format's slice of the bar is drawn narrower than 1/this of it. */
-private const val MinFormatShareDivisor = 50L
+/** No share of a stacked bar is drawn narrower than 1/this of it. */
+private const val MinShareDivisor = 50L
+private const val SecondaryShareAlpha = 0.55f
 
 @Composable
 private fun formatSessionDuration(seconds: Long): String {

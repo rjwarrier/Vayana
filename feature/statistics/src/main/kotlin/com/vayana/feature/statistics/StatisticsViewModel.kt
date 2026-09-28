@@ -15,6 +15,9 @@ import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.filesystem.StorageRoots
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.DayOfWeek
 import java.time.Instant
@@ -132,6 +135,7 @@ class StatisticsViewModel @Inject constructor(
     vocabularyCardRepository: VocabularyCardRepository,
     highlightReviewRepository: HighlightReviewRepository,
     storageRoots: StorageRoots,
+    @ApplicationContext context: Context,
 ) : ViewModel() {
     /** One live query shared by the summary and the library size, instead of two. */
     private val books = bookRepository.observeAll()
@@ -192,6 +196,22 @@ class StatisticsViewModel @Inject constructor(
         .map { it.fileRefs() }
         .distinctUntilChanged()
         .map { refs -> libraryStorage(refs) { path -> storageRoots.resolve(path).takeIf { it.isFile }?.length() } }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val storageWalkRoots = listOfNotNull(context.dataDir, storageRoots.rootDir, context.externalCacheDir)
+    private val storageRules = context.storageRules(storageRoots.rootDir)
+
+    /**
+     * Everything the app keeps on this device, measured again when books, notes or saved words change (the files and
+     * the database that grow with them); a walk of every file, so not on each progress save.
+     */
+    val deviceStorage: StateFlow<DeviceStorage?> = combine(
+        books.map { it.fileRefs() }.distinctUntilChanged(),
+        annotations.map { it.size }.distinctUntilChanged(),
+        vocabularyCards.map { it.size }.distinctUntilChanged(),
+    ) { _, _, _ -> Unit }
+        .map { measureDeviceStorage(storageWalkRoots, storageRules) }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -458,3 +478,25 @@ private const val MaxEstimatedDays = 365
 private const val MaxGenreStats = 6
 
 const val VocabularyGrowthWeeks = 8
+
+/** Where the app keeps what, most specific first; [libraryRoot] holds the book files, covers and fonts. */
+private fun Context.storageRules(libraryRoot: File): List<StorageRule> {
+    val databases = getDatabasePath(StorageRuleProbeName).parentFile
+    return listOfNotNull(
+        StorageRule(File(libraryRoot, "books"), StorageCategory.BOOKS),
+        StorageRule(File(libraryRoot, "covers"), StorageCategory.COVERS),
+        StorageRule(File(libraryRoot, "fonts"), StorageCategory.FONTS),
+        StorageRule(File(filesDir, "dictionaries"), StorageCategory.DICTIONARY),
+        // Notes, quotes, reading history and sync state are rows in the database; settings sit beside it.
+        databases?.let { StorageRule(it, StorageCategory.LIBRARY_DATA) },
+        StorageRule(File(filesDir, "datastore"), StorageCategory.LIBRARY_DATA),
+        StorageRule(File(dataDir, "shared_prefs"), StorageCategory.LIBRARY_DATA),
+        // The reader engine's web cache and data, and temporary share files: all safe to lose.
+        StorageRule(cacheDir, StorageCategory.CACHE),
+        externalCacheDir?.let { StorageRule(it, StorageCategory.CACHE) },
+        StorageRule(File(dataDir, "app_webview"), StorageCategory.CACHE),
+        StorageRule(File(noBackupFilesDir, ".webview"), StorageCategory.CACHE),
+    )
+}
+
+private const val StorageRuleProbeName = "vayana.db"

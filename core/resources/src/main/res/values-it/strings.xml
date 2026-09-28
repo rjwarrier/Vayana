@@ -642,7 +642,7 @@
     <string name="statistics_library_total_title">Libreria</string>
     <string name="statistics_library_total_value">%1$d</string>
     <string name="statistics_library_total_support">%1$d in lettura · %2$d finiti</string>
-    <string name="statistics_storage_title">Dimensione della libreria</string>
+    <string name="statistics_storage_title">Spazio utilizzato</string>
     <plurals name="statistics_storage_support">
         <item quantity="one">%1$d libro</item>
         <item quantity="many">%1$d libri · in media %2$s</item>
@@ -650,6 +650,15 @@
     </plurals>
     <string name="statistics_storage_largest">Il più grande</string>
     <string name="statistics_storage_smallest">Il più piccolo</string>
+    <string name="statistics_storage_on_device">Su questo dispositivo</string>
+    <string name="statistics_storage_category_books">Libri</string>
+    <string name="statistics_storage_category_covers">Copertine</string>
+    <string name="statistics_storage_category_library_data">Note, citazioni e dati di lettura</string>
+    <string name="statistics_storage_category_dictionary">Dizionario</string>
+    <string name="statistics_storage_category_fonts">Caratteri</string>
+    <string name="statistics_storage_category_cache">Cache</string>
+    <string name="statistics_storage_category_other">Altro</string>
+    <string name="statistics_storage_outside_note">Gli snapshot di sincronizzazione e i backup sono conservati fuori dall’app, quindi non vengono contati.</string>
     <string name="statistics_average_progress_title">Progresso medio</string>
     <string name="statistics_average_progress_value">%1$d%%</string>
     <string name="statistics_average_progress_support">Sui libri attivi di questa libreria.</string>
