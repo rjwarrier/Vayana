@@ -58,6 +58,9 @@ internal object WikimediaParser {
         return DictionaryEntry(headword = title, senses = senses, attribution = WikipediaAttribution, sourceUrl = pageUrl)
     }
 
+    /** The page titles an `action=opensearch` response lists: `[query, [titles], [descriptions], [urls]]`. */
+    fun openSearchTitles(json: String): List<String> = JSONArray(json).optJSONArray(1)?.strings().orEmpty()
+
     private fun examples(definition: JSONObject): List<String> {
         val parsed = definition.optJSONArray("parsedExamples")?.objects().orEmpty().map { it.optString("example") }
         val plain = definition.optJSONArray("examples")?.strings().orEmpty()

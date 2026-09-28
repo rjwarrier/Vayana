@@ -72,6 +72,14 @@ class WikimediaParserTest {
     }
 
     @Test
+    fun `reads opensearch titles`() {
+        val json = """["hagia sophia",["Hagia Sophia","Hagia Sophia, Trabzon"],["",""],["u1","u2"]]"""
+
+        assertEquals(listOf("Hagia Sophia", "Hagia Sophia, Trabzon"), WikimediaParser.openSearchTitles(json))
+        assertEquals(emptyList<String>(), WikimediaParser.openSearchTitles("""["qqzz",[],[],[]]"""))
+    }
+
+    @Test
     fun `decodes entities and collapses whitespace`() {
         assertEquals("fish & chips — “hot”", "fish &amp; chips\n &#8212; &#x201C;hot&#x201d;".htmlToText())
     }

@@ -2083,6 +2083,8 @@ private fun DictionaryLookupContent(
             )
             OnlineLookupButtons(onLookupOnline = onLookupOnline)
         }
+        // No offline lookup for a phrase: the card just offers the web, where names and idioms have pages.
+        is DictionaryLookupState.Phrase -> OnlineLookupButtons(onLookupOnline = onLookupOnline)
         is DictionaryLookupState.Online -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
             val sourceName = state.source.displayName()
             when (state.status) {
@@ -2145,6 +2147,7 @@ private fun DictionaryLookupState.wordOrNull(): String? = when (this) {
     is DictionaryLookupState.Installing -> word
     is DictionaryLookupState.Failed -> word
     is DictionaryLookupState.Online -> word
+    is DictionaryLookupState.Phrase -> phrase
     is DictionaryLookupState.Found -> entry.headword
 }
 

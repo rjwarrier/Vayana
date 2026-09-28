@@ -157,6 +157,9 @@ sealed interface DictionaryLookupState {
 
     /** [word] being looked up on, or missing from, [source] on the web; an entry found there is shown as [Found]. */
     data class Online(val word: String, val source: OnlineDictionarySource, val status: OnlineLookupStatus) : DictionaryLookupState
+
+    /** A selected phrase ("Hagia Sophia", "kick the bucket"): not for the one-word dictionary, but for the web. */
+    data class Phrase(val phrase: String) : DictionaryLookupState
 }
 
 enum class OnlineLookupStatus { LOOKING_UP, NOT_FOUND, FAILED }
@@ -1531,7 +1534,8 @@ class ReaderViewModel @Inject constructor(
         val word = selectedText?.toDictionaryWord()
         if (word == null) {
             if (dictionaryPickerActive) return
-            _dictionaryLookup.value = DictionaryLookupState.Hidden
+            _dictionaryLookup.value = selectedText?.toLookupPhrase()?.let(DictionaryLookupState::Phrase)
+                ?: DictionaryLookupState.Hidden
             return
         }
         pendingDictionaryWord = word
@@ -1567,6 +1571,7 @@ class ReaderViewModel @Inject constructor(
         is DictionaryLookupState.Failed -> state.word
         is DictionaryLookupState.NotFound -> state.word
         is DictionaryLookupState.Online -> state.word
+        is DictionaryLookupState.Phrase -> state.phrase
         else -> pendingDictionaryWord
     }
 }
@@ -1677,9 +1682,28 @@ private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when
 }
 
 private fun String.toDictionaryWord(): String? {
-    val candidate = trim().trim('“', '”', '‘', '’', '\'', '"', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']')
+    val candidate = trim().trim(*SelectionEdgePunctuation)
     return candidate.takeIf { DictionarySelectionWordRegex.matches(it) }
 }
+
+/**
+ * A short multi-word selection to look up whole on the web, with its line breaks and runs of spaces made single
+ * spaces. Null for one word, a long passage, or text broken by quotes, brackets or sentence punctuation: those are
+ * reading, not a name or an idiom. Full stops stay allowed, for "St. Petersburg" and "J. R. R. Tolkien".
+ */
+internal fun String.toLookupPhrase(): String? {
+    val phrase = trim().trim(*SelectionEdgePunctuation).replace(SelectionWhitespaceRegex, " ")
+    if (phrase.length > MaxLookupPhraseChars || phrase.any { it in PhraseBreakCharacters }) return null
+    val words = phrase.split(' ')
+    if (words.size !in 2..MaxLookupPhraseWords || words.none { word -> word.any(Char::isLetter) }) return null
+    return phrase
+}
+
+private val SelectionEdgePunctuation = charArrayOf('“', '”', '‘', '’', '\'', '"', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']')
+private const val PhraseBreakCharacters = "!?;:\"“”()[]{}…"
+private val SelectionWhitespaceRegex = Regex("\\s+")
+private const val MaxLookupPhraseWords = 6
+private const val MaxLookupPhraseChars = 80
 
 private const val SpeechInteractionIntervalMillis = 30_000L
 private const val MaxChapterWords = 25

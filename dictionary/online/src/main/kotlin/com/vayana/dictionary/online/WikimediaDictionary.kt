@@ -34,7 +34,8 @@ internal class WikimediaDictionary @Inject constructor(
     }
 
     override suspend fun lookup(word: String, source: OnlineDictionarySource): DictionaryEntry? = withContext(dispatchers.io) {
-        val query = word.trim()
+        // Books curl their apostrophes (“can’t”); Wikimedia titles use the straight one.
+        val query = word.trim().replace('’', '\'')
         if (query.isEmpty()) return@withContext null
         val key = source to query
         synchronized(cache) { if (cache.containsKey(key)) return@withContext cache[key] }
@@ -57,9 +58,22 @@ internal class WikimediaDictionary @Inject constructor(
         return null
     }
 
-    // Wikipedia capitalises titles itself and follows redirects in the summary.
-    private fun lookUpWikipedia(word: String): DictionaryEntry? =
-        get("$WikipediaHost/api/rest_v1/page/summary/${word.toTitlePath()}")?.let(WikimediaParser::wikipedia)
+    /**
+     * Wikipedia capitalises a title's first letter itself and follows redirects in the summary, which covers most
+     * words and phrases. The rest of a title is case-sensitive, so on a miss this searches for the title and takes a
+     * result only if it is the query itself in other capitalisation ("hagia sophia"), never a merely similar page.
+     */
+    private fun lookUpWikipedia(query: String): DictionaryEntry? {
+        get(summaryUrl(query))?.let { return WikimediaParser.wikipedia(it) }
+        val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
+        val title = get("$WikipediaHost/w/api.php?action=opensearch&format=json&namespace=0&limit=$SearchLimit&search=$encodedQuery")
+            ?.let(WikimediaParser::openSearchTitles)
+            ?.firstOrNull { it != query && it.equals(query, ignoreCase = true) }
+            ?: return null
+        return get(summaryUrl(title))?.let(WikimediaParser::wikipedia)
+    }
+
+    private fun summaryUrl(title: String) = "$WikipediaHost/api/rest_v1/page/summary/${title.toTitlePath()}"
 
     /** The body of a 200 response, or null for a 404 (no such page). Anything else throws. */
     private fun get(url: String): String? {
@@ -101,6 +115,7 @@ internal class WikimediaDictionary @Inject constructor(
         const val TimeoutMillis = 10_000
         const val MaxResponseBytes = 1024 * 1024
         const val CacheSize = 32
+        const val SearchLimit = 5
     }
 }
 
