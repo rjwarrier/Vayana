@@ -25,7 +25,6 @@ import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
@@ -38,7 +37,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -73,32 +71,25 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Undo
-import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.FormatUnderlined
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -112,17 +103,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import com.vayana.core.designsystem.component.cloudSyncStatusText
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -149,7 +140,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -158,7 +148,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -203,7 +192,6 @@ import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import com.vayana.dictionary.api.DictionaryEntry
 import com.vayana.dictionary.api.OnlineDictionarySource
-import com.vayana.dictionary.api.PartOfSpeech
 import com.vayana.reader.api.BookEngine
 import com.vayana.reader.api.Locator
 import com.vayana.reader.api.TocEntry
@@ -217,7 +205,6 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.runtime.produceState
 import android.view.WindowManager
 import androidx.compose.material.icons.outlined.Headphones
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Translate
 import com.vayana.reader.api.Footnote
 
@@ -734,7 +721,7 @@ private data class SelectionShare(
 
 private enum class ReaderPanel { CONTENTS, BOOKMARKS, NOTES, PROGRESS, STYLE, READ_ALOUD, SEARCH, WORDS }
 
-private enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
+internal enum class HighlightColor(val key: String, val labelRes: Int, val swatch: Color) {
     YELLOW("yellow", R.string.reader_selection_highlight_yellow, Color(0xFFF6C453)),
     GREEN("green", R.string.reader_selection_highlight_green, Color(0xFF7BAE7F)),
     BLUE("blue", R.string.reader_selection_highlight_blue, Color(0xFF5B8DEF)),
@@ -1725,15 +1712,6 @@ private fun readerHudSurfaceColor(): Color =
         MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = ReaderHudStandardAlpha)
     }
 
-/** The selection and dictionary card floats over the text, so unlike the small header chips it must not show it through. */
-@Composable
-private fun readerCardSurfaceColor(): Color =
-    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
-        MaterialTheme.colorScheme.surface
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHighest
-    }
-
 @Composable
 private fun readerHudElevation() =
     if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs
@@ -1804,378 +1782,6 @@ private fun formatMinutes(totalMinutes: Int): String {
         stringResource(R.string.reader_duration_minutes, minutes)
     }
 }
-
-@Composable
-private fun SelectionActions(
-    modifier: Modifier = Modifier,
-    selectionActionsEnabled: Boolean,
-    readAloudAvailable: Boolean,
-    onReadAloud: () -> Unit,
-    dictionaryLookup: DictionaryLookupState,
-    recentLookups: List<String>,
-    onHighlight: (String) -> Unit,
-    onUnderline: () -> Unit,
-    onCopy: () -> Unit,
-    onNote: () -> Unit,
-    onShare: () -> Unit,
-    onDownloadDictionary: () -> Unit,
-    onInstallDictionary: () -> Unit,
-    onLookupWord: (String) -> Unit,
-    onLookupOnline: (OnlineDictionarySource) -> Unit,
-    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
-    onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
-) {
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = maxHeight * DictionaryCardMaximumHeightFraction)
-                .padding(Paddings.screenHorizontal, Spacing.md),
-            color = readerCardSurfaceColor(),
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.sm,
-            shadowElevation = if (LocalDisplayProfile.current == DisplayProfile.E_INK) Elevations.none else Spacing.xs,
-        ) {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(Spacing.md),
-            ) {
-            DictionaryLookupContent(
-                state = dictionaryLookup,
-                recentLookups = recentLookups,
-                onDownloadDictionary = onDownloadDictionary,
-                onInstallDictionary = onInstallDictionary,
-                onLookupWord = onLookupWord,
-                onLookupOnline = onLookupOnline,
-                onSaveLookupAsNote = onSaveLookupAsNote,
-                onSaveLookupAsVocabulary = onSaveLookupAsVocabulary,
-            )
-            if (selectionActionsEnabled) {
-                // Highlight colours as dots and underline as an icon: one line that always fits.
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    HighlightColor.entries.forEach { color ->
-                        val label = stringResource(color.labelRes)
-                        IconButton(
-                            onClick = { onHighlight(color.key) },
-                            modifier = Modifier.semantics { contentDescription = label },
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(Sizes.iconLarge)
-                                    .background(color = color.swatch, shape = CircleShape),
-                            )
-                        }
-                    }
-                    IconButton(onClick = onUnderline) {
-                        Icon(
-                            imageVector = Icons.Outlined.FormatUnderlined,
-                            contentDescription = stringResource(R.string.reader_selection_underline),
-                        )
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.xs))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SelectionActionItem(Icons.Outlined.ContentCopy, R.string.reader_selection_copy, onCopy, Modifier.weight(1f))
-                    SelectionActionItem(Icons.Outlined.EditNote, R.string.reader_selection_note, onNote, Modifier.weight(1f))
-                    SelectionActionItem(Icons.Outlined.Share, R.string.reader_selection_share, onShare, Modifier.weight(1f))
-                    if (readAloudAvailable) {
-                        SelectionActionItem(Icons.Outlined.Headphones, R.string.reader_selection_read_aloud, onReadAloud, Modifier.weight(1f))
-                    }
-                }
-            }
-            }
-        }
-    }
-}
-
-/** An icon over a short label, one of the actions on the selection card. */
-@Composable
-private fun SelectionActionItem(icon: ImageVector, @StringRes label: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    TextButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(Spacing.xs)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(Sizes.iconMedium))
-            Text(text = stringResource(label), style = MaterialTheme.typography.labelSmall, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun DictionaryLookupContent(
-    state: DictionaryLookupState,
-    recentLookups: List<String>,
-    onDownloadDictionary: () -> Unit,
-    onInstallDictionary: () -> Unit,
-    onLookupWord: (String) -> Unit,
-    onLookupOnline: (OnlineDictionarySource) -> Unit,
-    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
-    onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
-) {
-    val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    when (state) {
-        DictionaryLookupState.Hidden -> Unit
-        is DictionaryLookupState.LookingUp,
-        is DictionaryLookupState.Installing,
-        -> Row(
-            modifier = Modifier.padding(top = Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
-            Text(
-                text = stringResource(
-                    if (state is DictionaryLookupState.Installing) {
-                        R.string.reader_dictionary_installing
-                    } else {
-                        R.string.reader_dictionary_looking_up
-                    },
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        is DictionaryLookupState.PackRequired -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
-            Text(
-                text = stringResource(R.string.reader_dictionary_pack_required),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                TextButton(onClick = onDownloadDictionary) {
-                    Text(stringResource(R.string.reader_dictionary_download))
-                }
-                TextButton(onClick = onInstallDictionary) {
-                    Text(stringResource(R.string.reader_dictionary_install_zip))
-                }
-            }
-            OnlineLookupButtons(onLookupOnline = onLookupOnline)
-            if (recentLookups.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.reader_dictionary_recent_lookups),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.sm),
-                )
-                Row(
-                    modifier = Modifier
-                        .padding(top = Spacing.xs)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    recentLookups.forEach { word ->
-                        AssistChip(onClick = { onLookupWord(word) }, label = { Text(word) })
-                    }
-                }
-            }
-        }
-        is DictionaryLookupState.Found -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
-            Text(
-                text = state.entry.headword,
-                style = MaterialTheme.typography.titleLarge,
-            )
-            state.entry.senses.take(MaxDisplayedDictionarySenses).forEach { sense ->
-                val partOfSpeech = sense.partOfSpeech.shortLabel()
-                Text(
-                    text = if (partOfSpeech.isEmpty()) {
-                        sense.definition
-                    } else {
-                        stringResource(R.string.dictionary_sense, partOfSpeech, sense.definition)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = Spacing.xs),
-                )
-                sense.examples.firstOrNull()?.let { example ->
-                    Text(
-                        text = stringResource(R.string.quoted_text, example),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                val otherSynonyms = sense.synonyms.filterNot { it.equals(state.entry.headword, ignoreCase = true) }
-                if (otherSynonyms.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = Spacing.xs)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        otherSynonyms.forEach { synonym ->
-                            Text(
-                                text = synonym,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                textDecoration = TextDecoration.Underline,
-                                modifier = Modifier.clickable { onLookupWord(synonym) },
-                            )
-                        }
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier.padding(top = Spacing.xs),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = state.entry.attribution,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                state.entry.sourceUrl?.let { url ->
-                    IconButton(onClick = { runCatching { uriHandler.openUri(url) } }) {
-                        Icon(
-                            imageVector = Icons.Outlined.OpenInNew,
-                            contentDescription = stringResource(R.string.reader_dictionary_open_source),
-                            modifier = Modifier.size(Sizes.iconSmall),
-                        )
-                    }
-                }
-                IconButton(onClick = {
-                    val definition = state.entry.senses.firstOrNull()?.definition.orEmpty()
-                    context.copyTextToClipboard("${state.entry.headword}: $definition")
-                }) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = stringResource(R.string.reader_dictionary_copy),
-                        modifier = Modifier.size(Sizes.iconSmall),
-                    )
-                }
-                IconButton(onClick = { onSaveLookupAsNote(state.entry) }) {
-                    Icon(
-                        imageVector = Icons.Outlined.EditNote,
-                        contentDescription = stringResource(R.string.reader_dictionary_add_to_notes),
-                        modifier = Modifier.size(Sizes.iconSmall),
-                    )
-                }
-                when (state.savedStatus) {
-                    SavedWordStatus.NOT_SAVED -> IconButton(onClick = { onSaveLookupAsVocabulary(state.entry) }) {
-                        Icon(
-                            imageVector = Icons.Outlined.Style,
-                            contentDescription = stringResource(R.string.reader_dictionary_add_to_vocabulary),
-                            modifier = Modifier.size(Sizes.iconSmall),
-                        )
-                    }
-                    SavedWordStatus.SAVED -> Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
-                        contentDescription = stringResource(R.string.reader_dictionary_saved_to_vocabulary),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = Spacing.md).size(Sizes.iconSmall),
-                    )
-                    SavedWordStatus.KNOWN -> Text(
-                        text = stringResource(R.string.reader_dictionary_known_word),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = Spacing.md),
-                    )
-                }
-            }
-        }
-        is DictionaryLookupState.NotFound -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
-            Text(
-                text = stringResource(R.string.reader_dictionary_not_found, state.word),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OnlineLookupButtons(onLookupOnline = onLookupOnline)
-        }
-        // No offline lookup for a phrase: the card just offers the web, where names and idioms have pages.
-        is DictionaryLookupState.Phrase -> OnlineLookupButtons(onLookupOnline = onLookupOnline)
-        is DictionaryLookupState.Online -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
-            val sourceName = state.source.displayName()
-            when (state.status) {
-                OnlineLookupStatus.LOOKING_UP -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    VayanaCircularProgressIndicator(modifier = Modifier.size(Sizes.iconSmall))
-                    Text(
-                        text = stringResource(R.string.reader_dictionary_online_looking_up, sourceName),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OnlineLookupStatus.NOT_FOUND, OnlineLookupStatus.FAILED -> {
-                    Text(
-                        text = if (state.status == OnlineLookupStatus.FAILED) {
-                            stringResource(R.string.reader_dictionary_online_failed, sourceName)
-                        } else {
-                            stringResource(R.string.reader_dictionary_online_not_found, sourceName, state.word)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (state.status == OnlineLookupStatus.FAILED) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                    // Both sources again: after a failure, trying the same one is the retry.
-                    OnlineLookupButtons(onLookupOnline = onLookupOnline)
-                }
-            }
-        }
-        is DictionaryLookupState.Failed -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
-            Text(
-                text = state.message.asString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-            TextButton(onClick = onInstallDictionary) {
-                Text(stringResource(R.string.reader_dictionary_choose_another))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PartOfSpeech.shortLabel(): String = when (this) {
-    PartOfSpeech.NOUN -> stringResource(R.string.dictionary_part_of_speech_noun)
-    PartOfSpeech.VERB -> stringResource(R.string.dictionary_part_of_speech_verb)
-    PartOfSpeech.ADJECTIVE -> stringResource(R.string.dictionary_part_of_speech_adjective)
-    PartOfSpeech.ADVERB -> stringResource(R.string.dictionary_part_of_speech_adverb)
-    PartOfSpeech.UNKNOWN -> ""
-}
-
-private fun DictionaryLookupState.wordOrNull(): String? = when (this) {
-    DictionaryLookupState.Hidden -> null
-    is DictionaryLookupState.PackRequired -> word
-    is DictionaryLookupState.LookingUp -> word
-    is DictionaryLookupState.NotFound -> word
-    is DictionaryLookupState.Installing -> word
-    is DictionaryLookupState.Failed -> word
-    is DictionaryLookupState.Online -> word
-    is DictionaryLookupState.Phrase -> phrase
-    is DictionaryLookupState.Found -> entry.headword
-}
-
-/** Looks the word up on the web: only on this tap, since it sends the word to Wikimedia. */
-@Composable
-private fun OnlineLookupButtons(onLookupOnline: (OnlineDictionarySource) -> Unit) {
-    Text(
-        text = stringResource(R.string.reader_dictionary_look_up_online),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = Spacing.sm),
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        OnlineDictionarySource.entries.forEach { source ->
-            TextButton(onClick = { onLookupOnline(source) }) {
-                Text(source.displayName())
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnlineDictionarySource.displayName(): String = stringResource(
-    when (this) {
-        OnlineDictionarySource.WIKTIONARY -> R.string.reader_dictionary_source_wiktionary
-        OnlineDictionarySource.WIKIPEDIA -> R.string.reader_dictionary_source_wikipedia
-    },
-)
 
 @Composable
 private fun NoteDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
@@ -3485,8 +3091,6 @@ private fun SettingsSnapshot.readerBackgroundColor(): Color = when {
 
 private const val ReaderHudStandardAlpha = 0.9f
 private const val SimilarReaderChromeColorDelta = 0.12f
-private const val MaxDisplayedDictionarySenses = 3
-private const val DictionaryCardMaximumHeightFraction = 0.58f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
 private const val VolumeKeyLongPressMillis = 500L
 
@@ -3557,7 +3161,7 @@ private fun Color.isSameIshAs(other: Color): Boolean =
         abs(green - other.green) <= SimilarReaderChromeColorDelta &&
         abs(blue - other.blue) <= SimilarReaderChromeColorDelta
 
-private fun Context.copyTextToClipboard(text: String) {
+internal fun Context.copyTextToClipboard(text: String) {
     val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText(getString(R.string.app_name), text)
     clipboardManager.setPrimaryClip(clip)
