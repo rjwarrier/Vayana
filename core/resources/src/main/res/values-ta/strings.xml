@@ -1529,4 +1529,8 @@
     <string name="define_nothing">பொருள் அறிய ஒரு சொல்லை அல்லது சிறிய சொற்றொடரைத் தேர்ந்தெடுக்கவும்.</string>
     <string name="define_pack_missing">Vayana-வின் ஆஃப்லைன் அகராதி இன்னும் நிறுவப்படவில்லை: புத்தகத்தில் ஏதேனும் ஒரு சொல்லைத் தேடி அதைச் சேர்க்கவும். இணையத்தில் தேடுக:</string>
     <string name="define_close">மூடு</string>
+    <string name="widget_preview_title">நீங்கள் படிக்கும் புத்தகம்</string>
+    <string name="widget_preview_author">அதன் ஆசிரியர்</string>
+    <string name="widget_preview_progress" formatted="false">42% படித்தது</string>
+    <string name="widget_resume">படிப்பைத் தொடர்க</string>
 </resources>

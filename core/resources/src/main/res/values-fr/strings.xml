@@ -1545,4 +1545,8 @@
     <string name="define_nothing">Sélectionnez un mot ou une courte expression pour en voir la définition.</string>
     <string name="define_pack_missing">Le dictionnaire hors ligne de Vayana n’est pas encore installé : cherchez un mot dans un livre pour l’ajouter. Chercher en ligne :</string>
     <string name="define_close">Fermer</string>
+    <string name="widget_preview_title">Le livre que vous lisez</string>
+    <string name="widget_preview_author">Son auteur</string>
+    <string name="widget_preview_progress" formatted="false">42 % lu</string>
+    <string name="widget_resume">Reprendre la lecture</string>
 </resources>

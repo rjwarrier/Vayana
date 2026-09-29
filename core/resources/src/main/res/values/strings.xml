@@ -1529,4 +1529,8 @@
     <string name="define_nothing">Select a word or a short phrase to define it.</string>
     <string name="define_pack_missing">Vayana’s offline dictionary isn’t installed yet: look up any word in a book to add it. Look this up online instead:</string>
     <string name="define_close">Close</string>
+    <string name="widget_preview_title">The book you’re reading</string>
+    <string name="widget_preview_author">Its author</string>
+    <string name="widget_preview_progress" formatted="false">42% read</string>
+    <string name="widget_resume">Continue reading</string>
 </resources>

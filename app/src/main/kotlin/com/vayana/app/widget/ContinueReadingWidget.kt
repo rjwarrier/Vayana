@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
+import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.vayana.app.MainActivity
@@ -83,23 +86,56 @@ class ContinueReadingWidgetUpdater @Inject constructor(
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, ContinueReadingWidget::class.java))
         if (ids.isEmpty()) return@withContext
-        manager.updateAppWidget(ids, views(book))
+        val cover = book?.coverPath?.let(::loadCover)
+        // From Android 12 the launcher picks the layout for the widget's size: narrow ones drop the resume button,
+        // short ones the progress pill and the title's second line.
+        val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            RemoteViews(
+                mapOf(
+                    SizeF(NarrowWidth, ShortHeight) to views(book, cover, narrow = true, short = true),
+                    SizeF(WideWidth, ShortHeight) to views(book, cover, narrow = false, short = true),
+                    SizeF(NarrowWidth, TallHeight) to views(book, cover, narrow = true, short = false),
+                    SizeF(WideWidth, TallHeight) to views(book, cover, narrow = false, short = false),
+                ),
+            )
+        } else {
+            views(book, cover, narrow = false, short = false)
+        }
+        manager.updateAppWidget(ids, views)
     }
 
-    private fun views(book: WidgetBook?): RemoteViews = RemoteViews(context.packageName, R.layout.widget_continue_reading).apply {
-        val hasBook = book != null
-        setViewVisibility(R.id.widget_book, if (hasBook) View.VISIBLE else View.GONE)
-        setViewVisibility(R.id.widget_empty, if (hasBook) View.GONE else View.VISIBLE)
-        setOnClickPendingIntent(R.id.widget_root, openIntent(book?.id))
-        if (book == null) return@apply
-        setTextViewText(R.id.widget_title, book.title)
-        setTextViewText(R.id.widget_author, book.author.orEmpty())
-        setViewVisibility(R.id.widget_author, if (book.author.isNullOrBlank()) View.GONE else View.VISIBLE)
-        setTextViewText(R.id.widget_progress_text, context.getString(Res.string.library_progress_value, book.percent))
-        setProgressBar(R.id.widget_progress, PercentScale, book.percent, false)
-        val cover = book.coverPath?.let(::loadCover)
-        if (cover != null) setImageViewBitmap(R.id.widget_cover, cover) else setImageViewResource(R.id.widget_cover, R.mipmap.ic_launcher)
-    }
+    private fun views(book: WidgetBook?, cover: Bitmap?, narrow: Boolean, short: Boolean): RemoteViews =
+        RemoteViews(context.packageName, R.layout.widget_continue_reading).apply {
+            val hasBook = book != null
+            setViewVisibility(R.id.widget_book, if (hasBook) View.VISIBLE else View.GONE)
+            setViewVisibility(R.id.widget_empty, if (hasBook) View.GONE else View.VISIBLE)
+            // The root is the launcher's @android:id/background, so opening the app animates from the widget.
+            setOnClickPendingIntent(android.R.id.background, openIntent(book?.id))
+            if (book == null) return@apply
+            setViewVisibility(R.id.widget_resume, if (narrow) View.GONE else View.VISIBLE)
+            setViewVisibility(R.id.widget_progress_text, if (short) View.GONE else View.VISIBLE)
+            setInt(R.id.widget_title, "setMaxLines", if (short) 1 else 2)
+            // A short widget (Android 12+ only) gets a smaller cover, still 2:3, rather than a squashed one.
+            if (short && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                setViewLayoutWidth(R.id.widget_cover, ShortCoverWidthDp, TypedValue.COMPLEX_UNIT_DIP)
+                setViewLayoutHeight(R.id.widget_cover, ShortCoverWidthDp * CoverAspect, TypedValue.COMPLEX_UNIT_DIP)
+            }
+            setOnClickPendingIntent(R.id.widget_resume, openIntent(book.id))
+            setTextViewText(R.id.widget_title, book.title)
+            setTextViewText(R.id.widget_author, book.author.orEmpty())
+            setViewVisibility(R.id.widget_author, if (book.author.isNullOrBlank()) View.GONE else View.VISIBLE)
+            setTextViewText(R.id.widget_progress_text, context.getString(Res.string.library_progress_value, book.percent))
+            setProgressBar(R.id.widget_progress, PercentScale, book.percent, false)
+            if (cover != null) {
+                setImageViewBitmap(R.id.widget_cover, cover)
+                setViewPadding(R.id.widget_cover, 0, 0, 0, 0)
+            } else {
+                // No cover: the book glyph, small, on the card's tonal colour.
+                setImageViewResource(R.id.widget_cover, R.drawable.ic_widget_book)
+                val inset = context.resources.getDimensionPixelSize(R.dimen.widget_placeholder_inset)
+                setViewPadding(R.id.widget_cover, inset, inset, inset, inset)
+            }
+        }
 
     /** Opens the book in the reader; with no book yet, just the app. */
     private fun openIntent(bookId: Long?): PendingIntent {
@@ -124,6 +160,12 @@ class ContinueReadingWidgetUpdater @Inject constructor(
         const val ActionOpenBook = "com.vayana.app.OPEN_BOOK"
         const val ExtraBookId = "com.vayana.app.extra.BOOK_ID"
         private const val CoverHeightPx = 320
+        private const val NarrowWidth = 180f
+        private const val WideWidth = 270f
+        private const val ShortHeight = 100f
+        private const val TallHeight = 130f
+        private const val ShortCoverWidthDp = 54f
+        private const val CoverAspect = 1.5f
     }
 }
 

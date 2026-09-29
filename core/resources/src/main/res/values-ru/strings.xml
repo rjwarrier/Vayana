@@ -1561,4 +1561,8 @@
     <string name="define_nothing">Выделите слово или короткую фразу, чтобы увидеть определение.</string>
     <string name="define_pack_missing">Офлайн-словарь Vayana ещё не установлен: найдите любое слово в книге, чтобы добавить его. Поиск в интернете:</string>
     <string name="define_close">Закрыть</string>
+    <string name="widget_preview_title">Книга, которую вы читаете</string>
+    <string name="widget_preview_author">Её автор</string>
+    <string name="widget_preview_progress" formatted="false">Прочитано 42%</string>
+    <string name="widget_resume">Продолжить чтение</string>
 </resources>

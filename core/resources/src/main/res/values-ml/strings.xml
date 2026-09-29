@@ -1529,4 +1529,8 @@
     <string name="define_nothing">അർത്ഥം അറിയാൻ ഒരു വാക്കോ ചെറിയ വാചകമോ തിരഞ്ഞെടുക്കുക.</string>
     <string name="define_pack_missing">Vayana-യുടെ ഓഫ്‌ലൈൻ നിഘണ്ടു ഇനിയും ഇൻസ്റ്റാൾ ചെയ്തിട്ടില്ല: ഒരു പുസ്തകത്തിൽ ഏതെങ്കിലും വാക്ക് നോക്കി അത് ചേർക്കുക. ഓൺലൈനിൽ നോക്കുക:</string>
     <string name="define_close">അടയ്ക്കുക</string>
+    <string name="widget_preview_title">നിങ്ങൾ വായിക്കുന്ന പുസ്തകം</string>
+    <string name="widget_preview_author">എഴുത്തുകാരൻ</string>
+    <string name="widget_preview_progress" formatted="false">42% വായിച്ചു</string>
+    <string name="widget_resume">വായന തുടരുക</string>
 </resources>

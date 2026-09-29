@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Before Android 12: Vayana's own light palette (values-night: dark). From 12 on: the wallpaper's (values-v31). -->
+<!--
+    The widget's colour roles, named as Material 3's. Before Android 12: Vayana's own scheme (Palette.M3*Light;
+    values-night: *Dark). From 12 on: the wallpaper's dynamic palette (values-v31, values-night-v31), as launchers expect.
+-->
 <resources>
-    <color name="widget_background">#FFF4F7F5</color>
-    <color name="widget_text">#FF191C1B</color>
-    <color name="widget_text_secondary">#FF3F4945</color>
-    <color name="widget_accent">#FF006B5F</color>
-    <color name="widget_track">#FFDAE5E1</color>
+    <color name="widget_surface">#FFE9EFEC</color>
+    <color name="widget_on_surface">#FF171D1B</color>
+    <color name="widget_on_surface_variant">#FF3F4946</color>
+    <color name="widget_primary">#FF006A60</color>
+    <color name="widget_on_primary">#FFFFFFFF</color>
+    <color name="widget_primary_container">#FF9EF2E5</color>
+    <color name="widget_on_primary_container">#FF00201C</color>
+    <color name="widget_secondary_container">#FFCCE8E1</color>
 </resources>

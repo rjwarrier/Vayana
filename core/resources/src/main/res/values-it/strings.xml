@@ -1545,4 +1545,8 @@
     <string name="define_nothing">Seleziona una parola o una breve frase per vederne la definizione.</string>
     <string name="define_pack_missing">Il dizionario offline di Vayana non è ancora installato: cerca una parola in un libro per aggiungerlo. Cerca online:</string>
     <string name="define_close">Chiudi</string>
+    <string name="widget_preview_title">Il libro che stai leggendo</string>
+    <string name="widget_preview_author">Il suo autore</string>
+    <string name="widget_preview_progress" formatted="false">42% letto</string>
+    <string name="widget_resume">Continua a leggere</string>
 </resources>

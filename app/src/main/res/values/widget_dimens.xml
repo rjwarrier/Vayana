@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Before Android 12, M3's extra-large shape; from 12 on, the launcher's own widget corners (values-v31). -->
+    <dimen name="widget_radius">28dp</dimen>
+    <dimen name="widget_inner_radius">16dp</dimen>
+    <!-- A book cover's corners: rounder than print, as M3 Expressive cards are. -->
+    <dimen name="widget_cover_radius">12dp</dimen>
+    <!-- Around the book glyph shown on the cover card when a book has no cover. -->
+    <dimen name="widget_placeholder_inset">20dp</dimen>
+</resources>

@@ -1529,4 +1529,8 @@
     <string name="define_nothing">Wähle ein Wort oder eine kurze Wendung aus, um sie nachzuschlagen.</string>
     <string name="define_pack_missing">Vayanas Offline-Wörterbuch ist noch nicht installiert: Schlage ein Wort in einem Buch nach, um es hinzuzufügen. Online nachschlagen:</string>
     <string name="define_close">Schließen</string>
+    <string name="widget_preview_title">Das Buch, das du liest</string>
+    <string name="widget_preview_author">Sein Autor</string>
+    <string name="widget_preview_progress" formatted="false">42 % gelesen</string>
+    <string name="widget_resume">Weiterlesen</string>
 </resources>

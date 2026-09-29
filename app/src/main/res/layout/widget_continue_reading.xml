@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Continue reading home-screen widget: cover, title, author, progress. RemoteViews-safe views only. -->
+<!--
+    Continue reading home-screen widget, M3 Expressive: a tonal surface on the launcher's own corners, the cover as a
+    rounded card, the progress as a primary-container pill, an emphasised title, a thick round progress bar, and a
+    filled rounded-square resume button. Narrow widgets drop the button, short ones the pill and the title's second
+    line (see ContinueReadingWidgetUpdater). RemoteViews-safe views only.
+    The sample texts are what the widget picker's preview shows; the app replaces them when it draws the widget.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
+    android:clipToOutline="true"
     android:padding="14dp">
 
     <LinearLayout
@@ -16,74 +23,103 @@
 
         <ImageView
             android:id="@+id/widget_cover"
-            android:layout_width="64dp"
-            android:layout_height="96dp"
+            android:layout_width="68dp"
+            android:layout_height="102dp"
             android:background="@drawable/widget_cover_background"
             android:clipToOutline="true"
             android:contentDescription="@null"
-            android:scaleType="centerCrop" />
+            android:padding="@dimen/widget_placeholder_inset"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_widget_book" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
+            android:layout_marginStart="16dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/widget_progress_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/library_continue_reading"
-                android:textColor="@color/widget_accent"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+                android:layout_marginBottom="6dp"
+                android:background="@drawable/widget_chip"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="2dp"
+                android:text="@string/widget_preview_progress"
+                android:textColor="@color/widget_on_primary_container"
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/widget_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:lineSpacingMultiplier="0.95"
                 android:maxLines="2"
-                android:textColor="@color/widget_text"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:text="@string/widget_preview_title"
+                android:textColor="@color/widget_on_surface"
+                android:textSize="17sp" />
 
             <TextView
                 android:id="@+id/widget_author"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/widget_text_secondary"
+                android:text="@string/widget_preview_author"
+                android:textColor="@color/widget_on_surface_variant"
                 android:textSize="13sp" />
 
             <ProgressBar
                 android:id="@+id/widget_progress"
                 style="@android:style/Widget.ProgressBar.Horizontal"
                 android:layout_width="match_parent"
-                android:layout_height="6dp"
+                android:layout_height="8dp"
                 android:layout_marginTop="10dp"
                 android:max="100"
+                android:progress="42"
                 android:progressDrawable="@drawable/widget_progress" />
-
-            <TextView
-                android:id="@+id/widget_progress_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="12sp" />
         </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_resume"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/widget_button"
+            android:contentDescription="@string/widget_resume"
+            android:padding="16dp"
+            android:src="@drawable/ic_widget_resume" />
     </LinearLayout>
 
-    <TextView
+    <LinearLayout
         android:id="@+id/widget_empty"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:text="@string/widget_empty"
-        android:textColor="@color/widget_text_secondary"
-        android:textSize="14sp"
-        android:visibility="gone" />
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/widget_icon_background"
+            android:contentDescription="@null"
+            android:padding="12dp"
+            android:src="@drawable/ic_widget_book" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/widget_empty"
+            android:textColor="@color/widget_on_surface_variant"
+            android:textSize="14sp" />
+    </LinearLayout>
 </FrameLayout>
