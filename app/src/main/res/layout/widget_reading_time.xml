@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Reading time home-screen widget: today's total across devices, the last seven days as a line chart with gridlines
+    and the week's average as a dashed line. The chart is two alpha masks the app draws; tinting them here from the
+    widget's colour roles keeps them in step with dark mode and the wallpaper's colours. RemoteViews-safe views only.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_reading_today"
+                android:textColor="@color/widget_on_surface_variant"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/reading_today"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:text="@string/widget_reading_preview_today"
+                android:textColor="@color/widget_on_surface"
+                android:textSize="24sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/reading_average"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_chip"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="3dp"
+            android:text="@string/widget_reading_preview_average"
+            android:textColor="@color/widget_on_primary_container"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- android:tint, not app:tint: the launcher inflates widgets without AppCompat. -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1">
+
+        <ImageView
+            android:id="@+id/reading_chart_frame"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_reading_preview_frame"
+            android:tint="@color/widget_on_surface_variant"
+            tools:ignore="UseAppTint" />
+
+        <ImageView
+            android:id="@+id/reading_chart_line"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_reading_preview_line"
+            android:tint="@color/widget_primary"
+            tools:ignore="UseAppTint" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/reading_days"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal">
+
+        <TextView android:id="@+id/reading_day_0" style="@style/WidgetDayLabel" />
+        <TextView android:id="@+id/reading_day_1" style="@style/WidgetDayLabel" />
+        <TextView android:id="@+id/reading_day_2" style="@style/WidgetDayLabel" />
+        <TextView android:id="@+id/reading_day_3" style="@style/WidgetDayLabel" />
+        <TextView android:id="@+id/reading_day_4" style="@style/WidgetDayLabel" />
+        <TextView android:id="@+id/reading_day_5" style="@style/WidgetDayLabel" />
+        <TextView
+            android:id="@+id/reading_day_6"
+            style="@style/WidgetDayLabel"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/widget_primary" />
+    </LinearLayout>
+</LinearLayout>

@@ -1544,4 +1544,11 @@
     <string name="widget_progress_style">Progress bar</string>
     <string name="widget_progress_flat">Flat</string>
     <string name="widget_progress_squiggly">Squiggly</string>
+    <string name="widget_reading_title">Reading time</string>
+    <string name="widget_reading_description">Today’s reading time across your devices, and the last 7 days as a chart.</string>
+    <string name="widget_reading_today">Today</string>
+    <string name="widget_reading_average">Avg %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">Avg 42m</string>
+    <string name="widget_reading_chart_description">Reading time over the last 7 days; average %1$s a day</string>
 </resources>

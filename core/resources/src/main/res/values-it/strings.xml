@@ -1560,4 +1560,11 @@
     <string name="widget_progress_style">Barra di avanzamento</string>
     <string name="widget_progress_flat">Piatta</string>
     <string name="widget_progress_squiggly">Ondulata</string>
+    <string name="widget_reading_title">Tempo di lettura</string>
+    <string name="widget_reading_description">Il tempo di lettura di oggi su tutti i dispositivi e gli ultimi 7 giorni in un grafico.</string>
+    <string name="widget_reading_today">Oggi</string>
+    <string name="widget_reading_average">Media %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">Media 42m</string>
+    <string name="widget_reading_chart_description">Tempo di lettura degli ultimi 7 giorni; media di %1$s al giorno</string>
 </resources>

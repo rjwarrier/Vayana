@@ -20,6 +20,9 @@ interface ReadingSessionRepository {
     fun observeAll(): Flow<List<ReadingSession>>
     fun observeForBook(bookId: Long): Flow<List<ReadingSession>>
 
+    /** Sessions (this device's and synced ones) started at or after [since], epoch millis. */
+    fun observeSince(since: Long): Flow<List<ReadingSession>>
+
     /** Records a finished session. Callers should drop sessions that never really started (0s). */
     suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long? = null)
 

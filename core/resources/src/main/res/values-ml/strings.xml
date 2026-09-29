@@ -1544,4 +1544,11 @@
     <string name="widget_progress_style">പുരോഗതി ബാർ</string>
     <string name="widget_progress_flat">നേർ</string>
     <string name="widget_progress_squiggly">തിരമാല</string>
+    <string name="widget_reading_title">വായനാ സമയം</string>
+    <string name="widget_reading_description">എല്ലാ ഉപകരണങ്ങളിലെയും ഇന്നത്തെ വായനാ സമയവും കഴിഞ്ഞ 7 ദിവസത്തെ ചാർട്ടും.</string>
+    <string name="widget_reading_today">ഇന്ന്</string>
+    <string name="widget_reading_average">ശരാശരി %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">ശരാശരി 42m</string>
+    <string name="widget_reading_chart_description">കഴിഞ്ഞ 7 ദിവസത്തെ വായനാ സമയം; ദിവസം ശരാശരി %1$s</string>
 </resources>

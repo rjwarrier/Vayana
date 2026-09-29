@@ -1560,4 +1560,11 @@
     <string name="widget_progress_style">Barra de progresso</string>
     <string name="widget_progress_flat">Reta</string>
     <string name="widget_progress_squiggly">Ondulada</string>
+    <string name="widget_reading_title">Tempo de leitura</string>
+    <string name="widget_reading_description">Seu tempo de leitura de hoje em todos os dispositivos e os últimos 7 dias em um gráfico.</string>
+    <string name="widget_reading_today">Hoje</string>
+    <string name="widget_reading_average">Média %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">Média 42m</string>
+    <string name="widget_reading_chart_description">Tempo de leitura dos últimos 7 dias; média de %1$s por dia</string>
 </resources>

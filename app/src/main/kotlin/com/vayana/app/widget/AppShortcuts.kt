@@ -94,14 +94,15 @@ class AppShortcuts @Inject constructor(
     companion object {
         const val ActionFreeBooks = "com.vayana.app.FREE_BOOKS"
         const val ActionSearch = "com.vayana.app.SEARCH"
+        const val ActionStatistics = "com.vayana.app.STATISTICS"
         private const val IdContinue = "continue_reading"
         private const val IdFreeBooks = "free_books"
         private const val IdSearch = "search"
     }
 }
 
-/** Screens a launcher shortcut asked for, waiting for the app's navigation. */
-enum class ShortcutDestination { FREE_BOOKS, SEARCH }
+/** Screens a launcher shortcut (or a widget) asked for, waiting for the app's navigation. */
+enum class ShortcutDestination { FREE_BOOKS, SEARCH, STATISTICS }
 
 @Singleton
 class ShortcutRequests @Inject constructor() {

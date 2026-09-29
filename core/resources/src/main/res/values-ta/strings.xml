@@ -1544,4 +1544,11 @@
     <string name="widget_progress_style">முன்னேற்றப் பட்டை</string>
     <string name="widget_progress_flat">நேர்</string>
     <string name="widget_progress_squiggly">அலை</string>
+    <string name="widget_reading_title">வாசிப்பு நேரம்</string>
+    <string name="widget_reading_description">எல்லாச் சாதனங்களிலும் இன்றைய வாசிப்பு நேரம், கடந்த 7 நாட்களின் வரைபடம்.</string>
+    <string name="widget_reading_today">இன்று</string>
+    <string name="widget_reading_average">சராசரி %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">சராசரி 42m</string>
+    <string name="widget_reading_chart_description">கடந்த 7 நாட்களின் வாசிப்பு நேரம்; நாளொன்றுக்குச் சராசரி %1$s</string>
 </resources>

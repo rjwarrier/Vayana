@@ -102,10 +102,16 @@ fun VayanaAppRoot() {
         val shortcutRequest by settingsViewModel.shortcutRequest.collectAsStateWithLifecycle()
         LaunchedEffect(shortcutRequest) {
             val destination = shortcutRequest ?: return@LaunchedEffect
-            navController.navigateToTopLevel(TopLevelRoute.Library)
             when (destination) {
-                ShortcutDestination.FREE_BOOKS -> navController.navigate(GutenbergRoute) { launchSingleTop = true }
-                ShortcutDestination.SEARCH -> navController.navigate(SearchRoute) { launchSingleTop = true }
+                ShortcutDestination.FREE_BOOKS -> {
+                    navController.navigateToTopLevel(TopLevelRoute.Library)
+                    navController.navigate(GutenbergRoute) { launchSingleTop = true }
+                }
+                ShortcutDestination.SEARCH -> {
+                    navController.navigateToTopLevel(TopLevelRoute.Library)
+                    navController.navigate(SearchRoute) { launchSingleTop = true }
+                }
+                ShortcutDestination.STATISTICS -> navController.navigateToTopLevel(TopLevelRoute.Statistics)
             }
             settingsViewModel.consumeShortcutRequest(destination)
         }

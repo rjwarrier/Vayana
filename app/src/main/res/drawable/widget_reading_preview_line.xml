@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's stand-in for the week's reading line. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="280dp"
+    android:height="60dp"
+    android:viewportWidth="280"
+    android:viewportHeight="60">
+    <path
+        android:pathData="M20,40C40,40 40,24 60,24C80,24 80,46 100,46C120,46 120,18 140,18C160,18 160,30 180,30C200,30 200,12 220,12C240,12 240,20 260,20"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="3" />
+</vector>

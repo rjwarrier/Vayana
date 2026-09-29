@@ -1576,4 +1576,11 @@
     <string name="widget_progress_style">Индикатор прогресса</string>
     <string name="widget_progress_flat">Прямой</string>
     <string name="widget_progress_squiggly">Волнистый</string>
+    <string name="widget_reading_title">Время чтения</string>
+    <string name="widget_reading_description">Время чтения за сегодня на всех устройствах и график за последние 7 дней.</string>
+    <string name="widget_reading_today">Сегодня</string>
+    <string name="widget_reading_average">В среднем %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">В среднем 42m</string>
+    <string name="widget_reading_chart_description">Время чтения за последние 7 дней; в среднем %1$s в день</string>
 </resources>

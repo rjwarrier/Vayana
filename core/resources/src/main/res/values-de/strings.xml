@@ -1544,4 +1544,11 @@
     <string name="widget_progress_style">Fortschrittsbalken</string>
     <string name="widget_progress_flat">Gerade</string>
     <string name="widget_progress_squiggly">Wellig</string>
+    <string name="widget_reading_title">Lesezeit</string>
+    <string name="widget_reading_description">Deine heutige Lesezeit auf allen Geräten und die letzten 7 Tage als Diagramm.</string>
+    <string name="widget_reading_today">Heute</string>
+    <string name="widget_reading_average">Ø %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">Ø 42m</string>
+    <string name="widget_reading_chart_description">Lesezeit der letzten 7 Tage; im Schnitt %1$s pro Tag</string>
 </resources>

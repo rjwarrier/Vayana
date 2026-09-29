@@ -1560,4 +1560,11 @@
     <string name="widget_progress_style">Barre de progression</string>
     <string name="widget_progress_flat">Droite</string>
     <string name="widget_progress_squiggly">Ondulée</string>
+    <string name="widget_reading_title">Temps de lecture</string>
+    <string name="widget_reading_description">Votre temps de lecture du jour sur tous vos appareils, et les 7 derniers jours en graphique.</string>
+    <string name="widget_reading_today">Aujourd’hui</string>
+    <string name="widget_reading_average">Moy. %1$s</string>
+    <string name="widget_reading_preview_today">1h 12m</string>
+    <string name="widget_reading_preview_average">Moy. 42m</string>
+    <string name="widget_reading_chart_description">Temps de lecture des 7 derniers jours ; moyenne de %1$s par jour</string>
 </resources>

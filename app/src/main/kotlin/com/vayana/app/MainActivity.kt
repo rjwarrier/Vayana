@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
                 }
             AppShortcuts.ActionFreeBooks -> shortcutRequests.offer(ShortcutDestination.FREE_BOOKS)
             AppShortcuts.ActionSearch -> shortcutRequests.offer(ShortcutDestination.SEARCH)
+            AppShortcuts.ActionStatistics -> shortcutRequests.offer(ShortcutDestination.STATISTICS)
             else -> incomingBookFiles.offer(intent.incomingBookUris())
         }
     }

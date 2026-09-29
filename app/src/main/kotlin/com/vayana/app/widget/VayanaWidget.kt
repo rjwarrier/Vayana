@@ -79,4 +79,8 @@ abstract class WidgetModule {
     @Binds
     @IntoSet
     abstract fun continueReading(widget: ContinueReadingWidgetUpdater): VayanaWidget
+
+    @Binds
+    @IntoSet
+    abstract fun readingTime(widget: ReadingTimeWidgetUpdater): VayanaWidget
 }

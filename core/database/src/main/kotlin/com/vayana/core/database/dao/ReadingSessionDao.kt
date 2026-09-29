@@ -18,6 +18,10 @@ interface ReadingSessionDao {
     @Query("SELECT * FROM reading_sessions ORDER BY startedAt DESC")
     fun observeAll(): Flow<List<ReadingSessionEntity>>
 
+    /** Sessions started at or after [since]: a few days' worth, where watching them all would reread years. */
+    @Query("SELECT * FROM reading_sessions WHERE startedAt >= :since ORDER BY startedAt ASC")
+    fun observeSince(since: Long): Flow<List<ReadingSessionEntity>>
+
     @Query("SELECT * FROM reading_sessions WHERE bookId = :bookId ORDER BY startedAt DESC")
     fun observeForBook(bookId: Long): Flow<List<ReadingSessionEntity>>
 
