@@ -43,6 +43,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -390,7 +392,17 @@ private fun Cover(url: String, title: String, actions: GutenbergActions, modifie
 private fun BookSheet(state: GutenbergBookState, actions: GutenbergActions) {
     val context = LocalContext.current
     val appLocale = LocalConfiguration.current.locales[0]
-    ModalBottomSheet(onDismissRequest = actions.close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    // While a book downloads, only its Cancel button stops it: a stray swipe or tap outside doesn't.
+    val downloading by rememberUpdatedState(state is GutenbergBookState.Loaded && state.download?.failed == false)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden || !downloading },
+    )
+    ModalBottomSheet(
+        onDismissRequest = { if (!downloading) actions.close() },
+        sheetState = sheetState,
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = !downloading),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

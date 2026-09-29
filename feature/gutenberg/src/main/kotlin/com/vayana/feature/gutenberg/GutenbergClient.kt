@@ -18,6 +18,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
@@ -53,25 +54,31 @@ class GutenbergClient @Inject constructor(
         runCatching { GutenbergFeeds.parseListing(xml) }.getOrNull()
     }
 
-    /** Whether [url] was fetched in the last few minutes, so what [savedListing] gives needs no refresh. */
-    fun isFresh(url: String): Boolean = pages.get(url)?.let { System.currentTimeMillis() - it.first < PageCacheMillis } == true
+    /**
+     * Whether [url] was fetched in the last few minutes (this run or, on disk, the last), so what [savedListing] gives
+     * needs no refresh.
+     */
+    suspend fun isFresh(url: String): Boolean {
+        val now = System.currentTimeMillis()
+        pages.get(url)?.let { return now - it.first < PageCacheMillis }
+        return withContext(dispatchers.io) { pageFile(url).lastModified().let { it > 0 && now - it < PageCacheMillis } }
+    }
 
-    suspend fun listing(url: String): GutenbergListing = GutenbergFeeds.parseListing(page(url))
+    // Parsed off the main thread too: a list page is some 50 KB of XML.
+    suspend fun listing(url: String): GutenbergListing = withContext(dispatchers.io) { GutenbergFeeds.parseListing(page(url)) }
 
     /**
      * A book's page. Its editions and sizes hardly ever change, so one saved in the last month is used as it is; an
      * older one only when gutenberg.org can't be reached.
      */
-    suspend fun book(id: Long): GutenbergBook? {
+    suspend fun book(id: Long): GutenbergBook? = withContext(dispatchers.io) {
         val url = GutenbergFeeds.bookUrl(id)
-        val saved = withContext(dispatchers.io) { savedPage(url, maxAgeMillis = BookPageMaxAgeMillis) }
-        if (saved != null) return GutenbergFeeds.parseBook(saved, id)
-        val xml = try {
+        val xml = savedPage(url, maxAgeMillis = BookPageMaxAgeMillis) ?: try {
             page(url)
         } catch (error: IOException) {
-            withContext(dispatchers.io) { savedPage(url) } ?: throw error
+            savedPage(url) ?: throw error
         }
-        return GutenbergFeeds.parseBook(xml, id)
+        GutenbergFeeds.parseBook(xml, id)
     }
 
     /** A cover, or null when the book has none (Gutenberg answers 404) or it can't be fetched right now. */
@@ -80,7 +87,11 @@ class GutenbergClient @Inject constructor(
         if (url in missingCovers) return null
         val saved = coverFile(url)
         withContext(dispatchers.io) {
-            if (saved.isFile) BitmapFactory.decodeFile(saved.path)?.asImageBitmap()?.also { covers.put(url, it) } else null
+            BitmapFactory.decodeFile(saved.path)?.asImageBitmap()?.also {
+                covers.put(url, it)
+                // Trimming drops the least recently used covers, not the ones saved first.
+                saved.setLastModified(System.currentTimeMillis())
+            }
         }?.let { return it }
         return coverDownloads.withPermit {
             covers.get(url) ?: withContext(dispatchers.io) {
@@ -113,6 +124,8 @@ class GutenbergClient @Inject constructor(
         if (edition.sizeBytes != null && target.length() == edition.sizeBytes) return@withContext target
         try {
             open(edition.url).useConnection { connection ->
+                // Cancelling closes the connection, so a read waiting on a slow server stops at once.
+                val closeOnCancel = currentCoroutineContext()[Job]?.invokeOnCompletion { connection.disconnect() }
                 val total = connection.contentLengthLong.takeIf { it > 0 } ?: edition.sizeBytes ?: -1L
                 if (total > MaxBookBytes) throw IOException("Book is too large")
                 connection.inputStream.use { input ->
@@ -136,6 +149,7 @@ class GutenbergClient @Inject constructor(
                         }
                     }
                 }
+                closeOnCancel?.dispose()
             }
             if (!part.renameTo(target)) throw IOException("Could not save the book")
             target
@@ -181,8 +195,10 @@ class GutenbergClient @Inject constructor(
                 temporary.delete()
                 return
             }
+            // Names only (no stat per file) until the folder is well over its limit; then trim back to it.
+            if ((directory.list()?.size ?: 0) <= maxFiles + TrimSlack) return
             val saved = directory.listFiles()?.filter { it.isFile } ?: return
-            if (saved.size > maxFiles) saved.sortedBy { it.lastModified() }.take(saved.size - maxFiles).forEach { it.delete() }
+            saved.sortedBy { it.lastModified() }.take(saved.size - maxFiles).forEach { it.delete() }
         }
     }
 
@@ -254,6 +270,7 @@ class GutenbergClient @Inject constructor(
         private const val MaxSavedPages = 80
         private const val MaxSavedCovers = 400
         private const val KeyLength = 32
+        private const val TrimSlack = 20
         private const val BookPageMaxAgeMillis = 30L * 24 * 60 * 60 * 1000
         private const val UserAgent = "Vayana/1.0 (https://github.com/rjwarrier/Vayana)"
         private const val TimeoutMillis = 20_000
