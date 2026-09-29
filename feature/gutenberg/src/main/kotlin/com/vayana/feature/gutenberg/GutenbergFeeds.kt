@@ -109,11 +109,12 @@ object GutenbergFeeds {
     }
 
     private fun parse(xml: String): Element {
+        // Feeds come from the network: no DTDs, so no entities. Checked here because Android's parser rejects the
+        // Xerces feature that would do it (setFeature throws), which made every feed fail to load on the phone.
+        if (DoctypeRegex.containsMatchIn(xml)) throw IllegalArgumentException("Feed has a DTD")
         val factory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
-            // Feeds come from the network: no external entities or DTDs.
-            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-            isExpandEntityReferences = false
+            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
         }
         return factory.newDocumentBuilder().parse(InputSource(StringReader(xml))).documentElement
     }
@@ -144,6 +145,7 @@ object GutenbergFeeds {
     private const val EpubType = "application/epub+zip"
     private val BookIdRegex = Regex("/ebooks/(\\d+)\\.opds")
     private val WhitespaceRegex = Regex("\\s+")
+    private val DoctypeRegex = Regex("<!(DOCTYPE|ENTITY)", RegexOption.IGNORE_CASE)
 }
 
 /** Gutenberg's own lists, by what its catalogue sorts on. */

@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /** Against feeds saved from gutenberg.org (search, the Popular list, Pride and Prejudice's book page). */
@@ -60,5 +61,11 @@ class GutenbergFeedsTest {
     @Test
     fun searchQueriesAreEncoded() {
         assertEquals("https://www.gutenberg.org/ebooks/search.opds/?query=pride+%26+prejudice", GutenbergFeeds.searchUrl(" pride & prejudice "))
+    }
+
+    @Test
+    fun feedsWithADtdAreRefused() {
+        val xml = "<?xml version=\"1.0\"?><!DOCTYPE feed [<!ENTITY x \"y\">]><feed xmlns=\"http://www.w3.org/2005/Atom\"/>"
+        assertFailsWith<IllegalArgumentException> { GutenbergFeeds.parseListing(xml) }
     }
 }

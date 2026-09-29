@@ -1,6 +1,7 @@
 package com.vayana.feature.gutenberg
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.IncomingBookFiles
@@ -73,7 +74,10 @@ class GutenbergViewModel @Inject constructor(
             }
             runCatchingCancellable { client.listing(url) }
                 .onSuccess { listing -> _list.update { it.copy(books = listing.books, nextUrl = listing.nextUrl, loading = false) } }
-                .onFailure { _list.update { it.copy(loading = false, failed = true) } }
+                .onFailure { error ->
+                    Log.w(Tag, "Couldn't load $url", error)
+                    _list.update { it.copy(loading = false, failed = true) }
+                }
         }
     }
 
@@ -105,7 +109,9 @@ class GutenbergViewModel @Inject constructor(
         bookJob?.cancel()
         _book.value = GutenbergBookState.Loading(summary)
         bookJob = viewModelScope.launch {
-            val book = runCatchingCancellable { client.book(summary.id) }.getOrNull()
+            val book = runCatchingCancellable { client.book(summary.id) }
+                .onFailure { Log.w(Tag, "Couldn't load book ${summary.id}", it) }
+                .getOrNull()
             _book.value = if (book == null) GutenbergBookState.Failed(summary) else GutenbergBookState.Loaded(book)
         }
     }
@@ -132,7 +138,8 @@ class GutenbergViewModel @Inject constructor(
                 incomingBookFiles.offer(listOf(Uri.fromFile(file)))
                 _book.value = GutenbergBookState.Hidden
                 _imported.tryEmit(Unit)
-            }.onFailure {
+            }.onFailure { error ->
+                Log.w(Tag, "Couldn't download ${edition.url}", error)
                 _book.value = loaded.copy(download = GutenbergDownload(edition.kind, progress = null, failed = true))
             }
         }
@@ -147,4 +154,8 @@ class GutenbergViewModel @Inject constructor(
     suspend fun cover(url: String) = client.cover(url)
 
     fun cachedCover(url: String) = client.cachedCover(url)
+
+    private companion object {
+        const val Tag = "Gutenberg"
+    }
 }
