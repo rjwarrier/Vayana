@@ -58,6 +58,9 @@ data object ShelvesRoute
 data object OfflineBooksRoute
 
 @Serializable
+data object GutenbergRoute
+
+@Serializable
 data class ShelfDetailRoute(val shelfId: Long)
 
 @Serializable
@@ -116,6 +119,7 @@ internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boo
             hasRoute(RecentlyDeletedRoute::class) ||
             hasRoute(ShelvesRoute::class) ||
             hasRoute(OfflineBooksRoute::class) ||
+            hasRoute(GutenbergRoute::class) ||
             hasRoute(ShelfDetailRoute::class) ||
             hasRoute(SeriesFolderRoute::class) ||
             hasRoute(BookDetailRoute::class)

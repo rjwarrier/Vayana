@@ -32,6 +32,7 @@ import com.vayana.core.designsystem.theme.vayanaSharedElementCrossfadeEnter
 import com.vayana.core.designsystem.theme.vayanaSharedElementCrossfadeExit
 import com.vayana.core.designsystem.theme.vayanaNavTabEnter
 import com.vayana.core.designsystem.theme.vayanaNavTabExit
+import com.vayana.feature.gutenberg.GutenbergRoute as GutenbergScreenRoute
 import com.vayana.feature.library.OfflineBooksRoute as OfflineBooksScreenRoute
 import com.vayana.feature.library.RecentlyDeletedRoute as RecentlyDeletedScreenRoute
 import com.vayana.feature.library.LibraryAddAction
@@ -144,6 +145,7 @@ fun VayanaNavHost(
                 onRecentlyDeletedClick = { navController.navigate(RecentlyDeletedRoute) },
                 onShelvesClick = { navController.navigate(ShelvesRoute) },
                 onOfflineBooksClick = { navController.navigate(OfflineBooksRoute) },
+                onFreeBooksClick = { navController.navigate(GutenbergRoute) },
                 onContinueReading = { bookId, locator ->
                     navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
                 },
@@ -204,6 +206,13 @@ fun VayanaNavHost(
             RecentlyDeletedScreenRoute(
                 onBack = { navController.popBackStack() },
                 viewModel = navController.sharedLibraryViewModel(backStackEntry),
+            )
+        }
+        composable<GutenbergRoute> {
+            GutenbergScreenRoute(
+                onBack = { navController.popBackStack() },
+                // The library shows the import's progress and the new book.
+                onImported = { navController.popBackStack() },
             )
         }
         composable<OfflineBooksRoute> { backStackEntry ->

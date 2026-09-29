@@ -1,4 +1,4 @@
-package com.vayana.feature.library
+package com.vayana.core.common
 
 import android.content.Intent
 import android.net.Uri

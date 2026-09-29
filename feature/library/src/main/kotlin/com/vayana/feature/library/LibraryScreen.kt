@@ -47,6 +47,8 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.outlined.LocalLibrary
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MoreVert
@@ -146,6 +148,7 @@ import com.vayana.core.database.model.normalizedBookTag
 enum class LibraryAddAction {
     IMPORT_FILES,
     IMPORT_FOLDER,
+    FREE_BOOKS,
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -160,6 +163,7 @@ fun LibraryRoute(
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     onOfflineBooksClick: () -> Unit,
+    onFreeBooksClick: () -> Unit = {},
     addBookAction: LibraryAddAction? = null,
     onAddBookActionHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -194,6 +198,7 @@ fun LibraryRoute(
         onCloudBookDownloadProgressDismissed = viewModel::onCloudBookDownloadProgressDismissed,
         onImportFiles = viewModel::importFiles,
         onImportFolder = viewModel::importFolder,
+        onFreeBooksClick = onFreeBooksClick,
         addBookAction = addBookAction,
         onAddBookActionHandled = onAddBookActionHandled,
         onBookClick = onBookClick,
@@ -238,6 +243,7 @@ private fun LibraryScreen(
     onCloudBookDownloadProgressDismissed: () -> Unit,
     onImportFiles: (android.content.ContentResolver, List<Uri>) -> Unit,
     onImportFolder: (android.content.ContentResolver, Uri) -> Unit,
+    onFreeBooksClick: () -> Unit,
     addBookAction: LibraryAddAction?,
     onAddBookActionHandled: () -> Unit,
     onBookClick: (Long, BookOpenTransitionSource) -> Unit,
@@ -286,6 +292,7 @@ private fun LibraryScreen(
         when (addBookAction ?: return@LaunchedEffect) {
             LibraryAddAction.IMPORT_FILES -> filesPicker.launch(arrayOf("*/*"))
             LibraryAddAction.IMPORT_FOLDER -> folderPicker.launch(null)
+            LibraryAddAction.FREE_BOOKS -> onFreeBooksClick()
         }
         onAddBookActionHandled()
     }
@@ -476,6 +483,7 @@ private fun LibraryScreen(
                     showAddAction = LocalFloatingNavigationInset.current == 0.dp,
                     onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                     onImportFolder = { folderPicker.launch(null) },
+                    onFreeBooksClick = onFreeBooksClick,
                     onSettingsClick = onSettingsClick,
                     showSettingsAction = showSettingsAction,
                     onSearchClick = onSearchClick,
@@ -499,6 +507,7 @@ private fun LibraryScreen(
                 hasControls = uiState.controls != LibraryControls(),
                 onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
                 onImportFolder = { folderPicker.launch(null) },
+                onFreeBooks = onFreeBooksClick,
             )
         } else {
             when (uiState.controls.viewMode) {
@@ -656,6 +665,7 @@ private fun LibraryTopBar(
     onSyncNow: (GitHubSyncMode) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
+    onFreeBooksClick: () -> Unit,
     onSettingsClick: () -> Unit,
     showSettingsAction: Boolean,
     onSearchClick: () -> Unit,
@@ -764,6 +774,11 @@ private fun LibraryTopBar(
                                                 label = stringResource(R.string.library_import_folder),
                                                 icon = Icons.Outlined.CreateNewFolder,
                                                 onClick = onImportFolder,
+                                            ),
+                                            VayanaMenuItem(
+                                                label = stringResource(R.string.library_free_books),
+                                                icon = Icons.Outlined.LocalLibrary,
+                                                onClick = onFreeBooksClick,
                                             ),
                                         ),
                                     ),
@@ -1864,6 +1879,7 @@ private fun LibraryEmptyState(
     hasControls: Boolean,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
+    onFreeBooks: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1915,6 +1931,19 @@ private fun LibraryEmptyState(
                 )
                 Spacer(modifier = Modifier.width(Spacing.sm))
                 Text(text = stringResource(R.string.library_import_folder))
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            TextButton(
+                onClick = onFreeBooks,
+                modifier = Modifier.fillMaxWidth(0.7f),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.LocalLibrary,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.icon),
+                )
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text(text = stringResource(R.string.library_free_books))
             }
         }
     }

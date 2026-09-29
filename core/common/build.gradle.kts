@@ -13,4 +13,5 @@ dependencies {
     implementation("javax.inject:javax.inject:1")
 
     testImplementation(kotlin("test"))
+    testImplementation("org.robolectric:robolectric:4.13")
 }

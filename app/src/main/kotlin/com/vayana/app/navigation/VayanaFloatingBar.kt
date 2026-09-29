@@ -42,6 +42,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.LocalLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -703,6 +704,13 @@ private fun AddBookDropdownMenu(
             modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
             contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
             onClick = { onAction(LibraryAddAction.IMPORT_FOLDER) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(com.vayana.core.resources.R.string.library_free_books)) },
+            leadingIcon = { AddBookMenuIcon(Icons.Outlined.LocalLibrary) },
+            modifier = Modifier.heightIn(min = Sizes.menuItemLargeHeight),
+            contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
+            onClick = { onAction(LibraryAddAction.FREE_BOOKS) },
         )
     }
 }

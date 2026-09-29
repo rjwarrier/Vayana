@@ -9,7 +9,7 @@ import com.vayana.core.datastore.settings.NavigationMode
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.app.widget.OpenBookRequests
-import com.vayana.feature.library.IncomingBookFiles
+import com.vayana.core.common.IncomingBookFiles
 import com.vayana.feature.library.RecentlyDeletedAutoPurge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject

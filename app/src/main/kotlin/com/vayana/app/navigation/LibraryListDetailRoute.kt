@@ -61,6 +61,7 @@ fun LibraryListDetailRoute(
     onRecentlyDeletedClick: () -> Unit,
     onShelvesClick: () -> Unit,
     onOfflineBooksClick: () -> Unit,
+    onFreeBooksClick: () -> Unit,
     onContinueReading: (Long, String?) -> Unit,
     addBookAction: LibraryAddAction?,
     onAddBookActionHandled: () -> Unit,
@@ -87,6 +88,7 @@ fun LibraryListDetailRoute(
                 onRecentlyDeletedClick = onRecentlyDeletedClick,
                 onShelvesClick = onShelvesClick,
                 onOfflineBooksClick = onOfflineBooksClick,
+                onFreeBooksClick = onFreeBooksClick,
                 addBookAction = addBookAction,
                 onAddBookActionHandled = onAddBookActionHandled,
             )
@@ -117,7 +119,8 @@ fun LibraryListDetailRoute(
                     onSearchClick = onSearchClick,
                     onRecentlyDeletedClick = onRecentlyDeletedClick,
                     onShelvesClick = onShelvesClick,
-                onOfflineBooksClick = onOfflineBooksClick,
+                    onOfflineBooksClick = onOfflineBooksClick,
+                    onFreeBooksClick = onFreeBooksClick,
                     addBookAction = addBookAction,
                     onAddBookActionHandled = onAddBookActionHandled,
                 )

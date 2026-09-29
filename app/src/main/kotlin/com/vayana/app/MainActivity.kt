@@ -13,8 +13,8 @@ import com.vayana.app.widget.OpenBookRequests
 import com.vayana.core.common.AppLanguage
 import com.vayana.core.designsystem.theme.EinkPageKeys
 import com.vayana.core.designsystem.theme.pageKeyDirection
-import com.vayana.feature.library.IncomingBookFiles
-import com.vayana.feature.library.incomingBookUris
+import com.vayana.core.common.IncomingBookFiles
+import com.vayana.core.common.incomingBookUris
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 

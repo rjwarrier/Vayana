@@ -102,6 +102,7 @@ dependencies {
     implementation(project(":feature:search"))
     implementation(project(":feature:help"))
     implementation(project(":feature:reminders"))
+    implementation(project(":feature:gutenberg"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
