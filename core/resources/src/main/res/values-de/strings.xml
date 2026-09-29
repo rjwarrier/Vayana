@@ -1532,5 +1532,6 @@
     <string name="widget_preview_title">Das Buch, das du liest</string>
     <string name="widget_preview_author">Sein Autor</string>
     <string name="widget_preview_progress" formatted="false">42 % gelesen</string>
-    <string name="widget_resume">Weiterlesen</string>
+    <string name="widget_read_aloud">Vorlesen</string>
+    <string name="widget_pause_read_aloud">Vorlesen pausieren</string>
 </resources>

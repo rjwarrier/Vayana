@@ -143,9 +143,7 @@ class ReadAloudForegroundService : Service() {
     }
 
     private fun action(command: ReadAloudCommand, @DrawableRes icon: Int, @StringRes label: Int): Notification.Action {
-        val intent = Intent(this, ReadAloudForegroundService::class.java)
-            .setAction(ActionCommand)
-            .putExtra(ExtraCommand, command.name)
+        val intent = commandIntent(this, command)
         val pending = PendingIntent.getService(
             this,
             CommandRequestCodeBase + command.ordinal,
@@ -168,6 +166,11 @@ class ReadAloudForegroundService : Service() {
         fun stop(context: Context) {
             context.stopService(Intent(context, ReadAloudForegroundService::class.java))
         }
+
+        internal fun commandIntent(context: Context, command: ReadAloudCommand): Intent =
+            Intent(context, ReadAloudForegroundService::class.java)
+                .setAction(ActionCommand)
+                .putExtra(ExtraCommand, command.name)
 
         private const val NotificationChannelId = "read_aloud"
         private const val NotificationId = 4_201

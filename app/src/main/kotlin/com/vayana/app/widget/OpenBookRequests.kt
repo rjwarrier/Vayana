@@ -6,18 +6,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** A book to open in the reader, asked for from outside the app (the widget), waiting for the app's navigation. */
+/** A book to open in the reader - and, from the widget's play button, to read aloud. */
+data class OpenBookRequest(val bookId: Long, val readAloud: Boolean = false)
+
+/** A book to open, asked for from outside the app (the widget, a shortcut), waiting for the app's navigation. */
 @Singleton
 class OpenBookRequests @Inject constructor() {
-    private val _pending = MutableStateFlow<Long?>(null)
-    val pending: StateFlow<Long?> = _pending.asStateFlow()
+    private val _pending = MutableStateFlow<OpenBookRequest?>(null)
+    val pending: StateFlow<OpenBookRequest?> = _pending.asStateFlow()
 
-    fun offer(bookId: Long) {
-        _pending.value = bookId
+    fun offer(request: OpenBookRequest) {
+        _pending.value = request
     }
 
-    /** Clears [bookId] once navigation has opened it, unless a newer request replaced it meanwhile. */
-    fun consume(bookId: Long) {
-        _pending.compareAndSet(bookId, null)
+    /** Clears [request] once navigation has opened it, unless a newer request replaced it meanwhile. */
+    fun consume(request: OpenBookRequest) {
+        _pending.compareAndSet(request, null)
     }
 }

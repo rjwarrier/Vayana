@@ -9,4 +9,6 @@ data class ReaderRoute(
     val targetLocator: String? = null,
     /** Open at the start of the book rather than the saved position - reading a finished book again. */
     val fromStart: Boolean = false,
+    /** Start reading aloud once the book is open: the widget's play button. */
+    val readAloud: Boolean = false,
 )

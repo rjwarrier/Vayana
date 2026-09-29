@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
+import com.vayana.app.widget.OpenBookRequest
 import com.vayana.app.widget.OpenBookRequests
 import com.vayana.app.widget.ShortcutDestination
 import com.vayana.app.widget.ShortcutRequests
@@ -60,7 +61,11 @@ class MainActivity : ComponentActivity() {
     private fun handleIncoming(intent: Intent) {
         when (intent.action) {
             ContinueReadingWidgetUpdater.ActionOpenBook ->
-                intent.getLongExtra(ContinueReadingWidgetUpdater.ExtraBookId, NoBook).takeIf { it != NoBook }?.let(openBookRequests::offer)
+                intent.getLongExtra(ContinueReadingWidgetUpdater.ExtraBookId, NoBook).takeIf { it != NoBook }?.let { bookId ->
+                    openBookRequests.offer(
+                        OpenBookRequest(bookId, readAloud = intent.getBooleanExtra(ContinueReadingWidgetUpdater.ExtraReadAloud, false)),
+                    )
+                }
             AppShortcuts.ActionFreeBooks -> shortcutRequests.offer(ShortcutDestination.FREE_BOOKS)
             AppShortcuts.ActionSearch -> shortcutRequests.offer(ShortcutDestination.SEARCH)
             else -> incomingBookFiles.offer(intent.incomingBookUris())

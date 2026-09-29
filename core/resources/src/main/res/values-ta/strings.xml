@@ -1532,5 +1532,6 @@
     <string name="widget_preview_title">நீங்கள் படிக்கும் புத்தகம்</string>
     <string name="widget_preview_author">அதன் ஆசிரியர்</string>
     <string name="widget_preview_progress" formatted="false">42% படித்தது</string>
-    <string name="widget_resume">படிப்பைத் தொடர்க</string>
+    <string name="widget_read_aloud">உரக்கப் படி</string>
+    <string name="widget_pause_read_aloud">உரக்கப் படிப்பதை இடைநிறுத்து</string>
 </resources>

@@ -170,6 +170,7 @@ enum class OnlineLookupStatus { LOOKING_UP, NOT_FOUND, FAILED }
 class ReaderViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val bookRepository: BookRepository,
+    private val readAloudStatusHolder: ReadAloudStatusHolder,
     private val annotationRepository: AnnotationRepository,
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
@@ -189,6 +190,9 @@ class ReaderViewModel @Inject constructor(
 
     /** Consumed by the first open, so a restore after process death resumes where the reader got to instead. */
     private var openFromStart: Boolean = savedStateHandle[FromStartKey] ?: false
+
+    // Opened from the widget's play button: start reading aloud once the book is open, once.
+    private var startReadAloudOnOpen: Boolean = savedStateHandle[ReadAloudKey] ?: false
 
     private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Loading)
     val uiState: StateFlow<ReaderUiState> = _uiState
@@ -400,6 +404,11 @@ class ReaderViewModel @Inject constructor(
                     // conflict that existed before this session started is caught up front,
                     // instead of reading a stretch of pages on a stale position first.
                     requestAutoProgressSync()
+                    if (startReadAloudOnOpen) {
+                        startReadAloudOnOpen = false
+                        savedStateHandle[ReadAloudKey] = false
+                        startReadAloud()
+                    }
                 }
                 .onFailure { throwable ->
                     _uiState.value = ReaderUiState.Failed(throwable.uiText(R.string.reader_error_open_failed))
@@ -1184,6 +1193,12 @@ class ReaderViewModel @Inject constructor(
             }
                 .distinctUntilChanged()
                 .collectLatest { notification ->
+                    // The widget's play/pause button follows this book's read-aloud.
+                    if (notification.active) {
+                        readAloudStatusHolder.publish(ReadAloudStatus(bookId, notification.playing))
+                    } else {
+                        readAloudStatusHolder.clear(bookId)
+                    }
                     if (notification.active) {
                         ReadAloudForegroundService.show(
                             context = appContext,
@@ -1195,6 +1210,13 @@ class ReaderViewModel @Inject constructor(
                         ReadAloudForegroundService.stop(appContext)
                     }
                 }
+        }
+        viewModelScope.launch {
+            // The widget's play button, pressed while this book is already open in the reader.
+            readAloudStatusHolder.startRequests.collect { requestedBookId ->
+                if (requestedBookId != bookId) return@collect
+                if (bookOpen) startReadAloud() else startReadAloudOnOpen = true
+            }
         }
         viewModelScope.launch {
             ReadAloudNotificationCommands.commands.collect { command ->
@@ -1458,6 +1480,7 @@ class ReaderViewModel @Inject constructor(
         autoProgressSyncJob = null
         readAloudPlayer.release()
         ReadAloudForegroundService.stop(appContext)
+        readAloudStatusHolder.clear(bookId)
     }
 
     private fun showReturnRecap(previousReadAt: Long?) {
@@ -1750,3 +1773,4 @@ internal fun readAloudProgressPercent(progression: Float?): Int? =
     progression?.times(100)?.roundToInt()?.coerceIn(0, 100)
 
 private const val FromStartKey = "fromStart"
+private const val ReadAloudKey = "readAloud"

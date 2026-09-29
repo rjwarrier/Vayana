@@ -26,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowSizeClass
 import com.vayana.app.navigation.GutenbergRoute
 import com.vayana.app.navigation.NavigationPresentation
@@ -84,12 +85,18 @@ fun VayanaAppRoot() {
         LaunchedEffect(hasIncomingBooks) {
             if (hasIncomingBooks) navController.navigateToTopLevel(TopLevelRoute.Library)
         }
-        // The home-screen widget's book, straight into the reader.
+        // The home-screen widget's book, straight into the reader - and read aloud, from its play button.
         val openBookRequest by settingsViewModel.openBookRequest.collectAsStateWithLifecycle()
         LaunchedEffect(openBookRequest) {
-            val bookId = openBookRequest ?: return@LaunchedEffect
-            navController.navigate(ReaderRoute(bookId)) { launchSingleTop = true }
-            settingsViewModel.consumeOpenBookRequest(bookId)
+            val request = openBookRequest ?: return@LaunchedEffect
+            val top = navController.currentBackStackEntry
+            val alreadyOpen = top?.destination?.hasRoute(ReaderRoute::class) == true && top.toRoute<ReaderRoute>().bookId == request.bookId
+            if (alreadyOpen) {
+                if (request.readAloud) settingsViewModel.requestReadAloud(request.bookId)
+            } else {
+                navController.navigate(ReaderRoute(request.bookId, readAloud = request.readAloud)) { launchSingleTop = true }
+            }
+            settingsViewModel.consumeOpenBookRequest(request)
         }
         // A launcher shortcut's screen, over the library it belongs to.
         val shortcutRequest by settingsViewModel.shortcutRequest.collectAsStateWithLifecycle()

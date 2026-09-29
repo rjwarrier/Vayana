@@ -19,13 +19,18 @@ import com.vayana.core.common.ApplicationScope
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.filesystem.StorageRoots
+import com.vayana.feature.reader.ReadAloudStatus
+import com.vayana.feature.reader.ReadAloudStatusHolder
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -45,6 +50,9 @@ class ContinueReadingWidget : AppWidgetProvider() {
     }
 }
 
+/** What the widget draws: the book, its read-aloud if that's running, and whether read-aloud is on in Settings. */
+private data class WidgetState(val book: WidgetBook?, val readAloud: ReadAloudStatus?, val audioEnabled: Boolean)
+
 /** What the widget shows: the most recently read book whose file is on this device, as the library's hero card does. */
 data class WidgetBook(val id: Long, val title: String, val author: String?, val coverPath: String?, val percent: Int)
 
@@ -61,58 +69,70 @@ class ContinueReadingWidgetUpdater @Inject constructor(
     private val bookRepository: BookRepository,
     private val storageRoots: StorageRoots,
     private val dispatchers: DispatcherProvider,
+    private val settingsRepository: SettingsRepository,
+    private val readAloudStatusHolder: ReadAloudStatusHolder,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
+    // The last cover drawn: play/pause redraws the widget, and needn't decode the same cover again.
+    private var cover: Pair<String, Bitmap?>? = null
+
+    private val state: Flow<WidgetState> = combine(
+        bookRepository.observeContinueReading().map { it?.toWidgetBook() },
+        readAloudStatusHolder.status,
+        settingsRepository.snapshot.map { it.readerAudioFeaturesEnabled },
+    ) { book, readAloud, audioEnabled -> WidgetState(book, readAloud?.takeIf { it.bookId == book?.id }, audioEnabled) }
+        .distinctUntilChanged()
+
     fun start() {
-        scope.launch {
-            bookRepository.observeContinueReading()
-                .map { it?.toWidgetBook() }
-                .distinctUntilChanged()
-                .collect { render(it) }
-        }
+        scope.launch { state.collect { render(it) } }
     }
 
     fun refresh(onDone: () -> Unit) {
         scope.launch {
             try {
-                render(bookRepository.observeContinueReading().first()?.toWidgetBook())
+                render(state.first())
             } finally {
                 onDone()
             }
         }
     }
 
-    private suspend fun render(book: WidgetBook?) = withContext(dispatchers.io) {
+    private suspend fun render(state: WidgetState) = withContext(dispatchers.io) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, ContinueReadingWidget::class.java))
         if (ids.isEmpty()) return@withContext
-        val cover = book?.coverPath?.let(::loadCover)
+        val book = state.book
+        val cover = book?.coverPath?.let { path ->
+            this@ContinueReadingWidgetUpdater.cover?.takeIf { it.first == path }?.second
+                ?: loadCover(path).also { this@ContinueReadingWidgetUpdater.cover = path to it }
+        }
         // From Android 12 the launcher picks the layout for the widget's size: narrow ones drop the resume button,
         // short ones the progress pill and the title's second line.
         val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             RemoteViews(
                 mapOf(
-                    SizeF(NarrowWidth, ShortHeight) to views(book, cover, narrow = true, short = true),
-                    SizeF(WideWidth, ShortHeight) to views(book, cover, narrow = false, short = true),
-                    SizeF(NarrowWidth, TallHeight) to views(book, cover, narrow = true, short = false),
-                    SizeF(WideWidth, TallHeight) to views(book, cover, narrow = false, short = false),
+                    SizeF(NarrowWidth, ShortHeight) to views(state, cover, narrow = true, short = true),
+                    SizeF(WideWidth, ShortHeight) to views(state, cover, narrow = false, short = true),
+                    SizeF(NarrowWidth, TallHeight) to views(state, cover, narrow = true, short = false),
+                    SizeF(WideWidth, TallHeight) to views(state, cover, narrow = false, short = false),
                 ),
             )
         } else {
-            views(book, cover, narrow = false, short = false)
+            views(state, cover, narrow = false, short = false)
         }
         manager.updateAppWidget(ids, views)
     }
 
-    private fun views(book: WidgetBook?, cover: Bitmap?, narrow: Boolean, short: Boolean): RemoteViews =
+    private fun views(state: WidgetState, cover: Bitmap?, narrow: Boolean, short: Boolean): RemoteViews =
         RemoteViews(context.packageName, R.layout.widget_continue_reading).apply {
+            val book = state.book
             val hasBook = book != null
             setViewVisibility(R.id.widget_book, if (hasBook) View.VISIBLE else View.GONE)
             setViewVisibility(R.id.widget_empty, if (hasBook) View.GONE else View.VISIBLE)
             // The root is the launcher's @android:id/background, so opening the app animates from the widget.
             setOnClickPendingIntent(android.R.id.background, openIntent(book?.id))
             if (book == null) return@apply
-            setViewVisibility(R.id.widget_resume, if (narrow) View.GONE else View.VISIBLE)
+            setViewVisibility(R.id.widget_resume, if (narrow || !state.audioEnabled) View.GONE else View.VISIBLE)
             setViewVisibility(R.id.widget_progress_text, if (short) View.GONE else View.VISIBLE)
             setInt(R.id.widget_title, "setMaxLines", if (short) 1 else 2)
             // A short widget (Android 12+ only) gets a smaller cover, still 2:3, rather than a squashed one.
@@ -120,7 +140,21 @@ class ContinueReadingWidgetUpdater @Inject constructor(
                 setViewLayoutWidth(R.id.widget_cover, ShortCoverWidthDp, TypedValue.COMPLEX_UNIT_DIP)
                 setViewLayoutHeight(R.id.widget_cover, ShortCoverWidthDp * CoverAspect, TypedValue.COMPLEX_UNIT_DIP)
             }
-            setOnClickPendingIntent(R.id.widget_resume, openIntent(book.id))
+            // Play/pause read-aloud: pauses or resumes it in place while it runs; otherwise opens the book and starts it.
+            val speaking = state.readAloud?.playing == true
+            setImageViewResource(R.id.widget_resume, if (speaking) R.drawable.ic_widget_pause else R.drawable.ic_widget_resume)
+            setContentDescription(
+                R.id.widget_resume,
+                context.getString(if (speaking) Res.string.widget_pause_read_aloud else Res.string.widget_read_aloud),
+            )
+            setOnClickPendingIntent(
+                R.id.widget_resume,
+                if (state.readAloud != null) {
+                    ReadAloudStatusHolder.playPauseIntent(context, play = !speaking)
+                } else {
+                    openIntent(book.id, readAloud = true)
+                },
+            )
             setTextViewText(R.id.widget_title, book.title)
             setTextViewText(R.id.widget_author, book.author.orEmpty())
             setViewVisibility(R.id.widget_author, if (book.author.isNullOrBlank()) View.GONE else View.VISIBLE)
@@ -137,13 +171,20 @@ class ContinueReadingWidgetUpdater @Inject constructor(
             }
         }
 
-    /** Opens the book in the reader; with no book yet, just the app. */
-    private fun openIntent(bookId: Long?): PendingIntent {
+    /** Opens the book in the reader (and, with [readAloud], starts reading it aloud); with no book yet, just the app. */
+    private fun openIntent(bookId: Long?, readAloud: Boolean = false): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .setAction(ActionOpenBook)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(ExtraReadAloud, readAloud)
         bookId?.let { intent.putExtra(ExtraBookId, it) }
-        return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        // Its own request code: PendingIntents differing only in extras would otherwise overwrite each other.
+        return PendingIntent.getActivity(
+            context,
+            if (readAloud) ReadAloudRequestCode else OpenRequestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
     }
 
     /** The cover scaled down to the widget's size: RemoteViews bitmaps travel through a size-limited parcel. */
@@ -159,6 +200,9 @@ class ContinueReadingWidgetUpdater @Inject constructor(
     companion object {
         const val ActionOpenBook = "com.vayana.app.OPEN_BOOK"
         const val ExtraBookId = "com.vayana.app.extra.BOOK_ID"
+        const val ExtraReadAloud = "com.vayana.app.extra.READ_ALOUD"
+        private const val OpenRequestCode = 0
+        private const val ReadAloudRequestCode = 1
         private const val CoverHeightPx = 320
         private const val NarrowWidth = 180f
         private const val WideWidth = 270f

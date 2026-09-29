@@ -1532,5 +1532,6 @@
     <string name="widget_preview_title">നിങ്ങൾ വായിക്കുന്ന പുസ്തകം</string>
     <string name="widget_preview_author">എഴുത്തുകാരൻ</string>
     <string name="widget_preview_progress" formatted="false">42% വായിച്ചു</string>
-    <string name="widget_resume">വായന തുടരുക</string>
+    <string name="widget_read_aloud">ഉറക്കെ വായിക്കുക</string>
+    <string name="widget_pause_read_aloud">ഉറക്കെ വായന നിർത്തിവയ്ക്കുക</string>
 </resources>

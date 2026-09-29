@@ -1548,5 +1548,6 @@
     <string name="widget_preview_title">O livro que você está lendo</string>
     <string name="widget_preview_author">O autor</string>
     <string name="widget_preview_progress" formatted="false">42% lido</string>
-    <string name="widget_resume">Continuar lendo</string>
+    <string name="widget_read_aloud">Ler em voz alta</string>
+    <string name="widget_pause_read_aloud">Pausar a leitura em voz alta</string>
 </resources>
