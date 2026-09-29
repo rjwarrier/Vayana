@@ -1516,4 +1516,17 @@
     </plurals>
     <string name="widget_description">Your current book and progress, one tap from reading.</string>
     <string name="widget_empty">Open a book in Vayana and it appears here.</string>
+    <string name="shortcut_continue_long">Continue “%1$s”</string>
+    <string name="shortcut_free_books_long">Free books from Project Gutenberg</string>
+    <string name="shortcut_search">Search</string>
+    <string name="shortcut_search_long">Search your library</string>
+    <string name="gutenberg_in_library">In your library</string>
+    <string name="gutenberg_open_in_library">Open</string>
+    <string name="gutenberg_more_by">More by %1$s</string>
+    <string name="reader_selection_translate">Translate</string>
+    <string name="reader_translate_unavailable">No translation app found. Install Google Translate to translate text.</string>
+    <string name="define_action_label">Define</string>
+    <string name="define_nothing">Select a word or a short phrase to define it.</string>
+    <string name="define_pack_missing">Vayana’s offline dictionary isn’t installed yet: look up any word in a book to add it. Look this up online instead:</string>
+    <string name="define_close">Close</string>
 </resources>

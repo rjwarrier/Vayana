@@ -213,6 +213,7 @@ fun VayanaNavHost(
                 onBack = { navController.popBackStack() },
                 // The library shows the import's progress and the new book.
                 onImported = { navController.popBackStack() },
+                onOpenBook = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
             )
         }
         composable<OfflineBooksRoute> { backStackEntry ->

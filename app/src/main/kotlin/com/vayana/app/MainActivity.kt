@@ -8,8 +8,11 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.OpenBookRequests
+import com.vayana.app.widget.ShortcutDestination
+import com.vayana.app.widget.ShortcutRequests
 import com.vayana.core.common.AppLanguage
 import com.vayana.core.designsystem.theme.EinkPageKeys
 import com.vayana.core.designsystem.theme.pageKeyDirection
@@ -22,6 +25,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var incomingBookFiles: IncomingBookFiles
     @Inject lateinit var openBookRequests: OpenBookRequests
+    @Inject lateinit var shortcutRequests: ShortcutRequests
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguage.wrap(newBase))
@@ -54,11 +58,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncoming(intent: Intent) {
-        if (intent.action == ContinueReadingWidgetUpdater.ActionOpenBook) {
-            intent.getLongExtra(ContinueReadingWidgetUpdater.ExtraBookId, NoBook).takeIf { it != NoBook }?.let(openBookRequests::offer)
-            return
+        when (intent.action) {
+            ContinueReadingWidgetUpdater.ActionOpenBook ->
+                intent.getLongExtra(ContinueReadingWidgetUpdater.ExtraBookId, NoBook).takeIf { it != NoBook }?.let(openBookRequests::offer)
+            AppShortcuts.ActionFreeBooks -> shortcutRequests.offer(ShortcutDestination.FREE_BOOKS)
+            AppShortcuts.ActionSearch -> shortcutRequests.offer(ShortcutDestination.SEARCH)
+            else -> incomingBookFiles.offer(intent.incomingBookUris())
         }
-        incomingBookFiles.offer(intent.incomingBookUris())
     }
 }
 

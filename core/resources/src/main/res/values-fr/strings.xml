@@ -1532,4 +1532,17 @@
     </plurals>
     <string name="widget_description">Votre livre en cours et votre progression, à un toucher de la lecture.</string>
     <string name="widget_empty">Ouvrez un livre dans Vayana et il apparaîtra ici.</string>
+    <string name="shortcut_continue_long">Reprendre « %1$s »</string>
+    <string name="shortcut_free_books_long">Livres gratuits de Project Gutenberg</string>
+    <string name="shortcut_search">Rechercher</string>
+    <string name="shortcut_search_long">Rechercher dans votre bibliothèque</string>
+    <string name="gutenberg_in_library">Dans votre bibliothèque</string>
+    <string name="gutenberg_open_in_library">Ouvrir</string>
+    <string name="gutenberg_more_by">Plus de %1$s</string>
+    <string name="reader_selection_translate">Traduire</string>
+    <string name="reader_translate_unavailable">Aucune application de traduction. Installez Google Traduction pour traduire du texte.</string>
+    <string name="define_action_label">Définir</string>
+    <string name="define_nothing">Sélectionnez un mot ou une courte expression pour en voir la définition.</string>
+    <string name="define_pack_missing">Le dictionnaire hors ligne de Vayana n’est pas encore installé : cherchez un mot dans un livre pour l’ajouter. Chercher en ligne :</string>
+    <string name="define_close">Fermer</string>
 </resources>

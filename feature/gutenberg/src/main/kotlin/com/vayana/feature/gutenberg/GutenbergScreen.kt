@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,9 +32,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -97,14 +100,21 @@ import kotlinx.coroutines.delay
  * and it lands in the library through the normal import. [onImported] returns to the library, which shows it.
  */
 @Composable
-fun GutenbergRoute(onBack: () -> Unit, onImported: () -> Unit, viewModel: GutenbergViewModel = hiltViewModel()) {
+fun GutenbergRoute(
+    onBack: () -> Unit,
+    onImported: () -> Unit,
+    onOpenBook: (Long) -> Unit,
+    viewModel: GutenbergViewModel = hiltViewModel(),
+) {
     val list by viewModel.list.collectAsStateWithLifecycle()
     val book by viewModel.book.collectAsStateWithLifecycle()
+    val library by viewModel.library.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.imported.collect { onImported() } }
     GutenbergScreen(
         list = list,
         book = book,
-        actions = remember(viewModel) {
+        library = library,
+        actions = remember(viewModel, onOpenBook) {
             GutenbergActions(
                 search = viewModel::search,
                 showList = viewModel::showList,
@@ -118,6 +128,11 @@ fun GutenbergRoute(onBack: () -> Unit, onImported: () -> Unit, viewModel: Gutenb
                 cancelDownload = viewModel::cancelDownload,
                 loadCover = viewModel::cover,
                 cachedCover = viewModel::cachedCover,
+                showAuthor = viewModel::showAuthor,
+                openBook = { bookId ->
+                    viewModel.close()
+                    onOpenBook(bookId)
+                },
             )
         },
         onBack = onBack,
@@ -137,6 +152,8 @@ private class GutenbergActions(
     val cancelDownload: () -> Unit,
     val loadCover: suspend (String) -> ImageBitmap?,
     val cachedCover: (String) -> ImageBitmap?,
+    val showAuthor: (String) -> Unit,
+    val openBook: (Long) -> Unit,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,6 +161,7 @@ private class GutenbergActions(
 private fun GutenbergScreen(
     list: GutenbergListState,
     book: GutenbergBookState,
+    library: LibraryIndex,
     actions: GutenbergActions,
     onBack: () -> Unit,
 ) {
@@ -215,7 +233,7 @@ private fun GutenbergScreen(
                 }
                 else -> {
                     items(list.books, key = { it.id }, contentType = { BookTileType }) { summary ->
-                        BookTile(summary, actions, onClick = { actions.open(summary) })
+                        BookTile(summary, inLibrary = library.find(summary.title, summary.author) != null, actions, onClick = { actions.open(summary) })
                     }
                     if (list.loadingMore) {
                         item(span = { GridItemSpan(maxLineSpan) }) { LoadingMessage(R.string.gutenberg_loading_more) }
@@ -233,7 +251,7 @@ private fun GutenbergScreen(
         }
     }
     if (book != GutenbergBookState.Hidden) {
-        BookSheet(book, actions)
+        BookSheet(book, library, actions)
     }
 }
 
@@ -344,9 +362,12 @@ private fun LanguageChip(language: String?, onLanguage: (String?) -> Unit) {
 }
 
 @Composable
-private fun BookTile(summary: GutenbergBookSummary, actions: GutenbergActions, onClick: () -> Unit) {
+private fun BookTile(summary: GutenbergBookSummary, inLibrary: Boolean, actions: GutenbergActions, onClick: () -> Unit) {
     Column(modifier = Modifier.clip(RoundedCornerShape(Radii.small)).clickable(onClick = onClick)) {
-        Cover(summary.coverUrl, summary.title, actions, Modifier.fillMaxWidth())
+        Box {
+            Cover(summary.coverUrl, summary.title, actions, Modifier.fillMaxWidth())
+            if (inLibrary) InLibraryBadge(Modifier.align(Alignment.TopEnd).padding(Spacing.xs))
+        }
         Text(
             text = summary.title,
             style = MaterialTheme.typography.labelLarge,
@@ -363,6 +384,19 @@ private fun BookTile(summary: GutenbergBookSummary, actions: GutenbergActions, o
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/** A tick on the cover of a book the library already has. */
+@Composable
+private fun InLibraryBadge(modifier: Modifier = Modifier) {
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = modifier) {
+        Icon(
+            imageVector = Icons.Outlined.Check,
+            contentDescription = stringResource(R.string.gutenberg_in_library),
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.padding(Spacing.xs).size(Sizes.iconSmall),
+        )
     }
 }
 
@@ -389,7 +423,7 @@ private fun Cover(url: String, title: String, actions: GutenbergActions, modifie
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BookSheet(state: GutenbergBookState, actions: GutenbergActions) {
+private fun BookSheet(state: GutenbergBookState, library: LibraryIndex, actions: GutenbergActions) {
     val context = LocalContext.current
     val appLocale = LocalConfiguration.current.locales[0]
     // While a book downloads, only its Cancel button stops it: a stray swipe or tap outside doesn't.
@@ -429,6 +463,7 @@ private fun BookSheet(state: GutenbergBookState, actions: GutenbergActions) {
                         book.published?.let { stringResource(R.string.gutenberg_published, it) },
                     ).joinToString(" · ").ifEmpty { null }
                     BookHeader(book.coverUrl, book.title, book.author, details, actions)
+                    library.find(book.title, book.author)?.let { bookId -> InLibraryRow(onOpen = { actions.openBook(bookId) }) }
                     book.summary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                     if (book.subjects.isNotEmpty()) {
                         Text(
@@ -452,9 +487,34 @@ private fun BookSheet(state: GutenbergBookState, actions: GutenbergActions) {
                         book.editions.forEach { edition ->
                             EditionButton(edition, formatSize = { Formatter.formatShortFileSize(context, it) }, onClick = { actions.download(edition) })
                         }
+                        book.author?.let { author ->
+                            TextButton(onClick = { actions.showAuthor(author) }) {
+                                Icon(Icons.Outlined.Person, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                                Text(stringResource(R.string.gutenberg_more_by, author), modifier = Modifier.padding(start = Spacing.sm))
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/** The book is already on this device: open it there rather than download a copy. */
+@Composable
+private fun InLibraryRow(onOpen: () -> Unit) {
+    Surface(shape = RoundedCornerShape(Radii.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+            Text(
+                stringResource(R.string.gutenberg_in_library),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm),
+            )
+            TextButton(onClick = onOpen) { Text(stringResource(R.string.gutenberg_open_in_library)) }
         }
     }
 }

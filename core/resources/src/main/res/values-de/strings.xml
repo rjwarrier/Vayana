@@ -1516,4 +1516,17 @@
     </plurals>
     <string name="widget_description">Dein aktuelles Buch und dein Fortschritt – ein Tippen, und du liest weiter.</string>
     <string name="widget_empty">Öffne ein Buch in Vayana, dann erscheint es hier.</string>
+    <string name="shortcut_continue_long">„%1$s“ weiterlesen</string>
+    <string name="shortcut_free_books_long">Kostenlose Bücher von Project Gutenberg</string>
+    <string name="shortcut_search">Suchen</string>
+    <string name="shortcut_search_long">In deiner Bibliothek suchen</string>
+    <string name="gutenberg_in_library">In deiner Bibliothek</string>
+    <string name="gutenberg_open_in_library">Öffnen</string>
+    <string name="gutenberg_more_by">Mehr von %1$s</string>
+    <string name="reader_selection_translate">Übersetzen</string>
+    <string name="reader_translate_unavailable">Keine Übersetzungs-App gefunden. Installiere Google Übersetzer, um Text zu übersetzen.</string>
+    <string name="define_action_label">Definieren</string>
+    <string name="define_nothing">Wähle ein Wort oder eine kurze Wendung aus, um sie nachzuschlagen.</string>
+    <string name="define_pack_missing">Vayanas Offline-Wörterbuch ist noch nicht installiert: Schlage ein Wort in einem Buch nach, um es hinzuzufügen. Online nachschlagen:</string>
+    <string name="define_close">Schließen</string>
 </resources>

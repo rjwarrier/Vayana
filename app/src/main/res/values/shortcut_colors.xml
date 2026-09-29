@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Launcher shortcut icons are drawn by the launcher, outside Compose, so like the window background they need XML
+    colours. The app icon's navy and cream (Palette.Navy800 / Palette.Cream100), so the shortcuts read as Vayana's.
+-->
+<resources>
+    <color name="shortcut_icon_background">#131C27</color>
+    <color name="shortcut_icon_foreground">#F5F0E8</color>
+</resources>

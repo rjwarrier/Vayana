@@ -9,6 +9,8 @@ import com.vayana.core.datastore.settings.NavigationMode
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.app.widget.OpenBookRequests
+import com.vayana.app.widget.ShortcutDestination
+import com.vayana.app.widget.ShortcutRequests
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.feature.library.RecentlyDeletedAutoPurge
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +32,13 @@ class AppSettingsViewModel @Inject constructor(
     private val recentlyDeletedAutoPurge: RecentlyDeletedAutoPurge,
     incomingBookFiles: IncomingBookFiles,
     private val openBookRequests: OpenBookRequests,
+    private val shortcutRequests: ShortcutRequests,
 ) : ViewModel() {
+    /** A screen a launcher shortcut asked for, until navigation has shown it. */
+    val shortcutRequest: StateFlow<ShortcutDestination?> = shortcutRequests.pending
+
+    fun consumeShortcutRequest(destination: ShortcutDestination) = shortcutRequests.consume(destination)
+
     /** A book the home-screen widget asked to open, until navigation has opened it. */
     val openBookRequest: StateFlow<Long?> = openBookRequests.pending
 

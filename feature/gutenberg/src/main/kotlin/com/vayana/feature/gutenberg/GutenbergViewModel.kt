@@ -6,13 +6,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.common.runCatchingCancellable
+import com.vayana.core.database.repository.BookRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -43,7 +47,13 @@ data class GutenbergDownload(val kind: GutenbergEditionKind, val progress: Float
 class GutenbergViewModel @Inject constructor(
     private val client: GutenbergClient,
     private val incomingBookFiles: IncomingBookFiles,
+    bookRepository: BookRepository,
 ) : ViewModel() {
+    /** The library, to mark the Gutenberg books already in it. */
+    val library: StateFlow<LibraryIndex> = bookRepository.observeAll()
+        .map { books -> LibraryIndex(books.map { LibraryBook(it.id, it.title, it.author) }) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), LibraryIndex.Empty)
+
     private val _list = MutableStateFlow(GutenbergListState())
     val list: StateFlow<GutenbergListState> = _list
 
@@ -71,6 +81,12 @@ class GutenbergViewModel @Inject constructor(
 
     /** A language code, or null for every language. */
     fun showLanguage(language: String?) = show(_list.value.query.copy(language = language))
+
+    /** The author's books, most read first, in the language already chosen. */
+    fun showAuthor(author: String) {
+        close()
+        show(GutenbergQuery(text = author, language = _list.value.query.language))
+    }
 
     /**
      * Shows the saved copy of the list at once, if there is one, then the fresh one. Random is always fetched new:
@@ -185,5 +201,6 @@ class GutenbergViewModel @Inject constructor(
 
     private companion object {
         const val Tag = "Gutenberg"
+        const val StopTimeoutMillis = 5_000L
     }
 }

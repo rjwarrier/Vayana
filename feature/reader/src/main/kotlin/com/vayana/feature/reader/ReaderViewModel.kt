@@ -142,7 +142,7 @@ data class ReaderRecap(val awayMillis: Long, val highlight: String?, val dueWord
 /** Whether a looked-up word is already a vocabulary card, and whether it has been marked as known. */
 enum class SavedWordStatus { NOT_SAVED, SAVED, KNOWN }
 
-private fun VocabularyCard?.toSavedWordStatus(): SavedWordStatus = when {
+internal fun VocabularyCard?.toSavedWordStatus(): SavedWordStatus = when {
     this == null -> SavedWordStatus.NOT_SAVED
     known -> SavedWordStatus.KNOWN
     else -> SavedWordStatus.SAVED
@@ -1579,7 +1579,7 @@ class ReaderViewModel @Inject constructor(
     }
 }
 
-private fun SettingsSnapshot.lookupWriterOrigin(): String =
+internal fun SettingsSnapshot.lookupWriterOrigin(): String =
     kindleDeviceName.trim().ifBlank { "Vayana Sync" }
 
 private val SettingsSnapshot.selectedImportedFont

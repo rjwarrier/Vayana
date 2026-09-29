@@ -6,6 +6,20 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application>
+        <!-- "Define" in any app's text-selection menu: Vayana's dictionary over that app. -->
+        <activity
+            android:name="com.vayana.feature.reader.DefineActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/define_action_label"
+            android:taskAffinity=""
+            android:theme="@style/Theme.VayanaDefine">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
         <service
             android:name="com.vayana.feature.reader.ReadAloudForegroundService"
             android:exported="false"

@@ -1548,4 +1548,17 @@
     </plurals>
     <string name="widget_description">Текущая книга и прогресс — одно касание, и вы читаете.</string>
     <string name="widget_empty">Откройте книгу в Vayana, и она появится здесь.</string>
+    <string name="shortcut_continue_long">Продолжить «%1$s»</string>
+    <string name="shortcut_free_books_long">Бесплатные книги из Project Gutenberg</string>
+    <string name="shortcut_search">Поиск</string>
+    <string name="shortcut_search_long">Поиск по библиотеке</string>
+    <string name="gutenberg_in_library">Уже в библиотеке</string>
+    <string name="gutenberg_open_in_library">Открыть</string>
+    <string name="gutenberg_more_by">Ещё от автора: %1$s</string>
+    <string name="reader_selection_translate">Перевести</string>
+    <string name="reader_translate_unavailable">Нет приложения-переводчика. Установите Google Переводчик.</string>
+    <string name="define_action_label">Определение</string>
+    <string name="define_nothing">Выделите слово или короткую фразу, чтобы увидеть определение.</string>
+    <string name="define_pack_missing">Офлайн-словарь Vayana ещё не установлен: найдите любое слово в книге, чтобы добавить его. Поиск в интернете:</string>
+    <string name="define_close">Закрыть</string>
 </resources>

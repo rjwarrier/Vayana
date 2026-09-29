@@ -1516,4 +1516,17 @@
     </plurals>
     <string name="widget_description">ഇപ്പോൾ വായിക്കുന്ന പുസ്തകവും പുരോഗതിയും, ഒരു തൊടലിൽ വായനയിലേക്ക്.</string>
     <string name="widget_empty">Vayana-യിൽ ഒരു പുസ്തകം തുറന്നാൽ അത് ഇവിടെ കാണാം.</string>
+    <string name="shortcut_continue_long">“%1$s” തുടരുക</string>
+    <string name="shortcut_free_books_long">Project Gutenberg-ൽ നിന്നുള്ള സൗജന്യ പുസ്തകങ്ങൾ</string>
+    <string name="shortcut_search">തിരയുക</string>
+    <string name="shortcut_search_long">നിങ്ങളുടെ ലൈബ്രറിയിൽ തിരയുക</string>
+    <string name="gutenberg_in_library">നിങ്ങളുടെ ലൈബ്രറിയിലുണ്ട്</string>
+    <string name="gutenberg_open_in_library">തുറക്കുക</string>
+    <string name="gutenberg_more_by">%1$s എഴുതിയ മറ്റുള്ളവ</string>
+    <string name="reader_selection_translate">വിവർത്തനം ചെയ്യുക</string>
+    <string name="reader_translate_unavailable">വിവർത്തന ആപ്പ് കണ്ടെത്തിയില്ല. വിവർത്തനത്തിന് Google Translate ഇൻസ്റ്റാൾ ചെയ്യുക.</string>
+    <string name="define_action_label">അർത്ഥം</string>
+    <string name="define_nothing">അർത്ഥം അറിയാൻ ഒരു വാക്കോ ചെറിയ വാചകമോ തിരഞ്ഞെടുക്കുക.</string>
+    <string name="define_pack_missing">Vayana-യുടെ ഓഫ്‌ലൈൻ നിഘണ്ടു ഇനിയും ഇൻസ്റ്റാൾ ചെയ്തിട്ടില്ല: ഒരു പുസ്തകത്തിൽ ഏതെങ്കിലും വാക്ക് നോക്കി അത് ചേർക്കുക. ഓൺലൈനിൽ നോക്കുക:</string>
+    <string name="define_close">അടയ്ക്കുക</string>
 </resources>

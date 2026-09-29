@@ -27,8 +27,10 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.window.core.layout.WindowSizeClass
+import com.vayana.app.navigation.GutenbergRoute
 import com.vayana.app.navigation.NavigationPresentation
 import com.vayana.app.navigation.ReaderRoute
+import com.vayana.app.navigation.SearchRoute
 import com.vayana.app.navigation.TopLevelRoute
 import com.vayana.app.navigation.VayanaBottomBar
 import com.vayana.app.navigation.VayanaFloatingBar
@@ -36,6 +38,7 @@ import com.vayana.app.navigation.VayanaNavHost
 import com.vayana.app.navigation.VayanaNavigationRail
 import com.vayana.app.navigation.navigateToTopLevel
 import com.vayana.app.navigation.resolveNavigationPresentation
+import com.vayana.app.widget.ShortcutDestination
 import com.vayana.core.datastore.settings.StartScreen
 import com.vayana.core.designsystem.theme.VayanaTheme
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
@@ -87,6 +90,17 @@ fun VayanaAppRoot() {
             val bookId = openBookRequest ?: return@LaunchedEffect
             navController.navigate(ReaderRoute(bookId)) { launchSingleTop = true }
             settingsViewModel.consumeOpenBookRequest(bookId)
+        }
+        // A launcher shortcut's screen, over the library it belongs to.
+        val shortcutRequest by settingsViewModel.shortcutRequest.collectAsStateWithLifecycle()
+        LaunchedEffect(shortcutRequest) {
+            val destination = shortcutRequest ?: return@LaunchedEffect
+            navController.navigateToTopLevel(TopLevelRoute.Library)
+            when (destination) {
+                ShortcutDestination.FREE_BOOKS -> navController.navigate(GutenbergRoute) { launchSingleTop = true }
+                ShortcutDestination.SEARCH -> navController.navigate(SearchRoute) { launchSingleTop = true }
+            }
+            settingsViewModel.consumeShortcutRequest(destination)
         }
         val currentDestination = navController.currentBackStackEntryAsState().value?.destination
         val showNavigation = currentDestination?.hasRoute(ReaderRoute::class) != true

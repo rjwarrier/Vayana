@@ -1,5 +1,6 @@
 package com.vayana.feature.reader
 
+import android.widget.Toast
 import com.vayana.core.designsystem.component.asString
 import android.Manifest
 import android.app.Activity
@@ -1431,6 +1432,11 @@ private fun ReaderScreen(
                             seriesNumber = loadedState?.bookSeriesNumber,
                         )
                         onClearSelection()
+                    },
+                    onTranslate = {
+                        if (!context.translateText(selection?.selectedText.orEmpty())) {
+                            Toast.makeText(context, R.string.reader_translate_unavailable, Toast.LENGTH_LONG).show()
+                        }
                     },
                     onDownloadDictionary = onDownloadDictionary,
                     onInstallDictionary = onInstallDictionary,

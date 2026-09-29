@@ -1516,4 +1516,17 @@
     </plurals>
     <string name="widget_description">நீங்கள் வாசிக்கும் புத்தகமும் முன்னேற்றமும், ஒரு தொடுதலில் வாசிப்புக்கு.</string>
     <string name="widget_empty">Vayana-வில் ஒரு புத்தகத்தைத் திறந்தால் அது இங்கே தோன்றும்.</string>
+    <string name="shortcut_continue_long">“%1$s” தொடர்க</string>
+    <string name="shortcut_free_books_long">Project Gutenberg இலவச புத்தகங்கள்</string>
+    <string name="shortcut_search">தேடு</string>
+    <string name="shortcut_search_long">உங்கள் நூலகத்தில் தேடு</string>
+    <string name="gutenberg_in_library">உங்கள் நூலகத்தில் உள்ளது</string>
+    <string name="gutenberg_open_in_library">திற</string>
+    <string name="gutenberg_more_by">%1$s எழுதிய மற்றவை</string>
+    <string name="reader_selection_translate">மொழிபெயர்</string>
+    <string name="reader_translate_unavailable">மொழிபெயர்ப்பு ஆப் இல்லை. உரையை மொழிபெயர்க்க Google Translate-ஐ நிறுவவும்.</string>
+    <string name="define_action_label">பொருள்</string>
+    <string name="define_nothing">பொருள் அறிய ஒரு சொல்லை அல்லது சிறிய சொற்றொடரைத் தேர்ந்தெடுக்கவும்.</string>
+    <string name="define_pack_missing">Vayana-வின் ஆஃப்லைன் அகராதி இன்னும் நிறுவப்படவில்லை: புத்தகத்தில் ஏதேனும் ஒரு சொல்லைத் தேடி அதைச் சேர்க்கவும். இணையத்தில் தேடுக:</string>
+    <string name="define_close">மூடு</string>
 </resources>

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -93,6 +94,7 @@ internal fun SelectionActions(
     onCopy: () -> Unit,
     onNote: () -> Unit,
     onShare: () -> Unit,
+    onTranslate: () -> Unit,
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
@@ -134,12 +136,14 @@ internal fun SelectionActions(
                     val note = stringResource(R.string.reader_selection_note)
                     val share = stringResource(R.string.reader_selection_share)
                     val readAloud = stringResource(R.string.reader_selection_read_aloud)
+                    val translate = stringResource(R.string.reader_selection_translate)
                     // Remembered: the card recomposes as the selection moves, and a fresh list defeats skipping.
-                    val actions = remember(copy, note, share, readAloud, readAloudAvailable, onCopy, onNote, onShare, onReadAloud) {
+                    val actions = remember(copy, note, share, translate, readAloud, readAloudAvailable, onCopy, onNote, onShare, onTranslate, onReadAloud) {
                         buildList {
                             add(ConnectedButton(copy, Icons.Outlined.ContentCopy, onCopy))
                             add(ConnectedButton(note, Icons.Outlined.EditNote, onNote))
                             add(ConnectedButton(share, Icons.Outlined.Share, onShare))
+                            add(ConnectedButton(translate, Icons.Outlined.Translate, onTranslate))
                             if (readAloudAvailable) add(ConnectedButton(readAloud, Icons.Outlined.Headphones, onReadAloud))
                         }
                     }
@@ -175,15 +179,16 @@ private fun SelectionMarkRow(onHighlight: (String) -> Unit, onUnderline: () -> U
     }
 }
 
+/** The lookup itself; also the Define popup's content. With no [onSaveLookupAsNote], there's no book to note in. */
 @Composable
-private fun DictionaryLookupContent(
+internal fun DictionaryLookupContent(
     state: DictionaryLookupState,
     recentLookups: List<String>,
     onDownloadDictionary: () -> Unit,
     onInstallDictionary: () -> Unit,
     onLookupWord: (String) -> Unit,
     onLookupOnline: (OnlineDictionarySource) -> Unit,
-    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
+    onSaveLookupAsNote: ((DictionaryEntry) -> Unit)?,
     onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
 ) {
     val enter = vayanaFadeIn()
@@ -246,7 +251,7 @@ private fun LookupProgress(text: String) {
 }
 
 @Composable
-private fun LookupMessage(text: String, isError: Boolean = false) {
+internal fun LookupMessage(text: String, isError: Boolean = false) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyLarge,
@@ -296,7 +301,7 @@ private fun PackRequiredContent(
 private fun DictionaryEntryContent(
     state: DictionaryLookupState.Found,
     onLookupWord: (String) -> Unit,
-    onSaveLookupAsNote: (DictionaryEntry) -> Unit,
+    onSaveLookupAsNote: ((DictionaryEntry) -> Unit)?,
     onSaveLookupAsVocabulary: (DictionaryEntry) -> Unit,
 ) {
     val context = LocalContext.current
@@ -320,8 +325,8 @@ private fun DictionaryEntryContent(
             val definition = entry.senses.firstOrNull()?.definition.orEmpty()
             context.copyTextToClipboard("${entry.headword}: $definition")
         }
-        EntryAction(Icons.Outlined.EditNote, stringResource(R.string.reader_dictionary_add_to_notes)) {
-            onSaveLookupAsNote(entry)
+        onSaveLookupAsNote?.let { saveAsNote ->
+            EntryAction(Icons.Outlined.EditNote, stringResource(R.string.reader_dictionary_add_to_notes)) { saveAsNote(entry) }
         }
         when (state.savedStatus) {
             // The one filled action: saving the word is what a lookup most often leads to.
@@ -455,7 +460,7 @@ private fun OnlineLookupContent(state: DictionaryLookupState.Online, onLookupOnl
 
 /** Looks the word up on the web: only on this tap, since it sends the word to Wikimedia. */
 @Composable
-private fun OnlineLookupButtons(onLookupOnline: (OnlineDictionarySource) -> Unit, labelled: Boolean = true) {
+internal fun OnlineLookupButtons(onLookupOnline: (OnlineDictionarySource) -> Unit, labelled: Boolean = true) {
     if (labelled) SectionLabel(stringResource(R.string.reader_dictionary_look_up_online))
     val wiktionary = OnlineDictionarySource.WIKTIONARY.displayName()
     val wikipedia = OnlineDictionarySource.WIKIPEDIA.displayName()
