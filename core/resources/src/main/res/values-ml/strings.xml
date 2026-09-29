@@ -1547,8 +1547,9 @@
     <string name="widget_reading_title">വായനാ സമയം</string>
     <string name="widget_reading_description">എല്ലാ ഉപകരണങ്ങളിലെയും ഇന്നത്തെ വായനാ സമയവും കഴിഞ്ഞ 7 ദിവസത്തെ ചാർട്ടും.</string>
     <string name="widget_reading_today">ഇന്ന്</string>
-    <string name="widget_reading_average">ശരാശരി %1$s</string>
-    <string name="widget_reading_preview_today">1h 12m</string>
-    <string name="widget_reading_preview_average">ശരാശരി 42m</string>
-    <string name="widget_reading_chart_description">കഴിഞ്ഞ 7 ദിവസത്തെ വായനാ സമയം; ദിവസം ശരാശരി %1$s</string>
+    <string name="widget_reading_preview_today">1h 6m</string>
+    <string name="widget_reading_avg_label">7 ദിവസ ശരാശരി</string>
+    <string name="widget_reading_duration_hours">%1$d മ</string>
+    <string name="widget_reading_preview_average">43m</string>
+    <string name="widget_reading_chart_description">കഴിഞ്ഞ 7 ദിവസത്തെ വായനാ സമയം: %1$s. 7 ദിവസത്തെ ശരാശരി %2$s.</string>
 </resources>

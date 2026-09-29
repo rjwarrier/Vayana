@@ -172,6 +172,7 @@
     <string name="library_book_file_missing">This book file is not available on this device.</string>
     <string name="library_book_upload_pending">This book needs to upload before other devices can download it.</string>
     <string name="library_sync_now_content_description">Sync now</string>
+    <string name="library_full_sync_recommended_content_description">Full sync recommended: library changes are waiting</string>
     <string name="library_more_content_description">More library actions</string>
     <string name="library_stats_share_action">Share library stats</string>
     <string name="library_stats_share_title">Share your library</string>
@@ -1553,8 +1554,10 @@
     <string name="widget_reading_title">Reading time</string>
     <string name="widget_reading_description">Today’s reading time across your devices, and the last 7 days as a chart.</string>
     <string name="widget_reading_today">Today</string>
-    <string name="widget_reading_average">Avg %1$s</string>
-    <string name="widget_reading_preview_today">1h 12m</string>
-    <string name="widget_reading_preview_average">Avg 42m</string>
-    <string name="widget_reading_chart_description">Reading time over the last 7 days; average %1$s a day</string>
+    <string name="widget_reading_preview_today">1h 6m</string>
+    <string name="widget_reading_avg_label">7-day avg</string>
+    <string name="widget_reading_duration_hours">%1$dh</string>
+    <string name="widget_reading_avg_none" translatable="false">—</string>
+    <string name="widget_reading_preview_average">43m</string>
+    <string name="widget_reading_chart_description">Reading time, last 7 days: %1$s. 7-day average %2$s.</string>
 </resources>

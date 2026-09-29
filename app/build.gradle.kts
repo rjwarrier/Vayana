@@ -85,6 +85,7 @@ tasks.configureEach {
 }
 
 dependencies {
+    testImplementation(kotlin("test"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:resources"))
     implementation(project(":core:common"))

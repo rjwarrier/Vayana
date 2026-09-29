@@ -45,6 +45,7 @@ import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.normalizedBookTag
 import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookAliasDao
+import com.vayana.core.database.dao.FullSyncStateDao
 import com.vayana.core.database.dao.ShelfDao
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.dao.VocabularyCardDao
@@ -247,6 +248,9 @@ sealed interface GitHubSyncNowResult {
     data object SyncDisabled : GitHubSyncNowResult
     data object ConfigIncomplete : GitHubSyncNowResult
 }
+
+private fun GitHubSyncNowResult.isCompleteFullSync(): Boolean =
+    this is GitHubSyncNowResult.Complete && !pullFailed && metadataSynced && failed == 0
 
 data class ImportProgressRow(
     val id: String,
@@ -459,6 +463,7 @@ data class LibraryUiState(
     val allBooks: List<Book> = emptyList(),
     val controls: LibraryControls = LibraryControls(),
     val githubSyncReady: Boolean = false,
+    val fullSyncRecommended: Boolean = false,
 )
 
 @HiltViewModel
@@ -489,6 +494,7 @@ class LibraryViewModel @Inject constructor(
     private val syncOperationCoordinator: SyncOperationCoordinator,
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
+    private val fullSyncStateDao: FullSyncStateDao,
     private val shelfDao: ShelfDao,
     private val vocabularyCardDao: VocabularyCardDao,
     private val annotationDao: AnnotationDao,
@@ -541,6 +547,9 @@ class LibraryViewModel @Inject constructor(
         .map { it.finishedFraction }
         .distinctUntilChanged()
 
+    private val fullSyncRecommended: Flow<Boolean> = fullSyncStateDao.observeRequired()
+        .distinctUntilChanged()
+
     val yearlyBooksGoal: StateFlow<Int> = settingsRepository.snapshot
         .map { it.yearlyBooksGoal }
         .distinctUntilChanged()
@@ -551,7 +560,8 @@ class LibraryViewModel @Inject constructor(
         controls,
         githubSyncReady,
         finishedThreshold,
-    ) { books, controls, syncReady, finishedThreshold ->
+        fullSyncRecommended,
+    ) { books, controls, syncReady, finishedThreshold, recommendFullSync ->
         LibraryUiState(
             allBooks = books,
             // Books read outside the app live on their own screen; the library is what can be opened here. Filtered
@@ -563,6 +573,7 @@ class LibraryViewModel @Inject constructor(
                 .sortedBy(controls.sort, controls.sortDirection),
             controls = controls,
             githubSyncReady = syncReady,
+            fullSyncRecommended = recommendFullSync,
         )
     }
         // Filtering (including description search) and sorting run per keystroke and per DB change: keep them
@@ -1119,6 +1130,9 @@ class LibraryViewModel @Inject constructor(
         launchReadingProgressBookId: Long? = null,
     ): GitHubSyncNowResult = syncOperationCoordinator.run {
         val result = runSyncNow(allowInitialSync, mode, showProgress, launchReadingProgressBookId)
+        if (mode == GitHubSyncMode.FULL && result.isCompleteFullSync()) {
+            withContext(dispatchers.io) { fullSyncStateDao.markSatisfied() }
+        }
         if (result is GitHubSyncNowResult.Complete && (result.pullFailed || !result.metadataSynced)) {
             withContext(dispatchers.io) {
                 diagnosticsLogStore.record(

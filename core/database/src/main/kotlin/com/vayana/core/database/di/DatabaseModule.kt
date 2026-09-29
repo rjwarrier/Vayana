@@ -20,7 +20,9 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import com.vayana.core.database.search.BookSearchIndexCallback
 import com.vayana.core.database.dao.HighlightReviewDao
+import com.vayana.core.database.dao.FullSyncStateDao
 import com.vayana.core.database.dao.PendingCloudDeletionDao
+import com.vayana.core.database.sync.FullSyncChangeTrackerCallback
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -32,6 +34,7 @@ object DatabaseModule {
         Room.databaseBuilder(context, VayanaDatabase::class.java, "vayana.db")
             .addMigrations(*ALL_MIGRATIONS)
             .addCallback(BookSearchIndexCallback)
+            .addCallback(FullSyncChangeTrackerCallback)
             .build()
 
     @Provides
@@ -63,4 +66,7 @@ object DatabaseModule {
 
     @Provides
     fun provideHighlightReviewDao(database: VayanaDatabase): HighlightReviewDao = database.highlightReviewDao()
+
+    @Provides
+    fun provideFullSyncStateDao(database: VayanaDatabase): FullSyncStateDao = database.fullSyncStateDao()
 }

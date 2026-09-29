@@ -1579,8 +1579,9 @@
     <string name="widget_reading_title">Время чтения</string>
     <string name="widget_reading_description">Время чтения за сегодня на всех устройствах и график за последние 7 дней.</string>
     <string name="widget_reading_today">Сегодня</string>
-    <string name="widget_reading_average">В среднем %1$s</string>
-    <string name="widget_reading_preview_today">1h 12m</string>
-    <string name="widget_reading_preview_average">В среднем 42m</string>
-    <string name="widget_reading_chart_description">Время чтения за последние 7 дней; в среднем %1$s в день</string>
+    <string name="widget_reading_preview_today">1h 6m</string>
+    <string name="widget_reading_avg_label">Ср. за 7 дн.</string>
+    <string name="widget_reading_duration_hours">%1$d ч</string>
+    <string name="widget_reading_preview_average">43m</string>
+    <string name="widget_reading_chart_description">Время чтения за последние 7 дней: %1$s. Среднее за 7 дней: %2$s.</string>
 </resources>

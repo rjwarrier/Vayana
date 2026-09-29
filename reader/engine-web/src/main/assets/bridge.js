@@ -18,6 +18,7 @@ let annotationRevision = 0
 const documentTextIndexes = new WeakMap()
 const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
+let publishedSelectionDocument = null
 let readerSideMarginPercent = 10
 let hasOpened = false
 // Pre-paginated books (PDF) render each page as an image with a text layer on top. Typography cannot reflow, but the
@@ -388,6 +389,7 @@ async function open(bookUrl, lastLocatorCfi) {
         popularBadgeIndexDirty = true
         resetPopularBadgeResolutionRetries()
         annotationRevision++
+        publishedSelectionDocument = null
         hasOpened = false
         phase = 'opening book source'
         let bookFile = nativePdfFile(bookUrl)
@@ -426,6 +428,13 @@ async function open(bookUrl, lastLocatorCfi) {
         resetFixedLayoutState()
         resetPageEstimate()
         view.addEventListener('relocate', e => {
+            if (publishedSelectionDocument && !view.renderer.getContents()
+                .some(content => content?.doc === publishedSelectionDocument)) {
+                clearTimeout(selectionTimers.get(publishedSelectionDocument))
+                selectionTimers.delete(publishedSelectionDocument)
+                publishedSelectionDocument = null
+                post('selection', null)
+            }
             scheduleBadgeLayout()
             const { cfi, fraction, tocItem, section, time } = e.detail
             const pageStats = bookPageStats(section?.current ?? 0)
@@ -477,7 +486,7 @@ async function open(bookUrl, lastLocatorCfi) {
                 // the next task makes failed early annotation draws retry against the real overlay.
                 resetPopularBadgeResolutionRetries()
                 popularBadgeIndexDirty = true
-                queueDocumentEnhancements(doc, index)
+                queueDocumentEnhancements(doc, index, true)
                 scheduleBadgeLayout()
             }
         })
@@ -761,17 +770,63 @@ function layoutPopularBadges() {
 
 window.addEventListener('resize', scheduleBadgeLayout)
 
+/**
+ * A Foliate overlayer belongs to one loaded document and is discarded with it.
+ * The annotation caches below are book-wide, so a cached CFI is not proof that
+ * its underline still exists in a newly-created overlay. Repaint the marks for
+ * this document before matching any community quotes that are not resolved yet.
+ */
+async function restoreAnnotationsForOverlay(doc, index) {
+    const current = view?.renderer?.getContents?.()
+        ?.some(content => content?.doc === doc && content.index === index && content.overlayer)
+    if (!current || !activeAnnotationsList.length) return
+
+    const additions = []
+    const restoredCfis = new Set()
+    for (const annotation of activeAnnotationsList) {
+        let cfi = annotation.value
+        if (isTextAnnotationValue(cfi)) {
+            cfi = resolvedTextAnnotations.get(cfi)
+            if (!cfi) continue
+            // Near-identical community quotes can share a range. Restore only the
+            // authoritative one so a duplicate cannot overwrite its style/count.
+            const source = authoritativeSourceForCfi.get(cfi)
+            if (source && source !== annotation.value) continue
+        }
+        if (!cfi || restoredCfis.has(cfi)) continue
+        let resolved = null
+        try {
+            resolved = view.resolveCFI(cfi)
+        } catch (_) {}
+        if (resolved?.index !== index) continue
+        restoredCfis.add(cfi)
+        additions.push(Promise.resolve(view.addAnnotation({ ...annotation, value: cfi })))
+    }
+    if (additions.length) await Promise.allSettled(additions)
+    resetPopularBadgeResolutionRetries()
+    popularBadgeIndexDirty = true
+    scheduleBadgeLayout()
+}
+
 // 'relocate' can fire many times in a row for the same page turn (each a no-op full document
 // walk once bionic reading/annotations are already applied) - collapse repeats scheduled
 // before the first one runs into a single pass instead of stacking up redundant timeouts.
-const enhancementsPending = new WeakSet()
+const enhancementsPending = new WeakMap()
 const completedMatchingRevision = new WeakMap()
-function queueDocumentEnhancements(doc, index) {
-    if (enhancementsPending.has(doc)) return
-    enhancementsPending.add(doc)
-    setTimeout(() => {
+function queueDocumentEnhancements(doc, index, restoreOverlay = false) {
+    const pending = enhancementsPending.get(doc)
+    if (pending) {
+        // A relocate/load callback can reach this document just before create-overlay.
+        // Preserve the later, stronger request instead of letting the first timer swallow it.
+        pending.restoreOverlay ||= restoreOverlay
+        return
+    }
+    const request = { restoreOverlay }
+    enhancementsPending.set(doc, request)
+    setTimeout(async () => {
         enhancementsPending.delete(doc)
         applyBionicReadingToDoc(doc)
+        if (request.restoreOverlay) await restoreAnnotationsForOverlay(doc, index)
         matchTextAnnotationsForDoc(doc, index)
     }, 0)
 }
@@ -982,31 +1037,73 @@ function bionicMarkup(text) {
 }
 
 function wireSelection(doc, index) {
-    doc.addEventListener('selectionchange', () => {
+    let pointerSelecting = false
+    const schedulePost = delay => {
         clearTimeout(selectionTimers.get(doc))
-        selectionTimers.set(doc, setTimeout(() => postSelection(doc, index), 150))
+        selectionTimers.set(doc, setTimeout(() => {
+            selectionTimers.delete(doc)
+            postSelection(doc, index)
+        }, delay))
+    }
+    doc.addEventListener('pointerdown', () => { pointerSelecting = true })
+    const finishPointerSelection = () => {
+        if (!pointerSelecting) return
+        pointerSelecting = false
+        // Publish the final range as soon as the handle is released. Holding the
+        // previous card steady during the drag avoids layout/dictionary churn.
+        schedulePost(0)
+    }
+    doc.addEventListener('pointerup', finishPointerSelection)
+    doc.addEventListener('pointercancel', finishPointerSelection)
+    doc.defaultView?.addEventListener('blur', finishPointerSelection)
+    doc.addEventListener('selectionchange', () => {
+        if (!pointerSelecting) schedulePost(120)
     })
 }
 
 function postSelection(doc, index) {
+    const active = view?.renderer?.getContents?.()
+        ?.some(content => content?.doc === doc && content.index === index)
+    // A delayed selectionchange from an unloaded chapter must not resurrect its
+    // stale range/card after a page turn.
+    if (!active) {
+        if (publishedSelectionDocument === doc) {
+            publishedSelectionDocument = null
+            post('selection', null)
+        }
+        return
+    }
     const selection = doc.getSelection()
     if (!selection || !selection.rangeCount || selection.isCollapsed) {
+        if (publishedSelectionDocument === doc) publishedSelectionDocument = null
         post('selection', null)
         return
     }
     const selectedText = selection.toString().trim()
     if (!selectedText) {
+        if (publishedSelectionDocument === doc) publishedSelectionDocument = null
         post('selection', null)
         return
     }
     const range = selection.getRangeAt(0).cloneRange()
-    const rect = range.getBoundingClientRect()
+    const focusRange = doc.createRange()
+    let rect = null
+    try {
+        focusRange.setStart(selection.focusNode, selection.focusOffset)
+        focusRange.collapse(true)
+        rect = focusRange.getClientRects()[0] ?? focusRange.getBoundingClientRect()
+    } catch (_) {}
+    if (!rect || (!rect.width && !rect.height)) {
+        const rects = range.getClientRects()
+        rect = rects[rects.length - 1] ?? range.getBoundingClientRect()
+    }
     // The section sits in an iframe scrolled inside the reader view; edges are reported against the view (the WebView).
     const frameTop = doc.defaultView?.frameElement?.getBoundingClientRect().top ?? 0
     const viewHeight = window.innerHeight
     const fractionOfView = y => viewHeight > 0 ? Math.max(0, Math.min(1, (frameTop + y) / viewHeight)) : null
     const wordLookup = wordLookupSelection
     wordLookupSelection = false
+    publishedSelectionDocument = doc
     post('selection', {
         cfi: view.getCFI(index, range),
         selectedText,
@@ -1475,7 +1572,12 @@ function mergeRanges(requestId, cfi, others) {
 
 function clearSelection() {
     if (!view) return
-    for (const { doc } of view.renderer.getContents()) doc.getSelection()?.removeAllRanges()
+    for (const { doc } of view.renderer.getContents()) {
+        clearTimeout(selectionTimers.get(doc))
+        selectionTimers.delete(doc)
+        doc.getSelection()?.removeAllRanges()
+    }
+    publishedSelectionDocument = null
     post('selection', null)
 }
 

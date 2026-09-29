@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's stand-in for the reading chart (the app draws the real one). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="280dp"
+    android:height="90dp"
+    android:viewportWidth="280"
+    android:viewportHeight="90">
+    <path
+        android:pathData="M31,5H275V68H31Z"
+        android:strokeColor="@color/widget_on_surface_variant"
+        android:strokeAlpha="0.5"
+        android:strokeWidth="1" />
+    <path
+        android:pathData="M31,26H275M31,47H275M65,5V68M100,5V68M135,5V68M170,5V68M205,5V68M240,5V68"
+        android:strokeColor="@color/widget_on_surface_variant"
+        android:strokeAlpha="0.25"
+        android:strokeWidth="0.75" />
+    <path
+        android:pathData="M31,38H275"
+        android:strokeColor="@color/widget_tertiary"
+        android:strokeWidth="1.5" />
+    <path
+        android:pathData="M31,14L65,18L100,22L135,38L170,63L205,66L240,58L275,26"
+        android:strokeColor="@color/widget_primary"
+        android:strokeLineJoin="miter"
+        android:strokeWidth="2" />
+</vector>

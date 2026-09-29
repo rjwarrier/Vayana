@@ -1563,8 +1563,9 @@
     <string name="widget_reading_title">Temps de lecture</string>
     <string name="widget_reading_description">Votre temps de lecture du jour sur tous vos appareils, et les 7 derniers jours en graphique.</string>
     <string name="widget_reading_today">Aujourd’hui</string>
-    <string name="widget_reading_average">Moy. %1$s</string>
-    <string name="widget_reading_preview_today">1h 12m</string>
-    <string name="widget_reading_preview_average">Moy. 42m</string>
-    <string name="widget_reading_chart_description">Temps de lecture des 7 derniers jours ; moyenne de %1$s par jour</string>
+    <string name="widget_reading_preview_today">1h 6m</string>
+    <string name="widget_reading_avg_label">Moy. 7 j</string>
+    <string name="widget_reading_duration_hours">%1$d h</string>
+    <string name="widget_reading_preview_average">43m</string>
+    <string name="widget_reading_chart_description">Temps de lecture des 7 derniers jours : %1$s. Moyenne sur 7 jours : %2$s.</string>
 </resources>

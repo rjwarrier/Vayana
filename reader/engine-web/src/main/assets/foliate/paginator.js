@@ -172,6 +172,25 @@ const selectionIsBackward = sel => {
     return range.collapsed
 }
 
+// A selection handle may briefly extend into an adjacent CSS column while it is
+// being dragged at a page edge. Permit one turn in each direction for that drag,
+// but never cross an EPUB section: a DOM Range cannot survive into another
+// document, and repeated turns are what make a short selection run away across
+// several pages on Android WebView.
+const selectionPageTurnDirection = ({
+    backward,
+    startsBeforePage,
+    endsAfterPage,
+    turnedBackward,
+    turnedForward,
+    atSectionStart,
+    atSectionEnd,
+}) => {
+    if (backward && startsBeforePage && !turnedBackward && !atSectionStart) return -1
+    if (!backward && endsAfterPage && !turnedForward && !atSectionEnd) return 1
+    return 0
+}
+
 const setSelectionTo = (target, collapse) => {
     let range
     if (target.startContainer) range = target.cloneRange()
@@ -635,19 +654,38 @@ export class Paginator extends HTMLElement {
                 else setSelectionTo(this.#anchor, -1)
             }
         })
-        const checkPointerSelection = debounce((range, sel) => {
-            if (!sel.rangeCount) return
-            const selRange = sel.getRangeAt(0)
-            const backward = selectionIsBackward(sel)
-            if (backward && selRange.compareBoundaryPoints(Range.START_TO_START, range) < 0)
-                this.prev()
-            else if (!backward && selRange.compareBoundaryPoints(Range.END_TO_END, range) > 0)
-                this.next()
-        }, 700)
         this.addEventListener('load', ({ detail: { doc } }) => {
             let isPointerSelecting = false
-            doc.addEventListener('pointerdown', () => isPointerSelecting = true)
-            doc.addEventListener('pointerup', () => isPointerSelecting = false)
+            const turnedDirections = new Set()
+            const checkPointerSelection = debounce((range, sel) => {
+                // The old shared debounce could fire after pointerup and turn the page after the
+                // user had already finished. It could then keep turning while the handle remained
+                // beyond successive page ranges. Keep the decision scoped to this live drag.
+                if (!isPointerSelecting || !sel.rangeCount || sel.type !== 'Range') return
+                const selRange = sel.getRangeAt(0)
+                const backward = selectionIsBackward(sel)
+                const direction = selectionPageTurnDirection({
+                    backward,
+                    startsBeforePage: selRange.compareBoundaryPoints(Range.START_TO_START, range) < 0,
+                    endsAfterPage: selRange.compareBoundaryPoints(Range.END_TO_END, range) > 0,
+                    turnedBackward: turnedDirections.has(-1),
+                    turnedForward: turnedDirections.has(1),
+                    atSectionStart: this.page <= 1,
+                    atSectionEnd: this.page >= this.pages - 2,
+                })
+                if (!direction) return
+                turnedDirections.add(direction)
+                if (direction < 0) this.prev()
+                else this.next()
+            }, 350)
+            doc.addEventListener('pointerdown', () => {
+                isPointerSelecting = true
+                turnedDirections.clear()
+            })
+            const finishPointerSelection = () => isPointerSelecting = false
+            doc.addEventListener('pointerup', finishPointerSelection)
+            doc.addEventListener('pointercancel', finishPointerSelection)
+            doc.defaultView?.addEventListener('blur', finishPointerSelection)
             let isKeyboardSelecting = false
             doc.addEventListener('keydown', () => isKeyboardSelecting = true)
             doc.addEventListener('keyup', () => isKeyboardSelecting = false)
@@ -657,8 +695,7 @@ export class Paginator extends HTMLElement {
                 if (!range) return
                 const sel = doc.getSelection()
                 if (!sel.rangeCount) return
-                if (isPointerSelecting && sel.type === 'Range')
-                    checkPointerSelection(range, sel)
+                if (isPointerSelecting && sel.type === 'Range') checkPointerSelection(range, sel)
                 else if (isKeyboardSelecting) {
                     const selRange = sel.getRangeAt(0).cloneRange()
                     const backward = selectionIsBackward(sel)

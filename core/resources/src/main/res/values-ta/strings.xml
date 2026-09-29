@@ -1547,8 +1547,9 @@
     <string name="widget_reading_title">வாசிப்பு நேரம்</string>
     <string name="widget_reading_description">எல்லாச் சாதனங்களிலும் இன்றைய வாசிப்பு நேரம், கடந்த 7 நாட்களின் வரைபடம்.</string>
     <string name="widget_reading_today">இன்று</string>
-    <string name="widget_reading_average">சராசரி %1$s</string>
-    <string name="widget_reading_preview_today">1h 12m</string>
-    <string name="widget_reading_preview_average">சராசரி 42m</string>
-    <string name="widget_reading_chart_description">கடந்த 7 நாட்களின் வாசிப்பு நேரம்; நாளொன்றுக்குச் சராசரி %1$s</string>
+    <string name="widget_reading_preview_today">1h 6m</string>
+    <string name="widget_reading_avg_label">7 நாள் சராசரி</string>
+    <string name="widget_reading_duration_hours">%1$d ம</string>
+    <string name="widget_reading_preview_average">43m</string>
+    <string name="widget_reading_chart_description">கடந்த 7 நாட்களின் வாசிப்பு நேரம்: %1$s. 7 நாள் சராசரி %2$s.</string>
 </resources>

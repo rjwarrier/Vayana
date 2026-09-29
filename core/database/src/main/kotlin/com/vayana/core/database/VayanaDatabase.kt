@@ -6,6 +6,7 @@ import com.vayana.core.database.dao.AnnotationDao
 import com.vayana.core.database.dao.BookAliasDao
 import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.HighlightReviewDao
+import com.vayana.core.database.dao.FullSyncStateDao
 import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.ShelfDao
 import com.vayana.core.database.dao.TombstoneDao
@@ -18,6 +19,7 @@ import com.vayana.core.database.entity.BookEntity
 import com.vayana.core.database.entity.BookFtsEntity
 import com.vayana.core.database.entity.BookShelfCrossRefEntity
 import com.vayana.core.database.entity.HighlightReviewEntity
+import com.vayana.core.database.entity.FullSyncStateEntity
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.entity.ShelfEntity
 import com.vayana.core.database.entity.TombstoneEntity
@@ -27,7 +29,7 @@ import com.vayana.core.database.dao.PendingCloudDeletionDao
 import com.vayana.core.database.entity.PendingCloudDeletionEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (docs/PRODUCT_SPEC.md §2). */
-const val DATABASE_VERSION = 27
+const val DATABASE_VERSION = 28
 
 @Database(
     entities = [
@@ -35,6 +37,7 @@ const val DATABASE_VERSION = 27
         ShelfEntity::class, BookShelfCrossRefEntity::class, VocabularyCardEntity::class,
         BookAliasEntity::class, TombstoneEntity::class, BookFtsEntity::class, AnnotationFtsEntity::class,
         PendingCloudDeletionEntity::class, HighlightReviewEntity::class,
+        FullSyncStateEntity::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -50,4 +53,5 @@ abstract class VayanaDatabase : RoomDatabase() {
     abstract fun tombstoneDao(): TombstoneDao
     abstract fun pendingCloudDeletionDao(): PendingCloudDeletionDao
     abstract fun highlightReviewDao(): HighlightReviewDao
+    abstract fun fullSyncStateDao(): FullSyncStateDao
 }

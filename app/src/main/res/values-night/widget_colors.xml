@@ -8,4 +8,5 @@
     <color name="widget_primary_container">#FF005047</color>
     <color name="widget_on_primary_container">#FF9EF2E5</color>
     <color name="widget_secondary_container">#FF334B47</color>
+    <color name="widget_tertiary">#FFADCAE6</color>
 </resources>

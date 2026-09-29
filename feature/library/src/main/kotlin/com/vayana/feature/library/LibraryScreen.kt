@@ -332,6 +332,11 @@ private fun LibraryScreen(
     val readNextShelfShown = uiState.controls.query.isBlank() && uiState.controls.filter == LibraryFilter.ALL
     val activeReadNextQueue = readNextQueue.takeIf { readNextShelfShown }.orEmpty()
     val showReadNextSuggestions = readNextShelfShown && readNextQueue.isEmpty()
+    val displayedSyncBadge = when {
+        syncBadge == LibrarySyncBadge.FAILED -> LibrarySyncBadge.FAILED
+        uiState.fullSyncRecommended -> LibrarySyncBadge.RECOMMENDED
+        else -> syncBadge
+    }
 
     fun handleBookClick(book: Book, transitionSource: BookOpenTransitionSource) {
         if (activeDownloadBookId != null) return
@@ -478,7 +483,7 @@ private fun LibraryScreen(
                     searchFocusRequester = searchFocusRequester,
                     showSyncNow = true,
                     syncRunning = syncRunning,
-                    syncBadge = syncBadge,
+                    syncBadge = displayedSyncBadge,
                     onSyncNow = { mode -> handleSyncNow(mode = mode) },
                     showAddAction = LocalFloatingNavigationInset.current == 0.dp,
                     onImportFiles = { filesPicker.launch(arrayOf("*/*")) },
@@ -650,6 +655,7 @@ internal fun expressiveTextFieldColors(): androidx.compose.material3.TextFieldCo
 private enum class LibrarySyncBadge {
     SUCCESS,
     FAILED,
+    RECOMMENDED,
 }
 
 @Composable
@@ -711,6 +717,29 @@ private fun LibraryTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
+                    if (showSyncNow && syncBadge == LibrarySyncBadge.RECOMMENDED && !syncRunning) {
+                        Surface(
+                            modifier = Modifier
+                                .heightIn(min = 32.dp)
+                                .clip(CircleShape)
+                                .clickable { onSyncNow(GitHubSyncMode.FULL) },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            tonalElevation = Elevations.level1,
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.library_sync_now_content_description),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
                     if (showSyncNow) {
                         Box {
                             LibrarySyncTopBarIconButton(
@@ -723,7 +752,13 @@ private fun LibraryTopBar(
                                 } else {
                                     Icon(
                                         imageVector = Icons.Outlined.Sync,
-                                        contentDescription = stringResource(R.string.library_sync_now_content_description),
+                                        contentDescription = stringResource(
+                                            if (syncBadge == LibrarySyncBadge.RECOMMENDED) {
+                                                R.string.library_full_sync_recommended_content_description
+                                            } else {
+                                                R.string.library_sync_now_content_description
+                                            },
+                                        ),
                                         modifier = Modifier.size(Sizes.icon),
                                     )
                                 }
@@ -1036,14 +1071,17 @@ private fun LibrarySyncStatusBadge(
     val containerColor = when (badge) {
         LibrarySyncBadge.SUCCESS -> MaterialTheme.colorScheme.primary
         LibrarySyncBadge.FAILED -> MaterialTheme.colorScheme.error
+        LibrarySyncBadge.RECOMMENDED -> MaterialTheme.colorScheme.tertiary
     }
     val contentColor = when (badge) {
         LibrarySyncBadge.SUCCESS -> MaterialTheme.colorScheme.onPrimary
         LibrarySyncBadge.FAILED -> MaterialTheme.colorScheme.onError
+        LibrarySyncBadge.RECOMMENDED -> MaterialTheme.colorScheme.onTertiary
     }
     val icon = when (badge) {
         LibrarySyncBadge.SUCCESS -> Icons.Outlined.Check
         LibrarySyncBadge.FAILED -> Icons.Outlined.Close
+        LibrarySyncBadge.RECOMMENDED -> null
     }
     Surface(
         modifier = modifier.size(Sizes.iconSmall),
@@ -1053,11 +1091,18 @@ private fun LibrarySyncStatusBadge(
         tonalElevation = Elevations.level1,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(Sizes.swatchSmall),
-            )
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.swatchSmall),
+                )
+            } else {
+                Text(
+                    text = "!",
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
     }
 }

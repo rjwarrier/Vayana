@@ -19,6 +19,7 @@ import com.vayana.core.designsystem.theme.EinkPageKeys
 import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.common.incomingBookUris
+import com.vayana.feature.gutenberg.GutenbergCacheWarmer
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var incomingBookFiles: IncomingBookFiles
     @Inject lateinit var openBookRequests: OpenBookRequests
     @Inject lateinit var shortcutRequests: ShortcutRequests
+    @Inject lateinit var gutenbergCacheWarmer: GutenbergCacheWarmer
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguage.wrap(newBase))
@@ -40,6 +42,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             VayanaAppRoot()
         }
+        gutenbergCacheWarmer.start()
     }
 
     // The hardware page buttons of an e-reader page the list on screen. Only while such a list exists: the reader turns

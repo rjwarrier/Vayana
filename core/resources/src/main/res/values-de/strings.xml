@@ -1547,8 +1547,9 @@
     <string name="widget_reading_title">Lesezeit</string>
     <string name="widget_reading_description">Deine heutige Lesezeit auf allen Geräten und die letzten 7 Tage als Diagramm.</string>
     <string name="widget_reading_today">Heute</string>
-    <string name="widget_reading_average">Ø %1$s</string>
-    <string name="widget_reading_preview_today">1h 12m</string>
-    <string name="widget_reading_preview_average">Ø 42m</string>
-    <string name="widget_reading_chart_description">Lesezeit der letzten 7 Tage; im Schnitt %1$s pro Tag</string>
+    <string name="widget_reading_preview_today">1h 6m</string>
+    <string name="widget_reading_avg_label">Ø 7 Tage</string>
+    <string name="widget_reading_duration_hours">%1$d Std.</string>
+    <string name="widget_reading_preview_average">43m</string>
+    <string name="widget_reading_chart_description">Lesezeit der letzten 7 Tage: %1$s. 7-Tage-Durchschnitt %2$s.</string>
 </resources>

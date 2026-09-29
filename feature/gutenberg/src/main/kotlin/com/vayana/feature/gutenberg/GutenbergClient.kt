@@ -29,14 +29,14 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
- * Talks to gutenberg.org only, and only for what the reader opens: no prefetching or crawling, as Gutenberg asks of
- * apps. Pages seen in the last few minutes are served from memory. Every page and cover fetched is also kept on disk
- * (in the cache, which Android may clear), so a list opened before shows at once while it's refreshed, and still
- * shows offline; the Popular list ships with the app for the very first open.
+ * Talks to gutenberg.org only for what the reader opens, plus one launch-time refresh of the first Popular page: no
+ * catalogue crawling. Pages seen in the last few minutes are served from memory. Every page and cover fetched is also
+ * kept on disk (in the cache, which Android may clear), so a list opened before shows at once while it's refreshed,
+ * and still shows offline; the Popular list ships with the app for the very first open.
  */
 @Singleton
 class GutenbergClient @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val dispatchers: DispatcherProvider,
 ) {
     private val pages = object : LruCache<String, CachedPage>(PageCacheEntries) {}
@@ -52,16 +52,20 @@ class GutenbergClient @Inject constructor(
 
     // A tile and the details sheet can ask for the same cover together. Let them share one disk decode/download.
     private val coverLoads = ConcurrentHashMap<String, CompletableDeferred<ImageBitmap?>>()
+    // The launch warm-up and the catalogue screen can overlap. Share the parse/fetch instead of doing both twice.
+    private val listingLoads = ConcurrentHashMap<String, CompletableDeferred<GutenbergListing>>()
 
     /** A cover already in memory, so a tile scrolled back into view draws it at once. */
     fun cachedCover(url: String): ImageBitmap? = covers.get(url)
 
     /** The list as last fetched, or the copy bundled with the app, or null: to show while [listing] fetches it again. */
-    suspend fun savedListing(url: String): GutenbergListing? = withContext(dispatchers.io) {
-        listings.get(url)?.let { return@withContext it }
-        val page = pages.get(url) ?: savedPage(url)?.also { pages.put(url, it) } ?: bundledPage(url)
-            ?: return@withContext null
-        runCatching { GutenbergFeeds.parseListing(page.body) }.getOrNull()?.also { listings.put(url, it) }
+    suspend fun savedListing(url: String): GutenbergListing? {
+        listings.get(url)?.let { return it }
+        return withContext(dispatchers.io) {
+            val page = pages.get(url) ?: savedPage(url)?.also { pages.put(url, it) } ?: bundledPage(url)
+                ?: return@withContext null
+            runCatching { GutenbergFeeds.parseListing(page.body) }.getOrNull()?.also { listings.put(url, it) }
+        }
     }
 
     /**
@@ -74,14 +78,41 @@ class GutenbergClient @Inject constructor(
         return withContext(dispatchers.io) { pageFile(url).lastModified().let { it > 0 && now - it < PageCacheMillis } }
     }
 
+    /** Loads the first screen into parsed memory, refreshing its saved copy only when stale. */
+    suspend fun warmDefaultListing() = listing(GutenbergFeeds.listUrl(GutenbergQuery()))
+
     // Parsed off the main thread too: a list page is some 50 KB of XML. A fresh in-memory page keeps its parsed form,
     // avoiding another DOM build when the same list is revisited.
-    suspend fun listing(url: String): GutenbergListing = withContext(dispatchers.io) {
-        val now = System.currentTimeMillis()
-        if (pages.get(url)?.let { now - it.fetchedAt < PageCacheMillis } == true) {
-            listings.get(url)?.let { return@withContext it }
+    suspend fun listing(url: String): GutenbergListing {
+        freshListing(url)?.let { return it }
+        val mine = CompletableDeferred<GutenbergListing>()
+        listingLoads.putIfAbsent(url, mine)?.let { existing ->
+            return try {
+                existing.await()
+            } catch (cancellation: CancellationException) {
+                // If the request owner left its screen, an active waiter takes over instead of inheriting cancellation.
+                currentCoroutineContext().ensureActive()
+                listingLoads.remove(url, existing)
+                listing(url)
+            }
         }
-        GutenbergFeeds.parseListing(page(url)).also { listings.put(url, it) }
+        try {
+            val result = withContext(dispatchers.io) {
+                freshListing(url) ?: GutenbergFeeds.parseListing(page(url)).also { listings.put(url, it) }
+            }
+            mine.complete(result)
+            return result
+        } catch (error: Throwable) {
+            mine.completeExceptionally(error)
+            throw error
+        } finally {
+            listingLoads.remove(url, mine)
+        }
+    }
+
+    private fun freshListing(url: String): GutenbergListing? {
+        val page = pages.get(url) ?: return null
+        return if (System.currentTimeMillis() - page.fetchedAt < PageCacheMillis) listings.get(url) else null
     }
 
     /**

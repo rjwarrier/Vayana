@@ -12,4 +12,5 @@
     <color name="widget_primary_container">#FF9EF2E5</color>
     <color name="widget_on_primary_container">#FF00201C</color>
     <color name="widget_secondary_container">#FFCCE8E1</color>
+    <color name="widget_tertiary">#FF456179</color>
 </resources>

@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 28
+
+Adds singleton `full_sync_state`, maintained by SQLite triggers, to indicate that local data contains changes which
+reading-progress-only sync cannot publish. New or edited book metadata/assets, annotations, shelves, shelf memberships,
+and vocabulary cards set the flag. Reading positions, reading sessions, Read Next, word-lookup counters and tombstones
+do not. A completely successful full sync clears it, allowing the library sync icon to recommend full sync precisely.
+
 ## Version 27
 
 Adds nullable, indexed `books.gutenbergId` for exact Project Gutenberg provenance and duplicate detection. Existing
