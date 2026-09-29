@@ -232,6 +232,16 @@ interface BookDao {
     @Query("SELECT EXISTS(SELECT 1 FROM books WHERE isDeleted = 0)")
     suspend fun hasAnyBooks(): Boolean
 
+    /**
+     * Watches the book "Continue reading" means: the most recently read one whose file is on this device. One row,
+     * where watching every book would reload the whole library each time the reader saves its place.
+     */
+    @Query(
+        "SELECT * FROM books WHERE isDeleted = 0 AND lastReadAt > 0 AND filePath != '' " +
+            "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
+    )
+    fun observeContinueReading(): Flow<BookEntity?>
+
     /** The most recently read book whose file is on this device, so it can open in the reader. */
     @Query(
         "SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt IS NOT NULL AND filePath != '' " +

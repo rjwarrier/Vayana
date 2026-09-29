@@ -50,6 +50,8 @@ class BookRepositoryImpl @Inject constructor(
     override fun observeAll(): Flow<List<Book>> =
         bookDao.observeAll().map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeContinueReading(): Flow<Book?> = bookDao.observeContinueReading().map { it?.toDomain() }
+
     override fun observeDeleted(): Flow<List<Book>> =
         bookDao.observeDeleted().map { entities -> entities.map { it.toDomain() } }
 

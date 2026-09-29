@@ -96,6 +96,9 @@ enum class CloudBookMergeResult {
 interface BookRepository {
     fun observeAll(): Flow<List<Book>>
 
+    /** The most recently read book whose file is on this device, for the widget and the launcher shortcut. */
+    fun observeContinueReading(): Flow<Book?>
+
     suspend fun hasAnyBooks(): Boolean
 
     /** Root-relative paths of every cover file any book (deleted ones included) still uses. */

@@ -37,8 +37,8 @@ class AppShortcuts @Inject constructor(
 ) {
     fun start() {
         scope.launch {
-            bookRepository.observeAll()
-                .map { books -> books.continueReading()?.let { it.id to it.title } }
+            bookRepository.observeContinueReading()
+                .map { book -> book?.let { it.id to it.title } }
                 .distinctUntilChanged()
                 .collect { publish(it) }
         }

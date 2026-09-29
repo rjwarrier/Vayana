@@ -15,7 +15,6 @@ import com.vayana.app.R
 import com.vayana.core.common.ApplicationScope
 import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.model.Book
-import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.AndroidEntryPoint
@@ -46,12 +45,8 @@ class ContinueReadingWidget : AppWidgetProvider() {
 /** What the widget shows: the most recently read book whose file is on this device, as the library's hero card does. */
 data class WidgetBook(val id: Long, val title: String, val author: String?, val coverPath: String?, val percent: Int)
 
-internal fun List<Book>.continueReading(): WidgetBook? =
-    filter { !it.format.isOffline && it.fileAvailability == BookFileAvailability.LOCAL && (it.lastReadAt ?: 0L) > 0L }
-        .maxByOrNull { it.lastReadAt ?: 0L }
-        ?.let { book ->
-            WidgetBook(book.id, book.title, book.author, book.coverPath, (book.readingPercent * PercentScale).roundToInt())
-        }
+internal fun Book.toWidgetBook(): WidgetBook =
+    WidgetBook(id, title, author, coverPath, (readingPercent * PercentScale).roundToInt())
 
 /**
  * Redraws the widget when the book being read changes or moves on - while the app runs, which is when reading
@@ -67,8 +62,8 @@ class ContinueReadingWidgetUpdater @Inject constructor(
 ) {
     fun start() {
         scope.launch {
-            bookRepository.observeAll()
-                .map { it.continueReading() }
+            bookRepository.observeContinueReading()
+                .map { it?.toWidgetBook() }
                 .distinctUntilChanged()
                 .collect { render(it) }
         }
@@ -77,7 +72,7 @@ class ContinueReadingWidgetUpdater @Inject constructor(
     fun refresh(onDone: () -> Unit) {
         scope.launch {
             try {
-                render(bookRepository.observeAll().first().continueReading())
+                render(bookRepository.observeContinueReading().first()?.toWidgetBook())
             } finally {
                 onDone()
             }
