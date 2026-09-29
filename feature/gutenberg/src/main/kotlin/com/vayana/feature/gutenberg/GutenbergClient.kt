@@ -14,6 +14,7 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,7 +26,9 @@ import kotlinx.coroutines.withContext
 
 /**
  * Talks to gutenberg.org only, and only for what the reader opens: no prefetching or crawling, as Gutenberg asks of
- * apps. Pages seen in the last few minutes are served from memory, covers from a small memory cache.
+ * apps. Pages seen in the last few minutes are served from memory. Every page and cover fetched is also kept on disk
+ * (in the cache, which Android may clear), so a list opened before shows at once while it's refreshed, and still
+ * shows offline; the Popular list ships with the app for the very first open.
  */
 @Singleton
 class GutenbergClient @Inject constructor(
@@ -44,14 +47,41 @@ class GutenbergClient @Inject constructor(
     /** A cover already in memory, so a tile scrolled back into view draws it at once. */
     fun cachedCover(url: String): ImageBitmap? = covers.get(url)
 
+    /** The list as last fetched, or the copy bundled with the app, or null: to show while [listing] fetches it again. */
+    suspend fun savedListing(url: String): GutenbergListing? = withContext(dispatchers.io) {
+        val xml = pages.get(url)?.second ?: savedPage(url) ?: bundledPage(url) ?: return@withContext null
+        runCatching { GutenbergFeeds.parseListing(xml) }.getOrNull()
+    }
+
+    /** Whether [url] was fetched in the last few minutes, so what [savedListing] gives needs no refresh. */
+    fun isFresh(url: String): Boolean = pages.get(url)?.let { System.currentTimeMillis() - it.first < PageCacheMillis } == true
+
     suspend fun listing(url: String): GutenbergListing = GutenbergFeeds.parseListing(page(url))
 
-    suspend fun book(id: Long): GutenbergBook? = GutenbergFeeds.parseBook(page(GutenbergFeeds.bookUrl(id)), id)
+    /**
+     * A book's page. Its editions and sizes hardly ever change, so one saved in the last month is used as it is; an
+     * older one only when gutenberg.org can't be reached.
+     */
+    suspend fun book(id: Long): GutenbergBook? {
+        val url = GutenbergFeeds.bookUrl(id)
+        val saved = withContext(dispatchers.io) { savedPage(url, maxAgeMillis = BookPageMaxAgeMillis) }
+        if (saved != null) return GutenbergFeeds.parseBook(saved, id)
+        val xml = try {
+            page(url)
+        } catch (error: IOException) {
+            withContext(dispatchers.io) { savedPage(url) } ?: throw error
+        }
+        return GutenbergFeeds.parseBook(xml, id)
+    }
 
     /** A cover, or null when the book has none (Gutenberg answers 404) or it can't be fetched right now. */
     suspend fun cover(url: String): ImageBitmap? {
         covers.get(url)?.let { return it }
         if (url in missingCovers) return null
+        val saved = coverFile(url)
+        withContext(dispatchers.io) {
+            if (saved.isFile) BitmapFactory.decodeFile(saved.path)?.asImageBitmap()?.also { covers.put(url, it) } else null
+        }?.let { return it }
         return coverDownloads.withPermit {
             covers.get(url) ?: withContext(dispatchers.io) {
                 val bytes = try {
@@ -62,7 +92,10 @@ class GutenbergClient @Inject constructor(
                 } catch (_: IOException) {
                     null
                 }
-                bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }?.also { covers.put(url, it) }
+                bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }?.also {
+                    covers.put(url, it)
+                    save(saved, bytes, MaxSavedCovers)
+                }
             }
         }
     }
@@ -114,8 +147,47 @@ class GutenbergClient @Inject constructor(
     private suspend fun page(url: String): String = withContext(dispatchers.io) {
         val now = System.currentTimeMillis()
         pages.get(url)?.takeIf { now - it.first < PageCacheMillis }?.let { return@withContext it.second }
-        get(url, MaxFeedBytes).decodeToString().also { pages.put(url, now to it) }
+        get(url, MaxFeedBytes).decodeToString().also {
+            pages.put(url, now to it)
+            save(pageFile(url), it.encodeToByteArray(), MaxSavedPages)
+        }
     }
+
+    private fun savedPage(url: String, maxAgeMillis: Long = Long.MAX_VALUE): String? {
+        val file = pageFile(url)
+        if (!file.isFile || System.currentTimeMillis() - file.lastModified() > maxAgeMillis) return null
+        return runCatching { file.readText() }.getOrNull()
+    }
+
+    private fun bundledPage(url: String): String? =
+        if (url != GutenbergFeeds.listUrl(GutenbergQuery())) {
+            null
+        } else {
+            runCatching { context.assets.open(BundledPopular).use { it.readBytes().decodeToString() } }.getOrNull()
+        }
+
+    private fun pageFile(url: String) = File(File(context.cacheDir, PagesDirectory), "${key(url)}.xml")
+
+    private fun coverFile(url: String) = File(File(context.cacheDir, CoversDirectory), "${key(url)}.jpg")
+
+    /** Writes via a temporary file, so a half-written copy is never read; keeps the newest [maxFiles] in the folder. */
+    private fun save(file: File, bytes: ByteArray, maxFiles: Int) {
+        runCatching {
+            val directory = file.parentFile ?: return
+            directory.mkdirs()
+            val temporary = File(directory, "${file.name}.tmp")
+            temporary.writeBytes(bytes)
+            if (!temporary.renameTo(file)) {
+                temporary.delete()
+                return
+            }
+            val saved = directory.listFiles()?.filter { it.isFile } ?: return
+            if (saved.size > maxFiles) saved.sortedBy { it.lastModified() }.take(saved.size - maxFiles).forEach { it.delete() }
+        }
+    }
+
+    private fun key(url: String): String =
+        MessageDigest.getInstance("SHA-256").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }.take(KeyLength)
 
     private fun get(url: String, maxBytes: Int): ByteArray =
         open(url).useConnection { connection -> connection.inputStream.use { it.readAtMost(maxBytes) } }
@@ -176,6 +248,13 @@ class GutenbergClient @Inject constructor(
 
     internal companion object {
         const val CacheDirectory = "gutenberg"
+        private const val PagesDirectory = "gutenberg_pages"
+        private const val CoversDirectory = "gutenberg_covers"
+        private const val BundledPopular = "gutenberg/popular.xml"
+        private const val MaxSavedPages = 80
+        private const val MaxSavedCovers = 400
+        private const val KeyLength = 32
+        private const val BookPageMaxAgeMillis = 30L * 24 * 60 * 60 * 1000
         private const val UserAgent = "Vayana/1.0 (https://github.com/rjwarrier/Vayana)"
         private const val TimeoutMillis = 20_000
         private const val MaxRedirects = 3

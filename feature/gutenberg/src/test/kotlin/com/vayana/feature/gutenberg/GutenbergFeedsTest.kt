@@ -28,6 +28,8 @@ class GutenbergFeedsTest {
         val listing = GutenbergFeeds.parseListing(fixture("popular.xml"))
 
         assertEquals(25, listing.books.size)
+        // Books without an author carry their download count where the author would be.
+        assertTrue(listing.books.none { it.author.orEmpty().endsWith("downloads") })
         assertEquals("https://www.gutenberg.org/ebooks/search.opds/?sort_order=downloads&start_index=26", listing.nextUrl)
     }
 

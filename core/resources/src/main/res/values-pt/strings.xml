@@ -109,6 +109,8 @@
     <string name="gutenberg_loading_more">Buscando mais livros…</string>
     <string name="gutenberg_loading_book">Buscando as edições e seus tamanhos…</string>
     <string name="gutenberg_loading_slow">O Project Gutenberg pode demorar para responder. Ainda estamos tentando.</string>
+    <string name="gutenberg_refreshing">Verificando novidades no Project Gutenberg…</string>
+    <string name="gutenberg_showing_saved">Mostrando a lista salva: não foi possível acessar o Project Gutenberg agora.</string>
     <string name="gutenberg_downloading_percent">Baixando… %1$d%%</string>
     <string name="gutenberg_language">Idioma</string>
     <string name="gutenberg_language_all">Todos os idiomas</string>

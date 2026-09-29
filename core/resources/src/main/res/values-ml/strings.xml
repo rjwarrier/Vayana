@@ -109,6 +109,8 @@
     <string name="gutenberg_loading_more">കൂടുതൽ പുസ്തകങ്ങൾ എടുക്കുന്നു…</string>
     <string name="gutenberg_loading_book">പതിപ്പുകളും അവയുടെ വലുപ്പവും എടുക്കുന്നു…</string>
     <string name="gutenberg_loading_slow">Project Gutenberg മറുപടി നൽകാൻ സമയമെടുത്തേക്കാം. ഇപ്പോഴും ശ്രമിക്കുന്നു.</string>
+    <string name="gutenberg_refreshing">Project Gutenberg-ൽ പുതിയവ പരിശോധിക്കുന്നു…</string>
+    <string name="gutenberg_showing_saved">സേവ് ചെയ്ത പട്ടിക കാണിക്കുന്നു: ഇപ്പോൾ Project Gutenberg-ൽ എത്താനാകുന്നില്ല.</string>
     <string name="gutenberg_downloading_percent">ഡൗൺലോഡ് ചെയ്യുന്നു… %1$d%%</string>
     <string name="gutenberg_language">ഭാഷ</string>
     <string name="gutenberg_language_all">എല്ലാ ഭാഷകളും</string>

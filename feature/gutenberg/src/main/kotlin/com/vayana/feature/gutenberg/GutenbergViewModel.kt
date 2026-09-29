@@ -23,6 +23,10 @@ data class GutenbergListState(
     val loading: Boolean = true,
     val loadingMore: Boolean = false,
     val failed: Boolean = false,
+    /** A saved copy is showing while the list is fetched again. */
+    val refreshing: Boolean = false,
+    /** The saved copy is all there is: gutenberg.org couldn't be reached. */
+    val offline: Boolean = false,
 )
 
 sealed interface GutenbergBookState {
@@ -51,6 +55,7 @@ class GutenbergViewModel @Inject constructor(
     val imported: SharedFlow<Unit> = _imported
 
     private var listJob: Job? = null
+    private var moreJob: Job? = null
     private var bookJob: Job? = null
 
     init {
@@ -67,16 +72,38 @@ class GutenbergViewModel @Inject constructor(
     /** A language code, or null for every language. */
     fun showLanguage(language: String?) = show(_list.value.query.copy(language = language))
 
+    /**
+     * Shows the saved copy of the list at once, if there is one, then the fresh one. Random is always fetched new:
+     * the same "random" books again would defeat it.
+     */
     private fun show(query: GutenbergQuery) {
         listJob?.cancel()
+        moreJob?.cancel()
         _list.value = GutenbergListState(query = query, loading = true)
         val url = GutenbergFeeds.listUrl(query)
         listJob = viewModelScope.launch {
+            val saved = if (query.list == GutenbergList.RANDOM) null else client.savedListing(url)
+            if (saved != null) {
+                val fresh = client.isFresh(url)
+                _list.update { it.copy(books = saved.books, nextUrl = saved.nextUrl, loading = false, refreshing = !fresh) }
+                if (fresh) return@launch
+            }
             runCatchingCancellable { client.listing(url) }
-                .onSuccess { listing -> _list.update { it.copy(books = listing.books, nextUrl = listing.nextUrl, loading = false) } }
+                .onSuccess { listing ->
+                    _list.update { current ->
+                        // Pages the reader already scrolled into stay; only an untouched first page is swapped.
+                        if (saved == null || current.books.size <= saved.books.size) {
+                            current.copy(books = listing.books, nextUrl = listing.nextUrl, loading = false, refreshing = false)
+                        } else {
+                            current.copy(refreshing = false)
+                        }
+                    }
+                }
                 .onFailure { error ->
                     Log.w(Tag, "Couldn't load $url", error)
-                    _list.update { it.copy(loading = false, failed = true) }
+                    _list.update {
+                        if (saved != null) it.copy(refreshing = false, offline = true) else it.copy(loading = false, failed = true)
+                    }
                 }
         }
     }
@@ -89,7 +116,8 @@ class GutenbergViewModel @Inject constructor(
         val next = state.nextUrl ?: return
         if (state.loading || state.loadingMore) return
         _list.update { it.copy(loadingMore = true) }
-        listJob = viewModelScope.launch {
+        // Its own job: a refresh of the first page still running must not be cancelled by scrolling.
+        moreJob = viewModelScope.launch {
             runCatchingCancellable { client.listing(next) }
                 .onSuccess { page ->
                     _list.update { current ->

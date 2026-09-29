@@ -109,6 +109,8 @@
     <string name="gutenberg_loading_more">Загружаем ещё книги…</string>
     <string name="gutenberg_loading_book">Загружаем издания и их размеры…</string>
     <string name="gutenberg_loading_slow">Project Gutenberg иногда отвечает медленно. Загрузка продолжается.</string>
+    <string name="gutenberg_refreshing">Проверяем обновления в Project Gutenberg…</string>
+    <string name="gutenberg_showing_saved">Показан сохранённый список: Project Gutenberg сейчас недоступен.</string>
     <string name="gutenberg_downloading_percent">Загрузка… %1$d%%</string>
     <string name="gutenberg_language">Язык</string>
     <string name="gutenberg_language_all">Все языки</string>

@@ -190,6 +190,11 @@ private fun GutenbergScreen(
             item(key = "filters", span = { GridItemSpan(maxLineSpan) }, contentType = "filters") {
                 Filters(list.query, actions)
             }
+            if (list.refreshing || list.offline) {
+                item(key = "status", span = { GridItemSpan(maxLineSpan) }, contentType = "status") {
+                    SavedListStatus(offline = list.offline)
+                }
+            }
             when {
                 list.loading -> item(span = { GridItemSpan(maxLineSpan) }) {
                     LoadingMessage(R.string.gutenberg_loading)
@@ -532,6 +537,27 @@ private fun LoadingMessage(@StringRes textRes: Int) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/** Above a saved list: a thin moving bar while it's refreshed, or a note that it couldn't be. */
+@Composable
+private fun SavedListStatus(offline: Boolean) {
+    if (offline) {
+        Text(
+            text = stringResource(R.string.gutenberg_showing_saved),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            VayanaLinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(
+                text = stringResource(R.string.gutenberg_refreshing),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

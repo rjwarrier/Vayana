@@ -64,8 +64,8 @@ object GutenbergFeeds {
             GutenbergBookSummary(
                 id = id,
                 title = entry.childText("title") ?: return@mapNotNull null,
-                // A list entry's content is just the author.
-                author = entry.childText("content"),
+                // A list entry's content is the author, or for a book with none, its download count.
+                author = entry.childText("content")?.takeUnless { DownloadsRegex.matches(it) },
             )
         }
         val next = feed.links().firstOrNull { it.getAttribute("rel") == "next" }?.getAttribute("href")?.let(::absolute)
@@ -154,6 +154,7 @@ object GutenbergFeeds {
     private const val EpubType = "application/epub+zip"
     private val BookIdRegex = Regex("/ebooks/(\\d+)\\.opds")
     private val WhitespaceRegex = Regex("\\s+")
+    private val DownloadsRegex = Regex("\\d+ downloads?", RegexOption.IGNORE_CASE)
     private val DoctypeRegex = Regex("<!(DOCTYPE|ENTITY)", RegexOption.IGNORE_CASE)
 }
 
