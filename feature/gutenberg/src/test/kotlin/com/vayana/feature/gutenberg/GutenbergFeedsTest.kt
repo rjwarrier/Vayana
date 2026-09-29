@@ -60,7 +60,19 @@ class GutenbergFeedsTest {
 
     @Test
     fun searchQueriesAreEncoded() {
-        assertEquals("https://www.gutenberg.org/ebooks/search.opds/?query=pride+%26+prejudice", GutenbergFeeds.searchUrl(" pride & prejudice "))
+        assertEquals(
+            "https://www.gutenberg.org/ebooks/search.opds/?query=pride+%26+prejudice&sort_order=downloads",
+            GutenbergFeeds.listUrl(GutenbergQuery(text = " pride & prejudice ")),
+        )
+    }
+
+    @Test
+    fun topicAndLanguageJoinTheSearch() {
+        assertEquals(
+            "https://www.gutenberg.org/ebooks/search.opds/?query=verne+s.science+fiction+l.fr&sort_order=release_date",
+            GutenbergFeeds.listUrl(GutenbergQuery("verne", GutenbergList.LATEST, GutenbergTopic.SCIENCE_FICTION, "fr")),
+        )
+        assertEquals("https://www.gutenberg.org/ebooks/search.opds/?sort_order=random", GutenbergFeeds.listUrl(GutenbergQuery(list = GutenbergList.RANDOM)))
     }
 
     @Test

@@ -16,14 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** What the book list shows: one of Gutenberg's lists, or search results. */
-sealed interface GutenbergSource {
-    data class Browse(val list: GutenbergList) : GutenbergSource
-    data class Search(val query: String) : GutenbergSource
-}
-
 data class GutenbergListState(
-    val source: GutenbergSource = GutenbergSource.Browse(GutenbergList.POPULAR),
+    val query: GutenbergQuery = GutenbergQuery(),
     val books: List<GutenbergBookSummary> = emptyList(),
     val nextUrl: String? = null,
     val loading: Boolean = true,
@@ -60,18 +54,24 @@ class GutenbergViewModel @Inject constructor(
     private var bookJob: Job? = null
 
     init {
-        show(GutenbergSource.Browse(GutenbergList.POPULAR))
+        show(GutenbergQuery())
     }
 
-    fun show(source: GutenbergSource) {
-        if (source is GutenbergSource.Search && source.query.isBlank()) return
+    fun search(text: String) = show(_list.value.query.copy(text = text.trim()))
+
+    fun showList(list: GutenbergList) = show(_list.value.query.copy(list = list))
+
+    /** A topic, or null for every topic. */
+    fun showTopic(topic: GutenbergTopic?) = show(_list.value.query.copy(topic = topic))
+
+    /** A language code, or null for every language. */
+    fun showLanguage(language: String?) = show(_list.value.query.copy(language = language))
+
+    private fun show(query: GutenbergQuery) {
         listJob?.cancel()
-        _list.value = GutenbergListState(source = source, loading = true)
+        _list.value = GutenbergListState(query = query, loading = true)
+        val url = GutenbergFeeds.listUrl(query)
         listJob = viewModelScope.launch {
-            val url = when (source) {
-                is GutenbergSource.Browse -> GutenbergFeeds.listUrl(source.list)
-                is GutenbergSource.Search -> GutenbergFeeds.searchUrl(source.query)
-            }
             runCatchingCancellable { client.listing(url) }
                 .onSuccess { listing -> _list.update { it.copy(books = listing.books, nextUrl = listing.nextUrl, loading = false) } }
                 .onFailure { error ->
@@ -81,7 +81,7 @@ class GutenbergViewModel @Inject constructor(
         }
     }
 
-    fun retry() = show(_list.value.source)
+    fun retry() = show(_list.value.query)
 
     /** The next page, when the list is scrolled near its end. */
     fun loadMore() {

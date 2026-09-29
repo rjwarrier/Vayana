@@ -40,10 +40,19 @@ data class GutenbergBook(
 object GutenbergFeeds {
     const val BaseUrl = "https://www.gutenberg.org"
 
-    fun listUrl(list: GutenbergList): String = "$BaseUrl/ebooks/search.opds/?sort_order=${list.sortOrder}"
-
-    fun searchUrl(query: String): String =
-        "$BaseUrl/ebooks/search.opds/?query=${java.net.URLEncoder.encode(query.trim(), Charsets.UTF_8.name())}"
+    /**
+     * One catalogue page for [query]: Gutenberg's search takes the words, `s.` for a subject and `l.` for a language
+     * in one query, sorted by the chosen list. With nothing to search for, it's the whole catalogue in that order.
+     */
+    fun listUrl(query: GutenbergQuery): String {
+        val terms = listOfNotNull(
+            query.text.trim().ifEmpty { null },
+            query.topic?.let { "s.${it.subject}" },
+            query.language?.let { "l.$it" },
+        ).joinToString(" ")
+        val search = if (terms.isEmpty()) "" else "query=${java.net.URLEncoder.encode(terms, Charsets.UTF_8.name())}&"
+        return "$BaseUrl/ebooks/search.opds/?${search}sort_order=${query.list.sortOrder}"
+    }
 
     fun bookUrl(id: Long): String = "$BaseUrl/ebooks/$id.opds"
 
@@ -150,6 +159,33 @@ object GutenbergFeeds {
 
 /** Gutenberg's own lists, by what its catalogue sorts on. */
 enum class GutenbergList(val sortOrder: String) { POPULAR("downloads"), LATEST("release_date"), RANDOM("random") }
+
+/** Kinds of book to browse, as the catalogue's subject words (checked against gutenberg.org for sensible results). */
+enum class GutenbergTopic(val subject: String) {
+    ADVENTURE("adventure"),
+    MYSTERY("detective"),
+    SCIENCE_FICTION("science fiction"),
+    FANTASY("fantasy"),
+    HORROR("horror"),
+    ROMANCE("love stories"),
+    HUMOUR("humor"),
+    SHORT_STORIES("short stories"),
+    POETRY("poetry"),
+    DRAMA("drama"),
+    CHILDREN("children"),
+    PHILOSOPHY("philosophy"),
+}
+
+/** Languages to filter by: Vayana's own, less Malayalam and Tamil, which Gutenberg has next to nothing in. */
+val GutenbergLanguages = listOf("en", "es", "pt", "ru", "de", "fr", "it")
+
+/** What the list shows: the words searched for (if any), a topic and a language (if chosen), in a list's order. */
+data class GutenbergQuery(
+    val text: String = "",
+    val list: GutenbergList = GutenbergList.POPULAR,
+    val topic: GutenbergTopic? = null,
+    val language: String? = null,
+)
 
 /** Gutenberg keeps every book's cover at a fixed address; lists don't carry it. */
 internal fun gutenbergCoverUrl(id: Long, large: Boolean = false): String =
