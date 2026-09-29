@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 27
+
+Adds nullable, indexed `books.gutenbergId` for exact Project Gutenberg provenance and duplicate detection. Existing
+books remain null and continue to use title/author matching. The optional field is preserved in portable backup and
+GitHub sync metadata, so older snapshots and clients remain readable.
+
 ## Version 26
 
 Adds nullable `books.physicalOwnership` (`OWNED` or `BORROWED`) and `books.borrowReturnAt` (epoch millis) for physical

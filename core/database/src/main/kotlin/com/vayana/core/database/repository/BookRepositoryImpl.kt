@@ -333,8 +333,10 @@ class BookRepositoryImpl @Inject constructor(
         filePath: String,
         format: BookFormat,
         fileHash: String,
+        gutenbergId: Long?,
     ): Book? = database.withTransaction {
         if (bookDao.findByHash(fileHash) != null) return@withTransaction null
+        if (gutenbergId != null && bookDao.findByGutenbergId(gutenbergId) != null) return@withTransaction null
 
         val entity = newLocalBookEntity(
             title = title,
@@ -347,6 +349,7 @@ class BookRepositoryImpl @Inject constructor(
             description = description,
             tagsCsv = tagsCsv.normalizedBookTagsCsv(),
             coverPath = coverPath,
+            gutenbergId = gutenbergId,
         )
         val id = bookDao.insert(entity)
         entity.copy(id = id).toDomain()
@@ -686,6 +689,7 @@ class BookRepositoryImpl @Inject constructor(
                     goodreadsRating = existing.goodreadsRating.mergeRemoteOptional(record.goodreadsRating, shouldApplyRemoteMetadata),
                     goodreadsRatingsCount = existing.goodreadsRatingsCount.mergeRemoteOptional(record.goodreadsRatingsCount, shouldApplyRemoteMetadata),
                     originalPublicationYear = existing.originalPublicationYear.mergeRemoteOptional(record.originalPublicationYear, shouldApplyRemoteMetadata),
+                    gutenbergId = existing.gutenbergId ?: record.gutenbergId,
                     readNextAddedAt = readNext.addedAt,
                     readNextUpdatedAt = readNext.updatedAt,
                     updatedAt = maxOf(existing.updatedAt, record.updatedAt),
@@ -702,6 +706,7 @@ class BookRepositoryImpl @Inject constructor(
                 record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath)
                     .withCoverAlternatesFrom(existing)
                     .withMergedGoodreadsFieldsFrom(existing)
+                    .withMergedGutenbergIdFrom(existing)
                     .withMergedReadNextFrom(existing)
                     .keepingResetProgress(existing, progressResetAt),
             )
@@ -779,6 +784,7 @@ internal fun BookEntity.toDomain(): Book {
         pageCount = pageEstimate?.takeIf { it > 0 && bookFormat.tracksPages },
         physicalOwnership = ownership,
         borrowReturnAt = normalizedBorrowReturnAt,
+        gutenbergId = gutenbergId,
     )
 }
 
@@ -793,6 +799,11 @@ private fun BookEntity.withMergedGoodreadsFieldsFrom(existing: BookEntity): Book
     goodreadsRating = existing.goodreadsRating.mergeRemoteOptional(goodreadsRating, remoteIsNewer = updatedAt > existing.updatedAt),
     goodreadsRatingsCount = existing.goodreadsRatingsCount.mergeRemoteOptional(goodreadsRatingsCount, remoteIsNewer = updatedAt > existing.updatedAt),
     originalPublicationYear = existing.originalPublicationYear.mergeRemoteOptional(originalPublicationYear, remoteIsNewer = updatedAt > existing.updatedAt),
+)
+
+/** Older cloud snapshots do not have provenance, so a rewrite must not erase a locally known source id. */
+private fun BookEntity.withMergedGutenbergIdFrom(existing: BookEntity): BookEntity = copy(
+    gutenbergId = gutenbergId ?: existing.gutenbergId,
 )
 
 /** Cloud progress recorded before a local reading-stats reset ([resetAt]) mustn't bring the old stats back. */
@@ -881,6 +892,7 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
             .takeIf { format == BookFormat.PHYSICAL },
         borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
             .takeIf { format == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED },
+        gutenbergId = gutenbergId,
     )
 
 private fun CloudBookRecord.hasCoverAsset(): Boolean =
@@ -914,6 +926,7 @@ private fun newLocalBookEntity(
     description: String? = null,
     tagsCsv: String? = null,
     coverPath: String? = null,
+    gutenbergId: Long? = null,
 ): BookEntity {
     val now = System.currentTimeMillis()
     return BookEntity(
@@ -941,6 +954,7 @@ private fun newLocalBookEntity(
         startedReadingAt = null,
         finishedReadingAt = null,
         totalReadingSeconds = 0L,
+        gutenbergId = gutenbergId,
     )
 }
 

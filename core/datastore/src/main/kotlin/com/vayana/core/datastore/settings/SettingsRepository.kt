@@ -25,6 +25,16 @@ interface SettingsRepository {
     /** Replaces the recent searches with [transform] applied to the current list, atomically. */
     suspend fun updateRecentSearches(transform: (List<String>) -> List<String>)
 
+    /** Gutenberg-only browsing history and download preference. Local to this device and never exported. */
+    val recentGutenbergSearches: Flow<List<String>>
+    val recentGutenbergBooks: Flow<List<GutenbergRecentBook>>
+    val preferredGutenbergEdition: Flow<String>
+
+    suspend fun recordGutenbergSearch(query: String)
+    suspend fun recordGutenbergBook(book: GutenbergRecentBook)
+    suspend fun updatePreferredGutenbergEdition(edition: String)
+    suspend fun clearGutenbergHistory()
+
     suspend fun reset(setting: Setting<out Any>)
 
     suspend fun resetAll()
@@ -33,6 +43,12 @@ interface SettingsRepository {
 
     suspend fun importFromMap(values: Map<String, String>)
 }
+
+data class GutenbergRecentBook(
+    val id: Long,
+    val title: String,
+    val author: String?,
+)
 
 data class LaunchReadingProgressCheckMarker(
     val bookId: Long,

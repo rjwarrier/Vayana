@@ -83,6 +83,8 @@ data class CloudBookRecord(
     /** Optional physical-book loan metadata; null for older clients and non-physical formats. */
     val physicalOwnership: PhysicalBookOwnership? = null,
     val borrowReturnAt: Long? = null,
+    /** Optional source identity; absent in snapshots written before database version 27. */
+    val gutenbergId: Long? = null,
     /** When the book was last deleted or restored on the device that exported it; null from older app versions. */
     val deletionUpdatedAt: Long? = null,
 )
@@ -212,6 +214,7 @@ interface BookRepository {
         filePath: String,
         format: BookFormat,
         fileHash: String,
+        gutenbergId: Long? = null,
     ): Book?
 
     /** Returns false when another active book already owns [fileHash]. */

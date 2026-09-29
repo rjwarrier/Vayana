@@ -78,6 +78,14 @@ class GutenbergFeedsTest {
     }
 
     @Test
+    fun exactBookSubjectCanBeBrowsed() {
+        assertEquals(
+            "https://www.gutenberg.org/ebooks/search.opds/?query=s.female+friendship+l.en&sort_order=downloads",
+            GutenbergFeeds.listUrl(GutenbergQuery(language = "en", subject = "female friendship")),
+        )
+    }
+
+    @Test
     fun feedsWithADtdAreRefused() {
         val xml = "<?xml version=\"1.0\"?><!DOCTYPE feed [<!ENTITY x \"y\">]><feed xmlns=\"http://www.w3.org/2005/Atom\"/>"
         assertFailsWith<IllegalArgumentException> { GutenbergFeeds.parseListing(xml) }

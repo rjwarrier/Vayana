@@ -18,6 +18,7 @@ import java.util.LinkedHashMap
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -77,7 +78,7 @@ internal class WikimediaDictionary @Inject constructor(
      */
     private suspend fun lookUpWikipedia(query: String, host: String): DictionaryEntry? {
         get(summaryUrl(host, query))?.let { return WikimediaParser.wikipedia(it) }
-        // Each request is blocking and can't be interrupted, but a cancelled lookup needn't start the next one.
+        // A cancelled lookup never starts the next request.
         currentCoroutineContext().ensureActive()
         val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
         val title = get("$host/w/api.php?action=opensearch&format=json&namespace=0&limit=$SearchLimit&search=$encodedQuery")
@@ -91,8 +92,11 @@ internal class WikimediaDictionary @Inject constructor(
     private fun summaryUrl(host: String, title: String) = "$host/api/rest_v1/page/summary/${title.toTitlePath()}"
 
     /** The body of a 200 response, or null for a 404 (no such page). Anything else throws. */
-    private fun get(url: String): String? {
+    private suspend fun get(url: String): String? {
         val connection = URL(url).openConnection() as HttpURLConnection
+        // Selecting another word cancels the old lookup. Disconnect so responseCode/read does not retain an IO thread
+        // until its timeout before that cancellation can finish.
+        val closeOnCancel = currentCoroutineContext()[Job]?.invokeOnCompletion { connection.disconnect() }
         try {
             connection.connectTimeout = TimeoutMillis
             connection.readTimeout = TimeoutMillis
@@ -104,15 +108,20 @@ internal class WikimediaDictionary @Inject constructor(
                 HttpURLConnection.HTTP_NOT_FOUND -> null
                 else -> throw IOException("HTTP $status")
             }
+        } catch (error: IOException) {
+            currentCoroutineContext().ensureActive()
+            throw error
         } finally {
+            closeOnCancel?.dispose()
             connection.disconnect()
         }
     }
 
-    private fun InputStream.readAtMost(maxBytes: Int): ByteArray {
+    private suspend fun InputStream.readAtMost(maxBytes: Int): ByteArray {
         val output = ByteArrayOutputStream()
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         while (true) {
+            currentCoroutineContext().ensureActive()
             val count = read(buffer)
             if (count < 0) return output.toByteArray()
             if (output.size() + count > maxBytes) throw IOException("Response too large")

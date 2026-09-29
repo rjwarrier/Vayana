@@ -33,6 +33,9 @@ private val ReaderCustomFontIdKey = stringPreferencesKey("reader.custom_font_id"
 private val LaunchReadingProgressCheckMarkerKey = stringPreferencesKey("sync.launch_reading_progress_check_marker")
 private val OnboardingCompletedKey = booleanPreferencesKey("onboarding.completed")
 private val RecentSearchesKey = stringPreferencesKey("search.recent")
+private val RecentGutenbergSearchesKey = stringPreferencesKey("gutenberg.recent_searches")
+private val RecentGutenbergBooksKey = stringPreferencesKey("gutenberg.recent_books")
+private val PreferredGutenbergEditionKey = stringPreferencesKey("gutenberg.preferred_edition")
 
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
@@ -100,6 +103,52 @@ class DataStoreSettingsRepository @Inject constructor(
             } else {
                 preferences[RecentSearchesKey] = searches.joinToString("\n")
             }
+        }
+    }
+
+    override val recentGutenbergSearches: Flow<List<String>> =
+        dataStore.data.map { it.readRecentGutenbergSearches() }.distinctUntilChanged()
+
+    override val recentGutenbergBooks: Flow<List<GutenbergRecentBook>> =
+        dataStore.data.map { it.readRecentGutenbergBooks() }.distinctUntilChanged()
+
+    override val preferredGutenbergEdition: Flow<String> =
+        dataStore.data.map { it[PreferredGutenbergEditionKey] ?: DefaultGutenbergEdition }.distinctUntilChanged()
+
+    override suspend fun recordGutenbergSearch(query: String) {
+        val normalized = query.trim().take(MaxGutenbergHistoryTextChars)
+        if (normalized.isEmpty()) return
+        dataStore.edit { preferences ->
+            preferences[RecentGutenbergSearchesKey] =
+                (listOf(normalized) + preferences.readRecentGutenbergSearches().filterNot { it.equals(normalized, true) })
+                    .take(MaxGutenbergHistoryEntries)
+                    .joinToString("\n")
+        }
+    }
+
+    override suspend fun recordGutenbergBook(book: GutenbergRecentBook) {
+        if (book.id <= 0L || book.title.isBlank()) return
+        dataStore.edit { preferences ->
+            val books = (listOf(
+                book.copy(
+                    title = book.title.take(MaxGutenbergHistoryTextChars),
+                    author = book.author?.take(MaxGutenbergHistoryTextChars),
+                ),
+            ) +
+                preferences.readRecentGutenbergBooks().filterNot { it.id == book.id })
+                .take(MaxGutenbergHistoryEntries)
+            preferences[RecentGutenbergBooksKey] = books.serializeGutenbergBooks()
+        }
+    }
+
+    override suspend fun updatePreferredGutenbergEdition(edition: String) {
+        dataStore.edit { it[PreferredGutenbergEditionKey] = edition.take(MaxGutenbergEditionChars) }
+    }
+
+    override suspend fun clearGutenbergHistory() {
+        dataStore.edit { preferences ->
+            preferences.remove(RecentGutenbergSearchesKey)
+            preferences.remove(RecentGutenbergBooksKey)
         }
     }
 
@@ -326,3 +375,35 @@ private fun LaunchReadingProgressCheckMarker.serialize(): String =
 
 private fun Preferences.readRecentSearches(): List<String> =
     this[RecentSearchesKey]?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+
+private fun Preferences.readRecentGutenbergSearches(): List<String> =
+    this[RecentGutenbergSearchesKey]?.split('\n')?.filter { it.isNotBlank() }?.take(MaxGutenbergHistoryEntries).orEmpty()
+
+private fun Preferences.readRecentGutenbergBooks(): List<GutenbergRecentBook> {
+    val encoded = this[RecentGutenbergBooksKey].orEmpty()
+    if (encoded.isBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(encoded)
+        buildList {
+            for (index in 0 until minOf(array.length(), MaxGutenbergHistoryEntries)) {
+                val item = array.optJSONObject(index) ?: continue
+                val id = item.optLong("id").takeIf { it > 0L } ?: continue
+                val title = item.optString("title").takeIf { it.isNotBlank() } ?: continue
+                add(GutenbergRecentBook(id, title, item.optString("author").takeIf { it.isNotBlank() }))
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+private fun List<GutenbergRecentBook>.serializeGutenbergBooks(): String {
+    val array = JSONArray()
+    forEach { book ->
+        array.put(JSONObject().put("id", book.id).put("title", book.title).put("author", book.author))
+    }
+    return array.toString()
+}
+
+private const val MaxGutenbergHistoryEntries = 8
+private const val MaxGutenbergHistoryTextChars = 240
+private const val MaxGutenbergEditionChars = 40
+private const val DefaultGutenbergEdition = "WITHOUT_IMAGES"

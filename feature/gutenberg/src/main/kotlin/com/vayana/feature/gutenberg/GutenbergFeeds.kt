@@ -47,7 +47,7 @@ object GutenbergFeeds {
     fun listUrl(query: GutenbergQuery): String {
         val terms = listOfNotNull(
             query.text.trim().ifEmpty { null },
-            query.topic?.let { "s.${it.subject}" },
+            query.subject?.takeIf { it.isNotBlank() }?.let { "s.$it" } ?: query.topic?.let { "s.${it.subject}" },
             query.language?.let { "l.$it" },
         ).joinToString(" ")
         val search = if (terms.isEmpty()) "" else "query=${java.net.URLEncoder.encode(terms, Charsets.UTF_8.name())}&"
@@ -121,11 +121,10 @@ object GutenbergFeeds {
         // Feeds come from the network: no DTDs, so no entities. Checked here because Android's parser rejects the
         // Xerces feature that would do it (setFeature throws), which made every feed fail to load on the phone.
         if (DoctypeRegex.containsMatchIn(xml)) throw IllegalArgumentException("Feed has a DTD")
-        val factory = DocumentBuilderFactory.newInstance().apply {
-            isNamespaceAware = true
-            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
-        }
-        return factory.newDocumentBuilder().parse(InputSource(StringReader(xml))).documentElement
+        // Factory discovery/configuration is relatively expensive and identical for every page. Builder creation is
+        // synchronized because DocumentBuilderFactory does not promise thread safety; parsing remains concurrent.
+        val builder = synchronized(ParserFactory) { ParserFactory.newDocumentBuilder() }
+        return builder.parse(InputSource(StringReader(xml))).documentElement
     }
 
     private fun Element.children(localName: String, namespace: String = AtomNamespace): List<Element> {
@@ -156,6 +155,10 @@ object GutenbergFeeds {
     private val WhitespaceRegex = Regex("\\s+")
     private val DownloadsRegex = Regex("\\d+ downloads?", RegexOption.IGNORE_CASE)
     private val DoctypeRegex = Regex("<!(DOCTYPE|ENTITY)", RegexOption.IGNORE_CASE)
+    private val ParserFactory = DocumentBuilderFactory.newInstance().apply {
+        isNamespaceAware = true
+        runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+    }
 }
 
 /** Gutenberg's own lists, by what its catalogue sorts on. */
@@ -186,6 +189,8 @@ data class GutenbergQuery(
     val list: GutenbergList = GutenbergList.POPULAR,
     val topic: GutenbergTopic? = null,
     val language: String? = null,
+    /** An exact subject selected from a book page; mutually exclusive with [topic]. */
+    val subject: String? = null,
 )
 
 /** Gutenberg keeps every book's cover at a fixed address; lists don't carry it. */

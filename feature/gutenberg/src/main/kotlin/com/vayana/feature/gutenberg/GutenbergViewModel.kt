@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.repository.BookRepository
+import com.vayana.core.datastore.settings.GutenbergRecentBook
+import com.vayana.core.datastore.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -43,16 +46,37 @@ sealed interface GutenbergBookState {
 /** An edition being fetched ([progress] null until its size is known), or one that couldn't be. */
 data class GutenbergDownload(val kind: GutenbergEditionKind, val progress: Float?, val failed: Boolean = false)
 
+data class GutenbergHistoryState(
+    val searches: List<String> = emptyList(),
+    val books: List<GutenbergBookSummary> = emptyList(),
+)
+
 @HiltViewModel
 class GutenbergViewModel @Inject constructor(
     private val client: GutenbergClient,
     private val incomingBookFiles: IncomingBookFiles,
+    private val settingsRepository: SettingsRepository,
     bookRepository: BookRepository,
 ) : ViewModel() {
     /** The library, to mark the Gutenberg books already in it. */
     val library: StateFlow<LibraryIndex> = bookRepository.observeAll()
-        .map { books -> LibraryIndex(books.map { LibraryBook(it.id, it.title, it.author) }) }
+        .map { books -> books.map { LibraryBook(it.id, it.title, it.author, it.gutenbergId) } }
+        // Reading progress changes the Book rows frequently but not the identity used here. Keep those writes from
+        // rebuilding the index and recomposing every visible Gutenberg tile.
+        .distinctUntilChanged()
+        .map(::LibraryIndex)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), LibraryIndex.Empty)
+
+    val history: StateFlow<GutenbergHistoryState> = kotlinx.coroutines.flow.combine(
+        settingsRepository.recentGutenbergSearches,
+        settingsRepository.recentGutenbergBooks,
+    ) { searches, books ->
+        GutenbergHistoryState(searches, books.map { GutenbergBookSummary(it.id, it.title, it.author) })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), GutenbergHistoryState())
+
+    val preferredEdition: StateFlow<GutenbergEditionKind> = settingsRepository.preferredGutenbergEdition
+        .map { encoded -> runCatching { GutenbergEditionKind.valueOf(encoded) }.getOrDefault(GutenbergEditionKind.WITHOUT_IMAGES) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), GutenbergEditionKind.WITHOUT_IMAGES)
 
     private val _list = MutableStateFlow(GutenbergListState())
     val list: StateFlow<GutenbergListState> = _list
@@ -72,12 +96,22 @@ class GutenbergViewModel @Inject constructor(
         show(GutenbergQuery())
     }
 
-    fun search(text: String) = show(_list.value.query.copy(text = text.trim()))
+    fun search(text: String) {
+        val query = text.trim()
+        if (query.isNotEmpty()) viewModelScope.launch { settingsRepository.recordGutenbergSearch(query) }
+        show(_list.value.query.copy(text = query))
+    }
 
     fun showList(list: GutenbergList) = show(_list.value.query.copy(list = list))
 
     /** A topic, or null for every topic. */
-    fun showTopic(topic: GutenbergTopic?) = show(_list.value.query.copy(topic = topic))
+    fun showTopic(topic: GutenbergTopic?) = show(_list.value.query.copy(topic = topic, subject = null))
+
+    /** Opens the exact catalogue subject selected on a book page. */
+    fun showSubject(subject: String?) {
+        close()
+        show(_list.value.query.copy(text = "", topic = null, subject = subject?.trim()?.takeIf { it.isNotEmpty() }))
+    }
 
     /** A language code, or null for every language. */
     fun showLanguage(language: String?) = show(_list.value.query.copy(language = language))
@@ -152,6 +186,9 @@ class GutenbergViewModel @Inject constructor(
     fun open(summary: GutenbergBookSummary) {
         bookJob?.cancel()
         _book.value = GutenbergBookState.Loading(summary)
+        viewModelScope.launch {
+            settingsRepository.recordGutenbergBook(GutenbergRecentBook(summary.id, summary.title, summary.author))
+        }
         bookJob = viewModelScope.launch {
             val book = runCatchingCancellable { client.book(summary.id) }
                 .onFailure { Log.w(Tag, "Couldn't load book ${summary.id}", it) }
@@ -168,6 +205,7 @@ class GutenbergViewModel @Inject constructor(
     fun download(edition: GutenbergEdition) {
         val loaded = _book.value as? GutenbergBookState.Loaded ?: return
         if (loaded.download?.failed == false) return
+        viewModelScope.launch { settingsRepository.updatePreferredGutenbergEdition(edition.kind.name) }
         bookJob?.cancel()
         _book.value = loaded.copy(download = GutenbergDownload(edition.kind, progress = null))
         bookJob = viewModelScope.launch {
@@ -189,6 +227,11 @@ class GutenbergViewModel @Inject constructor(
         }
     }
 
+    fun downloadPreferred(book: GutenbergBook) {
+        val edition = book.editions.firstOrNull { it.kind == preferredEdition.value } ?: book.editions.firstOrNull() ?: return
+        download(edition)
+    }
+
     fun cancelDownload() {
         val loaded = _book.value as? GutenbergBookState.Loaded ?: return
         bookJob?.cancel()
@@ -198,6 +241,17 @@ class GutenbergViewModel @Inject constructor(
     suspend fun cover(url: String) = client.cover(url)
 
     fun cachedCover(url: String) = client.cachedCover(url)
+
+    fun clearSavedCatalogue() {
+        viewModelScope.launch {
+            client.clearSavedCatalogue()
+            show(_list.value.query)
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { settingsRepository.clearGutenbergHistory() }
+    }
 
     private companion object {
         const val Tag = "Gutenberg"

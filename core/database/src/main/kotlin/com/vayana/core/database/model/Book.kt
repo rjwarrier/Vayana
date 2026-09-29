@@ -121,4 +121,6 @@ data class Book(
     val physicalOwnership: PhysicalBookOwnership? = null,
     /** Optional date by which a borrowed physical book should be returned. */
     val borrowReturnAt: Long? = null,
+    /** Stable Project Gutenberg identity, when imported from its catalogue. */
+    val gutenbergId: Long? = null,
 )

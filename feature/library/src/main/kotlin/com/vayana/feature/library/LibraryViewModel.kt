@@ -2298,6 +2298,7 @@ class LibraryViewModel @Inject constructor(
                 filePath = storageRoots.relativize(imported.file),
                 format = format,
                 fileHash = imported.sha256,
+                gutenbergId = gutenbergBookIdFromFileName(displayName),
             )
             if (book != null) {
                 importedFile = null
@@ -2760,8 +2761,15 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         originalPublicationYear = originalPublicationYear,
         physicalOwnership = physicalOwnership,
         borrowReturnAt = borrowReturnAt,
+        gutenbergId = gutenbergId,
     )
 }
+
+/** Downloaded Gutenberg files are deliberately named `pg<id>(-images).epub`; no metadata guess is needed. */
+internal fun gutenbergBookIdFromFileName(fileName: String): Long? =
+    GutenbergFileName.matchEntire(fileName.trim())?.groupValues?.get(1)?.toLongOrNull()?.takeIf { it > 0L }
+
+private val GutenbergFileName = Regex("pg(\\d+)(?:-images)?\\.epub", RegexOption.IGNORE_CASE)
 
 
 

@@ -12,7 +12,7 @@ import java.util.UUID
  */
 @Entity(
     tableName = "books",
-    indices = [Index(value = ["syncId"], unique = true), Index(value = ["fileHash"])],
+    indices = [Index(value = ["syncId"], unique = true), Index(value = ["fileHash"]), Index(value = ["gutenbergId"])],
 )
 data class BookEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -74,4 +74,6 @@ data class BookEntity(
     /** Ownership and return details apply only to physical books. */
     val physicalOwnership: String? = null,
     val borrowReturnAt: Long? = null,
+    /** Stable Project Gutenberg identity, when this row was imported from its catalogue. */
+    val gutenbergId: Long? = null,
 )

@@ -25,6 +25,7 @@ import javax.inject.Singleton
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -43,9 +44,14 @@ class ReadingTimeWidget : AppWidgetProvider() {
     @Inject lateinit var updater: ReadingTimeWidgetUpdater
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        updater.start()
         val pending = goAsync()
         updater.refresh { pending.finish() }
     }
+
+    override fun onEnabled(context: Context) = updater.start()
+
+    override fun onDisabled(context: Context) = updater.stop()
 
     // Resized: the chart is drawn for the widget's real size, so draw it again.
     override fun onAppWidgetOptionsChanged(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle) {
@@ -67,6 +73,7 @@ class ReadingTimeWidgetUpdater @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
 ) : VayanaWidget {
     override val provider = ReadingTimeWidget::class.java
+    private var observer: Job? = null
 
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
@@ -91,8 +98,16 @@ class ReadingTimeWidgetUpdater @Inject constructor(
         settingsRepository.snapshot.map { WidgetAppearance(it.widgetCornerRadius, it.widgetProgressStyle) },
     ) { week, appearance -> week to appearance }.distinctUntilChanged()
 
+    @Synchronized
     fun start() {
-        scope.launch { state.collect { (week, appearance) -> render(week, appearance) } }
+        if (observer?.isActive == true || !hasWidgets()) return
+        observer = scope.launch { state.collect { (week, appearance) -> render(week, appearance) } }
+    }
+
+    @Synchronized
+    fun stop() {
+        observer?.cancel()
+        observer = null
     }
 
     fun refresh(onDone: () -> Unit) {
@@ -120,6 +135,10 @@ class ReadingTimeWidgetUpdater @Inject constructor(
             manager.updateAppWidget(id, views(week, appearance, width, height))
         }
     }
+
+    private fun hasWidgets(): Boolean = AppWidgetManager.getInstance(context)
+        .getAppWidgetIds(ComponentName(context, ReadingTimeWidget::class.java))
+        .isNotEmpty()
 
     private fun views(week: ReadingWeek, appearance: WidgetAppearance, widthDp: Int, heightDp: Int): RemoteViews =
         RemoteViews(context.packageName, R.layout.widget_reading_time).apply {

@@ -29,6 +29,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -45,9 +46,14 @@ class ContinueReadingWidget : AppWidgetProvider() {
 
     // Added, resized or restored after a reboot: the app may not be running, so draw from the database now.
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        updater.start()
         val pending = goAsync()
         updater.refresh { pending.finish() }
     }
+
+    override fun onEnabled(context: Context) = updater.start()
+
+    override fun onDisabled(context: Context) = updater.stop()
 }
 
 /** What the widget draws: the book, its read-aloud if that's running, and whether read-aloud is on in Settings. */
@@ -82,6 +88,7 @@ class ContinueReadingWidgetUpdater @Inject constructor(
 
     // The last cover drawn: play/pause redraws the widget, and needn't decode the same cover again.
     private var cover: Pair<String, Bitmap?>? = null
+    private var observer: Job? = null
 
     private val state: Flow<WidgetState> = combine(
         bookRepository.observeContinueReading().map { it?.toWidgetBook() },
@@ -92,8 +99,17 @@ class ContinueReadingWidgetUpdater @Inject constructor(
     }
         .distinctUntilChanged()
 
+    @Synchronized
     fun start() {
-        scope.launch { state.collect { render(it) } }
+        if (observer?.isActive == true || !hasWidgets()) return
+        observer = scope.launch { state.collect { render(it) } }
+    }
+
+    @Synchronized
+    fun stop() {
+        observer?.cancel()
+        observer = null
+        cover = null
     }
 
     fun refresh(onDone: () -> Unit) {
@@ -136,6 +152,10 @@ class ContinueReadingWidgetUpdater @Inject constructor(
         }
         manager.updateAppWidget(ids, views)
     }
+
+    private fun hasWidgets(): Boolean = AppWidgetManager.getInstance(context)
+        .getAppWidgetIds(ComponentName(context, ContinueReadingWidget::class.java))
+        .isNotEmpty()
 
     private fun views(state: WidgetState, cover: Bitmap?, narrow: Boolean, short: Boolean): RemoteViews =
         RemoteViews(context.packageName, R.layout.widget_continue_reading).apply {

@@ -68,6 +68,7 @@ data class PortableCloudBook(
     val originalPublicationYear: Int? = null,
     val physicalOwnership: PhysicalBookOwnership? = null,
     val borrowReturnAt: Long? = null,
+    val gutenbergId: Long? = null,
 )
 
 data class PortableReadingProgressPatch(
@@ -349,6 +350,7 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                         ?.takeIf { format.equals(BookFormat.PHYSICAL.name, ignoreCase = true) },
                     borrowReturnAt = book.optPositiveLongOrNull("borrowReturnAt")
                         .takeIf { format.equals(BookFormat.PHYSICAL.name, ignoreCase = true) },
+                    gutenbergId = book.optPositiveLongOrNull("gutenbergId"),
                 ),
             )
         }

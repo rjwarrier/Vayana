@@ -34,6 +34,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE fileHash = :fileHash AND isDeleted = 0 LIMIT 1")
     suspend fun findByHash(fileHash: String): BookEntity?
 
+    @Query("SELECT * FROM books WHERE gutenbergId = :gutenbergId AND isDeleted = 0 LIMIT 1")
+    suspend fun findByGutenbergId(gutenbergId: Long): BookEntity?
+
     @Query("SELECT * FROM books WHERE syncId = :syncId AND isDeleted = 0 LIMIT 1")
     suspend fun findBySyncId(syncId: String): BookEntity?
 

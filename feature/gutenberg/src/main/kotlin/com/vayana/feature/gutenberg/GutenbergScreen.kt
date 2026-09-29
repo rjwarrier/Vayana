@@ -109,26 +109,34 @@ fun GutenbergRoute(
     val list by viewModel.list.collectAsStateWithLifecycle()
     val book by viewModel.book.collectAsStateWithLifecycle()
     val library by viewModel.library.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    val preferredEdition by viewModel.preferredEdition.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.imported.collect { onImported() } }
     GutenbergScreen(
         list = list,
         book = book,
         library = library,
+        history = history,
+        preferredEdition = preferredEdition,
         actions = remember(viewModel, onOpenBook) {
             GutenbergActions(
                 search = viewModel::search,
                 showList = viewModel::showList,
                 showTopic = viewModel::showTopic,
+                showSubject = viewModel::showSubject,
                 showLanguage = viewModel::showLanguage,
                 retry = viewModel::retry,
                 loadMore = viewModel::loadMore,
                 open = viewModel::open,
                 close = viewModel::close,
                 download = viewModel::download,
+                downloadPreferred = viewModel::downloadPreferred,
                 cancelDownload = viewModel::cancelDownload,
                 loadCover = viewModel::cover,
                 cachedCover = viewModel::cachedCover,
                 showAuthor = viewModel::showAuthor,
+                clearSavedCatalogue = viewModel::clearSavedCatalogue,
+                clearHistory = viewModel::clearHistory,
                 openBook = { bookId ->
                     viewModel.close()
                     onOpenBook(bookId)
@@ -143,16 +151,20 @@ private class GutenbergActions(
     val search: (String) -> Unit,
     val showList: (GutenbergList) -> Unit,
     val showTopic: (GutenbergTopic?) -> Unit,
+    val showSubject: (String?) -> Unit,
     val showLanguage: (String?) -> Unit,
     val retry: () -> Unit,
     val loadMore: () -> Unit,
     val open: (GutenbergBookSummary) -> Unit,
     val close: () -> Unit,
     val download: (GutenbergEdition) -> Unit,
+    val downloadPreferred: (GutenbergBook) -> Unit,
     val cancelDownload: () -> Unit,
     val loadCover: suspend (String) -> ImageBitmap?,
     val cachedCover: (String) -> ImageBitmap?,
     val showAuthor: (String) -> Unit,
+    val clearSavedCatalogue: () -> Unit,
+    val clearHistory: () -> Unit,
     val openBook: (Long) -> Unit,
 )
 
@@ -162,6 +174,8 @@ private fun GutenbergScreen(
     list: GutenbergListState,
     book: GutenbergBookState,
     library: LibraryIndex,
+    history: GutenbergHistoryState,
+    preferredEdition: GutenbergEditionKind,
     actions: GutenbergActions,
     onBack: () -> Unit,
 ) {
@@ -210,9 +224,14 @@ private fun GutenbergScreen(
             item(key = "filters", span = { GridItemSpan(maxLineSpan) }, contentType = "filters") {
                 Filters(list.query, actions)
             }
+            if (history.searches.isNotEmpty() || history.books.isNotEmpty()) {
+                item(key = "history", span = { GridItemSpan(maxLineSpan) }, contentType = "history") {
+                    RecentActivity(history, actions)
+                }
+            }
             if (list.refreshing || list.offline) {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }, contentType = "status") {
-                    SavedListStatus(offline = list.offline)
+                    SavedListStatus(offline = list.offline, actions = actions)
                 }
             }
             when {
@@ -233,7 +252,7 @@ private fun GutenbergScreen(
                 }
                 else -> {
                     items(list.books, key = { it.id }, contentType = { BookTileType }) { summary ->
-                        BookTile(summary, inLibrary = library.find(summary.title, summary.author) != null, actions, onClick = { actions.open(summary) })
+                        BookTile(summary, inLibrary = library.find(summary.id, summary.title, summary.author) != null, actions, onClick = { actions.open(summary) })
                     }
                     if (list.loadingMore) {
                         item(span = { GridItemSpan(maxLineSpan) }) { LoadingMessage(R.string.gutenberg_loading_more) }
@@ -251,7 +270,7 @@ private fun GutenbergScreen(
         }
     }
     if (book != GutenbergBookState.Hidden) {
-        BookSheet(book, library, actions)
+        BookSheet(book, library, preferredEdition, actions)
     }
 }
 
@@ -311,10 +330,18 @@ private fun Filters(query: GutenbergQuery, actions: GutenbergActions) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             FilterChip(
-                selected = query.topic == null,
+                selected = query.topic == null && query.subject == null,
                 onClick = { actions.showTopic(null) },
                 label = { Text(stringResource(R.string.gutenberg_topic_all)) },
             )
+            query.subject?.let { subject ->
+                FilterChip(
+                    selected = true,
+                    onClick = { actions.showSubject(null) },
+                    label = { Text(stringResource(R.string.gutenberg_subject_filter, subject)) },
+                    trailingIcon = { Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall)) },
+                )
+            }
             GutenbergTopic.entries.forEach { topic ->
                 FilterChip(
                     selected = query.topic == topic,
@@ -322,6 +349,36 @@ private fun Filters(query: GutenbergQuery, actions: GutenbergActions) {
                     onClick = { actions.showTopic(if (query.topic == topic) null else topic) },
                     label = { Text(topic.label()) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentActivity(history: GutenbergHistoryState, actions: GutenbergActions) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.gutenberg_recent), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = actions.clearHistory) { Text(stringResource(R.string.gutenberg_clear_recent)) }
+        }
+        if (history.searches.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                history.searches.forEach { query ->
+                    FilterChip(selected = false, onClick = { actions.search(query) }, label = { Text(query) })
+                }
+            }
+        }
+        if (history.books.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                history.books.forEach { summary ->
+                    FilterChip(selected = false, onClick = { actions.open(summary) }, label = { Text(summary.title, maxLines = 1) })
+                }
             }
         }
     }
@@ -423,7 +480,12 @@ private fun Cover(url: String, title: String, actions: GutenbergActions, modifie
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BookSheet(state: GutenbergBookState, library: LibraryIndex, actions: GutenbergActions) {
+private fun BookSheet(
+    state: GutenbergBookState,
+    library: LibraryIndex,
+    preferredEdition: GutenbergEditionKind,
+    actions: GutenbergActions,
+) {
     val context = LocalContext.current
     val appLocale = LocalConfiguration.current.locales[0]
     // While a book downloads, only its Cancel button stops it: a stray swipe or tap outside doesn't.
@@ -463,14 +525,17 @@ private fun BookSheet(state: GutenbergBookState, library: LibraryIndex, actions:
                         book.published?.let { stringResource(R.string.gutenberg_published, it) },
                     ).joinToString(" · ").ifEmpty { null }
                     BookHeader(book.coverUrl, book.title, book.author, details, actions)
-                    library.find(book.title, book.author)?.let { bookId -> InLibraryRow(onOpen = { actions.openBook(bookId) }) }
+                    library.find(book.id, book.title, book.author)?.let { bookId -> InLibraryRow(onOpen = { actions.openBook(bookId) }) }
                     book.summary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                     if (book.subjects.isNotEmpty()) {
-                        Text(
-                            book.subjects.take(MaxSubjects).joinToString(" · "),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            book.subjects.take(MaxSubjects).forEach { subject ->
+                                FilterChip(selected = false, onClick = { actions.showSubject(subject) }, label = { Text(subject) })
+                            }
+                        }
                     }
                     val download = state.download
                     if (download != null && !download.failed) {
@@ -483,9 +548,30 @@ private fun BookSheet(state: GutenbergBookState, library: LibraryIndex, actions:
                                 color = MaterialTheme.colorScheme.error,
                             )
                         }
-                        // Both editions, each with its size: the reader chooses.
-                        book.editions.forEach { edition ->
-                            EditionButton(edition, formatSize = { Formatter.formatShortFileSize(context, it) }, onClick = { actions.download(edition) })
+                        val preferred = book.editions.firstOrNull { it.kind == preferredEdition } ?: book.editions.firstOrNull()
+                        var chooseEdition by rememberSaveable(book.id) { mutableStateOf(false) }
+                        preferred?.let { edition ->
+                            EditionButton(
+                                edition,
+                                formatSize = { Formatter.formatShortFileSize(context, it) },
+                                primary = true,
+                                onClick = { actions.downloadPreferred(book) },
+                            )
+                        }
+                        if (book.editions.size > 1) {
+                            TextButton(onClick = { chooseEdition = !chooseEdition }) {
+                                Text(stringResource(if (chooseEdition) R.string.gutenberg_hide_editions else R.string.gutenberg_choose_edition))
+                            }
+                        }
+                        if (chooseEdition) {
+                            book.editions.filterNot { it == preferred }.forEach { edition ->
+                                EditionButton(
+                                    edition,
+                                    formatSize = { Formatter.formatShortFileSize(context, it) },
+                                    primary = false,
+                                    onClick = { actions.download(edition) },
+                                )
+                            }
                         }
                         book.author?.let { author ->
                             TextButton(onClick = { actions.showAuthor(author) }) {
@@ -553,7 +639,12 @@ private fun DownloadProgress(download: GutenbergDownload, onCancel: () -> Unit) 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun EditionButton(edition: GutenbergEdition, formatSize: (Long) -> String, onClick: () -> Unit) {
+private fun EditionButton(
+    edition: GutenbergEdition,
+    formatSize: (Long) -> String,
+    primary: Boolean,
+    onClick: () -> Unit,
+) {
     val withImages = edition.kind == GutenbergEditionKind.WITH_IMAGES
     val name = stringResource(if (withImages) R.string.gutenberg_edition_with_images else R.string.gutenberg_edition_without_images)
     val label = edition.sizeBytes?.let { stringResource(R.string.gutenberg_edition_action, name, formatSize(it)) } ?: name
@@ -573,11 +664,10 @@ private fun EditionButton(edition: GutenbergEdition, formatSize: (Long) -> Strin
             }
         }
     }
-    // The lighter edition is the filled one: it's what most readers want, and the smaller download.
-    if (withImages) {
-        OutlinedButton(onClick = onClick, shapes = morphingButtonShapes(), modifier = Modifier.fillMaxWidth()) { content() }
-    } else {
+    if (primary) {
         FilledTonalButton(onClick = onClick, shapes = morphingButtonShapes(), modifier = Modifier.fillMaxWidth()) { content() }
+    } else {
+        OutlinedButton(onClick = onClick, shapes = morphingButtonShapes(), modifier = Modifier.fillMaxWidth()) { content() }
     }
 }
 
@@ -616,13 +706,19 @@ private fun LoadingMessage(@StringRes textRes: Int) {
 
 /** Above a saved list: a thin moving bar while it's refreshed, or a note that it couldn't be. */
 @Composable
-private fun SavedListStatus(offline: Boolean) {
+private fun SavedListStatus(offline: Boolean, actions: GutenbergActions) {
     if (offline) {
-        Text(
-            text = stringResource(R.string.gutenberg_showing_saved),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(
+                text = stringResource(R.string.gutenberg_showing_saved),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                TextButton(onClick = actions.retry) { Text(stringResource(R.string.gutenberg_retry)) }
+                TextButton(onClick = actions.clearSavedCatalogue) { Text(stringResource(R.string.gutenberg_clear_saved)) }
+            }
+        }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             VayanaLinearProgressIndicator(modifier = Modifier.fillMaxWidth())

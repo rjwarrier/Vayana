@@ -474,6 +474,7 @@ private fun PortableBook.toJson(): JSONObject =
         .putOptional("originalPublicationYear", originalPublicationYear)
         .putOptional("physicalOwnership", physicalOwnership)
         .putOptional("borrowReturnAt", borrowReturnAt)
+        .putOptional("gutenbergId", gutenbergId)
 
 private fun PortableAsset.toJson(): JSONObject =
     JSONObject()

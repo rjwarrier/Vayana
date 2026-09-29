@@ -58,6 +58,7 @@ data class PortableBook(
     val originalPublicationYear: Int? = null,
     val physicalOwnership: String? = null,
     val borrowReturnAt: Long? = null,
+    val gutenbergId: Long? = null,
 )
 
 data class PortableAsset(

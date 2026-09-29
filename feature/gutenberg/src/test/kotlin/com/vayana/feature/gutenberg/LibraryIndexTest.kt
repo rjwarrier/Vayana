@@ -10,25 +10,30 @@ class LibraryIndexTest {
             LibraryBook(1, "Frankenstein; Or, The Modern Prometheus", "Mary Wollstonecraft Shelley"),
             LibraryBook(2, "Pride and Prejudice", "Austen, Jane"),
             LibraryBook(3, "Poems", "Emily Dickinson"),
-            LibraryBook(4, "Les Misérables", null),
+            LibraryBook(4, "Les Misérables", null, gutenbergId = 135),
         ),
     )
 
     @Test
     fun matchesDespiteCaseSubtitlesAndAuthorOrder() {
-        assertEquals(1L, index.find("Frankenstein; or, the modern prometheus", "Mary Wollstonecraft Shelley"))
-        assertEquals(2L, index.find("Pride and Prejudice", "Jane Austen"))
+        assertEquals(1L, index.find(0, "Frankenstein; or, the modern prometheus", "Mary Wollstonecraft Shelley"))
+        assertEquals(2L, index.find(0, "Pride and Prejudice", "Jane Austen"))
     }
 
     @Test
     fun accentsAndMissingAuthorsStillMatch() {
-        assertEquals(4L, index.find("Les Miserables", "Victor Hugo"))
-        assertEquals(2L, index.find("Pride and prejudice", null))
+        assertEquals(4L, index.find(0, "Les Miserables", "Victor Hugo"))
+        assertEquals(2L, index.find(0, "Pride and prejudice", null))
     }
 
     @Test
     fun sameTitleByAnotherAuthorIsNotAMatch() {
-        assertNull(index.find("Poems", "William Blake"))
-        assertNull(index.find("Moby Dick", "Herman Melville"))
+        assertNull(index.find(0, "Poems", "William Blake"))
+        assertNull(index.find(0, "Moby Dick", "Herman Melville"))
+    }
+
+    @Test
+    fun stableGutenbergIdentityWinsOverMetadataDifferences() {
+        assertEquals(4L, index.find(135, "A completely different title", "Another author"))
     }
 }

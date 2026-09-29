@@ -111,10 +111,14 @@
     <string name="gutenberg_loading_slow">Project Gutenberg can be slow to answer. Still working on it.</string>
     <string name="gutenberg_refreshing">Checking Project Gutenberg for updates…</string>
     <string name="gutenberg_showing_saved">Showing the saved list: Project Gutenberg can’t be reached right now.</string>
+    <string name="gutenberg_clear_saved">Clear saved catalogue</string>
     <string name="gutenberg_downloading_percent">Downloading… %1$d%%</string>
     <string name="gutenberg_language">Language</string>
     <string name="gutenberg_language_all">All languages</string>
     <string name="gutenberg_topic_all">All topics</string>
+    <string name="gutenberg_subject_filter">Subject: %1$s</string>
+    <string name="gutenberg_recent">Recent Gutenberg activity</string>
+    <string name="gutenberg_clear_recent">Clear</string>
     <string name="gutenberg_topic_adventure">Adventure</string>
     <string name="gutenberg_topic_mystery">Mystery</string>
     <string name="gutenberg_topic_science_fiction">Science fiction</string>
@@ -144,6 +148,8 @@
     <string name="gutenberg_edition_action">%1$s · %2$s</string>
     <string name="gutenberg_edition_without_images_detail">Text only, the smaller download</string>
     <string name="gutenberg_edition_with_images_detail">Includes the illustrations</string>
+    <string name="gutenberg_choose_edition">Choose another edition</string>
+    <string name="gutenberg_hide_editions">Hide other editions</string>
     <string name="library_book_cover_content_description">Cover of %1$s</string>
     <string name="library_import_summary">Imported %1$d · %2$d duplicates skipped · %3$d unsupported · %4$d failed</string>
     <string name="library_import_progress_title">Importing books</string>
