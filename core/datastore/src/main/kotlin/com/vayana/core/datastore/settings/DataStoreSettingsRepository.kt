@@ -176,6 +176,8 @@ private fun Preferences.toSnapshot(): SettingsSnapshot {
         readingReminderEnabled = read(SettingsRegistry.ReadingReminderEnabled),
         readingReminderHour = read(SettingsRegistry.ReadingReminderHour),
         borrowRemindersEnabled = read(SettingsRegistry.BorrowReminders),
+        widgetCornerRadius = read(SettingsRegistry.WidgetCornerRadius),
+        widgetProgressStyle = read(SettingsRegistry.WidgetProgressBar),
         yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
         defaultCoverSource = read(SettingsRegistry.DefaultCoverSource),
         finishedPercent = read(SettingsRegistry.FinishedPercent),

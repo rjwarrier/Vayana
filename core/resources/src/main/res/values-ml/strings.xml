@@ -1534,4 +1534,14 @@
     <string name="widget_preview_progress" formatted="false">42% വായിച്ചു</string>
     <string name="widget_read_aloud">ഉറക്കെ വായിക്കുക</string>
     <string name="widget_pause_read_aloud">ഉറക്കെ വായന നിർത്തിവയ്ക്കുക</string>
+    <string name="widget_configure_title">വിജറ്റ് ശൈലി</string>
+    <string name="widget_configure_done">പൂർത്തിയായി</string>
+    <string name="widget_configure_applies_to_all">ഹോം സ്ക്രീനിലെ എല്ലാ Vayana വിജറ്റുകൾക്കും ബാധകം.</string>
+    <string name="widget_corners">മൂലകൾ</string>
+    <string name="widget_corners_match">ഹോം സ്ക്രീൻ പോലെ</string>
+    <string name="widget_corners_match_subtitle">ഹോം സ്ക്രീനിന്റെ സ്വന്തം വിജറ്റ് മൂലകൾ ഉപയോഗിക്കുക</string>
+    <string name="widget_corners_value">%1$d dp</string>
+    <string name="widget_progress_style">പുരോഗതി ബാർ</string>
+    <string name="widget_progress_flat">നേർ</string>
+    <string name="widget_progress_squiggly">തിരമാല</string>
 </resources>

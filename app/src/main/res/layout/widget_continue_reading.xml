@@ -85,6 +85,18 @@
                 android:max="100"
                 android:progress="42"
                 android:progressDrawable="@drawable/widget_progress" />
+
+            <!-- The squiggly style's bar, shown instead of the flat one when chosen on the configure screen. -->
+            <ProgressBar
+                android:id="@+id/widget_progress_wavy"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="12dp"
+                android:layout_marginTop="8dp"
+                android:max="100"
+                android:progress="42"
+                android:progressDrawable="@drawable/widget_progress_wavy"
+                android:visibility="gone" />
         </LinearLayout>
 
         <ImageView

@@ -1550,4 +1550,14 @@
     <string name="widget_preview_progress" formatted="false">42 % leído</string>
     <string name="widget_read_aloud">Leer en voz alta</string>
     <string name="widget_pause_read_aloud">Pausar la lectura en voz alta</string>
+    <string name="widget_configure_title">Estilo del widget</string>
+    <string name="widget_configure_done">Listo</string>
+    <string name="widget_configure_applies_to_all">Se aplica a todos los widgets de Vayana de tu pantalla de inicio.</string>
+    <string name="widget_corners">Esquinas</string>
+    <string name="widget_corners_match">Igual que la pantalla de inicio</string>
+    <string name="widget_corners_match_subtitle">Usar las esquinas de widget de tu pantalla de inicio</string>
+    <string name="widget_corners_value">%1$d dp</string>
+    <string name="widget_progress_style">Barra de progreso</string>
+    <string name="widget_progress_flat">Plana</string>
+    <string name="widget_progress_squiggly">Ondulada</string>
 </resources>

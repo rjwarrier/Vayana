@@ -1534,4 +1534,14 @@
     <string name="widget_preview_progress" formatted="false">42% read</string>
     <string name="widget_read_aloud">Read aloud</string>
     <string name="widget_pause_read_aloud">Pause reading aloud</string>
+    <string name="widget_configure_title">Widget style</string>
+    <string name="widget_configure_done">Done</string>
+    <string name="widget_configure_applies_to_all">Applies to all Vayana widgets on your home screen.</string>
+    <string name="widget_corners">Corners</string>
+    <string name="widget_corners_match">Match home screen</string>
+    <string name="widget_corners_match_subtitle">Use your home screen’s own widget corners</string>
+    <string name="widget_corners_value">%1$d dp</string>
+    <string name="widget_progress_style">Progress bar</string>
+    <string name="widget_progress_flat">Flat</string>
+    <string name="widget_progress_squiggly">Squiggly</string>
 </resources>

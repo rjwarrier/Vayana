@@ -44,6 +44,9 @@ object Sizes {
     /** Cover beside the title block at the top of book details - leaves the text column room to breathe. */
     val coverWidthDetail = 120.dp
 
+    /** A home-screen widget two cells tall, as the widget configure screen previews it. */
+    val widgetPreviewHeight = 140.dp
+
     val chartHeight = 112.dp
     val chartBarMaxHeight = 72.dp
     val chartBarMinWidth = 28.dp

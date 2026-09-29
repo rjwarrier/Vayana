@@ -19,6 +19,19 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Vayana">
 
+        <!-- Styles every Vayana widget; launched by the home screen when adding or editing one. -->
+        <activity
+            android:name=".widget.WidgetConfigureActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/widget_configure_title"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Vayana">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

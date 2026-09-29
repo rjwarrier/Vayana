@@ -129,6 +129,9 @@ data class SettingsSnapshot(
     val readingReminderHour: Int = 20,
     /** Notifications before a borrowed physical book is due back. */
     val borrowRemindersEnabled: Boolean = true,
+    /** Home-screen widgets' corner radius in dp, or [WidgetCornerRadiusMatchLauncher]. */
+    val widgetCornerRadius: Int = WidgetCornerRadiusMatchLauncher,
+    val widgetProgressStyle: WidgetProgressStyle = WidgetProgressStyle.FLAT,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
     val finishedPercent: Int = 98,
@@ -656,6 +659,31 @@ object SettingsRegistry {
         range = 6..23,
         step = 1,
     )
+    /**
+     * Every Vayana home-screen widget's corner radius in dp, set on the widget configure screen; [MatchLauncher] (the
+     * default) uses the home screen's own widget corners.
+     */
+    val WidgetCornerRadius: IntSetting = IntSetting(
+        key = "widgets.corner_radius",
+        defaultValue = WidgetCornerRadiusMatchLauncher,
+        titleRes = R.string.widget_corners,
+        subtitleRes = null,
+        group = SettingsGroup.APPEARANCE,
+        range = WidgetCornerRadiusMatchLauncher..WidgetCornerRadiusMax,
+        step = WidgetCornerRadiusStep,
+    )
+    /** Every widget's progress bar: flat, or M3 Expressive's squiggle. Set on the widget configure screen. */
+    val WidgetProgressBar: ChoiceSetting<WidgetProgressStyle> = ChoiceSetting(
+        key = "widgets.progress_style",
+        defaultValue = WidgetProgressStyle.FLAT,
+        titleRes = R.string.widget_progress_style,
+        subtitleRes = null,
+        group = SettingsGroup.APPEARANCE,
+        options = listOf(
+            ChoiceOption(WidgetProgressStyle.FLAT, R.string.widget_progress_flat),
+            ChoiceOption(WidgetProgressStyle.SQUIGGLY, R.string.widget_progress_squiggly),
+        ),
+    )
     val BorrowReminders: BooleanSetting = BooleanSetting(
         key = "reminders.borrowed_enabled",
         defaultValue = true,
@@ -815,6 +843,16 @@ object SettingsRegistry {
         LibraryViewMode,
         ReaderPdfCropMargins,
         ReaderPdfFitWidth,
+        WidgetCornerRadius,
+        WidgetProgressBar,
     )
     val persisted: List<Setting<out Any>> = all + internal
 }
+
+/** Widgets follow the home screen's own corner radius. */
+const val WidgetCornerRadiusMatchLauncher = -1
+const val WidgetCornerRadiusMax = 32
+const val WidgetCornerRadiusStep = 4
+
+/** How home-screen widgets draw progress. */
+enum class WidgetProgressStyle { FLAT, SQUIGGLY }

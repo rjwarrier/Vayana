@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Redrawn by the app as reading progresses, so no periodic update (updatePeriodMillis 0). -->
+<!--
+    Redrawn by the app as reading progresses, so no periodic update (updatePeriodMillis 0). Styled on the shared
+    widget configure screen: optional when adding it (Android 12+), and reopened from the widget's own edit action.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_description"
     android:initialLayout="@layout/widget_continue_reading"
@@ -12,4 +15,6 @@
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:configure="com.vayana.app.widget.WidgetConfigureActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

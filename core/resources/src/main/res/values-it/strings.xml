@@ -1550,4 +1550,14 @@
     <string name="widget_preview_progress" formatted="false">42% letto</string>
     <string name="widget_read_aloud">Leggi ad alta voce</string>
     <string name="widget_pause_read_aloud">Metti in pausa la lettura ad alta voce</string>
+    <string name="widget_configure_title">Stile del widget</string>
+    <string name="widget_configure_done">Fine</string>
+    <string name="widget_configure_applies_to_all">Vale per tutti i widget di Vayana nella schermata Home.</string>
+    <string name="widget_corners">Angoli</string>
+    <string name="widget_corners_match">Come la schermata Home</string>
+    <string name="widget_corners_match_subtitle">Usa gli angoli dei widget della schermata Home</string>
+    <string name="widget_corners_value">%1$d dp</string>
+    <string name="widget_progress_style">Barra di avanzamento</string>
+    <string name="widget_progress_flat">Piatta</string>
+    <string name="widget_progress_squiggly">Ondulata</string>
 </resources>

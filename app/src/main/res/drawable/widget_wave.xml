@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The squiggle of M3 Expressive's wavy progress, as a static wave: widgets can't animate a custom drawing. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="12dp"
+    android:viewportWidth="200"
+    android:viewportHeight="12">
+    <path
+        android:pathData="M3,6q4.25,-4.5 8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0t8.5,0"
+        android:strokeColor="@color/widget_primary"
+        android:strokeLineCap="round"
+        android:strokeWidth="3" />
+</vector>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Squiggly progress: the wave clipped to the progress, over a thin flat track, as M3 Expressive's wavy indicator. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@android:id/background"
+        android:gravity="center_vertical|fill_horizontal"
+        android:height="4dp">
+        <shape>
+            <solid android:color="@color/widget_secondary_container" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip android:drawable="@drawable/widget_wave" />
+    </item>
+</layer-list>

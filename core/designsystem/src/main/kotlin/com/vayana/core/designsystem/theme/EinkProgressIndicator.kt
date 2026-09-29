@@ -5,6 +5,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -97,11 +98,14 @@ fun VayanaLinearWavyProgressIndicator(
             waveSpeed = 0.dp,
         )
     } else {
+        // Half M3's default speed (one wavelength a second): a calmer drift on a screen that's about reading.
         LinearWavyProgressIndicator(
             progress = clampedProgress,
             modifier = modifier,
+            waveSpeed = WavyProgressIndicatorDefaults.LinearDeterminateWavelength * WaveSpeedFraction,
         )
     }
 }
 
 private const val EinkStaticProgressFraction = 0.75f
+private const val WaveSpeedFraction = 0.5f

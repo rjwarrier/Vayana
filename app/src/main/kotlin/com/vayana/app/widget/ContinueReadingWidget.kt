@@ -51,7 +51,12 @@ class ContinueReadingWidget : AppWidgetProvider() {
 }
 
 /** What the widget draws: the book, its read-aloud if that's running, and whether read-aloud is on in Settings. */
-private data class WidgetState(val book: WidgetBook?, val readAloud: ReadAloudStatus?, val audioEnabled: Boolean)
+private data class WidgetState(
+    val book: WidgetBook?,
+    val readAloud: ReadAloudStatus?,
+    val audioEnabled: Boolean,
+    val appearance: WidgetAppearance,
+)
 
 /** What the widget shows: the most recently read book whose file is on this device, as the library's hero card does. */
 data class WidgetBook(val id: Long, val title: String, val author: String?, val coverPath: String?, val percent: Int)
@@ -72,15 +77,19 @@ class ContinueReadingWidgetUpdater @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val readAloudStatusHolder: ReadAloudStatusHolder,
     @ApplicationScope private val scope: CoroutineScope,
-) {
+) : VayanaWidget {
+    override val provider = ContinueReadingWidget::class.java
+
     // The last cover drawn: play/pause redraws the widget, and needn't decode the same cover again.
     private var cover: Pair<String, Bitmap?>? = null
 
     private val state: Flow<WidgetState> = combine(
         bookRepository.observeContinueReading().map { it?.toWidgetBook() },
         readAloudStatusHolder.status,
-        settingsRepository.snapshot.map { it.readerAudioFeaturesEnabled },
-    ) { book, readAloud, audioEnabled -> WidgetState(book, readAloud?.takeIf { it.bookId == book?.id }, audioEnabled) }
+        settingsRepository.snapshot.map { it.readerAudioFeaturesEnabled to WidgetAppearance(it.widgetCornerRadius, it.widgetProgressStyle) },
+    ) { book, readAloud, (audioEnabled, appearance) ->
+        WidgetState(book, readAloud?.takeIf { it.bookId == book?.id }, audioEnabled, appearance)
+    }
         .distinctUntilChanged()
 
     fun start() {
@@ -97,15 +106,20 @@ class ContinueReadingWidgetUpdater @Inject constructor(
         }
     }
 
+    override suspend fun preview(appearance: WidgetAppearance): RemoteViews = withContext(dispatchers.io) {
+        val state = state.first().copy(appearance = appearance)
+        views(state, coverFor(state.book), narrow = false, short = false)
+    }
+
+    private fun coverFor(book: WidgetBook?): Bitmap? = book?.coverPath?.let { path ->
+        cover?.takeIf { it.first == path }?.second ?: loadCover(path).also { cover = path to it }
+    }
+
     private suspend fun render(state: WidgetState) = withContext(dispatchers.io) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, ContinueReadingWidget::class.java))
         if (ids.isEmpty()) return@withContext
-        val book = state.book
-        val cover = book?.coverPath?.let { path ->
-            this@ContinueReadingWidgetUpdater.cover?.takeIf { it.first == path }?.second
-                ?: loadCover(path).also { this@ContinueReadingWidgetUpdater.cover = path to it }
-        }
+        val cover = coverFor(state.book)
         // From Android 12 the launcher picks the layout for the widget's size: narrow ones drop the resume button,
         // short ones the progress pill and the title's second line.
         val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -125,6 +139,7 @@ class ContinueReadingWidgetUpdater @Inject constructor(
 
     private fun views(state: WidgetState, cover: Bitmap?, narrow: Boolean, short: Boolean): RemoteViews =
         RemoteViews(context.packageName, R.layout.widget_continue_reading).apply {
+            state.appearance.applyTo(this)
             val book = state.book
             val hasBook = book != null
             setViewVisibility(R.id.widget_book, if (hasBook) View.VISIBLE else View.GONE)
@@ -159,7 +174,7 @@ class ContinueReadingWidgetUpdater @Inject constructor(
             setTextViewText(R.id.widget_author, book.author.orEmpty())
             setViewVisibility(R.id.widget_author, if (book.author.isNullOrBlank()) View.GONE else View.VISIBLE)
             setTextViewText(R.id.widget_progress_text, context.getString(Res.string.library_progress_value, book.percent))
-            setProgressBar(R.id.widget_progress, PercentScale, book.percent, false)
+            state.appearance.applyProgress(this, R.id.widget_progress, R.id.widget_progress_wavy, PercentScale, book.percent)
             if (cover != null) {
                 setImageViewBitmap(R.id.widget_cover, cover)
                 setViewPadding(R.id.widget_cover, 0, 0, 0, 0)

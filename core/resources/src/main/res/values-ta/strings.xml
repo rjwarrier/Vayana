@@ -1534,4 +1534,14 @@
     <string name="widget_preview_progress" formatted="false">42% படித்தது</string>
     <string name="widget_read_aloud">உரக்கப் படி</string>
     <string name="widget_pause_read_aloud">உரக்கப் படிப்பதை இடைநிறுத்து</string>
+    <string name="widget_configure_title">விட்ஜெட் பாணி</string>
+    <string name="widget_configure_done">முடிந்தது</string>
+    <string name="widget_configure_applies_to_all">முகப்புத் திரையில் உள்ள எல்லா Vayana விட்ஜெட்களுக்கும் பொருந்தும்.</string>
+    <string name="widget_corners">மூலைகள்</string>
+    <string name="widget_corners_match">முகப்புத் திரைபோல</string>
+    <string name="widget_corners_match_subtitle">முகப்புத் திரையின் விட்ஜெட் மூலைகளைப் பயன்படுத்து</string>
+    <string name="widget_corners_value">%1$d dp</string>
+    <string name="widget_progress_style">முன்னேற்றப் பட்டை</string>
+    <string name="widget_progress_flat">நேர்</string>
+    <string name="widget_progress_squiggly">அலை</string>
 </resources>
