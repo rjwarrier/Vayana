@@ -47,9 +47,14 @@ internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
         val numerals = romanSpeechReplacements(text).filter { (match, _) ->
             protected.none { match.range.first <= it.last && match.range.last >= it.first }
         }
+        val claimed = corrections + numerals
+        fun free(match: MatchResult) = claimed.none { (other, _) ->
+            match.range.first <= other.range.last && match.range.last >= other.range.first
+        } && protected.none { match.range.first <= it.last && match.range.last >= it.first }
+        val typography = typographyReplacements(text).filter { (match, _) -> free(match) }
         val matches = (corrections.filter { (match, _) ->
             numerals.none { (numeral, _) -> match.range.first <= numeral.range.last && match.range.last >= numeral.range.first }
-        } + numerals).sortedBy { it.first.range.first }
+        } + numerals + typography).sortedBy { it.first.range.first }
         if (matches.isEmpty()) return PronouncedSpeechText(text)
         val length = text.length + matches.sumOf { (match, replacement) -> replacement.length - match.value.length }
         val spoken = StringBuilder(length)
@@ -78,6 +83,27 @@ internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
         return PronouncedSpeechText(spoken.toString(), starts, ends)
     }
 }
+
+/**
+ * Prose punctuation and capitalisation that engines read poorly: a dash with no spaces is glued into one word, and
+ * SHOUTED words are sometimes spelled out letter by letter. Both keep the highlight on the original text.
+ */
+private fun typographyReplacements(text: String): List<Pair<MatchResult, String>> {
+    val result = mutableListOf<Pair<MatchResult, String>>()
+    UnspacedDash.findAll(text).forEach { result += it to ", " }
+    ShoutedWord.findAll(text).forEach { match ->
+        val word = match.value
+        // Keep real initialisms (FBI, USSR, NASA's letters spoken as written) - only words that read as words.
+        if (word.any { it in "AEIOUY" } && word.any { it !in "IVXLCDM" } && !ConsonantRun.containsMatchIn(word)) {
+            result += match to word.lowercase(java.util.Locale.ROOT)
+        }
+    }
+    return result
+}
+
+private val UnspacedDash = Regex("(?<=[\\p{L}.,!?'’\"”])—(?=[\\p{L}'‘\"“])")
+private val ShoutedWord = Regex("(?<![\\p{L}\\p{N}_'’])\\p{Lu}{4,}(?![\\p{L}\\p{N}_'’])")
+private val ConsonantRun = Regex("[^AEIOUY]{3,}")
 
 /** Convert clear numeral labels, not pronoun I, initials, ordinary words, or arbitrary capitalized acronyms. */
 private fun romanSpeechReplacements(text: String): List<Pair<MatchResult, String>> =

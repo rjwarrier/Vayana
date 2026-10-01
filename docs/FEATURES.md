@@ -217,6 +217,9 @@ imported into the library like any picked file.
   numeral characters are also converted. Only canonical values from 1 to 3999 qualify; pronoun "I",
   initials, ordinary prose acronyms and invalid forms remain unchanged. Book pronunciation corrections
   take priority, and highlights continue to select the original numeral.
+- **Typography.** A dash with no spaces between words (`stopped—then`) is spoken with a comma pause, and SHOUTED words of four or more
+  letters that read as words (`SILENCE`) are spoken in lower case, so engines don't spell them out. Initialisms without vowels,
+  Roman-numeral lookalikes and numeric ranges are unchanged, and highlights still select the original text.
 - **Reading text cleanup.** Marked footnote references and hidden text are omitted, while mathematical
   superscripts remain. Single EPUB source line breaks and line separators are joined before sentence
   splitting, preventing artificial pauses inside prose; blank lines and block boundaries remain.

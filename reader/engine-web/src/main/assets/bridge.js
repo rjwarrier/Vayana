@@ -767,10 +767,11 @@ function layoutPopularBadges() {
             justifyContent: 'center',
             padding: '0',
             borderRadius: `${badgeHeight / 2}px`,
-            background: markColor(color),
-            color: '#ffffff',
-            font: '700 11px/1 sans-serif',
-            opacity: '0.95',
+            // E-Ink: a coloured chip dithers to grey, so the count is plain black digits with no chip behind it.
+            background: inkMarks ? 'none' : markColor(color),
+            color: inkMarks ? '#000000' : '#ffffff',
+            font: inkMarks ? '700 12px/1 sans-serif' : '700 11px/1 sans-serif',
+            opacity: inkMarks ? '1' : '0.95',
         })
         fragment.append(pill)
     }
@@ -1413,6 +1414,7 @@ let inkMarks = false
 
 function setInkMarks(enabled) {
     inkMarks = Boolean(enabled)
+    scheduleBadgeLayout()
 }
 
 function markColor(color) {

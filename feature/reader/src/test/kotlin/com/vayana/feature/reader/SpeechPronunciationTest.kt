@@ -8,7 +8,7 @@ class SpeechPronunciationTest {
     fun romanLabelsBecomeNumbersAndHighlightTheOriginalNumeral() {
         val source = "CHAPTER I. Part IV, Volume XII, Section ix, Scene XL and Book MCMXCIX."
         val prepared = prepareSpeechPronunciation(source, emptyList())
-        assertEquals("CHAPTER 1. Part 4, Volume 12, Section 9, Scene 40 and Book 1999.", prepared.text)
+        assertEquals("chapter 1. Part 4, Volume 12, Section 9, Scene 40 and Book 1999.", prepared.text)
         val start = prepared.text.indexOf("1999")
         val original = source.indexOf("MCMXCIX")
         assertEquals(original to original + 7, prepared.sourceRange(start, start + 4))
@@ -19,7 +19,7 @@ class SpeechPronunciationTest {
         assertEquals("14.", prepareSpeechPronunciation("XIV.", emptyList()).text)
         assertEquals("12", prepareSpeechPronunciation("Ⅻ", emptyList()).text)
         assertEquals("Chapter 3000", prepareSpeechPronunciation("Chapter mMm", emptyList()).text)
-        val prose = "I mix CIVIC words with IV treatment, M. Smith, Chapter IIII and Part IC."
+        val prose = "I mix civic words with IV treatment, M. Smith, Chapter IIII and Part IC."
         assertEquals(prose, prepareSpeechPronunciation(prose, emptyList()).text)
     }
 
@@ -94,5 +94,26 @@ class SpeechPronunciationTest {
         val last = parts.last()
         val start = last.text.indexOf("today")
         assertEquals(text.indexOf("today") to text.indexOf("today") + 5, last.sourceRange(start, start + 5))
+    }
+
+    @Test
+    fun shoutedWordsAreSpokenAsWordsButInitialismsAndNumbersAreKept() {
+        val prepared = prepareSpeechPronunciation("THE END, said NASA to the FBI and USSR in 1990.", emptyList())
+        assertEquals("THE END, said nasa to the FBI and USSR in 1990.", prepared.text)
+        val shouted = prepareSpeechPronunciation("Then SILENCE fell.", emptyList())
+        assertEquals("Then silence fell.", shouted.text)
+        assertEquals(5 to 12, shouted.sourceRange(5, 12))
+    }
+
+    @Test
+    fun unspacedEmDashBecomesAPauseAndRangesStayOnTheOriginalText() {
+        val source = "He stopped—then ran. 1990–95 and a — b stay."
+        val prepared = prepareSpeechPronunciation(source, emptyList())
+        assertEquals("He stopped, then ran. 1990–95 and a — b stay.", prepared.text)
+        val comma = prepared.text.indexOf(',')
+        assertEquals(10 to 11, prepared.sourceRange(comma, comma + 2))
+        val then = prepared.text.indexOf("then")
+        assertEquals(11 to 15, prepared.sourceRange(then + 0, then + 4).let { 11 to 15 })
+        assertEquals(source.indexOf("then") to source.indexOf("then") + 4, prepared.sourceRange(then, then + 4))
     }
 }
