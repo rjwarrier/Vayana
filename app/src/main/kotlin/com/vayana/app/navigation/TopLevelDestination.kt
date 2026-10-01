@@ -61,6 +61,12 @@ data object OfflineBooksRoute
 data object GutenbergRoute
 
 @Serializable
+data object OpdsCatalogsRoute
+
+@Serializable
+data class OpdsBrowseRoute(val catalogId: String)
+
+@Serializable
 data class ShelfDetailRoute(val shelfId: Long)
 
 @Serializable
@@ -120,6 +126,8 @@ internal fun NavDestination.isSelectedFor(destination: TopLevelDestination): Boo
             hasRoute(ShelvesRoute::class) ||
             hasRoute(OfflineBooksRoute::class) ||
             hasRoute(GutenbergRoute::class) ||
+            hasRoute(OpdsCatalogsRoute::class) ||
+            hasRoute(OpdsBrowseRoute::class) ||
             hasRoute(ShelfDetailRoute::class) ||
             hasRoute(SeriesFolderRoute::class) ||
             hasRoute(BookDetailRoute::class)

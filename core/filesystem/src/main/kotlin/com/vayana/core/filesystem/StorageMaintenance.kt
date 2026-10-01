@@ -111,7 +111,7 @@ class StorageMaintenance @Inject constructor(
         const val CheckedCoversKey = "checked_large_covers"
         const val CoversDirectoryName = "covers"
         const val WebViewMetricsDirectory = ".webview/BrowserMetrics"
-        val ShareCacheDirectories = listOf("shared_books", "shared_files", "shared_images", "gutenberg")
+        val ShareCacheDirectories = listOf("shared_books", "shared_files", "shared_images", "gutenberg", "opds")
         val DayMillis = TimeUnit.DAYS.toMillis(1)
         val WeekMillis = TimeUnit.DAYS.toMillis(7)
     }

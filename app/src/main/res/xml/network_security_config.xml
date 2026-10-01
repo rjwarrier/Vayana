@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Online catalogs (OPDS) are often home or office servers (Calibre-Web, Calibre's content server) reachable only over
+    plain HTTP on the local network, so cleartext is allowed. Every other part of the app that talks to the network
+    checks for HTTPS itself (Gutenberg, GitHub sync, Goodreads, covers); the catalog editor warns about a login over HTTP.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

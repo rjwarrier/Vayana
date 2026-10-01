@@ -104,6 +104,7 @@ fun GutenbergRoute(
     onBack: () -> Unit,
     onImported: () -> Unit,
     onOpenBook: (Long) -> Unit,
+    onOpenCatalogs: () -> Unit,
     viewModel: GutenbergViewModel = hiltViewModel(),
 ) {
     val list by viewModel.list.collectAsStateWithLifecycle()
@@ -144,6 +145,7 @@ fun GutenbergRoute(
             )
         },
         onBack = onBack,
+        onOpenCatalogs = onOpenCatalogs,
     )
 }
 
@@ -178,6 +180,7 @@ private fun GutenbergScreen(
     preferredEdition: GutenbergEditionKind,
     actions: GutenbergActions,
     onBack: () -> Unit,
+    onOpenCatalogs: () -> Unit,
 ) {
     val gridState = rememberLazyGridState()
     // Near the end of what's loaded, ask for the next page. Derived, so scrolling doesn't recompose the screen.
@@ -201,6 +204,9 @@ private fun GutenbergScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.gutenberg_back))
                     }
+                },
+                actions = {
+                    TextButton(onClick = onOpenCatalogs) { Text(stringResource(R.string.opds_title)) }
                 },
             )
         },

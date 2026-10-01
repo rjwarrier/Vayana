@@ -104,6 +104,7 @@ dependencies {
     implementation(project(":feature:help"))
     implementation(project(":feature:reminders"))
     implementation(project(":feature:gutenberg"))
+    implementation(project(":feature:opds"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

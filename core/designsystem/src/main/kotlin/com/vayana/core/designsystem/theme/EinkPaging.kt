@@ -75,9 +75,9 @@ fun PagedLazyColumn(
     contentPadding: PaddingValues = PaddingValues(),
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     showPageButtons: Boolean = true,
+    state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
-    val state = rememberLazyListState()
     val pager = rememberEinkPager(state) { state.viewportHeightPx() }
     Box(modifier) {
         LazyColumn(
