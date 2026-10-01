@@ -28,13 +28,131 @@ class ReadAloudPlayerTest {
     private val scope = CoroutineScope(Dispatchers.Unconfined)
 
     @Test
+    fun repeatedPronunciationRangesDoNotRedrawTheSameOriginalWord() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hermione smiled.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.setPronunciations(listOf(SpeechPronunciation("Hermione", "her MY oh nee")))
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onRangeStart("0:0", 0, 3)
+        output.listener!!.onRangeStart("0:0", 4, 6)
+        output.listener!!.onRangeStart("0:0", 7, 9)
+        output.listener!!.onRangeStart("0:0", 10, 13)
+        assertEquals(listOf(MarkedSpeech("0:0", 0, 8)), engine.marked)
+        player.pause()
+        player.play()
+        output.listener!!.onRangeStart("0:0", 0, 3)
+        assertEquals(2, engine.marked.size)
+        output.listener!!.onRangeStart("0:0", 14, 20)
+        assertEquals(MarkedSpeech("0:0", 9, 15), engine.marked.last())
+    }
+
+    @Test
+    fun finishedSpeechBatchesAreReleasedAndLateCallbacksAreIgnored() {
+        val output = FakeOutput()
+        val engine = longChapter(500)
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        val completedId = output.rawQueued.first()
+        (0..200).forEach {
+            output.listener!!.onStart("0:$it")
+            output.listener!!.onDone("0:$it")
+        }
+        engine.marked.clear()
+        output.sendRawStart(completedId)
+        output.listener!!.onRangeStart("0:0", 0, 8)
+        assertTrue(engine.marked.isEmpty())
+        player.pause()
+        player.play()
+        assertEquals("0:200", output.queued.first())
+    }
+
+    @Test
+    fun steadyPlaybackStartsGroupingOnceTheVoiceProvidesTimings() {
+        val output = FakeOutput()
+        val engine = longChapter(500)
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:0")
+        output.listener!!.onRangeStart("0:0", 0, 8)
+        output.listener!!.onStart("0:1")
+        assertEquals("Sentence 9. Sentence 10. Sentence 11.", output.spoken.last())
+        assertEquals((0..8).map { "0:$it" }, output.queued)
+        output.listener!!.onStart("0:8")
+        val start = output.spoken.first { it.contains("Sentence 11.") }.indexOf("Sentence 11.")
+        output.listener!!.onRangeStart("0:8", start, start + 8)
+        assertEquals(MarkedSpeech("0:10", 0, 8), engine.marked.last())
+        player.pause()
+        player.play()
+        assertEquals("Sentence 11. Sentence 12. Sentence 13.", output.spoken[output.spoken.size - 3])
+    }
+
+    @Test
+    fun timedGroupsFollowOriginalSentencesAndResumeFromTheCurrentOne() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Hermione smiled.", "Three.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.setPronunciations(listOf(SpeechPronunciation("Hermione", "her MY oh nee")))
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onRangeStart("0:0", 0, 3)
+        player.setRate(1f) // Refill with groups after this voice proves it provides timings.
+        assertEquals(listOf("0:0"), output.queued)
+        assertEquals("One. her MY oh nee smiled. Three.", output.spoken.last())
+        output.listener!!.onStart("0:0")
+        output.listener!!.onRangeStart("0:0", 19, 25)
+        assertEquals(MarkedSpeech("0:1", 9, 15), engine.marked.last())
+        player.pause()
+        player.play()
+        assertEquals("her MY oh nee smiled. Three.", output.spoken.last())
+        assertEquals(listOf("0:1"), output.queued)
+        player.skip(1)
+        assertEquals("Three.", output.spoken.last())
+    }
+
+    @Test
+    fun einkGroupsTrackSentencesWithoutUpdatingTheHighlightForEachWord() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two words.", "Three.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "", wordHighlight = false)
+        output.listener!!.onRangeStart("0:0", 0, 3)
+        player.setRate(1f)
+        engine.marked.clear()
+        output.listener!!.onStart("0:0")
+        output.listener!!.onRangeStart("0:0", 5, 8)
+        output.listener!!.onRangeStart("0:0", 9, 14)
+        assertEquals(listOf(MarkedSpeech("0:0", 0, 4), MarkedSpeech("0:1", 0, 10)), engine.marked)
+        player.pause()
+        player.play()
+        assertEquals("Two words. Three.", output.spoken.last())
+    }
+
+    @Test
+    fun finishingAGroupAdvancesChapterAndAChangedVoiceRelearnsTimings() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two."), listOf("Three.", "Four.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onRangeStart("0:0", 0, 3)
+        val oldId = output.rawQueued.first()
+        player.setRate(1f)
+        output.sendRawDone(oldId)
+        assertEquals(0, engine.nextCalls)
+        output.listener!!.onDone("0:0")
+        assertEquals(1, engine.nextCalls)
+        assertEquals("Three. Four.", output.spoken.last())
+        player.setVoice("different")
+        assertEquals(listOf("1:0", "1:1"), output.queued)
+    }
+
+    @Test
     fun paragraphSilenceDoesNotHighlightOrAdvanceAndIsNotRepeatedOnResume() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two.")))
         engine.pauses = mapOf("0:1" to 250L)
         val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
         player.start(rate = 1f, pitch = 1f, voiceName = "")
-        assertEquals(listOf(250L), output.silences.map { it.second })
+        assertEquals(listOf(100L), output.silences.map { it.second })
         val silenceId = output.silences.single().first
         output.sendRawStart(silenceId)
         output.sendRawDone(silenceId)

@@ -189,17 +189,24 @@ imported into the library like any picked file.
 
 ## Read aloud: focus, media controls, start from selection
 
-- **Natural pacing.** Additional pauses are queued before paragraphs (250 ms), headings (600 ms) and scene
-  breaks (900 ms), without adding delays between ordinary sentences. Resume and direct sentence skips do not
+- **Natural pacing.** Paragraph, heading and scene boundaries request 250, 600 and 900 ms of additional
+  silence. Terminal punctuation reduces that addition (especially ellipses), and pauses scale with reading
+  speed. Ordinary sentences get no added silence. Resume and direct sentence skips do not
   repeat the pause. Very long utterances split at clauses or word boundaries and preserve highlight offsets;
   pathological oversized words split without breaking an emoji's UTF-16 pair.
+- **Sentence context.** Once a voice reports word timings, speech groups up to three sentences and 700
+  characters from the same paragraph. Questions, dialogue quotes, ellipses and other expressive punctuation
+  remain intact. Word timings map to each original sentence, so highlighting, page turns, resume and sentence
+  skips retain their positions. Voices without timings keep individual sentences. E-Ink follows sentence
+  boundaries without refreshing the highlight for each word. No additional model or voice is needed.
 - **Pronunciation corrections.** Read Aloud → Pronunciations for this book lets you add, edit and remove up to
   100 names or phrases and their spoken spelling. Matching is case-insensitive and respects whole words;
   longer phrases win. Corrections are local to this device, keyed to the book's stable identity. Editing a
   correction restarts the current utterance while retaining highlights on the original book text.
 - **Interjections.** Elongated murmurs and sounds (`hmmm`, `mmm`, `uhhh`, `ahhh`, `ohhh`, `shhhh`) use
-  short phonetic speech fallbacks (`hum`, `mum`, `uh`, `ah`, `oh`, `shush`) to avoid letter-by-letter reading.
-  These approximate the sounds; their delivery depends on the voice. Book pronunciation corrections take
+  conventional short forms (`hmm`, `mmm`, `uh`, `ah`, `oh`, `shh`). English voices additionally receive
+  Android text hints for consonant-only sounds, to discourage abbreviation parsing. Engines may ignore
+  these hints; sound delivery depends on the voice. Book pronunciation corrections take
   priority. Whole-word matching leaves measurement units such as `mm`, uppercase acronyms and ordinary
   words unchanged, and timed highlights continue to point at the original interjection.
 - **Number hints.** English-language voices receive Android `TtsSpan` hints for currency, percentages,
@@ -226,9 +233,14 @@ imported into the library like any picked file.
   pause, next and previous, and a notification with previous sentence / play-pause / next sentence. Commands reach
   the reader through `ReadAloudNotificationCommands` (`ReadAloudCommand` PLAY, PAUSE, NEXT, PREVIOUS, STOP).
   `ReadAloudPlayer.skip(±n)` moves by sentence; past a chapter's end it continues into the next chapter.
-- **Queue window.** Each hand-over to the speech engine is a binder call, so the player feeds it only the next 8
-  utterances (`LookaheadUtterances`) and tops it up as each one starts, instead of the whole rest of the chapter.
-  Skips, speed, pitch and voice changes therefore cost 8 calls, not one per remaining sentence.
+- **Queue window.** Each hand-over to the speech engine is a binder call, so the player feeds a window of
+  eight sentence parts (`LookaheadUtterances`), extending by up to two to complete a group, and tops it up
+  as playback progresses. Skips, speed, pitch and voice changes refill this bounded window, rather than
+  resending the whole remaining chapter. Grouping reduces the number of speech calls.
+- **Playback overhead.** Completed speech batches are released as playback advances, and late callbacks
+  for them are ignored. Repeated timing callbacks for the same original word reuse its highlight; the queue
+  is topped up only when the sentence changes. Pronunciation offset maps use exact-sized primitive arrays
+  instead of temporary per-character boxed lists.
 - **Speech engine.** The Read Aloud panel lists every text-to-speech engine installed on the phone
   (`TextToSpeech.getEngines`, visible thanks to the manifest's `TTS_SERVICE` query) and reads with the chosen one
   (`reader.read_aloud_engine`, blank = default). That is how a free neural engine such as SherpaTTS or HayaiTTS

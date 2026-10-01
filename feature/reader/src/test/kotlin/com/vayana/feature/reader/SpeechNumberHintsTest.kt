@@ -7,6 +7,16 @@ import kotlin.test.assertTrue
 
 class SpeechNumberHintsTest {
     @Test
+    fun hintsMurmursAsTextWithoutChangingAcronymsUnitsOrOtherLanguages() {
+        val text = "hmm, mmm… shh! HMMM, MMM, 2 mm, summer."
+        val hints = speechNumberHints(text, Locale.US)
+        assertEquals(listOf("hmm", "mmm", "shh", "2 mm"), hints.map { text.substring(it.start, it.end) })
+        assertEquals(listOf(SpeechNumberKind.TEXT, SpeechNumberKind.TEXT, SpeechNumberKind.TEXT, SpeechNumberKind.MEASURE), hints.map { it.kind })
+        assertEquals("mmm", hints[1].arguments["text"])
+        assertTrue(speechNumberHints(text, Locale.FRANCE).isEmpty())
+    }
+
+    @Test
     fun recognisesMoneyMeasurementsPercentagesDatesAndClockTimes() {
         val text = "Pay ₹1,250.50 for 2.5 kg at 9:30 on 2026-10-01 with 15% off."
         val hints = speechNumberHints(text, Locale.US)

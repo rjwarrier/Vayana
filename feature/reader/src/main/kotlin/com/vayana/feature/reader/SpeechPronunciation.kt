@@ -40,30 +40,36 @@ internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
                 ?: spokenInterjection(match.value))
         }.filter { (match, replacement) -> match.value != replacement }.toList()
         if (matches.isEmpty()) return PronouncedSpeechText(text)
-        val spoken = StringBuilder()
-        val starts = mutableListOf<Int>()
-        val ends = mutableListOf<Int>()
+        val length = text.length + matches.sumOf { (match, replacement) -> replacement.length - match.value.length }
+        val spoken = StringBuilder(length)
+        // Allocate exact primitive arrays once; boxed per-character lists temporarily doubled the maps.
+        val starts = IntArray(length)
+        val ends = IntArray(length)
         var cursor = 0
+        var destination = 0
         for ((match, replacement) in matches) {
+            spoken.append(text, cursor, match.range.first)
             for (index in cursor until match.range.first) {
-                spoken.append(text[index])
-                starts += index
-                ends += index + 1
+                starts[destination] = index
+                ends[destination++] = index + 1
             }
             spoken.append(replacement)
-            repeat(replacement.length) { starts += match.range.first; ends += match.range.last + 1 }
+            starts.fill(match.range.first, destination, destination + replacement.length)
+            ends.fill(match.range.last + 1, destination, destination + replacement.length)
+            destination += replacement.length
             cursor = match.range.last + 1
         }
+        spoken.append(text, cursor, text.length)
         for (index in cursor until text.length) {
-            spoken.append(text[index])
-            starts += index
-            ends += index + 1
+            starts[destination] = index
+            ends[destination++] = index + 1
         }
-        return PronouncedSpeechText(spoken.toString(), starts.toIntArray(), ends.toIntArray())
+        return PronouncedSpeechText(spoken.toString(), starts, ends)
     }
 }
 
-// Familiar phonetic approximations avoid engines spelling consonant-only murmurs letter by letter.
+// Use conventional short interjections, rather than unrelated literal words such as "hum" and "mum".
+// Android also receives a text hint for these tokens; book corrections still override this default.
 // Do not infer emotion, alter uppercase acronyms, or treat the measurement unit "mm" as a murmur.
 private const val InterjectionPattern = "h+m{2,}|m{3,}|u+h{2,}|a+h{2,}|o+h{2,}|s+h{2,}"
 private val ThinkingMurmur = Regex("h+m{2,}", RegexOption.IGNORE_CASE)
@@ -76,12 +82,12 @@ private val Hush = Regex("s+h{2,}", RegexOption.IGNORE_CASE)
 private fun spokenInterjection(word: String): String {
     if (word == word.uppercase(java.util.Locale.ROOT)) return word
     return when {
-        ThinkingMurmur.matches(word) -> "hum"
-        ClosedMurmur.matches(word) -> "mum"
+        ThinkingMurmur.matches(word) -> "hmm"
+        ClosedMurmur.matches(word) -> "mmm"
         Hesitation.matches(word) -> "uh"
         Sigh.matches(word) -> "ah"
         Surprise.matches(word) -> "oh"
-        Hush.matches(word) -> "shush"
+        Hush.matches(word) -> "shh"
         else -> word
     }
 }

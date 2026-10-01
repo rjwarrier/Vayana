@@ -5,13 +5,29 @@ import kotlin.test.assertEquals
 
 class SpeechPronunciationTest {
     @Test
+    fun mixedExpansionAndContractionKeepEverySourceRangeIncludingEmoji() {
+        val source = "😀 Hermione hmmm Hermione today."
+        val prepared = prepareSpeechPronunciation(source, listOf(SpeechPronunciation("Hermione", "her MY oh nee")))
+        assertEquals("😀 her MY oh nee hmm her MY oh nee today.", prepared.text)
+        assertEquals(0 to 2, prepared.sourceRange(0, 2))
+        val firstName = prepared.text.indexOf("her MY oh nee")
+        val lastName = prepared.text.lastIndexOf("her MY oh nee")
+        for (offset in 0 until 13) {
+            assertEquals(3 to 11, prepared.sourceRange(firstName + offset, firstName + offset + 1))
+            assertEquals(17 to 25, prepared.sourceRange(lastName + offset, lastName + offset + 1))
+        }
+        val start = prepared.text.indexOf("today")
+        assertEquals(26 to 31, prepared.sourceRange(start, start + 5))
+    }
+
+    @Test
     fun elongatedInterjectionsUsePhoneticSoundsAndPreserveWordOffsets() {
         val source = "Hmmm, mmmm... uhhh, ahhh! Ohhh, shhhh."
         val prepared = prepareSpeechPronunciation(source, emptyList())
-        assertEquals("hum, mum... uh, ah! oh, shush.", prepared.text)
+        assertEquals("hmm, mmm... uh, ah! oh, shh.", prepared.text)
         assertEquals(0 to 4, prepared.sourceRange(0, 3))
-        val start = prepared.text.indexOf("shush")
-        assertEquals(source.indexOf("shhhh") to source.indexOf("shhhh") + 5, prepared.sourceRange(start, start + 5))
+        val start = prepared.text.indexOf("shh")
+        assertEquals(source.indexOf("shhhh") to source.indexOf("shhhh") + 5, prepared.sourceRange(start, start + 3))
     }
 
     @Test
@@ -23,7 +39,7 @@ class SpeechPronunciationTest {
     @Test
     fun bookCorrectionTakesPriorityOverInterjectionFallback() {
         val prepared = prepareSpeechPronunciation("hmmm and mmm", listOf(SpeechPronunciation("mmm", "my sound")))
-        assertEquals("hum and my sound", prepared.text)
+        assertEquals("hmm and my sound", prepared.text)
     }
     @Test
     fun replacementsMatchWholeNamesWithoutChangingLaterWordOffsets() {

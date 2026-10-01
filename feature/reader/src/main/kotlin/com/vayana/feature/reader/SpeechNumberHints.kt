@@ -6,7 +6,7 @@ import android.text.style.TtsSpan
 import java.time.LocalDate
 import java.util.Locale
 
-internal enum class SpeechNumberKind { MONEY, MEASURE, DATE, TIME }
+internal enum class SpeechNumberKind { MONEY, MEASURE, DATE, TIME, TEXT }
 internal data class SpeechNumberHint(
     val start: Int, val end: Int, val kind: SpeechNumberKind, val arguments: Map<String, String>,
 )
@@ -44,6 +44,11 @@ internal fun speechNumberHints(text: String, locale: Locale): List<SpeechNumberH
         if (!ClockPrefix.containsMatchIn(prefix) && !ClockSuffix.containsMatchIn(suffix)) return@forEach
         add(match, SpeechNumberKind.TIME, mapOf("hours" to match.groupValues[1], "minutes" to match.groupValues[2]))
     }
+    // Keep murmurs as text, rather than letting an engine classify consonant-only tokens as abbreviations.
+    // Engines may ignore TtsSpan; explicit book pronunciation corrections remain available in that case.
+    InterjectionTextPattern.findAll(text).forEach { match ->
+        add(match, SpeechNumberKind.TEXT, mapOf("text" to match.value))
+    }
     return hints.sortedBy { it.start }
 }
 
@@ -66,6 +71,7 @@ internal fun speechWithNumberHints(text: String, locale: Locale): CharSequence {
                 .setMonth(TtsSpan.MONTH_JANUARY + args.getValue("month").toInt() - 1)
                 .setDay(args.getValue("day").toInt()).build()
             SpeechNumberKind.TIME -> TtsSpan.TimeBuilder(args.getValue("hours").toInt(), args.getValue("minutes").toInt()).build()
+            SpeechNumberKind.TEXT -> TtsSpan.TextBuilder(args.getValue("text")).build()
         }
         spanned.setSpan(span, hint.start, hint.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
@@ -84,3 +90,4 @@ private val MeasurePattern = Regex("(?<![\\p{L}\\p{N}_.,])([+-]?\\d+(?:\\.\\d+)?
 private val TimePattern = Regex("(?<![\\p{L}\\p{N}.:])([01]?\\d|2[0-3]):([0-5]\\d)(?![\\p{L}\\p{N}:])")
 private val ClockPrefix = Regex("\\b(?:at|around|by|until|from|to)\\s*$", RegexOption.IGNORE_CASE)
 private val ClockSuffix = Regex("^\\s*[ap]\\s*\\.?\\s*m\\b", RegexOption.IGNORE_CASE)
+private val InterjectionTextPattern = Regex("(?<![\\p{L}\\p{N}_])(?:hmm|mmm|shh)(?![\\p{L}\\p{N}_])")

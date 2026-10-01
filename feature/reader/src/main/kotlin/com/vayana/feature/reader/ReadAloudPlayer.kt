@@ -42,7 +42,10 @@ internal class ReadAloudPlayer(
     private var sourceSentences: List<SpeechSentence> = emptyList()
     private var pronunciations: List<SpeechPronunciation> = emptyList()
     private var pronouncer = SpeechPronouncer(emptyList())
-    private var indexById = mutableMapOf<String, Int>()
+    private var batchesById = mutableMapOf<String, SpeechBatch>()
+    private var lastMarkedSource: String? = null
+    private var lastMarkedStart = 0
+    private var lastMarkedEnd = 0
     private var position = 0
     private var playbackGeneration = 0L
     private var queueGeneration = 0L
@@ -81,6 +84,7 @@ internal class ReadAloudPlayer(
         val bookEngine = engine() ?: return
         val generation = ++playbackGeneration
         this.wordHighlight = wordHighlight
+        reportsWordRanges = false
         output.setEngine(speechEngine)
         _state.value = ReadAloudState(active = true, rate = rate, pitch = pitch)
         output.setRate(rate)
@@ -107,7 +111,7 @@ internal class ReadAloudPlayer(
         resumeOnFocusGain = false
         if (current.playing) {
             _state.update { it.copy(playing = false) }
-            indexById.clear()
+            batchesById.clear()
             output.stop()
             focus.abandon()
         } else if (queue.isNotEmpty()) {
@@ -155,7 +159,7 @@ internal class ReadAloudPlayer(
         val wasActive = _state.value.active
         queue = emptyList()
         sourceSentences = emptyList()
-        indexById.clear()
+        batchesById.clear()
         position = 0
         enqueued = -1
         _state.value = ReadAloudState(rate = _state.value.rate, pitch = _state.value.pitch)
@@ -213,7 +217,7 @@ internal class ReadAloudPlayer(
         position = queue.indexOfFirst {
             it.sourceId == current?.sourceId && it.sourceRange(0, it.text.length).second > sourceStart
         }.coerceAtLeast(0)
-        indexById.clear()
+        batchesById.clear()
         output.stop()
         if (_state.value.playing && queue.isNotEmpty()) speakFromPosition()
     }
@@ -242,10 +246,10 @@ internal class ReadAloudPlayer(
             if (utteranceId.endsWith(":pause")) {
                 // A pause belongs to the upcoming sentence. Pausing/focus loss during it must resume that
                 // sentence, rather than replaying the preceding paragraph. No highlighting occurs here.
-                indexById[utteranceId.removeSuffix(":pause")]?.let { position = it }
+                batchesById[utteranceId.removeSuffix(":pause")]?.let { position = it.firstIndex }
                 return@launch
             }
-            val index = indexById[utteranceId] ?: return@launch
+            val index = batchesById[utteranceId]?.firstIndex ?: return@launch
             position = index
             // The engine was fed only a few sentences ahead; keep it that far ahead as reading moves on.
             if (_state.value.playing) enqueueAhead()
@@ -255,36 +259,54 @@ internal class ReadAloudPlayer(
             // send them would otherwise show only the first word. Word timings then narrow it as they arrive.
             val range = if (wordHighlight && reportsWordRanges) firstSpokenWordRange(utterance.text) else 0 until utterance.text.length
             if (range != null && !range.isEmpty()) {
-                engine()?.markSpeech(
-                    utterance.sourceId,
-                    utterance.sourceRange(range.first, range.last + 1).first,
-                    utterance.sourceRange(range.first, range.last + 1).second,
-                )
+                val sourceRange = utterance.sourceRange(range.first, range.last + 1)
+                markSpeech(utterance.sourceId, sourceRange.first, sourceRange.second)
             }
         }
     }
 
     override fun onRangeStart(utteranceId: String, start: Int, end: Int) {
-        if (!wordHighlight) return
         scope.launch {
             if (!_state.value.playing) return@launch
-            val utterance = indexById[utteranceId]?.let(queue::get) ?: return@launch
+            val batch = batchesById[utteranceId] ?: return@launch
             reportsWordRanges = true
-            val safeStart = start.coerceIn(0, utterance.text.length)
-            val safeEnd = end.coerceIn(safeStart, utterance.text.length)
+            val safeStart = start.coerceIn(0, batch.text.length)
+            val safeEnd = end.coerceIn(safeStart, batch.text.length)
             if (safeStart == safeEnd) return@launch
-            engine()?.markSpeech(
-                utterance.sourceId,
-                utterance.sourceRange(safeStart, safeEnd).first,
-                utterance.sourceRange(safeStart, safeEnd).second,
-            )
+            val previousPosition = position
+            for (part in batch.parts) {
+                val utterance = queue[part.index]
+                val localStart = (safeStart - part.offset).coerceAtLeast(0)
+                val localEnd = (safeEnd - part.offset).coerceAtMost(utterance.text.length)
+                if (localStart >= localEnd) continue
+                val changedSentence = position != part.index
+                position = part.index
+                // Timing still tracks navigation on E-Ink, but the panel only updates once per sentence.
+                if (wordHighlight || changedSentence) {
+                    val range = if (wordHighlight) utterance.sourceRange(localStart, localEnd)
+                        else utterance.sourceRange(0, utterance.text.length)
+                    markSpeech(utterance.sourceId, range.first, range.second)
+                }
+            }
+            if (position != previousPosition) enqueueAhead()
         }
     }
 
     override fun onDone(utteranceId: String) {
         scope.launch {
-            if (_state.value.playing && indexById[utteranceId] == queue.lastIndex) nextChapter()
+            val completed = batchesById.remove(utteranceId) ?: return@launch
+            if (_state.value.playing && completed.lastIndex == queue.lastIndex) nextChapter()
         }
+    }
+
+    /** A phonetic replacement can report several spoken words for the same source word. Draw it once. */
+    private suspend fun markSpeech(sourceId: String, start: Int, end: Int) {
+        if (sourceId == lastMarkedSource && start == lastMarkedStart && end == lastMarkedEnd) return
+        val bookEngine = engine() ?: return
+        lastMarkedSource = sourceId
+        lastMarkedStart = start
+        lastMarkedEnd = end
+        bookEngine.markSpeech(sourceId, start, end)
     }
 
     /** Starts or resumes speaking at [position], unless another app (a call, say) will not give up the audio. */
@@ -303,7 +325,7 @@ internal class ReadAloudPlayer(
             PlaybackFocusEvent.LOST_TEMPORARILY -> if (current.playing) {
                 resumeOnFocusGain = true
                 _state.update { it.copy(playing = false) }
-                indexById.clear()
+                batchesById.clear()
                 output.stop()
             }
             PlaybackFocusEvent.LOST, PlaybackFocusEvent.BECOMING_NOISY -> if (current.playing) togglePlayback()
@@ -317,7 +339,7 @@ internal class ReadAloudPlayer(
     private fun load(chunk: SpeechChunk) {
         sourceSentences = chunk.sentences
         queue = sourceSentences.flatMap { it.splitForSpeech(pronouncer) }
-        indexById.clear()
+        batchesById.clear()
         position = 0
         enqueued = -1
         endOfBook = chunk.endOfBook
@@ -356,7 +378,8 @@ internal class ReadAloudPlayer(
     /** Restarts speech at [position]. Each hand-over to the engine is a binder call, so only the next few are sent. */
     private fun speakFromPosition() {
         ++queueGeneration
-        indexById.clear()
+        batchesById.clear()
+        lastMarkedSource = null
         enqueued = position - 1
         enqueueAhead(flush = true)
     }
@@ -366,19 +389,63 @@ internal class ReadAloudPlayer(
         val last = minOf(position + LookaheadUtterances - 1, queue.lastIndex)
         var first = flush
         while (enqueued < last) {
-            enqueued++
-            val utterance = queue[enqueued]
+            // A group may extend two sentences beyond the window so steady one-sentence progress
+            // can actually create groups instead of topping up with one isolated sentence every time.
+            val batch = speechBatch(queue, enqueued + 1,
+                minOf(last + if (reportsWordRanges) 2 else 0, queue.lastIndex), reportsWordRanges)
+            val utterance = queue[batch.firstIndex]
             val id = "$playbackGeneration-$queueGeneration|${utterance.id}"
-            indexById[id] = enqueued
+            batchesById[id] = batch
+            enqueued = batch.lastIndex
             // Do not repeat the paragraph pause when resuming/skipping directly to a sentence. Silence IDs
-            // are deliberately absent from indexById: their callbacks cannot mark words or advance chapters.
-            if (utterance.pauseBeforeMs > 0 && !first) {
-                output.silence("$id:pause", utterance.pauseBeforeMs, flush = false)
+            // use the upcoming batch's ID, but cannot mark words or advance chapters.
+            val pause = additionalSpeechPause(utterance.pauseBeforeMs,
+                queue.getOrNull(batch.firstIndex - 1)?.text.orEmpty(), _state.value.rate)
+            if (pause > 0 && !first) {
+                output.silence("$id:pause", pause, flush = false)
             }
-            output.speak(id, utterance.text, flush = first)
+            output.speak(id, batch.text, flush = first)
             first = false
         }
     }
+}
+
+internal data class SpeechBatchPart(val index: Int, val offset: Int)
+internal data class SpeechBatch(val text: String, val parts: List<SpeechBatchPart>) {
+    val firstIndex: Int get() = parts.first().index
+    val lastIndex: Int get() = parts.last().index
+}
+
+/** Give a timing-capable voice context without crossing paragraph boundaries or creating long utterances. */
+internal fun speechBatch(queue: List<SpeechUtterance>, start: Int, last: Int, group: Boolean): SpeechBatch {
+    val text = StringBuilder(queue[start].text)
+    val parts = mutableListOf(SpeechBatchPart(start, 0))
+    if (group) {
+        for (index in start + 1..last) {
+            val next = queue[index]
+            if (parts.size == 3 || next.pauseBeforeMs > 0 ||
+                text.length + 1 + next.text.length > 700 || next.sourceId == queue[index - 1].sourceId) break
+            text.append(' ')
+            parts += SpeechBatchPart(index, text.length)
+            text.append(next.text)
+        }
+    }
+    return SpeechBatch(text.toString(), parts)
+}
+
+/** Shorten added silence after punctuation that already prompts a pause, and follow the selected speed. */
+internal fun additionalSpeechPause(requestedMs: Long, previous: String, rate: Float): Long {
+    if (requestedMs <= 0) return 0
+    val ending = previous.trimEnd().trimEnd('"', '\'', '”', '’', ')', ']')
+    val punctuationAllowance = when {
+        ending.endsWith("...") || ending.endsWith('…') -> 250L
+        ending.endsWith('?') || ending.endsWith('!') -> 175L
+        ending.endsWith('.') -> 150L
+        ending.endsWith(';') || ending.endsWith(':') || ending.endsWith('—') -> 75L
+        else -> 0L
+    }
+    val speed = if (rate.isFinite()) rate.coerceIn(0.5f, 2f) else 1f
+    return ((requestedMs.coerceAtMost(1_500) - punctuationAllowance).coerceAtLeast(0) / speed).toLong()
 }
 
 /** Splits a sentence longer than one utterance may be into parts whose ids keep the sentence id before [PartSeparator]. */
