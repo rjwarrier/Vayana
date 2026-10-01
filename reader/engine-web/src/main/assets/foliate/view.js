@@ -4,6 +4,10 @@ import { Overlayer } from './overlayer.js'
 import { textWalker } from './text-walker.js'
 
 const SEARCH_PREFIX = 'foliate-search:'
+// Text marks are thin and fingers are not. Keep the visual mark unchanged while giving every line a comfortable
+// touch envelope; hitTest still prefers an exact hit, then the nearest editable annotation when envelopes overlap.
+const ANNOTATION_TAP_PADDING = 12
+const ANNOTATION_TAP_TARGET_SIZE = 56
 
 const isZip = async file => {
     const arr = new Uint8Array(await file.slice(0, 4).arrayBuffer())
@@ -411,9 +415,15 @@ export class View extends HTMLElement {
     #createOverlayer({ doc, index }) {
         const overlayer = new Overlayer()
         doc.addEventListener('click', e => {
-            const [value, range] = overlayer.hitTest(e)
+            const [value, range] = overlayer.hitTest(e, {
+                padding: ANNOTATION_TAP_PADDING,
+                minimumTargetSize: ANNOTATION_TAP_TARGET_SIZE,
+                filter: value => !value.startsWith(SEARCH_PREFIX),
+            })
             if (value && !value.startsWith(SEARCH_PREFIX)) {
-                this.#emit('show-annotation', { value, index, range })
+                this.#emit('show-annotation', { value, index, range, clientX: e.clientX, clientY: e.clientY })
+            } else {
+                this.#emit('hide-annotation', { index })
             }
         }, false)
 

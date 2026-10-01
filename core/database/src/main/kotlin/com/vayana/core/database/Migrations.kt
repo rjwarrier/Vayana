@@ -6,6 +6,7 @@ import androidx.sqlite.execSQL
 import com.vayana.core.database.model.hasNullBookTag
 import com.vayana.core.database.model.normalizedBookTagsCsv
 import com.vayana.core.database.search.BookSearchIndex
+import com.vayana.core.database.sync.FullSyncChangeTracker
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(connection: SQLiteConnection) {
@@ -468,7 +469,15 @@ val MIGRATION_27_28 = object : Migration(27, 28) {
     override fun migrate(connection: SQLiteConnection) {
         // Start clean because an upgraded database has no trustworthy record of which existing
         // changes already reached the cloud. Subsequent full-sync-only writes are tracked exactly.
-        com.vayana.core.database.sync.FullSyncChangeTracker.create(connection)
+        FullSyncChangeTracker.create(connection)
+    }
+}
+
+val MIGRATION_28_29 = object : Migration(28, 29) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Version 28's INSERT OR REPLACE trigger body inherited Room's outer OR ABORT policy and crashed whenever
+        // the singleton state row already existed. Rebuild every tracker trigger with conflict-free update/insert SQL.
+        FullSyncChangeTracker.recreate(connection)
     }
 }
 
@@ -477,4 +486,5 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
     MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28,
+    MIGRATION_28_29,
 )

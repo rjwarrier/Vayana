@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -105,6 +106,10 @@ fun ShareCardDialog(
         isCapturing = true
         scope.launch {
             try {
+                // An option tap and the Share button can land in adjacent frames. Wait for the card's newly selected
+                // theme/layout/text to be drawn into the export layer before reading it back.
+                withFrameNanos { }
+                withFrameNanos { }
                 val captured = exportLayer.toImageBitmap().asAndroidBitmap()
                 // Hardware bitmaps can't be read back for encoding; take a plain copy first.
                 val bitmap = if (captured.config == Bitmap.Config.HARDWARE) {

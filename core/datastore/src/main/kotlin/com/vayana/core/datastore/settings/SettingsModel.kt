@@ -107,7 +107,7 @@ data class SettingsSnapshot(
     val readerFooterGapDp: Int = 8,
     val readerUsePublisherStyles: Boolean = true,
     val readerTapZoneMode: TapZoneMode = TapZoneMode.THREE_ZONE,
-    val readerControlsTapMode: ReaderControlsTapMode = ReaderControlsTapMode.SINGLE,
+    val readerControlsTapMode: ReaderControlsTapMode = ReaderControlsTapMode.DOUBLE,
     val readerVolumeKeys: Boolean = false,
     val readerKeepAwake: Boolean = false,
     val readerShowHeaders: Boolean = true,
@@ -363,7 +363,7 @@ object SettingsRegistry {
     )
     val ReaderControlsTapMode: ChoiceSetting<com.vayana.core.datastore.settings.ReaderControlsTapMode> = ChoiceSetting(
         key = "reader.controls_tap_mode",
-        defaultValue = com.vayana.core.datastore.settings.ReaderControlsTapMode.SINGLE,
+        defaultValue = com.vayana.core.datastore.settings.ReaderControlsTapMode.DOUBLE,
         titleRes = R.string.settings_reader_controls_tap_title,
         subtitleRes = R.string.settings_reader_controls_tap_subtitle,
         group = SettingsGroup.READER_CONTROLS,

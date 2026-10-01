@@ -279,6 +279,183 @@ test('editing a previously missing quote retries matching in the loaded document
     assert.equal(context.resolvedTextAnnotations.get('quote:1'), 'epubcfi(/6/4)')
 })
 
+test('CFI-backed user highlights bypass quote matching and are rendered only once', async () => {
+    const doc = {}
+    const added = []
+    const matched = []
+    const context = vm.createContext({
+        fixedLayout: false,
+        view: {
+            addAnnotation: async annotation => { added.push(annotation.value) },
+            deleteAnnotation: async () => {},
+            renderer: { getContents: () => [{ doc, index: 0 }] },
+        },
+        annotationRevision: 0,
+        popularBadgeIndexDirty: false,
+        resolvedTextAnnotations: new Map(),
+        resolvedTextFingerprints: new Map(),
+        authoritativeSourceForCfi: new Map(),
+        renderedAnnotations: new Set(),
+        standardAnnotationFingerprints: new Map(),
+        pendingTextAnnotations: new Set(),
+        pendingQuoteAdds: new Set(),
+        unmatchedInDoc: new WeakMap(),
+        completedMatchingRevision: new WeakMap(),
+        DefaultAnnotationColor: '#111111',
+        resetPopularBadgeResolutionRetries: () => {},
+        scheduleBadgeLayout: () => {},
+        isTextAnnotationValue: value => value.startsWith('quote:'),
+        findTextRangeInDoc: (_, text) => { matched.push(text); return null },
+        rangeOverlapRatio: () => 0,
+        highlightCount: () => 1,
+        post: () => {},
+    })
+    vm.runInContext(bridge.slice(bridge.indexOf('let activeAnnotationsList'), bridge.indexOf('function highlightCount')), context)
+
+    context.renderAnnotations([
+        { value: 'epubcfi(/6/2)', text: 'My selected passage', type: 'highlight', color: '#111111' },
+        { value: 'quote:1', text: 'Imported community passage', type: 'underline' },
+    ])
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+
+    assert.deepEqual(added, ['epubcfi(/6/2)'])
+    assert.deepEqual(matched, ['Imported community passage'])
+})
+
+test('a community quote resolving to a personal highlight CFI does not replace it', async () => {
+    const doc = {}
+    const added = []
+    const context = vm.createContext({
+        fixedLayout: false,
+        view: {
+            addAnnotation: async annotation => { added.push(annotation.value); return { drawn: true } },
+            deleteAnnotation: async () => {},
+            getCFI: () => 'epubcfi(/6/2)',
+            renderer: { getContents: () => [{ doc, index: 0 }] },
+        },
+        annotationRevision: 0,
+        popularBadgeIndexDirty: false,
+        resolvedTextAnnotations: new Map(),
+        resolvedTextFingerprints: new Map(),
+        authoritativeSourceForCfi: new Map(),
+        renderedAnnotations: new Set(),
+        standardAnnotationFingerprints: new Map(),
+        pendingTextAnnotations: new Set(),
+        pendingQuoteAdds: new Set(),
+        unmatchedInDoc: new WeakMap(),
+        completedMatchingRevision: new WeakMap(),
+        DefaultAnnotationColor: '#111111',
+        resetPopularBadgeResolutionRetries: () => {},
+        scheduleBadgeLayout: () => {},
+        isTextAnnotationValue: value => value.startsWith('quote:'),
+        findTextRangeInDoc: () => ({}),
+        rangeOverlapRatio: () => 0,
+        highlightCount: () => 4,
+        post: () => {},
+    })
+    vm.runInContext(bridge.slice(bridge.indexOf('let activeAnnotationsList'), bridge.indexOf('function highlightCount')), context)
+
+    context.renderAnnotations([
+        { value: 'epubcfi(/6/2)', text: 'My selected passage', type: 'highlight', color: '#111111' },
+        { value: 'quote:1', text: 'My selected passage', type: 'underline', popular: true, note: '4 readers' },
+    ])
+    for (let turn = 0; turn < 30; turn++) await Promise.resolve()
+
+    assert.deepEqual(added, ['epubcfi(/6/2)'])
+    assert.equal(context.resolvedTextAnnotations.get('quote:1'), 'epubcfi(/6/2)')
+    assert.equal(context.authoritativeSourceForCfi.has('epubcfi(/6/2)'), false)
+
+    // Removing the personal mark releases that CFI so the informational community underline can return.
+    context.renderAnnotations([
+        { value: 'quote:1', text: 'My selected passage', type: 'underline', popular: true, note: '4 readers' },
+    ])
+    for (let turn = 0; turn < 30; turn++) await Promise.resolve()
+
+    assert.deepEqual(added, ['epubcfi(/6/2)', 'epubcfi(/6/2)'])
+    assert.equal(context.authoritativeSourceForCfi.get('epubcfi(/6/2)'), 'quote:1')
+})
+
+test('an editable highlight renders when a newer note has the exact same CFI', async () => {
+    const added = []
+    const context = vm.createContext({
+        fixedLayout: false,
+        view: {
+            addAnnotation: async annotation => { added.push(annotation) },
+            deleteAnnotation: async () => {},
+            renderer: { getContents: () => [] },
+        },
+        annotationRevision: 0,
+        popularBadgeIndexDirty: false,
+        resolvedTextAnnotations: new Map(),
+        resolvedTextFingerprints: new Map(),
+        authoritativeSourceForCfi: new Map(),
+        renderedAnnotations: new Set(),
+        standardAnnotationFingerprints: new Map(),
+        pendingTextAnnotations: new Set(),
+        pendingQuoteAdds: new Set(),
+        unmatchedInDoc: new WeakMap(),
+        completedMatchingRevision: new WeakMap(),
+        resetPopularBadgeResolutionRetries: () => {},
+        scheduleBadgeLayout: () => {},
+        isTextAnnotationValue: () => false,
+        post: () => {},
+    })
+    vm.runInContext(bridge.slice(bridge.indexOf('let activeAnnotationsList'), bridge.indexOf('function highlightCount')), context)
+    const sharedCfi = 'epubcfi(/6/2)'
+
+    context.renderAnnotations([
+        { id: 'newer-note', value: sharedCfi, type: 'highlight', editable: false, color: '#222222' },
+        { id: 'editable-highlight', value: sharedCfi, type: 'highlight', editable: true, color: '#111111' },
+    ])
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+
+    assert.deepEqual(added.map(annotation => annotation.id), ['editable-highlight'])
+})
+
+test('adding a user highlight preserves unchanged community-quote miss results', async () => {
+    const doc = {}
+    let matchAttempts = 0
+    const context = vm.createContext({
+        fixedLayout: false,
+        view: {
+            addAnnotation: async () => {},
+            deleteAnnotation: async () => {},
+            renderer: { getContents: () => [{ doc, index: 0 }] },
+        },
+        annotationRevision: 0,
+        popularBadgeIndexDirty: false,
+        resolvedTextAnnotations: new Map(),
+        resolvedTextFingerprints: new Map(),
+        authoritativeSourceForCfi: new Map(),
+        renderedAnnotations: new Set(),
+        standardAnnotationFingerprints: new Map(),
+        pendingTextAnnotations: new Set(),
+        pendingQuoteAdds: new Set(),
+        unmatchedInDoc: new WeakMap(),
+        completedMatchingRevision: new WeakMap(),
+        DefaultAnnotationColor: '#111111',
+        resetPopularBadgeResolutionRetries: () => {},
+        scheduleBadgeLayout: () => {},
+        isTextAnnotationValue: value => value.startsWith('quote:'),
+        findTextRangeInDoc: () => { matchAttempts++; return null },
+        rangeOverlapRatio: () => 0,
+        highlightCount: () => 1,
+        post: () => {},
+    })
+    vm.runInContext(bridge.slice(bridge.indexOf('let activeAnnotationsList'), bridge.indexOf('function highlightCount')), context)
+    const quote = { value: 'quote:1', text: 'A passage absent from this chapter', type: 'underline' }
+
+    context.renderAnnotations([quote])
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+    context.renderAnnotations([
+        quote,
+        { value: 'epubcfi(/6/8)', text: 'My new highlight', type: 'highlight', color: '#111111' },
+    ])
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+
+    assert.equal(matchAttempts, 1)
+})
+
 test('a community quote stays retryable when its overlay is not attached yet', async () => {
     const doc = {}
     let overlayAttached = false

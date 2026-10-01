@@ -12,8 +12,13 @@ object FullSyncChangeTracker {
     const val CreateTable = "CREATE TABLE IF NOT EXISTS `full_sync_state` " +
         "(`id` INTEGER NOT NULL, `required` INTEGER NOT NULL, PRIMARY KEY(`id`))"
 
+    // Room writes entities with INSERT/UPDATE OR ABORT. SQLite propagates that outer conflict policy into trigger
+    // statements, so INSERT OR REPLACE here becomes ABORT and crashes once the singleton row already exists.
+    // Updating first and conditionally inserting avoids a conflict under every outer write policy and Android SQLite.
     private const val MarkRequired =
-        "INSERT OR REPLACE INTO `full_sync_state` (`id`, `required`) VALUES (0, 1);"
+        "UPDATE `full_sync_state` SET `required` = 1 WHERE `id` = 0; " +
+            "INSERT INTO `full_sync_state` (`id`, `required`) SELECT 0, 1 " +
+            "WHERE NOT EXISTS (SELECT 1 FROM `full_sync_state` WHERE `id` = 0);"
 
     private val BookMetadataChanged = listOf(
         "syncId", "title", "author", "series", "seriesNumber", "description", "tagsCsv",
@@ -47,6 +52,21 @@ object FullSyncChangeTracker {
     fun create(connection: SQLiteConnection) {
         connection.execSQL(CreateTable)
         triggers.forEach(connection::execSQL)
+    }
+
+    fun recreate(connection: SQLiteConnection) {
+        triggerNames.forEach { name -> connection.execSQL("DROP TRIGGER IF EXISTS `$name`") }
+        create(connection)
+    }
+
+    private val triggerNames = buildList {
+        add("full_sync_books_insert")
+        add("full_sync_books_metadata_update")
+        listOf("annotations", "shelves", "book_shelf_cross_ref", "vocabulary_cards").forEach { table ->
+            listOf("insert", "update", "delete").forEach { operation ->
+                add("full_sync_${table}_${operation}")
+            }
+        }
     }
 
     private fun trackedTableTrigger(table: String, operation: String): String =

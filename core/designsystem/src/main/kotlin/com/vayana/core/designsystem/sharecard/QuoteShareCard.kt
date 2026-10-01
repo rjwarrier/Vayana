@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
 import coil3.compose.AsyncImage
 import com.vayana.core.common.QuoteCitation
 import com.vayana.core.common.shareText
@@ -39,6 +42,7 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.io.File
+import kotlin.math.roundToInt
 
 /** Arrangement of the quote card's body; the wordmark and footer are shared by all of them. */
 enum class QuoteShareCardLayout {
@@ -66,6 +70,7 @@ data class QuoteShareOptions(
     val showSeries: Boolean = true,
     val showCaption: Boolean = true,
     val showTagline: Boolean = true,
+    val quoteFontScale: Float = 1f,
 )
 
 /** A quote in the [QuoteShareCard] preview, customisable, shared as an image or as a cited text quote. */
@@ -85,13 +90,15 @@ fun QuoteShareDialog(
     val textChooserTitle = stringResource(R.string.share_card_share_text)
     val citationPattern = stringResource(R.string.quote_citation)
     var options by remember { mutableStateOf(QuoteShareOptions()) }
+    var editedText by remember(text) { mutableStateOf(text) }
+    val sharedText = editedText.trim().ifEmpty { text.trim() }
     val availableCover = remember(coverPath) { coverPath?.takeIf { File(it).exists() } }
     ShareCardDialog(
         onDismiss = onDismiss,
         onShareText = {
             context.shareText(
                 QuoteCitation.format(
-                    text = text,
+                    text = sharedText,
                     author = author,
                     bookTitle = bookTitle,
                     chapterTitle = chapterTitle,
@@ -111,12 +118,14 @@ fun QuoteShareDialog(
                 hasBookTitle = !bookTitle.isNullOrBlank(),
                 hasAuthor = !author.isNullOrBlank(),
                 hasSeries = seriesLabel != null,
+                quoteText = editedText,
+                onQuoteTextChange = { editedText = it.take(MaxShareQuoteCharacters) },
                 onOptionsChange = { options = it },
             )
         },
     ) {
         QuoteShareCard(
-            text = text,
+            text = editedText,
             author = author,
             bookTitle = bookTitle,
             series = seriesLabel,
@@ -150,6 +159,7 @@ fun QuoteShareCard(
         series = series?.takeIf { options.showSeries && it.isNotBlank() },
         coverPath = coverPath?.takeIf { options.showCover && layout != QuoteShareCardLayout.MINIMAL },
         showQuoteMark = options.showQuoteMark && layout != QuoteShareCardLayout.MINIMAL,
+        quoteFontScale = options.quoteFontScale.coerceIn(MinQuoteFontScale, MaxQuoteFontScale),
     )
     Box(
         modifier = modifier
@@ -213,7 +223,7 @@ private fun ClassicQuoteBody(content: QuoteShareContent, colors: ShareCardColors
         }
         Text(
             text = content.text,
-            style = ShareCardTypography.quoteBody,
+            style = ShareCardTypography.quoteBody.scaled(content.quoteFontScale),
             color = colors.primaryText,
             maxLines = if (cover != null) 6 else 8,
             overflow = TextOverflow.Ellipsis,
@@ -266,7 +276,7 @@ private fun CenteredQuoteBody(content: QuoteShareContent, colors: ShareCardColor
         }
         Text(
             text = content.text,
-            style = ShareCardTypography.quoteBody,
+            style = ShareCardTypography.quoteBody.scaled(content.quoteFontScale),
             color = colors.primaryText,
             textAlign = TextAlign.Center,
             maxLines = if (content.coverPath != null) 5 else 7,
@@ -285,7 +295,7 @@ private fun MinimalQuoteBody(content: QuoteShareContent, colors: ShareCardColors
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.Center) {
         Text(
             text = content.text,
-            style = ShareCardTypography.quoteBodyLarge,
+            style = ShareCardTypography.quoteBodyLarge.scaled(content.quoteFontScale),
             color = colors.primaryText,
             maxLines = 7,
             overflow = TextOverflow.Ellipsis,
@@ -358,9 +368,40 @@ private fun QuoteShareOptionsPanel(
     hasBookTitle: Boolean,
     hasAuthor: Boolean,
     hasSeries: Boolean,
+    quoteText: String,
+    onQuoteTextChange: (String) -> Unit,
     onOptionsChange: (QuoteShareOptions) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_quote_text))
+        OutlinedTextField(
+            value = quoteText,
+            onValueChange = onQuoteTextChange,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            maxLines = 4,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ShareCardOptionsLabel(stringResource(R.string.settings_reader_font_size_title))
+            Text(
+                text = stringResource(
+                    R.string.share_card_image_options_cover_opacity_value,
+                    (options.quoteFontScale * 100).roundToInt(),
+                ),
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+            )
+        }
+        Slider(
+            value = options.quoteFontScale,
+            onValueChange = { onOptionsChange(options.copy(quoteFontScale = it)) },
+            valueRange = MinQuoteFontScale..MaxQuoteFontScale,
+            steps = QuoteFontScaleSteps,
+        )
         ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_layout))
         ShareCardChoiceRow(
             choices = QuoteShareCardLayout.entries,
@@ -440,9 +481,20 @@ private data class QuoteShareContent(
     val series: String?,
     val coverPath: String?,
     val showQuoteMark: Boolean,
+    val quoteFontScale: Float,
 ) {
     val hasAttribution: Boolean get() = bookTitle != null || author != null || series != null
 }
+
+private fun TextStyle.scaled(scale: Float): TextStyle = copy(
+    fontSize = fontSize * scale,
+    lineHeight = lineHeight * scale,
+)
+
+private const val MinQuoteFontScale = 0.7f
+private const val MaxQuoteFontScale = 1.4f
+private const val QuoteFontScaleSteps = 6
+private const val MaxShareQuoteCharacters = 2_000
 
 /** "Series · Book 3", or whichever half the book has; null outside a series. */
 @Composable

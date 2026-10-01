@@ -653,6 +653,7 @@
     <string name="share_card_image_options_series">Series</string>
     <string name="share_card_image_options_book_title">Book title</string>
     <string name="share_card_image_options_quote_mark">Quote mark</string>
+    <string name="share_card_image_options_quote_text">Quote text</string>
     <string name="share_card_image_options_caption">“Highlighted in”</string>
     <string name="share_card_image_options_status">Reading status</string>
     <string name="share_card_image_options_progress">Progress</string>
@@ -1103,6 +1104,8 @@
     <string name="reader_selection_highlight_blue">Blue</string>
     <string name="reader_selection_highlight_pink">Pink</string>
     <string name="reader_selection_underline">Underline</string>
+    <string name="reader_highlight_delete">Delete highlight</string>
+    <string name="reader_footer_open_settings">Settings</string>
     <string name="reader_selection_copy">Copy</string>
     <string name="reader_selection_note">Note</string>
     <string name="reader_selection_share">Share</string>

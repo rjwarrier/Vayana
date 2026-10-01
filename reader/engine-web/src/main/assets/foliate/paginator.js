@@ -172,23 +172,131 @@ const selectionIsBackward = sel => {
     return range.collapsed
 }
 
-// A selection handle may briefly extend into an adjacent CSS column while it is
-// being dragged at a page edge. Permit one turn in each direction for that drag,
-// but never cross an EPUB section: a DOM Range cannot survive into another
-// document, and repeated turns are what make a short selection run away across
-// several pages on Android WebView.
+const touchEventHasSelection = e => {
+    const target = e.currentTarget ?? e.target
+    const doc = target?.nodeType === 9 ? target : target?.ownerDocument
+    const sel = doc?.getSelection?.()
+    return sel?.type === 'Range' && !sel.isCollapsed
+}
+
+const restoreTouchStartPosition = (element, scrollProp, state) => {
+    if (state?.offset == null) return
+    element[scrollProp] = state.offset
+}
+
+const paginatedSelectionScrollCorrection = ({
+    scrolled,
+    locked,
+    selection,
+    currentOffset,
+    settledOffset,
+    tolerance = 1,
+}) => {
+    if (scrolled || locked || selection?.type !== 'Range' || selection.isCollapsed) return null
+    if (!Number.isFinite(currentOffset) || !Number.isFinite(settledOffset)) return null
+    return Math.abs(currentOffset - settledOffset) > tolerance ? settledOffset : null
+}
+
+// A selection handle may extend into an adjacent CSS column while it is dragged
+// at a page edge. Keep turns inside one EPUB section because a DOM Range cannot
+// survive into another document.
 const selectionPageTurnDirection = ({
     backward,
     startsBeforePage,
     endsAfterPage,
-    turnedBackward,
-    turnedForward,
     atSectionStart,
     atSectionEnd,
 }) => {
-    if (backward && startsBeforePage && !turnedBackward && !atSectionStart) return -1
-    if (!backward && endsAfterPage && !turnedForward && !atSectionEnd) return 1
+    if (backward && startsBeforePage && !atSectionStart) return -1
+    if (!backward && endsAfterPage && !atSectionEnd) return 1
     return 0
+}
+
+const SelectionPageTurnIntervalMillis = 1200
+const SelectionPageTurnSessionResetMillis = 1500
+const SelectionEdgeContinuationMillis = 700
+
+// Reaching the edge only arms a turn. The endpoint must then move farther in
+// the same direction, after a short hold, before the page changes. Moving back
+// toward the page re-arms from the corrected position instead.
+const selectionPageTurnIntent = ({
+    pendingEdge,
+    direction,
+    focusNode,
+    focusOffset,
+    focusChanged,
+    focusMovedFurther,
+    now,
+}) => {
+    const arm = () => ({
+        ready: false,
+        pendingEdge: { direction, focusNode, focusOffset, time: now },
+    })
+    if (!direction) return { ready: false, pendingEdge: null }
+    if (!pendingEdge || pendingEdge.direction !== direction) return arm()
+    if (!focusChanged) return { ready: false, pendingEdge }
+    if (!focusMovedFurther) return arm()
+    return {
+        ready: now - pendingEdge.time >= SelectionEdgeContinuationMillis,
+        pendingEdge,
+    }
+}
+
+// Page relocation can itself emit selectionchange without the user's handle
+// moving. Requiring a changed focus boundary prevents that event from starting
+// a runaway turn; the interval leaves enough time for the animated page turn to
+// settle before another genuine drag update can advance again.
+const selectionPageTurnAllowed = ({ lastTurn, direction, focusNode, focusOffset, now }) => {
+    if (lastTurn && lastTurn.direction === direction &&
+        lastTurn.focusNode === focusNode && lastTurn.focusOffset === focusOffset) return false
+    if (!lastTurn || now - lastTurn.time >= SelectionPageTurnSessionResetMillis) return true
+    return now - lastTurn.time >= SelectionPageTurnIntervalMillis
+}
+
+// After entering a new page, holding the handle against the same edge must not
+// keep paging. A second turn requires a visible retreat into the new page first;
+// the exact programmatic entry focus does not count as user intent.
+const selectionPageTurnRetreated = ({ direction, entryFocus, focusNode, focusOffset }) =>
+    direction === 0 && entryFocus &&
+    (entryFocus.node !== focusNode || entryFocus.offset !== focusOffset)
+
+const SelectionPageEntryWords = 3
+
+// Returns a focus boundary a few words inside the page that has just appeared.
+// Keeping the original selection anchor and moving only its focus prevents a
+// page turn from swallowing the whole new page before the handle is moved.
+const selectionPageEntryFocus = (range, direction, wordCount = SelectionPageEntryWords) => {
+    const doc = range.startContainer.ownerDocument
+    const common = range.commonAncestorContainer
+    const root = common.nodeType === 3 ? common.parentNode : common
+    if (!root) return null
+    const nodes = []
+    const walker = doc.createTreeWalker(root, doc.defaultView.NodeFilter.SHOW_TEXT)
+    let node
+    while ((node = walker.nextNode())) {
+        if (range.intersectsNode(node)) nodes.push(node)
+    }
+    if (direction < 0) nodes.reverse()
+
+    let remaining = wordCount
+    for (const textNode of nodes) {
+        const start = textNode === range.startContainer ? range.startOffset : 0
+        const end = textNode === range.endContainer ? range.endOffset : textNode.length
+        const matches = [...textNode.data.slice(start, end).matchAll(/\S+/g)]
+        if (matches.length < remaining) {
+            remaining -= matches.length
+            continue
+        }
+        if (direction > 0) {
+            const match = matches[remaining - 1]
+            return { node: textNode, offset: start + match.index + match[0].length }
+        }
+        const match = matches[matches.length - remaining]
+        return { node: textNode, offset: start + match.index }
+    }
+    return direction > 0
+        ? { node: range.endContainer, offset: range.endOffset }
+        : { node: range.startContainer, offset: range.startOffset }
 }
 
 const setSelectionTo = (target, collapse) => {
@@ -627,7 +735,10 @@ export class Paginator extends HTMLElement {
         this.#footer = this.#root.getElementById('footer')
 
         this.#observer.observe(this.#container)
-        this.#container.addEventListener('scroll', () => this.dispatchEvent(new Event('scroll')))
+        this.#container.addEventListener('scroll', () => {
+            if (this.#restoreSelectionScrollPosition()) return
+            this.dispatchEvent(new Event('scroll'))
+        })
         this.#container.addEventListener('scroll', debounce(() => {
             if (this.scrolled) {
                 if (this.#justAnchored) this.#justAnchored = false
@@ -639,10 +750,12 @@ export class Paginator extends HTMLElement {
         this.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
         this.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
         this.addEventListener('touchend', this.#onTouchEnd.bind(this))
+        this.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
         this.addEventListener('load', ({ detail: { doc } }) => {
             doc.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
             doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
             doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
+            doc.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
         })
 
         this.addEventListener('relocate', ({ detail }) => {
@@ -655,53 +768,131 @@ export class Paginator extends HTMLElement {
             }
         })
         this.addEventListener('load', ({ detail: { doc } }) => {
-            let isPointerSelecting = false
-            const turnedDirections = new Set()
-            const checkPointerSelection = debounce((range, sel) => {
-                // The old shared debounce could fire after pointerup and turn the page after the
-                // user had already finished. It could then keep turning while the handle remained
-                // beyond successive page ranges. Keep the decision scoped to this live drag.
-                if (!isPointerSelecting || !sel.rangeCount || sel.type !== 'Range') return
+            let lastSelectionTurn = null
+            let pendingSelectionEdge = null
+            let selectionTurnInFlight = false
+            let selectionTurnNeedsRetreat = false
+            let selectionEntryFocus = null
+            const compareFocusToPendingEdge = sel => {
+                if (!pendingSelectionEdge) return 0
+                if (pendingSelectionEdge.focusNode === sel.focusNode) {
+                    return Math.sign(sel.focusOffset - pendingSelectionEdge.focusOffset)
+                }
+                try {
+                    const previous = doc.createRange()
+                    previous.setStart(pendingSelectionEdge.focusNode, pendingSelectionEdge.focusOffset)
+                    previous.collapse(true)
+                    const current = doc.createRange()
+                    current.setStart(sel.focusNode, sel.focusOffset)
+                    current.collapse(true)
+                    return current.compareBoundaryPoints(Range.START_TO_START, previous)
+                } catch (_) {
+                    return 0
+                }
+            }
+            const checkSelectionPageTurn = (range, sel) => {
+                if (!sel.rangeCount || sel.type !== 'Range') return
                 const selRange = sel.getRangeAt(0)
                 const backward = selectionIsBackward(sel)
                 const direction = selectionPageTurnDirection({
                     backward,
                     startsBeforePage: selRange.compareBoundaryPoints(Range.START_TO_START, range) < 0,
                     endsAfterPage: selRange.compareBoundaryPoints(Range.END_TO_END, range) > 0,
-                    turnedBackward: turnedDirections.has(-1),
-                    turnedForward: turnedDirections.has(1),
                     atSectionStart: this.page <= 1,
                     atSectionEnd: this.page >= this.pages - 2,
                 })
-                if (!direction) return
-                turnedDirections.add(direction)
-                if (direction < 0) this.prev()
-                else this.next()
-            }, 350)
-            doc.addEventListener('pointerdown', () => {
-                isPointerSelecting = true
-                turnedDirections.clear()
-            })
-            const finishPointerSelection = () => isPointerSelecting = false
-            doc.addEventListener('pointerup', finishPointerSelection)
-            doc.addEventListener('pointercancel', finishPointerSelection)
-            doc.defaultView?.addEventListener('blur', finishPointerSelection)
+                if (selectionTurnInFlight || this.#locked) return
+                if (selectionTurnNeedsRetreat) {
+                    if (selectionPageTurnRetreated({
+                        direction,
+                        entryFocus: selectionEntryFocus,
+                        focusNode: sel.focusNode,
+                        focusOffset: sel.focusOffset,
+                    })) {
+                        selectionTurnNeedsRetreat = false
+                        selectionEntryFocus = null
+                        pendingSelectionEdge = null
+                    }
+                    return
+                }
+                const now = Date.now()
+                const focusOrder = compareFocusToPendingEdge(sel)
+                const intent = selectionPageTurnIntent({
+                    pendingEdge: pendingSelectionEdge,
+                    direction,
+                    focusNode: sel.focusNode,
+                    focusOffset: sel.focusOffset,
+                    focusChanged: focusOrder !== 0,
+                    focusMovedFurther: direction > 0 ? focusOrder > 0 : focusOrder < 0,
+                    now,
+                })
+                pendingSelectionEdge = intent.pendingEdge
+                if (!intent.ready) return
+                if (!selectionPageTurnAllowed({
+                    lastTurn: lastSelectionTurn,
+                    direction,
+                    focusNode: sel.focusNode,
+                    focusOffset: sel.focusOffset,
+                    now,
+                })) return
+                lastSelectionTurn = {
+                    direction,
+                    focusNode: sel.focusNode,
+                    focusOffset: sel.focusOffset,
+                    time: now,
+                }
+                pendingSelectionEdge = null
+                const anchorNode = sel.anchorNode
+                const anchorOffset = sel.anchorOffset
+                selectionTurnInFlight = true
+                selectionTurnNeedsRetreat = true
+                selectionEntryFocus = null
+                const turn = direction < 0 ? this.prev() : this.next()
+                Promise.resolve(turn).then(() => {
+                    if (!sel.rangeCount || sel.anchorNode !== anchorNode || sel.anchorOffset !== anchorOffset) {
+                        selectionTurnNeedsRetreat = false
+                        return
+                    }
+                    const entry = this.#lastVisibleRange &&
+                        selectionPageEntryFocus(this.#lastVisibleRange, direction)
+                    if (!entry) {
+                        selectionTurnNeedsRetreat = false
+                        return
+                    }
+                    selectionTurnNeedsRetreat = true
+                    selectionEntryFocus = entry
+                    try {
+                        sel.setBaseAndExtent(anchorNode, anchorOffset, entry.node, entry.offset)
+                    } catch (_) {
+                        selectionTurnNeedsRetreat = false
+                        selectionEntryFocus = null
+                    }
+                }).finally(() => selectionTurnInFlight = false)
+            }
+            const beginSelectionDrag = () => {
+                lastSelectionTurn = null
+                pendingSelectionEdge = null
+                selectionTurnNeedsRetreat = false
+                selectionEntryFocus = null
+            }
+            doc.addEventListener('pointerdown', beginSelectionDrag)
+            doc.addEventListener('touchstart', beginSelectionDrag, { passive: true })
             let isKeyboardSelecting = false
             doc.addEventListener('keydown', () => isKeyboardSelecting = true)
             doc.addEventListener('keyup', () => isKeyboardSelecting = false)
             doc.addEventListener('selectionchange', () => {
                 if (this.scrolled) return
+                this.#restoreSelectionScrollPosition()
                 const range = this.#lastVisibleRange
                 if (!range) return
                 const sel = doc.getSelection()
                 if (!sel.rangeCount) return
-                if (isPointerSelecting && sel.type === 'Range') checkPointerSelection(range, sel)
-                else if (isKeyboardSelecting) {
+                if (isKeyboardSelecting) {
                     const selRange = sel.getRangeAt(0).cloneRange()
                     const backward = selectionIsBackward(sel)
                     if (!backward) selRange.collapse()
                     this.#scrollToAnchor(selRange)
-                }
+                } else if (sel.type === 'Range') checkSelectionPageTurn(range, sel)
             })
             doc.addEventListener('focusin', e => this.scrolled ? null :
                 // NOTE: `requestAnimationFrame` is needed in WebKit
@@ -890,6 +1081,19 @@ export class Paginator extends HTMLElement {
         element[scrollProp] = Math.max(min, Math.min(max,
             element[scrollProp] + delta))
     }
+    #restoreSelectionScrollPosition() {
+        const { scrollProp } = this
+        const correction = paginatedSelectionScrollCorrection({
+            scrolled: this.scrolled,
+            locked: this.#locked,
+            selection: this.#view?.document?.getSelection?.(),
+            currentOffset: this.#container[scrollProp],
+            settledOffset: this.#scrollBounds?.[0],
+        })
+        if (correction == null) return false
+        this.#container[scrollProp] = correction
+        return true
+    }
     snap(vx, vy) {
         const velocity = this.#vertical ? vy : vx
         const [offset, a, b] = this.#scrollBounds
@@ -911,14 +1115,31 @@ export class Paginator extends HTMLElement {
     }
     #onTouchStart(e) {
         const touch = e.changedTouches[0]
+        this.#touchScrolled = false
         this.#touchState = {
             x: touch?.screenX, y: touch?.screenY,
             t: e.timeStamp,
-            vx: 0, xy: 0,
+            vx: 0, vy: 0,
+            offset: this.#container[this.scrollProp],
+            selecting: touchEventHasSelection(e),
         }
     }
     #onTouchMove(e) {
         const state = this.#touchState
+        if (!state) return
+        // Native selection handles use the same touch stream as page swipes.
+        // Once a text range exists, selection owns the gesture. If the page
+        // moved before Android exposed that range, undo the partial movement.
+        if (state.selecting || touchEventHasSelection(e)) {
+            state.selecting = true
+            state.vx = 0
+            state.vy = 0
+            if (this.#touchScrolled) {
+                restoreTouchStartPosition(this.#container, this.scrollProp, state)
+                this.#touchScrolled = false
+            }
+            return
+        }
         if (state.pinched) return
         state.pinched = globalThis.visualViewport.scale > 1
         if (this.scrolled || state.pinched) return
@@ -939,8 +1160,14 @@ export class Paginator extends HTMLElement {
         this.#touchScrolled = true
         this.scrollBy(dx, dy)
     }
-    #onTouchEnd() {
+    #onTouchEnd(e) {
+        const state = this.#touchState
+        const selecting = state?.selecting || touchEventHasSelection(e)
+        if (selecting && this.#touchScrolled)
+            restoreTouchStartPosition(this.#container, this.scrollProp, state)
         this.#touchScrolled = false
+        this.#touchState = null
+        if (!state || selecting) return
         if (this.scrolled) return
 
         // XXX: Firefox seems to report scale as 1... sometimes...?
@@ -948,8 +1175,15 @@ export class Paginator extends HTMLElement {
         // anything that doesn't work
         requestAnimationFrame(() => {
             if (globalThis.visualViewport.scale === 1)
-                this.snap(this.#touchState.vx, this.#touchState.vy)
+                this.snap(state.vx, state.vy)
         })
+    }
+    #onTouchCancel() {
+        const state = this.#touchState
+        if (this.#touchScrolled)
+            restoreTouchStartPosition(this.#container, this.scrollProp, state)
+        this.#touchScrolled = false
+        this.#touchState = null
     }
     // allows one to process rects as if they were LTR and horizontal
     #getRectMapper() {
@@ -1162,6 +1396,7 @@ export class Paginator extends HTMLElement {
             if (shouldGo || !this.hasAttribute('animated')) await wait(100)
         } finally {
             this.#locked = false
+            this.#restoreSelectionScrollPosition()
             const queuedDir = Math.sign(this.#queuedPageTurnDelta)
             if (queuedDir) {
                 this.#queuedPageTurnDelta -= queuedDir

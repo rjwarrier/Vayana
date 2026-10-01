@@ -643,6 +643,19 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 val selection = payload.toSelectionOrNull()
                 _events.tryEmit(EngineEvent.SelectionChanged(selection))
             }
+            "annotationTapped" -> {
+                _events.tryEmit(
+                    EngineEvent.AnnotationTapped(
+                        annotationId = payload.optStringOrNull("annotationId"),
+                        top = payload.optDoubleOrNull("top")?.toFloat()?.coerceIn(0f, 1f),
+                        bottom = payload.optDoubleOrNull("bottom")?.toFloat()?.coerceIn(0f, 1f),
+                    ),
+                )
+            }
+            "fontSizeStep" -> {
+                val direction = payload.optInt("direction").coerceIn(-1, 1)
+                if (direction != 0) _events.tryEmit(EngineEvent.FontSizeStepRequested(direction))
+            }
             "searchResults" -> {
                 val query = payload.optString("query")
                 val results = payload.optJSONArray("results")?.toSearchResults() ?: emptyList()
@@ -825,6 +838,7 @@ private fun ReaderAnnotation.toJson(): JSONObject = JSONObject()
     .put("id", id)
     .put("value", cfi)
     .put("type", type.toFoliateType())
+    .put("editable", type == ReaderAnnotationType.HIGHLIGHT)
     .put("color", colorKey.toAnnotationColor())
     .put("popular", colorKey.equals("popular", ignoreCase = true))
     .put("note", note)

@@ -75,6 +75,14 @@ sealed interface NavTarget {
 sealed interface EngineEvent {
     data class Relocated(val locator: Locator) : EngineEvent
     data class SelectionChanged(val selection: ReaderSelection?) : EngineEvent
+    /** A tap on a rendered annotation, positioned as fractions of the reader view. A null id dismisses its card. */
+    data class AnnotationTapped(
+        val annotationId: String?,
+        val top: Float? = null,
+        val bottom: Float? = null,
+    ) : EngineEvent
+    /** A completed pinch on reflowable text requested one configured font-size step. */
+    data class FontSizeStepRequested(val direction: Int) : EngineEvent
     data class SearchCompleted(val query: String, val results: List<SearchResult>) : EngineEvent
     data class Error(val message: String) : EngineEvent
 

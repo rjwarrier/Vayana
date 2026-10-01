@@ -19,6 +19,7 @@ const documentTextIndexes = new WeakMap()
 const unmatchedInDoc = new WeakMap()
 const selectionTimers = new WeakMap()
 let publishedSelectionDocument = null
+let publishedAnnotationId = null
 let readerSideMarginPercent = 10
 let hasOpened = false
 // Pre-paginated books (PDF) render each page as an image with a text layer on top. Typography cannot reflow, but the
@@ -390,6 +391,7 @@ async function open(bookUrl, lastLocatorCfi) {
         resetPopularBadgeResolutionRetries()
         annotationRevision++
         publishedSelectionDocument = null
+        publishedAnnotationId = null
         hasOpened = false
         phase = 'opening book source'
         let bookFile = nativePdfFile(bookUrl)
@@ -474,6 +476,7 @@ async function open(bookUrl, lastLocatorCfi) {
                 return
             }
             wireSelection(doc, index)
+            wireTextPinch(doc)
             wireDoubleTapLookup(doc)
             post('pageLoaded', {})
             markFirstRender('load')
@@ -493,6 +496,9 @@ async function open(bookUrl, lastLocatorCfi) {
         view.addEventListener('draw-annotation', e => {
             const { draw, annotation } = e.detail
             const color = markColor(annotation.color ?? DefaultAnnotationColor)
+            // Community marks are informational. When their range overlaps a personal mark, tapping must edit the
+            // personal mark instead of publishing the intentionally non-editable community annotation id.
+            const tapOptions = { tapPriority: annotation.editable ? 2 : annotation.popular ? 0 : 1 }
             if (annotation.type === 'underline') {
                 draw((rects, options) => {
                     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -511,7 +517,7 @@ async function open(bookUrl, lastLocatorCfi) {
                         g.append(line)
                     }
                     return g
-                })
+                }, tapOptions)
                 // The overlay redraws whenever the page is re-paginated; the pills beside it must follow.
                 if (annotation.popular) {
                     resetPopularBadgeResolutionRetries()
@@ -521,16 +527,18 @@ async function open(bookUrl, lastLocatorCfi) {
             } else {
                 const inkStyle = inkStyleFor(annotation.color ?? DefaultAnnotationColor)
                 if (inkStyle && inkStyle !== 'highlight') {
-                    draw(Overlayer[inkStyle], { color, width: 2.5 })
+                    draw(Overlayer[inkStyle], { color, width: 2.5, ...tapOptions })
                 } else {
                     draw((rects, options) => {
                         const g = Overlayer.highlight(rects, options)
                         g.style.fill = color
                         return g
-                    })
+                    }, tapOptions)
                 }
             }
         })
+        view.addEventListener('show-annotation', e => postAnnotationTap(e.detail))
+        view.addEventListener('hide-annotation', hideAnnotationCard)
         // Note references open as a popup instead of jumping away from the page being read.
         view.addEventListener('link', e => {
             const { a, href } = e.detail
@@ -783,7 +791,10 @@ async function restoreAnnotationsForOverlay(doc, index) {
 
     const additions = []
     const restoredCfis = new Set()
-    for (const annotation of activeAnnotationsList) {
+    // A highlight must claim a shared CFI before a note, underline, or community mark can consume it.
+    const annotationsByTapPriority = [...activeAnnotationsList].sort((a, b) =>
+        Number(Boolean(b.editable)) - Number(Boolean(a.editable)))
+    for (const annotation of annotationsByTapPriority) {
         let cfi = annotation.value
         if (isTextAnnotationValue(cfi)) {
             cfi = resolvedTextAnnotations.get(cfi)
@@ -1036,28 +1047,144 @@ function bionicMarkup(text) {
     })
 }
 
+const TextPinchThresholdRatio = 0.12
+
+function textPinchStep(startDistance, endDistance, selectionActive, threshold = TextPinchThresholdRatio) {
+    if (selectionActive || !(startDistance > 0) || !Number.isFinite(endDistance) || endDistance < 0) return 0
+    const ratio = endDistance / startDistance
+    if (ratio >= 1 + threshold) return 1
+    if (ratio <= 1 - threshold) return -1
+    return 0
+}
+
+function wireTextPinch(doc) {
+    let pinch = null
+    doc.addEventListener('touchstart', event => {
+        if (event.touches.length !== 2 || hasReaderSelection(doc)) {
+            pinch = null
+            return
+        }
+        const distance = touchDistance(event.touches[0], event.touches[1])
+        pinch = distance > 0 ? { startDistance: distance, endDistance: distance } : null
+    }, { passive: true })
+    doc.addEventListener('touchmove', event => {
+        if (!pinch || event.touches.length !== 2) return
+        if (hasReaderSelection(doc)) {
+            pinch = null
+            return
+        }
+        event.preventDefault()
+        pinch.endDistance = touchDistance(event.touches[0], event.touches[1])
+    }, { passive: false })
+    doc.addEventListener('touchend', event => {
+        if (!pinch || event.touches.length >= 2) return
+        const completed = pinch
+        pinch = null
+        const direction = textPinchStep(
+            completed.startDistance,
+            completed.endDistance,
+            hasReaderSelection(doc),
+        )
+        if (direction) post('fontSizeStep', { direction })
+    }, { passive: true })
+    doc.addEventListener('touchcancel', () => { pinch = null }, { passive: true })
+}
+
+const SelectionDragSettleMillis = 600
+
 function wireSelection(doc, index) {
     let pointerSelecting = false
+    let touchSelecting = false
+    let observedBoundary = null
+    const selectionBoundary = () => {
+        const selection = doc.getSelection?.()
+        if (!selection?.rangeCount) return null
+        return {
+            anchorNode: selection.anchorNode,
+            anchorOffset: selection.anchorOffset,
+            focusNode: selection.focusNode,
+            focusOffset: selection.focusOffset,
+            collapsed: selection.isCollapsed,
+        }
+    }
+    const sameBoundary = (a, b) => Boolean(a && b &&
+        a.anchorNode === b.anchorNode && a.anchorOffset === b.anchorOffset &&
+        a.focusNode === b.focusNode && a.focusOffset === b.focusOffset &&
+        a.collapsed === b.collapsed)
+    const rememberBoundary = () => { observedBoundary = selectionBoundary() }
     const schedulePost = delay => {
         clearTimeout(selectionTimers.get(doc))
         selectionTimers.set(doc, setTimeout(() => {
             selectionTimers.delete(doc)
-            postSelection(doc, index)
+            if (!pointerSelecting && !touchSelecting) postSelection(doc, index)
         }, delay))
     }
-    doc.addEventListener('pointerdown', () => { pointerSelecting = true })
-    const finishPointerSelection = () => {
-        if (!pointerSelecting) return
-        pointerSelecting = false
-        // Publish the final range as soon as the handle is released. Holding the
-        // previous card steady during the drag avoids layout/dictionary churn.
-        schedulePost(0)
+    const hideSelectionCard = () => {
+        clearTimeout(selectionTimers.get(doc))
+        selectionTimers.delete(doc)
+        hideAnnotationCard()
+        if (publishedSelectionDocument) {
+            publishedSelectionDocument = null
+            post('selection', null)
+        }
     }
-    doc.addEventListener('pointerup', finishPointerSelection)
-    doc.addEventListener('pointercancel', finishPointerSelection)
-    doc.defaultView?.addEventListener('blur', finishPointerSelection)
+    const publishWhenReleased = () => {
+        if (!pointerSelecting && !touchSelecting) schedulePost(0)
+    }
+    doc.addEventListener('pointerdown', () => {
+        pointerSelecting = true
+        hideSelectionCard()
+    })
+    doc.addEventListener('touchstart', () => {
+        touchSelecting = true
+        hideSelectionCard()
+    }, { passive: true })
+    doc.addEventListener('pointerup', () => {
+        pointerSelecting = false
+        if (!touchSelecting) rememberBoundary()
+        publishWhenReleased()
+    })
+    doc.addEventListener('pointercancel', () => {
+        // Android cancels the pointer when native text selection takes over,
+        // while the finger is still down. Wait for touchend before showing UI.
+        pointerSelecting = false
+        if (!touchSelecting) rememberBoundary()
+        publishWhenReleased()
+    })
+    const finishTouchSelection = () => {
+        touchSelecting = false
+        rememberBoundary()
+        publishWhenReleased()
+    }
+    doc.addEventListener('touchend', finishTouchSelection, { passive: true })
+    doc.addEventListener('touchcancel', finishTouchSelection, { passive: true })
+    doc.defaultView?.addEventListener('blur', () => {
+        pointerSelecting = false
+        touchSelecting = false
+        rememberBoundary()
+        publishWhenReleased()
+    })
     doc.addEventListener('selectionchange', () => {
-        if (!pointerSelecting) schedulePost(120)
+        if (!pointerSelecting && !touchSelecting) {
+            const boundary = selectionBoundary()
+            // Android WebView can emit duplicate selectionchange notifications for
+            // the same native range while layout/handles settle. They must not hide
+            // a stable card or restart its settle delay and dictionary lookup.
+            if (sameBoundary(observedBoundary, boundary)) return
+            observedBoundary = boundary
+            // A forgiving annotation tap can land just outside the glyph rect.
+            // Android then moves its collapsed caret after the click; that is not
+            // a text selection and must not close the annotation card just opened.
+            if (boundary?.collapsed) {
+                schedulePost(SelectionDragSettleMillis)
+                return
+            }
+            // Android's native selection handles can move the range without
+            // forwarding their touch stream into the document. Treat every
+            // range change as an active drag and wait for the range to settle.
+            hideSelectionCard()
+            schedulePost(SelectionDragSettleMillis)
+        }
     })
 }
 
@@ -1169,13 +1296,13 @@ const DoubleTapWindowMillis = 350
 const DoubleTapSlopPx = 24
 const readerTapState = new WeakMap()
 let wordLookupSelection = false
-let readerControlsTapCount = 1
+let readerControlsTapCount = 2
 let readerControlsVisible = false
 let readerControlsBlocked = false
 
 function setReaderControlsGesture(tapCount, controlsVisible, blocked) {
     const count = Math.trunc(Number(tapCount))
-    readerControlsTapCount = count >= 1 && count <= 3 ? count : 1
+    readerControlsTapCount = count >= 1 && count <= 3 ? count : 2
     readerControlsVisible = Boolean(controlsVisible)
     readerControlsBlocked = Boolean(blocked)
 }
@@ -1186,9 +1313,15 @@ function clearReaderTapState(doc) {
     readerTapState.delete(doc)
 }
 
+function hasReaderSelection(doc) {
+    const selection = doc.getSelection?.()
+    return selection?.type === 'Range' && !selection.isCollapsed
+}
+
 function requestReaderControls(doc) {
     clearReaderTapState(doc)
-    if (!readerControlsVisible && !readerControlsBlocked) post('controlsRequested', {})
+    if (!readerControlsVisible && !readerControlsBlocked && !hasReaderSelection(doc))
+        post('controlsRequested', {})
 }
 
 function lookupOrZoomAt(doc, x, y) {
@@ -1230,7 +1363,7 @@ function wireDoubleTapLookup(doc) {
         if (readerControlsTapCount === 2) {
             if (state.count >= 2) {
                 clearReaderTapState(doc)
-                if (!selectWordAt(doc, e.clientX, e.clientY)) post('controlsRequested', {})
+                if (!selectWordAt(doc, e.clientX, e.clientY)) requestReaderControls(doc)
             } else {
                 state.timer = setTimeout(() => clearReaderTapState(doc), DoubleTapWindowMillis)
             }
@@ -1621,6 +1754,81 @@ function clearSearch() {
     if (view?.clearSearch) view.clearSearch()
 }
 
+function annotationForRenderedValue(value) {
+    // Several saved marks can legitimately share one CFI. Prefer the one for which the reader actually exposes an
+    // edit menu, irrespective of database recency or renderer insertion order.
+    const direct = activeAnnotationsList.find(annotation => annotation?.value === value && annotation.editable)
+        ?? activeAnnotationsList.find(annotation => annotation?.value === value)
+    if (direct) return direct
+    const sourceValue = authoritativeSourceForCfi.get(value) ?? value
+    const candidates = activeAnnotationsList.filter(annotation =>
+        annotation?.value === sourceValue || resolvedTextAnnotations.get(annotation?.value) === value)
+    return candidates.find(annotation => annotation.editable) ?? candidates[0]
+}
+
+const AnnotationTapPadding = 12
+const AnnotationTapTargetSize = 56
+
+function rectDistanceSquared(rect, clientX, clientY) {
+    const dx = clientX < rect.left ? rect.left - clientX : clientX >= rect.right ? clientX - rect.right : 0
+    const dy = clientY < rect.top ? rect.top - clientY : clientY >= rect.bottom ? clientY - rect.bottom : 0
+    return dx * dx + dy * dy
+}
+
+function rectContainsForgivingPoint(rect, clientX, clientY) {
+    const horizontalExpansion = Math.max(AnnotationTapPadding, (AnnotationTapTargetSize - (rect.right - rect.left)) / 2)
+    const verticalExpansion = Math.max(AnnotationTapPadding, (AnnotationTapTargetSize - (rect.bottom - rect.top)) / 2)
+    return rect.left - horizontalExpansion <= clientX && clientX < rect.right + horizontalExpansion &&
+        rect.top - verticalExpansion <= clientY && clientY < rect.bottom + verticalExpansion
+}
+
+function rangeHitDistance(range, clientX, clientY) {
+    let nearest = Infinity
+    for (const rect of Array.from(range?.getClientRects?.() ?? [])) {
+        if (!rectContainsForgivingPoint(rect, clientX, clientY)) continue
+        nearest = Math.min(nearest, rectDistanceSquared(rect, clientX, clientY))
+    }
+    return nearest
+}
+
+function rangeRectAtPoint(range, clientX, clientY) {
+    const rects = Array.from(range?.getClientRects?.() ?? [])
+    return rects.reduce((nearest, rect) => {
+        const distance = rectDistanceSquared(rect, clientX, clientY)
+        return !nearest || distance < nearest.distance ? { rect, distance } : nearest
+    }, null)?.rect
+        ?? range?.getBoundingClientRect?.()
+        ?? null
+}
+
+function hideAnnotationCard() {
+    if (publishedAnnotationId == null) return
+    publishedAnnotationId = null
+    post('annotationTapped', {})
+}
+
+function postAnnotationTap({ value, range, clientX, clientY } = {}) {
+    const doc = range?.startContainer?.ownerDocument
+    const selection = doc?.getSelection?.()
+    // Releasing a drag over an existing mark must keep the text-selection card path in control.
+    if (selection?.rangeCount && !selection.isCollapsed) return
+    const annotation = annotationForRenderedValue(value)
+    const rect = rangeRectAtPoint(range, clientX, clientY)
+    if (!annotation?.id || !doc || !rect) {
+        hideAnnotationCard()
+        return
+    }
+    const frameTop = doc.defaultView?.frameElement?.getBoundingClientRect().top ?? 0
+    const viewHeight = window.innerHeight
+    const fractionOfView = y => viewHeight > 0 ? Math.max(0, Math.min(1, (frameTop + y) / viewHeight)) : null
+    publishedAnnotationId = annotation.id
+    post('annotationTapped', {
+        annotationId: annotation.id,
+        top: fractionOfView(rect.top),
+        bottom: fractionOfView(rect.bottom),
+    })
+}
+
 let activeAnnotationsList = []
 let pendingAnnotations = undefined
 let annotationApplyRunning = false
@@ -1670,7 +1878,13 @@ async function applyAnnotations(annotations, generation) {
     resetPopularBadgeResolutionRetries()
     popularBadgeIndexDirty = true
     scheduleBadgeLayout()
-    const nextByValue = new Map(activeAnnotationsList.map(annotation => [annotation.value, annotation]))
+    // The repository is newest-first. Keep that stable order except when an editable highlight shares a range with a
+    // non-editable note/underline: only one overlay can own a CFI, and the tappable one must win.
+    const nextByValue = new Map()
+    for (const annotation of activeAnnotationsList) {
+        const current = nextByValue.get(annotation.value)
+        if (!current || (!current.editable && annotation.editable)) nextByValue.set(annotation.value, annotation)
+    }
     const orphanedCfis = new Set()
     for (const [sourceValue, cfi] of resolvedTextAnnotations) {
         const next = nextByValue.get(sourceValue)
@@ -1707,12 +1921,23 @@ async function applyAnnotations(annotations, generation) {
             if (generation !== annotationApplyGeneration) return
             renderedAnnotations.delete(value)
             standardAnnotationFingerprints.delete(value)
+            // A community quote may have been suppressed because it resolved to this exact personal-highlight CFI.
+            // Make it match again now that the editable mark no longer owns the overlay key.
+            for (const [sourceValue, cfi] of Array.from(resolvedTextAnnotations)) {
+                if (cfi !== value) continue
+                resolvedTextAnnotations.delete(sourceValue)
+                resolvedTextFingerprints.delete(sourceValue)
+            }
+            authoritativeSourceForCfi.delete(value)
         }
     }
-    for (const annotation of activeAnnotationsList) {
+    for (const annotation of nextByValue.values()) {
         if (annotation.value &&
             !isTextAnnotationValue(annotation.value) &&
             !standardAnnotationFingerprints.has(annotation.value)) {
+            // If an already-resolved community quote shares this exact CFI, the personal mark now owns taps and
+            // appearance. Its resolved mapping remains available for the community-count badge.
+            authoritativeSourceForCfi.delete(annotation.value)
             await view.addAnnotation(annotation)
             if (generation !== annotationApplyGeneration) return
             renderedAnnotations.add(annotation.value)
@@ -1722,7 +1947,6 @@ async function applyAnnotations(annotations, generation) {
     // Also match any active documents in view
     for (const { doc, index } of view.renderer.getContents()) {
         if (doc) {
-            unmatchedInDoc.delete(doc)
             matchTextAnnotationsForDoc(doc, index)
         }
     }
@@ -1731,6 +1955,7 @@ async function applyAnnotations(annotations, generation) {
 function annotationFingerprint(annotation) {
     return JSON.stringify([
         annotation?.type || '',
+        annotation?.editable || false,
         annotation?.color || '',
         annotation?.popular || false,
         annotation?.note || '',
@@ -1743,26 +1968,35 @@ function matchTextAnnotationsForDoc(doc, index) {
     if (completedMatchingRevision.get(doc) === annotationRevision) return
     let missing = unmatchedInDoc.get(doc)
     if (!missing) {
-        missing = new Set()
+        // Remember the exact failed passage, not just its value. A later
+        // standard-CFI highlight update can then reuse the negative result,
+        // while editing an imported quote's text still retries it.
+        missing = new Map()
         unmatchedInDoc.set(doc, missing)
     }
     const matches = []
     const generation = annotationApplyGeneration
     for (const ann of activeAnnotationsList) {
-        if (!ann.value || resolvedTextAnnotations.has(ann.value) || pendingTextAnnotations.has(ann.value)) continue
+        // CFI-backed user highlights already render directly above. Running the
+        // quote-text fallback for them scans the whole chapter and may draw a
+        // second equivalent mark.
+        if (!ann.value || !isTextAnnotationValue(ann.value) ||
+            resolvedTextAnnotations.has(ann.value) || pendingTextAnnotations.has(ann.value)) continue
         const textToFind = ann.text
         if (!textToFind || textToFind.length < 5) continue
+        const matchFingerprint = String(textToFind)
         // A quote already proven absent from this document won't suddenly appear in it -
         // skip re-running the expensive alignment fallback for it on every page turn.
-        if (missing.has(ann.value)) continue
+        if (missing.get(ann.value) === matchFingerprint) continue
         const range = findTextRangeInDoc(doc, textToFind)
         if (range) {
+            missing.delete(ann.value)
             try {
                 const cfi = view.getCFI(index, range)
                 matches.push({ ann, range, cfi })
             } catch (_) {}
         } else {
-            missing.add(ann.value)
+            missing.set(ann.value, matchFingerprint)
         }
     }
 
@@ -1780,6 +2014,15 @@ function matchTextAnnotationsForDoc(doc, index) {
             continue
         }
         accepted.push(match)
+        if (standardAnnotationFingerprints.has(match.cfi)) {
+            // Overlayer keys are CFIs. Do not replace an editable personal highlight with a community underline when
+            // both resolve to the identical range; retain the resolution so its community-count badge still renders.
+            resolvedTextAnnotations.set(match.ann.value, match.cfi)
+            resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
+            popularBadgeIndexDirty = true
+            scheduleBadgeLayout()
+            continue
+        }
         pendingTextAnnotations.add(match.ann.value)
         const add = Promise.resolve(view.addAnnotation({
             value: match.cfi,
@@ -2204,6 +2447,30 @@ function wireFixedLayoutPage(doc, index) {
     wireSelection(doc, index)
     wireDoubleTapLookup(doc)
     wirePinchZoom(doc)
+    doc.addEventListener('click', event => {
+        const selection = doc.getSelection?.()
+        if (selection?.rangeCount && !selection.isCollapsed) return
+        let nearest = null
+        for (let i = activeAnnotationsList.length - 1; i >= 0; i--) {
+            const annotation = activeAnnotationsList[i]
+            const range = fixedLayoutRangeOf(annotation.value, doc, index)
+            if (!range) continue
+            const distance = rangeHitDistance(range, event.clientX, event.clientY)
+            const priority = annotation.editable ? 2 : annotation.popular ? 0 : 1
+            if (distance < (nearest?.distance ?? Infinity) ||
+                (distance === nearest?.distance && priority > nearest.priority)) {
+                nearest = { annotation, range, distance, priority }
+            }
+        }
+        if (nearest) {
+            postAnnotationTap({
+                value: nearest.annotation.value,
+                range: nearest.range,
+                clientX: event.clientX,
+                clientY: event.clientY,
+            })
+        }
+    })
     doc.addEventListener('touchstart', () => { fixedViewTouched = true }, { passive: true })
     doc.addEventListener('vayana-page-rendered', () => onFixedPageRendered(doc, index))
 }
@@ -2685,7 +2952,10 @@ function drawFixedLayoutMarks(doc, index) {
             layer.append(mark)
         }
     }
-    for (const annotation of activeAnnotationsList) {
+    // Paint editable highlights last when several marks share pixels, matching their tap precedence.
+    const annotationsByTapPriority = [...activeAnnotationsList].sort((a, b) =>
+        Number(Boolean(a.editable)) - Number(Boolean(b.editable)))
+    for (const annotation of annotationsByTapPriority) {
         const range = fixedLayoutRangeOf(annotation.value, doc, index)
         if (!range) continue
         const color = markColor(annotation.color ?? DefaultAnnotationColor)

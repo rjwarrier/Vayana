@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.EditNote
@@ -47,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -132,31 +134,140 @@ internal fun SelectionActions(
                     if (dictionaryLookup != DictionaryLookupState.Hidden) Spacer(modifier = Modifier.height(Spacing.lg))
                     SelectionMarkRow(onHighlight = onHighlight, onUnderline = onUnderline)
                     Spacer(modifier = Modifier.height(Spacing.sm))
-                    val copy = stringResource(R.string.reader_selection_copy)
-                    val note = stringResource(R.string.reader_selection_note)
-                    val share = stringResource(R.string.reader_selection_share)
-                    val readAloud = stringResource(R.string.reader_selection_read_aloud)
-                    val translate = stringResource(R.string.reader_selection_translate)
-                    // Remembered: the card recomposes as the selection moves, and a fresh list defeats skipping.
-                    val actions = remember(copy, note, share, translate, readAloud, readAloudAvailable, onCopy, onNote, onShare, onTranslate, onReadAloud) {
-                        buildList {
-                            add(ConnectedButton(copy, Icons.Outlined.ContentCopy, onCopy))
-                            add(ConnectedButton(note, Icons.Outlined.EditNote, onNote))
-                            add(ConnectedButton(share, Icons.Outlined.Share, onShare))
-                            add(ConnectedButton(translate, Icons.Outlined.Translate, onTranslate))
-                            if (readAloudAvailable) add(ConnectedButton(readAloud, Icons.Outlined.Headphones, onReadAloud))
-                        }
-                    }
-                    VayanaConnectedButtonGroup(
-                        buttons = actions,
-                        iconAboveLabel = true,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    MarkActionRow(
+                        readAloudAvailable = readAloudAvailable,
+                        onCopy = onCopy,
+                        onNote = onNote,
+                        onShare = onShare,
+                        onTranslate = onTranslate,
+                        onReadAloud = onReadAloud,
                     )
                 }
             }
         }
     }
 }
+
+/** The selection card actions for a saved highlight, with its active colour doubling as the delete action. */
+@Composable
+internal fun HighlightActions(
+    modifier: Modifier = Modifier,
+    currentColorKey: String,
+    readAloudAvailable: Boolean,
+    onHighlight: (String) -> Unit,
+    onDelete: () -> Unit,
+    onUnderline: () -> Unit,
+    onCopy: () -> Unit,
+    onNote: () -> Unit,
+    onShare: () -> Unit,
+    onTranslate: () -> Unit,
+    onReadAloud: () -> Unit,
+) {
+    val eink = LocalDisplayProfile.current == DisplayProfile.E_INK
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(Paddings.screenHorizontal, Spacing.md),
+        color = if (eink) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.extraLargeIncreased,
+        border = if (eink) BorderStroke(Strokes.hairlineEink, MaterialTheme.colorScheme.outline) else null,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Paddings.card, vertical = Spacing.lg),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HighlightColor.entries.forEach { color ->
+                    val action = highlightSwatchAction(currentColorKey, color.key)
+                    BoxWithConstraints(contentAlignment = Alignment.Center) {
+                        VayanaSwatchButton(
+                            color = color.swatch,
+                            label = if (action == HighlightSwatchAction.Delete) {
+                                stringResource(R.string.reader_highlight_delete)
+                            } else {
+                                stringResource(color.labelRes)
+                            },
+                            onClick = {
+                                when (action) {
+                                    HighlightSwatchAction.Delete -> onDelete()
+                                    is HighlightSwatchAction.Recolor -> onHighlight(action.colorKey)
+                                }
+                            },
+                        )
+                        if (action == HighlightSwatchAction.Delete) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = null,
+                                tint = Color(0xFF111111),
+                                modifier = Modifier.size(Sizes.iconSmall),
+                            )
+                        }
+                    }
+                }
+                IconButton(onClick = onUnderline, shapes = morphingIconButtonShapes()) {
+                    Icon(
+                        imageVector = Icons.Outlined.FormatUnderlined,
+                        contentDescription = stringResource(R.string.reader_selection_underline),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            MarkActionRow(
+                readAloudAvailable = readAloudAvailable,
+                onCopy = onCopy,
+                onNote = onNote,
+                onShare = onShare,
+                onTranslate = onTranslate,
+                onReadAloud = onReadAloud,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MarkActionRow(
+    readAloudAvailable: Boolean,
+    onCopy: () -> Unit,
+    onNote: () -> Unit,
+    onShare: () -> Unit,
+    onTranslate: () -> Unit,
+    onReadAloud: () -> Unit,
+) {
+    val copy = stringResource(R.string.reader_selection_copy)
+    val note = stringResource(R.string.reader_selection_note)
+    val share = stringResource(R.string.reader_selection_share)
+    val readAloud = stringResource(R.string.reader_selection_read_aloud)
+    val translate = stringResource(R.string.reader_selection_translate)
+    val actions = remember(copy, note, share, translate, readAloud, readAloudAvailable, onCopy, onNote, onShare, onTranslate, onReadAloud) {
+        buildList {
+            add(ConnectedButton(copy, Icons.Outlined.ContentCopy, onCopy))
+            add(ConnectedButton(note, Icons.Outlined.EditNote, onNote))
+            add(ConnectedButton(share, Icons.Outlined.Share, onShare))
+            add(ConnectedButton(translate, Icons.Outlined.Translate, onTranslate))
+            if (readAloudAvailable) add(ConnectedButton(readAloud, Icons.Outlined.Headphones, onReadAloud))
+        }
+    }
+    VayanaConnectedButtonGroup(
+        buttons = actions,
+        iconAboveLabel = true,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
+}
+
+internal sealed interface HighlightSwatchAction {
+    data object Delete : HighlightSwatchAction
+    data class Recolor(val colorKey: String) : HighlightSwatchAction
+}
+
+internal fun highlightSwatchAction(currentColorKey: String, tappedColorKey: String): HighlightSwatchAction =
+    if (currentColorKey.equals(tappedColorKey, ignoreCase = true)) {
+        HighlightSwatchAction.Delete
+    } else {
+        HighlightSwatchAction.Recolor(tappedColorKey)
+    }
 
 /** Highlight colours as swatches and underline as an icon: one line that always fits. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

@@ -111,6 +111,7 @@ sealed interface ReaderUiState {
         val currentLocator: Locator?,
         val annotations: List<Annotation> = emptyList(),
         val selection: ReaderSelection? = null,
+        val highlightCard: HighlightCardState? = null,
         /** Position to jump back to via [ReaderViewModel.returnToPreviousPosition], set right before a TOC/search/note jump. */
         val returnLocator: Locator? = null,
         /** A pre-paginated book (PDF): page fit and crop settings take the place of typography. */
@@ -123,6 +124,23 @@ sealed interface ReaderUiState {
         val bookLanguage: String? = null,
     ) : ReaderUiState
     data class Failed(val message: UiText) : ReaderUiState
+}
+
+data class HighlightCardState(
+    val annotationId: Long,
+    val top: Float?,
+    val bottom: Float?,
+    val page: Int?,
+    val sectionCfi: String?,
+)
+
+internal fun HighlightCardState.isAnchoredTo(locator: Locator): Boolean {
+    val locatorCfi = locator.cfi
+    return when {
+        page != null && locator.currentPage != null -> page == locator.currentPage
+        sectionCfi != null && locatorCfi != null -> sectionCfi == locatorCfi.substringBefore('!')
+        else -> true
+    }
 }
 
 /** The end-of-story question: finished? and, optionally, a rating ([rating] is the book's current one, 0 if none). */
@@ -258,6 +276,7 @@ class ReaderViewModel @Inject constructor(
     private val engineJobs = mutableListOf<Job>()
     private var dictionaryLookupJob: Job? = null
     private var dictionaryInstallJob: Job? = null
+    private var highlightMutationJob: Job? = null
     private var pendingDictionaryWord: String? = null
     private var dictionaryPickerActive = false
     private var lastUsedHighlightColor: String = DefaultAnnotationColor
@@ -381,7 +400,12 @@ class ReaderViewModel @Inject constructor(
                         // A PDF's embedded title is often a file or tool name; the library's title is the one people set.
                         bookTitle = if (openBook.fixedLayout) book.title else openBook.title.ifBlank { book.title },
                         bookAuthor = book.author,
-                        bookCoverPath = book.coverPath,
+                        // Database paths are library-root relative; the share-card UI needs a real file path so
+                        // it can offer and render the cover.
+                        bookCoverPath = book.coverPath
+                            ?.let(storageRoots::resolve)
+                            ?.takeIf { it.isFile }
+                            ?.absolutePath,
                         bookSeries = book.series,
                         bookSeriesNumber = book.seriesNumber,
                         toc = openBook.toc,
@@ -444,10 +468,48 @@ class ReaderViewModel @Inject constructor(
                 when (event) {
                     is com.vayana.reader.api.EngineEvent.SelectionChanged -> {
                         _uiState.update { current ->
-                            if (current is ReaderUiState.Loaded) current.copy(selection = event.selection) else current
+                            if (current is ReaderUiState.Loaded) {
+                                current.copy(
+                                    selection = event.selection,
+                                    highlightCard = if (event.selection != null) null else current.highlightCard,
+                                )
+                            } else {
+                                current
+                            }
                         }
                         lookupSelection(event.selection?.selectedText)
                         maybeAutoMarkSelection(event.selection)
+                    }
+                    is com.vayana.reader.api.EngineEvent.AnnotationTapped -> {
+                        _uiState.update { current ->
+                            if (current !is ReaderUiState.Loaded) return@update current
+                            val annotationId = event.annotationId?.toLongOrNull()
+                            val highlight = current.annotations.firstOrNull { annotation ->
+                                annotation.id == annotationId &&
+                                    annotation.type == AnnotationType.HIGHLIGHT &&
+                                    !annotation.isCommunityQuote()
+                            }
+                            current.copy(
+                                selection = if (highlight != null) null else current.selection,
+                                highlightCard = highlight?.let {
+                                    HighlightCardState(
+                                        annotationId = it.id,
+                                        top = event.top,
+                                        bottom = event.bottom,
+                                        page = current.currentLocator?.currentPage,
+                                        sectionCfi = current.currentLocator?.cfi?.substringBefore('!'),
+                                    )
+                                },
+                            )
+                        }
+                        if (event.annotationId != null) {
+                            dictionaryLookupJob?.cancel()
+                            pendingDictionaryWord = null
+                            _dictionaryLookup.value = DictionaryLookupState.Hidden
+                        }
+                    }
+                    is com.vayana.reader.api.EngineEvent.FontSizeStepRequested -> {
+                        stepFontSize(event.direction)
                     }
                     is com.vayana.reader.api.EngineEvent.SearchCompleted -> {
                         if (event.query == lastSearchQuery) _searchResults.value = event.results
@@ -462,9 +524,18 @@ class ReaderViewModel @Inject constructor(
                         _pdfPasswordPrompt.value = PdfPasswordPrompt(event.incorrect)
                     }
                     com.vayana.reader.api.EngineEvent.ControlsRequested -> _readerControlsRequest.update { it + 1L }
-                    is com.vayana.reader.api.EngineEvent.Error,
-                    is com.vayana.reader.api.EngineEvent.Relocated,
-                    -> Unit
+                    is com.vayana.reader.api.EngineEvent.Relocated -> {
+                        _uiState.update { current ->
+                            if (current is ReaderUiState.Loaded &&
+                                current.highlightCard?.isAnchoredTo(event.locator) == false
+                            ) {
+                                current.copy(highlightCard = null)
+                            } else {
+                                current
+                            }
+                        }
+                    }
+                    is com.vayana.reader.api.EngineEvent.Error -> Unit
                 }
             }
         }
@@ -626,6 +697,14 @@ class ReaderViewModel @Inject constructor(
         } else {
             viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderFontSize, percent) }
         }
+    }
+
+    private fun stepFontSize(direction: Int) {
+        if (direction == 0) return
+        val setting = SettingsRegistry.ReaderFontSize
+        val current = effectiveSettings.value.readerFontSizePercent
+        val next = (current + direction.coerceIn(-1, 1) * setting.step).coerceIn(setting.range)
+        if (next != current) updateFontSize(next)
     }
 
     fun updateLineHeight(lineHeight: Float) {
@@ -1015,6 +1094,95 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    fun updateActiveHighlightColor(colorKey: String) {
+        val annotation = activeHighlight() ?: return
+        val annotationId = annotation.id
+        if (annotation.colorKey.equals(colorKey, ignoreCase = true)) return
+        lastUsedHighlightColor = colorKey
+        _uiState.update { current ->
+            if (current is ReaderUiState.Loaded) {
+                current.copy(
+                    annotations = current.annotations.map {
+                        if (it.id == annotationId) it.copy(colorKey = colorKey) else it
+                    },
+                )
+            } else {
+                current
+            }
+        }
+        enqueueHighlightMutation { annotationRepository.update(annotation.copy(colorKey = colorKey)) }
+    }
+
+    fun deleteActiveHighlight() {
+        val annotation = activeHighlight() ?: return
+        _uiState.update { current ->
+            if (current is ReaderUiState.Loaded) {
+                current.copy(
+                    annotations = current.annotations.filterNot { it.id == annotation.id },
+                    highlightCard = null,
+                )
+            } else {
+                current
+            }
+        }
+        enqueueHighlightMutation { annotationRepository.softDelete(annotation.id) }
+    }
+
+    fun convertActiveHighlightToUnderline() {
+        val annotation = activeHighlight() ?: return
+        val underline = annotation.copy(type = AnnotationType.UNDERLINE)
+        _uiState.update { current ->
+            if (current is ReaderUiState.Loaded) {
+                current.copy(
+                    annotations = current.annotations.map { if (it.id == annotation.id) underline else it },
+                    highlightCard = null,
+                )
+            } else {
+                current
+            }
+        }
+        enqueueHighlightMutation { annotationRepository.update(underline) }
+    }
+
+    fun dismissActiveHighlight() {
+        _uiState.update { current ->
+            if (current is ReaderUiState.Loaded) current.copy(highlightCard = null) else current
+        }
+    }
+
+    fun startReadAloudFromActiveHighlight() {
+        if (!settings.value.readerAudioFeaturesEnabled) return
+        val annotation = activeHighlight() ?: return
+        _returnRecap.value = null
+        readAloudPlayer.stop()
+        readAloudPlayer.start(
+            rate = settings.value.readAloudRate,
+            pitch = settings.value.readAloudPitch,
+            voiceName = settings.value.readAloudVoiceName,
+            fromCfi = annotation.locator,
+            speechEngine = settings.value.readAloudEngine,
+            wordHighlight = settings.value.displayProfile != DisplayProfile.E_INK,
+        )
+        dismissActiveHighlight()
+    }
+
+    private fun activeHighlight(): Annotation? {
+        val state = uiState.value as? ReaderUiState.Loaded ?: return null
+        val annotationId = state.highlightCard?.annotationId ?: return null
+        return state.annotations.firstOrNull {
+            it.id == annotationId && it.type == AnnotationType.HIGHLIGHT && !it.isCommunityQuote()
+        }
+    }
+
+    /** Preserve the order of rapid colour/delete/type taps so an older full-row update cannot resurrect stale data. */
+    private fun enqueueHighlightMutation(mutation: suspend () -> Unit) {
+        val previous = highlightMutationJob
+        highlightMutationJob = viewModelScope.launch {
+            previous?.join()
+            mutation()
+        }
+    }
+
     fun createBookmark() {
         val state = uiState.value as? ReaderUiState.Loaded ?: return
         val locator = state.currentLocator ?: return
@@ -1108,7 +1276,16 @@ class ReaderViewModel @Inject constructor(
                 val readerAnnotations = withContext(dispatchers.default) { annotations.mapNotNull { it.toReaderAnnotation() } }
                 engine.renderAnnotations(readerAnnotations)
                 _uiState.update { current ->
-                    if (current is ReaderUiState.Loaded) current.copy(annotations = annotations) else current
+                    if (current is ReaderUiState.Loaded) {
+                        current.copy(
+                            annotations = annotations,
+                            highlightCard = current.highlightCard?.takeIf { card ->
+                                annotations.any { it.id == card.annotationId && it.type == AnnotationType.HIGHLIGHT }
+                            },
+                        )
+                    } else {
+                        current
+                    }
                 }
             }
         }
@@ -1508,6 +1685,7 @@ class ReaderViewModel @Inject constructor(
         val selection = (uiState.value as? ReaderUiState.Loaded)?.selection ?: return
         val existing = (uiState.value as? ReaderUiState.Loaded)?.annotations.orEmpty()
         viewModelScope.launch {
+            val exact = existing.exactEditableMark(selection.cfi, type)
             // Selecting across a highlight (or underline) of the same kind grows that one instead of stacking a second.
             val candidates = if (type == AnnotationType.NOTE) {
                 emptyList()
@@ -1521,7 +1699,16 @@ class ReaderViewModel @Inject constructor(
             }
             val union = runCatchingCancellable { engine.mergeRanges(selection.cfi, candidates.map { it.locator }) }.getOrNull()
             val swallowed = union?.merged?.let { merged -> candidates.filter { it.locator in merged } }.orEmpty()
-            if (union != null && swallowed.isNotEmpty()) {
+            if (exact != null) {
+                annotationRepository.update(
+                    exact.copy(
+                        colorKey = colorKey,
+                        selectedText = selection.selectedText.ifBlank { exact.selectedText },
+                        chapterTitle = selection.chapterTitle ?: exact.chapterTitle,
+                        readerNote = readerNote?.takeIf { it.isNotBlank() } ?: exact.readerNote,
+                    ),
+                )
+            } else if (union != null && swallowed.isNotEmpty()) {
                 val kept = swallowed.minBy { it.createdAt }
                 val notes = (swallowed.map { it.readerNote } + readerNote).mapNotNull { it?.trim()?.ifEmpty { null } }.distinct()
                 annotationRepository.update(
@@ -1699,6 +1886,10 @@ private fun Annotation.toReaderAnnotation(): ReaderAnnotation? {
         text = selectedText,
     )
 }
+
+internal fun List<Annotation>.exactEditableMark(selectionCfi: String, type: AnnotationType): Annotation? =
+    takeUnless { type == AnnotationType.NOTE }
+        ?.firstOrNull { it.type == type && it.locator == selectionCfi && !it.isCommunityQuote() }
 
 private fun AnnotationType.toReaderAnnotationType(): ReaderAnnotationType = when (this) {
     AnnotationType.HIGHLIGHT -> ReaderAnnotationType.HIGHLIGHT

@@ -325,6 +325,11 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onAnnotationClick = viewModel::openAnnotation,
                 onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
                 onCreateHighlight = viewModel::createHighlight,
+                onUpdateHighlightColor = viewModel::updateActiveHighlightColor,
+                onDeleteHighlight = viewModel::deleteActiveHighlight,
+                onConvertHighlightToUnderline = viewModel::convertActiveHighlightToUnderline,
+                onDismissHighlight = viewModel::dismissActiveHighlight,
+                onUpdateHighlightNote = viewModel::updateAnnotationNote,
                 onCreateUnderline = viewModel::createUnderline,
                 onCreateNote = viewModel::createNote,
                 onCreateBookmark = viewModel::createBookmark,
@@ -362,6 +367,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 readAloud = readAloud,
                 onStartReadAloud = { startReadAloud(false) },
                 onReadAloudFromSelection = { startReadAloud(true) },
+                onReadAloudFromHighlight = viewModel::startReadAloudFromActiveHighlight,
                 onToggleReadAloud = viewModel::toggleReadAloud,
                 onPauseReadAloud = viewModel::pauseReadAloud,
                 onStopReadAloud = viewModel::stopReadAloud,
@@ -438,6 +444,11 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onAnnotationClick = viewModel::openAnnotation,
         onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
         onCreateHighlight = viewModel::createHighlight,
+        onUpdateHighlightColor = viewModel::updateActiveHighlightColor,
+        onDeleteHighlight = viewModel::deleteActiveHighlight,
+        onConvertHighlightToUnderline = viewModel::convertActiveHighlightToUnderline,
+        onDismissHighlight = viewModel::dismissActiveHighlight,
+        onUpdateHighlightNote = viewModel::updateAnnotationNote,
         onCreateUnderline = viewModel::createUnderline,
         onCreateNote = viewModel::createNote,
         onCreateBookmark = viewModel::createBookmark,
@@ -475,6 +486,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         readAloud = readAloud,
         onStartReadAloud = { startReadAloud(false) },
         onReadAloudFromSelection = { startReadAloud(true) },
+        onReadAloudFromHighlight = viewModel::startReadAloudFromActiveHighlight,
         onToggleReadAloud = viewModel::toggleReadAloud,
         onPauseReadAloud = viewModel::pauseReadAloud,
         onStopReadAloud = viewModel::stopReadAloud,
@@ -763,6 +775,11 @@ private fun ReaderScreen(
     onAnnotationClick: (Annotation) -> Unit,
     onReturnToPreviousPosition: () -> Unit,
     onCreateHighlight: (String) -> Unit,
+    onUpdateHighlightColor: (String) -> Unit,
+    onDeleteHighlight: () -> Unit,
+    onConvertHighlightToUnderline: () -> Unit,
+    onDismissHighlight: () -> Unit,
+    onUpdateHighlightNote: (Annotation, String) -> Unit,
     onCreateUnderline: () -> Unit,
     onCreateNote: (String) -> Unit,
     onCreateBookmark: () -> Unit,
@@ -793,6 +810,7 @@ private fun ReaderScreen(
     readAloud: ReadAloudState,
     onStartReadAloud: () -> Unit,
     onReadAloudFromSelection: () -> Unit,
+    onReadAloudFromHighlight: () -> Unit,
     onToggleReadAloud: () -> Unit,
     onPauseReadAloud: () -> Unit,
     onStopReadAloud: () -> Unit,
@@ -811,11 +829,13 @@ private fun ReaderScreen(
     var chromeVisible by remember { mutableStateOf(false) }
     var selectedPanel by remember { mutableStateOf(ReaderPanel.CONTENTS) }
     var noteDialogVisible by remember { mutableStateOf(false) }
+    var noteHighlight by remember { mutableStateOf<Annotation?>(null) }
     var sharingSelection by remember { mutableStateOf<SelectionShare?>(null) }
     var footerShowsBookTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val citationPattern = stringResource(R.string.quote_citation)
     val audioFeaturesEnabled = settings.readerAudioFeaturesEnabled
+    val activeHighlightCard = (uiState as? ReaderUiState.Loaded)?.highlightCard
     val onEngineReadyState = rememberUpdatedState(onEngineReady)
     val onEngineReleasedState = rememberUpdatedState(onEngineReleased)
     val onReaderInteractionState = rememberUpdatedState(onReaderInteraction)
@@ -828,6 +848,9 @@ private fun ReaderScreen(
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var volumeKeyDownAt by remember { mutableStateOf(0L) }
     val onReaderTapState = rememberUpdatedState<(Float, Int) -> Unit> { x, width ->
+        // The WebView reports annotation hits after ACTION_UP. Its short arbitration delay below lets this state
+        // update first, so a highlight in a side tap-zone opens its card instead of also turning the page.
+        if (activeHighlightCard != null) return@rememberUpdatedState
         if (shouldPauseReadAloudOnReaderTap(readAloud.playing)) {
             onPauseReadAloud()
             return@rememberUpdatedState
@@ -1180,7 +1203,12 @@ private fun ReaderScreen(
                                         onReaderInteractionState.value()
                                         val isShortTap = event.eventTime - downTime < ViewConfiguration.getLongPressTimeout()
                                         if (!multiTouch && isShortTap && abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) {
-                                            onReaderTapState.value(event.x, view.width)
+                                            val tapX = event.x
+                                            val tapWidth = view.width
+                                            view.postDelayed(
+                                                { onReaderTapState.value(tapX, tapWidth) },
+                                                AnnotationTapArbitrationMillis,
+                                            )
                                         }
                                     }
                                 }
@@ -1258,6 +1286,24 @@ private fun ReaderScreen(
                 footerGap = settings.readerFooterGapDp.dp,
                 onLongPress = {
                     selectedPanel = ReaderPanel.CONTENTS
+                    chromeVisible = true
+                },
+            )
+        }
+
+        if (shouldShowReaderSettingsFooterButton(
+                readerLoaded = uiState is ReaderUiState.Loaded,
+                chromeVisible = chromeVisible,
+                selectionActive = (uiState as? ReaderUiState.Loaded)?.selection != null,
+                highlightCardActive = activeHighlightCard != null,
+                dictionaryActionsActive = dictionaryLookup.wordOrNull() != null,
+            )
+        ) {
+            ReaderSettingsFooterButton(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                footerGap = settings.readerFooterGapDp.dp,
+                onClick = {
+                    selectedPanel = ReaderPanel.STYLE
                     chromeVisible = true
                 },
             )
@@ -1380,15 +1426,29 @@ private fun ReaderScreen(
 
         val loadedState = uiState as? ReaderUiState.Loaded
         val selection = loadedState?.selection
+        val highlightCard = loadedState?.highlightCard
+        val highlightedAnnotation = highlightCard?.let { card ->
+            loadedState.annotations.firstOrNull { it.id == card.annotationId && it.type == AnnotationType.HIGHLIGHT }
+        }
         val dictionaryWord = dictionaryLookup.wordOrNull()
         // The card sits just above the selection (below it when there is no room above); a word looked up from
         // elsewhere has no selection to sit beside, so it goes at the bottom. It keeps its last spot while fading out.
         val selectionAnchor = selection?.anchorIn(webViewBounds)
+        val highlightAnchor = highlightCard?.let { card ->
+            val bounds = webViewBounds ?: return@let null
+            val top = card.top ?: return@let null
+            val bottom = card.bottom ?: return@let null
+            SelectionAnchor(
+                top = bounds.top + top * bounds.height,
+                bottom = bounds.top + bottom * bounds.height,
+            )
+        }
+        val actionAnchor = selectionAnchor ?: highlightAnchor
         val lastSelectionAnchor = remember { mutableStateOf<SelectionAnchor?>(null) }
-        LaunchedEffect(selectionAnchor) { if (selectionAnchor != null) lastSelectionAnchor.value = selectionAnchor }
+        LaunchedEffect(actionAnchor) { if (actionAnchor != null) lastSelectionAnchor.value = actionAnchor }
         AnchoredToSelection(
             anchor = when {
-                selection != null -> selectionAnchor
+                selection != null || highlightedAnnotation != null -> actionAnchor
                 dictionaryWord != null -> null
                 else -> lastSelectionAnchor.value
             },
@@ -1396,11 +1456,53 @@ private fun ReaderScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
         AnimatedVisibility(
-            visible = selection != null || dictionaryWord != null,
+            visible = selection != null || dictionaryWord != null || highlightedAnnotation != null,
             enter = vayanaScaleIn() + vayanaFadeIn(),
             exit = vayanaScaleOut() + vayanaFadeOut(),
         ) {
-            if (selection != null || dictionaryWord != null) {
+            if (highlightedAnnotation != null && selection == null) {
+                HighlightActions(
+                    currentColorKey = highlightedAnnotation.colorKey,
+                    readAloudAvailable = audioFeaturesEnabled,
+                    onHighlight = onUpdateHighlightColor,
+                    onDelete = onDeleteHighlight,
+                    onUnderline = onConvertHighlightToUnderline,
+                    onCopy = {
+                        context.copyTextToClipboard(
+                            QuoteCitation.format(
+                                text = highlightedAnnotation.selectedText,
+                                author = loadedState.bookAuthor,
+                                bookTitle = loadedState.bookTitle,
+                                chapterTitle = highlightedAnnotation.chapterTitle,
+                                pattern = citationPattern,
+                            ),
+                        )
+                        onDismissHighlight()
+                    },
+                    onNote = {
+                        noteHighlight = highlightedAnnotation
+                        noteDialogVisible = true
+                    },
+                    onShare = {
+                        sharingSelection = SelectionShare(
+                            text = highlightedAnnotation.selectedText,
+                            chapterTitle = highlightedAnnotation.chapterTitle,
+                            author = loadedState.bookAuthor,
+                            bookTitle = loadedState.bookTitle,
+                            coverPath = loadedState.bookCoverPath,
+                            series = loadedState.bookSeries,
+                            seriesNumber = loadedState.bookSeriesNumber,
+                        )
+                        onDismissHighlight()
+                    },
+                    onTranslate = {
+                        if (!context.translateText(highlightedAnnotation.selectedText)) {
+                            Toast.makeText(context, R.string.reader_translate_unavailable, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onReadAloud = onReadAloudFromHighlight,
+                )
+            } else if (selection != null || dictionaryWord != null) {
                 SelectionActions(
                     selectionActionsEnabled = selection != null,
                     readAloudAvailable = audioFeaturesEnabled,
@@ -1420,7 +1522,10 @@ private fun ReaderScreen(
                         context.copyTextToClipboard(citation)
                         onClearSelection()
                     },
-                    onNote = { noteDialogVisible = true },
+                    onNote = {
+                        noteHighlight = null
+                        noteDialogVisible = true
+                    },
                     onShare = {
                         sharingSelection = SelectionShare(
                             text = selection?.selectedText.orEmpty(),
@@ -1467,10 +1572,21 @@ private fun ReaderScreen(
 
     if (noteDialogVisible) {
         NoteDialog(
-            onDismiss = { noteDialogVisible = false },
+            initialNote = noteHighlight?.readerNote.orEmpty(),
+            onDismiss = {
+                noteDialogVisible = false
+                noteHighlight = null
+            },
             onConfirm = { note ->
                 noteDialogVisible = false
-                onCreateNote(note)
+                val highlight = noteHighlight
+                noteHighlight = null
+                if (highlight != null) {
+                    onUpdateHighlightNote(highlight, note)
+                    onDismissHighlight()
+                } else {
+                    onCreateNote(note)
+                }
             },
         )
     }
@@ -1510,6 +1626,8 @@ private fun ReaderScreen(
         )
     }
 }
+
+private const val AnnotationTapArbitrationMillis = 120L
 
 @Composable
 private fun ReaderClockHeader(
@@ -1711,6 +1829,49 @@ private fun ReaderBookProgressFooter(
 }
 
 @Composable
+private fun ReaderSettingsFooterButton(
+    modifier: Modifier = Modifier,
+    footerGap: Dp = Spacing.sm,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(bottom = footerGap)
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Surface(
+            color = if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = ReaderHudStandardAlpha)
+            },
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = readerHudElevation(),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Tune,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = stringResource(R.string.reader_footer_open_settings),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun readerHudSurfaceColor(): Color =
     if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
         MaterialTheme.colorScheme.surface
@@ -1787,8 +1948,8 @@ private fun formatMinutes(totalMinutes: Int): String {
 }
 
 @Composable
-private fun NoteDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var note by remember { mutableStateOf("") }
+private fun NoteDialog(initialNote: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var note by remember(initialNote) { mutableStateOf(initialNote) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -3113,6 +3274,14 @@ internal fun shouldInterceptReaderVolumeKey(
 internal fun shouldPauseReaderWebView(readAloudPlaying: Boolean): Boolean = !readAloudPlaying
 
 internal fun shouldPauseReadAloudOnReaderTap(readAloudPlaying: Boolean): Boolean = readAloudPlaying
+
+internal fun shouldShowReaderSettingsFooterButton(
+    readerLoaded: Boolean,
+    chromeVisible: Boolean,
+    selectionActive: Boolean,
+    highlightCardActive: Boolean,
+    dictionaryActionsActive: Boolean,
+): Boolean = readerLoaded && !chromeVisible && !selectionActive && !highlightCardActive && !dictionaryActionsActive
 
 internal fun needsNotificationPermission(sdkInt: Int, permissionGranted: Boolean): Boolean =
     sdkInt >= 33 && !permissionGranted

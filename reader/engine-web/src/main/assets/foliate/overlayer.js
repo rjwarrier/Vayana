@@ -38,16 +38,36 @@ export class Overlayer {
             obj.rects = rects
         }
     }
-    hitTest({ x, y }) {
+    hitTest({ x, y }, { padding = 0, minimumTargetSize = 0, filter = () => true } = {}) {
         const arr = Array.from(this.#map.entries())
-        // loop in reverse to hit more recently added items first
+        let exact = null
+        let nearest = null
+        // Loop in reverse so equally preferred, overlapping marks still prefer the most recent one. A caller can
+        // give editable marks a higher tapPriority than informational overlays such as community highlights.
         for (let i = arr.length - 1; i >= 0; i--) {
             const [key, obj] = arr[i]
-            for (const { left, top, right, bottom } of obj.rects)
-                if (top <= y && left <= x && bottom > y && right > x)
-                    return [key, obj.range]
+            if (!filter(key)) continue
+            const priority = Number(obj.options?.tapPriority) || 0
+            for (const { left, top, right, bottom } of obj.rects) {
+                if (top <= y && left <= x && bottom > y && right > x) {
+                    if (!exact || priority > exact.priority)
+                        exact = { key, range: obj.range, priority }
+                    continue
+                }
+                const horizontalExpansion = Math.max(padding, (minimumTargetSize - (right - left)) / 2)
+                const verticalExpansion = Math.max(padding, (minimumTargetSize - (bottom - top)) / 2)
+                if (x < left - horizontalExpansion || x >= right + horizontalExpansion ||
+                    y < top - verticalExpansion || y >= bottom + verticalExpansion) continue
+                const dx = x < left ? left - x : x >= right ? x - right : 0
+                const dy = y < top ? top - y : y >= bottom ? y - bottom : 0
+                const distance = dx * dx + dy * dy
+                if (!nearest || distance < nearest.distance ||
+                    (distance === nearest.distance && priority > nearest.priority))
+                    nearest = { key, range: obj.range, distance, priority }
+            }
         }
-        return []
+        if (exact) return [exact.key, exact.range]
+        return nearest ? [nearest.key, nearest.range] : []
     }
     static underline(rects, options = {}) {
         const { color = 'red', width: strokeWidth = 2, writingMode } = options
@@ -172,4 +192,3 @@ export class Overlayer {
         return image
     }
 }
-

@@ -8,6 +8,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.HighlightReviewRepository
 import com.vayana.core.database.repository.ReviewGrade
+import com.vayana.core.filesystem.StorageRoots
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
@@ -42,6 +43,7 @@ data class HighlightReviewSession(
 class HighlightReviewViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val highlightReviewRepository: HighlightReviewRepository,
+    private val storageRoots: StorageRoots,
 ) : ViewModel() {
 
     /** Null until loaded. Taken once, so the set doesn't shift while it's being reviewed. */
@@ -101,7 +103,10 @@ class HighlightReviewViewModel @Inject constructor(
             annotation = annotation,
             bookTitle = book.title,
             bookAuthor = book.author,
-            bookCoverPath = book.coverPath,
+            bookCoverPath = book.coverPath
+                ?.let(storageRoots::resolve)
+                ?.takeIf { it.isFile }
+                ?.absolutePath,
             bookSeries = book.series,
             bookSeriesNumber = book.seriesNumber,
             canOpen = !book.format.isOffline,

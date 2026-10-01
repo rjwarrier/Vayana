@@ -8,7 +8,7 @@ const start = bridge.indexOf('const DoubleTapWindowMillis')
 const end = bridge.indexOf('function selectWordAt', start)
 assert.ok(start >= 0 && end > start, 'reader tap arbitration not found in bridge.js')
 
-function harness({ word = false, fixed = false } = {}) {
+function harness({ word = false, fixed = false, selected = false } = {}) {
     const posted = []
     const timers = new Map()
     let timerId = 0
@@ -38,6 +38,7 @@ function harness({ word = false, fixed = false } = {}) {
     const doc = {
         defaultView: { top: { innerWidth: 900 } },
         addEventListener: (type, handler) => { if (type === 'click') clicks = handler },
+        getSelection: () => ({ type: selected ? 'Range' : 'Caret', isCollapsed: !selected }),
     }
     context.wireDoubleTapLookup(doc)
     const click = (time, x = 450, y = 300) => clicks({
@@ -62,13 +63,17 @@ function harness({ word = false, fixed = false } = {}) {
     }
 }
 
-test('single center tap requests controls after the double-tap window', () => {
+test('double center tap is the default and a single tap does nothing', () => {
     const h = harness()
-    h.context.setReaderControlsGesture(1, false, false)
     h.click(0)
     assert.equal(h.posted.length, 0)
     h.flush()
-    assert.deepEqual(h.posted.map(event => event.type), ['controlsRequested'])
+    assert.equal(h.posted.length, 0)
+
+    const double = harness()
+    double.click(0)
+    double.click(100)
+    assert.deepEqual(double.posted.map(event => event.type), ['controlsRequested'])
 })
 
 test('double-tap controls preserve dictionary lookup on a word', () => {
@@ -95,6 +100,18 @@ test('triple tap wins over the delayed double-tap action', () => {
     h.flush()
     assert.equal(h.lookups(), 0)
     assert.deepEqual(h.posted.map(event => event.type), ['controlsRequested'])
+})
+
+test('reader controls never open while a text selection remains active', () => {
+    for (const tapCount of [1, 2, 3]) {
+        const h = harness({ selected: true })
+        h.context.setReaderControlsGesture(tapCount, false, false)
+        h.click(0)
+        h.click(100)
+        if (tapCount === 3) h.click(200)
+        h.flush()
+        assert.equal(h.posted.length, 0)
+    }
 })
 
 test('visible controls and read-aloud block new control requests', () => {

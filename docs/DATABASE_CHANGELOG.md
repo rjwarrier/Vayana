@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 29
+
+Rebuilds the full-sync change-tracking triggers so Room's `INSERT OR ABORT` and `UPDATE OR ABORT` annotation writes
+cannot override the trigger's conflict handling. Creating, recolouring, or deleting a highlight now marks full sync as
+required without colliding with the singleton `full_sync_state` row.
+
 ## Version 28
 
 Adds singleton `full_sync_state`, maintained by SQLite triggers, to indicate that local data contains changes which
