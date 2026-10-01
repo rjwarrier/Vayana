@@ -35,10 +35,21 @@ internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
         RegexOption.IGNORE_CASE,
     )
     fun prepare(text: String): PronouncedSpeechText {
-        val matches = pattern.findAll(text).map { match ->
+        val tokens = pattern.findAll(text).toList()
+        val corrections = tokens.map { match ->
             match to (ordered.firstOrNull { it.original.equals(match.value, ignoreCase = true) }?.spoken
                 ?: spokenInterjection(match.value))
         }.filter { (match, replacement) -> match.value != replacement }.toList()
+        // Explicit book corrections own their spans, including corrections that leave a token unchanged.
+        val protected = if (ordered.isEmpty()) emptyList() else tokens.filter { match ->
+            ordered.any { it.original.equals(match.value, ignoreCase = true) }
+        }.map { it.range }.toList()
+        val numerals = romanSpeechReplacements(text).filter { (match, _) ->
+            protected.none { match.range.first <= it.last && match.range.last >= it.first }
+        }
+        val matches = (corrections.filter { (match, _) ->
+            numerals.none { (numeral, _) -> match.range.first <= numeral.range.last && match.range.last >= numeral.range.first }
+        } + numerals).sortedBy { it.first.range.first }
         if (matches.isEmpty()) return PronouncedSpeechText(text)
         val length = text.length + matches.sumOf { (match, replacement) -> replacement.length - match.value.length }
         val spoken = StringBuilder(length)
@@ -67,6 +78,33 @@ internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
         return PronouncedSpeechText(spoken.toString(), starts, ends)
     }
 }
+
+/** Convert clear numeral labels, not pronoun I, initials, ordinary words, or arbitrary capitalized acronyms. */
+private fun romanSpeechReplacements(text: String): List<Pair<MatchResult, String>> =
+    RomanToken.findAll(text).mapNotNull { match ->
+        val roman = java.text.Normalizer.normalize(match.value, java.text.Normalizer.Form.NFKC)
+            .uppercase(java.util.Locale.ROOT)
+        if (!ValidRoman.matches(roman)) return@mapNotNull null
+        val labelled = RomanLabel.containsMatchIn(text.substring((match.range.first - 80).coerceAtLeast(0), match.range.first))
+        val unicode = match.value.any { it in '\u2160'..'\u217f' }
+        val standalone = text.trim().trimEnd('.', ':', ')') == match.value &&
+            match.value.length > 1 && match.value == match.value.uppercase(java.util.Locale.ROOT)
+        if (!labelled && !unicode && !standalone) return@mapNotNull null
+        var number = 0
+        var previous = 0
+        for (character in roman.reversed()) {
+            val value = when (character) {
+                'I' -> 1; 'V' -> 5; 'X' -> 10; 'L' -> 50; 'C' -> 100; 'D' -> 500; else -> 1000
+            }
+            number += if (value < previous) -value else value
+            previous = value
+        }
+        match to number.toString()
+    }.toList()
+
+private val RomanToken = Regex("(?<![\\p{L}\\p{N}_])(?:[IVXLCDMivxlcdm]+|[\\u2160-\\u217f]+)(?![\\p{L}\\p{N}_])")
+private val ValidRoman = Regex("(?=.)M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})")
+private val RomanLabel = Regex("\\b(?:chapter|ch\\.?|part|book|volume|vol\\.?|section|sec\\.?|act|scene|appendix|figure|fig\\.?|table|episode)\\s+$", RegexOption.IGNORE_CASE)
 
 // Use conventional short interjections, rather than unrelated literal words such as "hum" and "mum".
 // Android also receives a text hint for these tokens; book corrections still override this default.

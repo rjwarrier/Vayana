@@ -5,6 +5,31 @@ import kotlin.test.assertEquals
 
 class SpeechPronunciationTest {
     @Test
+    fun romanLabelsBecomeNumbersAndHighlightTheOriginalNumeral() {
+        val source = "CHAPTER I. Part IV, Volume XII, Section ix, Scene XL and Book MCMXCIX."
+        val prepared = prepareSpeechPronunciation(source, emptyList())
+        assertEquals("CHAPTER 1. Part 4, Volume 12, Section 9, Scene 40 and Book 1999.", prepared.text)
+        val start = prepared.text.indexOf("1999")
+        val original = source.indexOf("MCMXCIX")
+        assertEquals(original to original + 7, prepared.sourceRange(start, start + 4))
+    }
+
+    @Test
+    fun standaloneAndUnicodeNumeralsWorkWithoutChangingProseOrInvalidNumbers() {
+        assertEquals("14.", prepareSpeechPronunciation("XIV.", emptyList()).text)
+        assertEquals("12", prepareSpeechPronunciation("Ⅻ", emptyList()).text)
+        assertEquals("Chapter 3000", prepareSpeechPronunciation("Chapter mMm", emptyList()).text)
+        val prose = "I mix CIVIC words with IV treatment, M. Smith, Chapter IIII and Part IC."
+        assertEquals(prose, prepareSpeechPronunciation(prose, emptyList()).text)
+    }
+
+    @Test
+    fun bookCorrectionsOverrideRomanNumbersEvenWhenUnchanged() {
+        assertEquals("Chapter eye", prepareSpeechPronunciation("Chapter I", listOf(SpeechPronunciation("I", "eye"))).text)
+        assertEquals("Chapter IV", prepareSpeechPronunciation("Chapter IV", listOf(SpeechPronunciation("IV", "IV"))).text)
+    }
+
+    @Test
     fun mixedExpansionAndContractionKeepEverySourceRangeIncludingEmoji() {
         val source = "😀 Hermione hmmm Hermione today."
         val prepared = prepareSpeechPronunciation(source, listOf(SpeechPronunciation("Hermione", "her MY oh nee")))

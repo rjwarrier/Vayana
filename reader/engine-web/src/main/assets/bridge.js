@@ -1481,6 +1481,12 @@ function speechTextWithoutAbbreviationStops(text) {
         /(?<![\p{L}\p{N}_])(?:Mr|Mrs|Ms|Mx|Dr|Prof|Rev|Fr)[ \t]+[A-Z]\.(\s+)(?=[A-Z]\p{L})/gu,
         withoutStop,
     )
+    // Abbreviated place names in prose, e.g. "in S. Place" and "towards K. bridge".
+    // Require a location preposition and place word so list labels such as "A. First item" stay intact.
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:in|at|from|to|towards?|near|on|of|by|into|past|through)[ \t]+[A-Z]\.(\s+)(?=(?:place|street|road|avenue|lane|square|bridge|district|town|city)\b)/giu,
+        withoutStop,
+    )
     // Two or more spaced name initials, as in J. R. R. Tolkien. A single "A." may be a list label.
     prepared = prepared.replace(
         /(?<![\p{L}\p{N}_])(?:[A-Z]\.\s+){2,}(?=[A-Z]\p{L})/gu,
@@ -1627,6 +1633,11 @@ function speechSentencesFor(doc, index, fromRange) {
     let boundaryIndex = 0
     const omitted = new Set()
     let prepared = speechTextWithoutAbbreviationStops(text)
+    // ICU treats a line separator as a sentence ending, even inside unpunctuated prose. EPUB source
+    // wrapping and single <br> elements must not create extra TTS utterances. Preserve blank lines and
+    // injected block boundaries, and keep the same UTF-16 length for DOM offset mapping.
+    prepared = prepared.replace(/[ \t\r\n\u2028]+/gu, gap => speechParagraphBreak(gap)
+        ? gap : gap.replace(/[\r\n\u2028]/gu, ' '))
     if (fixedLayout) {
         // Printed line breaks are word boundaries. Join clear word-wrap hyphens, but retain common compound prefixes.
         for (const match of text.matchAll(/(\p{L}+)[-\u00ad][ \t]*\n[ \t]*(?=\p{Ll})/gu)) {

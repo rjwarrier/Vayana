@@ -212,14 +212,22 @@ imported into the library like any picked file.
 - **Number hints.** English-language voices receive Android `TtsSpan` hints for currency, percentages,
   common measurements, valid ISO dates and times with clock context. These hints preserve text offsets.
   Ambiguous numeric dates, ratios and other languages use the engine's own parsing. Engines may ignore hints.
+- **Roman numerals.** Clear chapter, part, volume, section, act, scene and similar labels use numeric
+  speech (`Chapter IV` → `Chapter 4`). Standalone multi-letter uppercase numerals and Unicode Roman
+  numeral characters are also converted. Only canonical values from 1 to 3999 qualify; pronoun "I",
+  initials, ordinary prose acronyms and invalid forms remain unchanged. Book pronunciation corrections
+  take priority, and highlights continue to select the original numeral.
 - **Reading text cleanup.** Marked footnote references and hidden text are omitted, while mathematical
-  superscripts remain. PDF printed line breaks are joined, word-wrap hyphens are repaired (common compound
+  superscripts remain. Single EPUB source line breaks and line separators are joined before sentence
+  splitting, preventing artificial pauses inside prose; blank lines and block boundaries remain.
+  PDF printed line breaks are joined, word-wrap hyphens are repaired (common compound
   prefixes retain their hyphens), and soft hyphens are removed from speech. Explicit page headers/footers are
   skipped; inferred PDF running headers/footers must repeat on three distinct pages in the outer 5% margin.
   The first two occurrences remain audible. Margin page numbers are omitted. The displayed book is unchanged.
 
 - **Abbreviations.** Speech preparation keeps common titles with names, numbered references with numbers,
-  and spaced name initials together. Dotted acronyms and `a.m.`/`p.m.` keep real sentence endings;
+  and spaced name initials together. Location initials such as "in S. Place" and "towards K. bridge"
+  stay with their place words. Dotted acronyms and `a.m.`/`p.m.` keep real sentence endings;
   `e.g.`, `i.e.`, `etc.` and `vs.` are spoken as words. The displayed text is unchanged, and timed highlights
   map back to the original words even when spoken text expands. Ambiguous sentence endings and paragraph
   boundaries are preserved rather than suppressing every abbreviation period.

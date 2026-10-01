@@ -100,6 +100,36 @@ test('inline whitespace between styled words is preserved', () => {
     assert.equal(sentences[0].text, 'Hello world.')
 })
 
+test('wrapped EPUB lines stay in one sentence and map back to the original text', () => {
+    const { context, sentences } = setup('<p>She walked\ninto <em>the</em>\r\nroom<br>without stopping.</p><p>Then she left.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['She walked into the room without stopping.', 'Then she left.'])
+    assert.deepEqual(Array.from(sentences, s => s.pauseBeforeMs), [0, 250])
+    context.sentenceId = sentences[0].id
+    const start = sentences[0].text.indexOf('room')
+    assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${start}, ${start + 4}).toString()`, context), 'room')
+})
+
+test('Crime and Punishment Chapter I opening has no stops at printed wraps or abbreviated places', () => {
+    const { context, sentences } = setup(`<p>
+      On an exceptionally hot evening early in July a young man came out of the
+      garret in which he lodged in S. Place and walked slowly, as though in
+      hesitation, towards K. bridge.
+    </p>`)
+    assert.deepEqual(Array.from(sentences, s => s.text), [
+        'On an exceptionally hot evening early in July a young man came out of the garret in which he lodged in S Place and walked slowly, as though in hesitation, towards K bridge.',
+    ])
+    context.sentenceId = sentences[0].id
+    for (const word of ['garret', 'Place', 'hesitation', 'bridge']) {
+        const start = sentences[0].text.indexOf(word)
+        assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${start}, ${start + word.length}).toString()`, context), word)
+    }
+})
+
+test('soft line separators join prose while blank lines and explicit paragraphs keep their boundaries', () => {
+    const { sentences } = setup('<p>She walked\u2028into the room.\n  \nHe stayed.<br><br>She returned.</p><p>Next paragraph.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['She walked into the room.', 'He stayed.', 'She returned.', 'Next paragraph.'])
+})
+
 test('marked footnote references are skipped but mathematical superscripts remain', () => {
     const { sentences } = setup('<p>Hello<sup><a href="#n">1</a></sup> world. Read x<sup>2</sup>.</p><p>Yes<a role="doc-noteref" href="#n">2</a>.</p>')
     assert.deepEqual(Array.from(sentences, s => s.text), ['Hello world.', 'Read x2.', 'Yes.'])
