@@ -1613,4 +1613,13 @@
     <string name="opds_port_hint_secure">443</string>
     <string name="opds_https_label">Use HTTPS (encrypted)</string>
     <string name="opds_path_label">Path</string>
+    <string name="opds_local_network_denied">Vayana needs permission to reach devices on your home network. Allow “Nearby devices” in the app’s permissions, then try again.</string>
+    <string name="opds_discover">Find on my network</string>
+    <string name="opds_discovering">Looking for catalogs on your Wi‑Fi…</string>
+    <string name="opds_discovered_title">Found on your network</string>
+    <string name="opds_discover_none">No catalogs found. Check that the server is running and this phone is on the same Wi‑Fi.</string>
+    <string name="opds_discovered_address">%1$s:%2$d</string>
+    <string name="opds_discovered_login">%1$s · needs a login</string>
+    <string name="opds_view_grid">Show as a grid</string>
+    <string name="opds_view_list">Show as a list</string>
 </resources>

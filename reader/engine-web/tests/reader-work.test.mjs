@@ -24,6 +24,7 @@ test('warm community badge layout visits only loaded-section candidates', () => 
         resolvedTextAnnotations: new Map(),
         DefaultAnnotationColor: '#111111',
         markColor: color => color,
+        inkMarks: false,
         highlightCount: () => { operations.parses++; return 12 },
         view: {
             renderer: { scrolled: false, size: 400, start: 400, getContents: () => [{ index: 0, doc }] },
@@ -61,6 +62,7 @@ test('community badge CFI resolution automatically retries after a transient ren
         resolvedTextAnnotations: new Map(),
         DefaultAnnotationColor: '#111111',
         markColor: color => color,
+        inkMarks: false,
         highlightCount: () => 12,
         view: {
             renderer: { scrolled: false, size: 400, start: 400, getContents: () => [{ index: 0, doc }] },

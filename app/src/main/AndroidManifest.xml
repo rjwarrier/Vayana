@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Online catalogs on the home network (Calibre, a NAS): Android 17 blocks local addresses without it. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
     <!-- Read aloud: Android 11+ only lets the app bind to text-to-speech engines it declares it looks for. -->
     <queries>
         <intent>

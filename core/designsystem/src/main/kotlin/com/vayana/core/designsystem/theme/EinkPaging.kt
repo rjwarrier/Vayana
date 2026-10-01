@@ -100,9 +100,9 @@ fun PagedLazyVerticalGrid(
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     showPageButtons: Boolean = true,
+    state: LazyGridState = rememberLazyGridState(),
     content: LazyGridScope.() -> Unit,
 ) {
-    val state = rememberLazyGridState()
     val pager = rememberEinkPager(state) { state.viewportHeightPx() }
     Box(modifier) {
         LazyVerticalGrid(

@@ -16,9 +16,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,10 +30,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewList
+import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
@@ -62,6 +70,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -80,10 +89,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vayana.core.common.LibraryIndex
 import com.vayana.core.designsystem.component.VayanaLoadingIndicator
 import com.vayana.core.designsystem.component.morphingButtonShapes
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.PagedLazyColumn
+import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -91,6 +102,7 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /** The catalogues the reader added: tap one to browse it, add, edit or remove them. */
@@ -156,6 +168,7 @@ fun OpdsCatalogsRoute(
             existing = (target as? EditorTarget.Existing)?.catalog,
             onDismiss = { editing = null },
             onCheck = { url, username, password -> viewModel.check(existingId, url, username, password) },
+            onDiscover = viewModel::discover,
             onSave = { name, url, username, password ->
                 val saved = viewModel.save(existingId, name, url, username, password)
                 if (saved) editing = null
@@ -284,10 +297,29 @@ private fun EmptyCatalogs(contentPadding: PaddingValues) {
 }
 
 @Composable
+private fun DiscoveredServerRow(server: OpdsServerFound, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(Radii.medium),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.medium)).clickable(onClick = onClick),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
+            Text(server.title ?: server.host, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val address = stringResource(R.string.opds_discovered_address, server.host, server.port)
+            Text(
+                if (server.needsLogin) stringResource(R.string.opds_discovered_login, address) else address,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
 private fun CatalogEditor(
     existing: OpdsCatalog?,
     onDismiss: () -> Unit,
     onCheck: suspend (url: String, username: String, password: String) -> OpdsCheck,
+    onDiscover: () -> Flow<OpdsServerFound>,
     onSave: (name: String, url: String, username: String, password: String) -> Boolean,
 ) {
     var name by rememberSaveable { mutableStateOf(existing?.name.orEmpty()) }
@@ -306,6 +338,42 @@ private fun CatalogEditor(
     var checking by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<OpdsFailure?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var accessDenied by remember { mutableStateOf(false) }
+    fun runCheck() {
+        checking = true
+        scope.launch {
+            when (val result = onCheck(url, username, password)) {
+                is OpdsCheck.Ok ->
+                    // The working address (a bare server gains its /opds) and the catalogue's own name.
+                    invalid = !onSave(name.ifBlank { result.title }, result.url, username, password)
+                is OpdsCheck.Failed -> failure = result.failure
+            }
+            checking = false
+        }
+    }
+    val requestAccess = rememberLocalNetworkRequest { granted ->
+        accessDenied = !granted
+        if (granted) runCheck()
+    }
+    // "Find on my network": servers appear as the scan finds them; tapping one fills the fields.
+    var scanning by remember { mutableStateOf(false) }
+    var found by remember { mutableStateOf<List<OpdsServerFound>?>(null) }
+    fun scan() {
+        found = emptyList()
+        scanning = true
+        scope.launch {
+            try {
+                onDiscover().collect { server -> found = (found.orEmpty() + server).sortedWith(compareBy({ it.host.substringAfterLast('.').toIntOrNull() ?: 0 }, { it.port })) }
+            } finally {
+                scanning = false
+            }
+        }
+    }
+    val requestScan = rememberLocalNetworkRequest { granted ->
+        accessDenied = !granted
+        if (granted) scan()
+    }
     val clearLogin = username.isNotBlank() && !secure
     AlertDialog(
         onDismissRequest = { if (!checking) onDismiss() },
@@ -323,6 +391,46 @@ private fun CatalogEditor(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedButton(
+                    enabled = !checking && !scanning,
+                    onClick = { if (context.hasLocalNetworkAccess()) scan() else requestScan() },
+                    shapes = morphingButtonShapes(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Outlined.Wifi, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                    Text(stringResource(R.string.opds_discover), modifier = Modifier.padding(start = Spacing.sm))
+                }
+                if (scanning) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        VayanaLoadingIndicator(modifier = Modifier.size(Sizes.icon))
+                        Text(stringResource(R.string.opds_discovering), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                found?.let { servers ->
+                    if (servers.isEmpty() && !scanning) {
+                        Text(
+                            stringResource(R.string.opds_discover_none),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (servers.isNotEmpty()) {
+                        Text(stringResource(R.string.opds_discovered_title), style = MaterialTheme.typography.labelLarge)
+                        servers.forEach { server ->
+                            DiscoveredServerRow(server) {
+                                host = server.host
+                                port = if (server.port == HttpPort) "" else server.port.toString()
+                                secure = false
+                                secureChosen = true
+                                path = DefaultOpdsPath
+                                if (name.isBlank()) name = server.title ?: server.host
+                                failure = null
+                                invalid = false
+                                found = null
+                            }
+                        }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     OutlinedTextField(
                         value = host,
@@ -435,6 +543,13 @@ private fun CatalogEditor(
                         Text(stringResource(R.string.opds_checking), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
+                if (accessDenied && !context.hasLocalNetworkAccess()) {
+                    Text(
+                        stringResource(R.string.opds_local_network_denied),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 failure?.let {
                     Text(
                         stringResource(it.messageRes()),
@@ -459,18 +574,9 @@ private fun CatalogEditor(
                         url.isEmpty() -> invalid = true
                         // Already told it doesn't answer: the second tap keeps it anyway (a server that is off for now).
                         failure != null -> invalid = !onSave(name, url, username, password)
-                        else -> {
-                            checking = true
-                            scope.launch {
-                                when (val result = onCheck(url, username, password)) {
-                                    is OpdsCheck.Ok ->
-                                        // The working address (a bare server gains its /opds) and the catalogue's own name.
-                                        invalid = !onSave(name.ifBlank { result.title }, result.url, username, password)
-                                    is OpdsCheck.Failed -> failure = result.failure
-                                }
-                                checking = false
-                            }
-                        }
+                        // Android 17 times out any home-network address until local network access is allowed.
+                        isLocalAddress(url) && !context.hasLocalNetworkAccess() -> requestAccess()
+                        else -> runCheck()
                     }
                 },
             ) {
@@ -492,24 +598,50 @@ private fun CatalogEditor(
 fun OpdsBrowseRoute(
     onBack: () -> Unit,
     onImported: () -> Unit,
+    onOpenBook: (Long) -> Unit,
     viewModel: OpdsBrowseViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val library by viewModel.library.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.imported.collect { onImported() } }
     BackHandler(enabled = state.canGoUp) { viewModel.up() }
-    val listState = rememberLazyListState()
-    val nearEnd by remember(listState) {
+    val grid by viewModel.grid.collectAsStateWithLifecycle()
+    // One grid serves both views (a list is a one-column grid) and every folder.
+    val gridState = rememberLazyGridState()
+    val nearEnd by remember(gridState) {
         derivedStateOf {
-            val info = listState.layoutInfo
+            val info = gridState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
             info.totalItemsCount > 0 && last >= info.totalItemsCount - LoadMoreThreshold
         }
     }
     val loadMore by rememberUpdatedState(viewModel::loadMore)
     LaunchedEffect(nearEnd, state.hasNext) { if (nearEnd && state.hasNext) loadMore() }
+    // Remember where each folder was scrolled to (per view: a list and a grid number their items differently), so
+    // going back lands where the reader left.
+    val scrollPositions = remember { mutableMapOf<String, Pair<Int, Int>>() }
+    LaunchedEffect(state.levelKey, state.loading, grid) {
+        if (state.loading) return@LaunchedEffect
+        val key = "${state.levelKey}|$grid"
+        val (index, offset) = scrollPositions[key] ?: (0 to 0)
+        gridState.scrollToItem(index, offset)
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .collect { scrollPositions[key] = it }
+    }
     var query by rememberSaveable { mutableStateOf("") }
     val focus = LocalFocusManager.current
+    val context = LocalContext.current
+    var accessDenied by remember { mutableStateOf(false) }
+    val catalogUrl = state.catalog?.url
+    val requestAccess = rememberLocalNetworkRequest { granted ->
+        accessDenied = !granted
+        if (granted) viewModel.retry()
+    }
+    // A home-network catalogue can't be reached on Android 17 until local network access is allowed.
+    LaunchedEffect(catalogUrl) {
+        if (catalogUrl != null && isLocalAddress(catalogUrl) && !context.hasLocalNetworkAccess()) requestAccess()
+    }
 
     Scaffold(
         topBar = {
@@ -521,11 +653,20 @@ fun OpdsBrowseRoute(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.opds_back))
                     }
                 },
+                actions = {
+                    IconButton(onClick = { viewModel.setGrid(!grid) }) {
+                        Icon(
+                            if (grid) Icons.Outlined.ViewList else Icons.Outlined.GridView,
+                            contentDescription = stringResource(if (grid) R.string.opds_view_list else R.string.opds_view_grid),
+                        )
+                    }
+                },
             )
         },
     ) { padding ->
-        PagedLazyColumn(
-            state = listState,
+        PagedLazyVerticalGrid(
+            state = gridState,
+            columns = if (grid) GridCells.Adaptive(minSize = Sizes.libraryGridCoverWidthMin) else GridCells.Fixed(1),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = Paddings.screenHorizontal,
@@ -533,10 +674,11 @@ fun OpdsBrowseRoute(
                 top = padding.calculateTopPadding(),
                 bottom = padding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
             ),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(if (grid) Spacing.lg else Spacing.md),
         ) {
             if (state.canSearch) {
-                item(key = "search") {
+                item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
@@ -563,26 +705,39 @@ fun OpdsBrowseRoute(
                 }
             }
             when {
-                state.loading -> item { Loading(R.string.opds_loading) }
-                state.failure != null -> item {
+                state.loading -> item(span = { GridItemSpan(maxLineSpan) }) { Loading(R.string.opds_loading) }
+                state.failure != null -> item(span = { GridItemSpan(maxLineSpan) }) {
+                    val blocked = catalogUrl != null && isLocalAddress(catalogUrl) && !context.hasLocalNetworkAccess()
                     Message(
-                        text = stringResource(state.failure!!.messageRes()),
+                        text = stringResource(if (blocked) R.string.opds_local_network_denied else state.failure!!.messageRes()),
                         actionLabel = stringResource(R.string.opds_retry),
-                        onAction = viewModel::retry,
+                        onAction = if (blocked) requestAccess else viewModel::retry,
                     )
                 }
-                state.entries.isEmpty() -> item { Message(stringResource(R.string.opds_empty_folder)) }
+                state.entries.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) { Message(stringResource(R.string.opds_empty_folder)) }
                 else -> {
-                    items(state.entries, key = { it.id }) { entry ->
-                        EntryRow(
-                            entry = entry,
-                            cachedCover = viewModel::cachedCover,
-                            loadCover = viewModel::cover,
-                            onClick = { if (entry.isBook) viewModel.select(entry) else viewModel.openEntry(entry) },
-                            modifier = Modifier.animateItem(),
-                        )
+                    items(
+                        state.entries,
+                        key = { it.id },
+                        // Folders always take a full row; books are tiles in the grid and rows in the list.
+                        span = { entry -> if (grid && entry.isBook) GridItemSpan(1) else GridItemSpan(maxLineSpan) },
+                    ) { entry ->
+                        val inLibrary = entry.isBook && library.find(entry.title, entry.author) != null
+                        val open = { if (entry.isBook) viewModel.select(entry) else viewModel.openEntry(entry) }
+                        if (grid && entry.isBook) {
+                            BookTile(entry, inLibrary, viewModel::cachedCover, viewModel::cover, open, Modifier.animateItem())
+                        } else {
+                            EntryRow(
+                                entry = entry,
+                                inLibrary = inLibrary,
+                                cachedCover = viewModel::cachedCover,
+                                loadCover = viewModel::cover,
+                                onClick = open,
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
-                    if (state.loadingMore) item { Loading(R.string.opds_loading_more) }
+                    if (state.loadingMore) item(span = { GridItemSpan(maxLineSpan) }) { Loading(R.string.opds_loading_more) }
                 }
             }
         }
@@ -590,6 +745,11 @@ fun OpdsBrowseRoute(
     selection?.let { current ->
         BookSheet(
             selection = current,
+            libraryBookId = library.find(current.entry.title, current.entry.author),
+            onOpenBook = { bookId ->
+                viewModel.close()
+                onOpenBook(bookId)
+            },
             cachedCover = viewModel::cachedCover,
             loadCover = viewModel::cover,
             onDownload = viewModel::download,
@@ -599,9 +759,44 @@ fun OpdsBrowseRoute(
     }
 }
 
+/** A book as a cover tile: the cover, a tick when it is already in the library, then title and author. */
+@Composable
+private fun BookTile(
+    entry: OpdsEntry,
+    inLibrary: Boolean,
+    cachedCover: (String) -> ImageBitmap?,
+    loadCover: suspend (String) -> ImageBitmap?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.clip(RoundedCornerShape(Radii.small)).clickable(onClick = onClick)) {
+        Box {
+            Cover(entry.thumbnailUrl, entry.title, cachedCover, loadCover, Modifier.fillMaxWidth())
+            if (inLibrary) InLibraryBadge(Modifier.align(Alignment.TopEnd).padding(Spacing.xs))
+        }
+        Text(
+            text = entry.title,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+        entry.author?.let { author ->
+            Text(
+                text = author,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @Composable
 private fun EntryRow(
     entry: OpdsEntry,
+    inLibrary: Boolean,
     cachedCover: (String) -> ImageBitmap?,
     loadCover: suspend (String) -> ImageBitmap?,
     onClick: () -> Unit,
@@ -620,7 +815,10 @@ private fun EntryRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (entry.isBook) {
-                Cover(entry.thumbnailUrl, entry.title, cachedCover, loadCover, Modifier.width(Sizes.coverWidthMin))
+                Box {
+                    Cover(entry.thumbnailUrl, entry.title, cachedCover, loadCover, Modifier.width(Sizes.coverWidthMin))
+                    if (inLibrary) InLibraryBadge(Modifier.align(Alignment.TopEnd).padding(Spacing.xs))
+                }
             } else {
                 IconTile(Icons.Outlined.Folder)
             }
@@ -631,7 +829,8 @@ private fun EntryRow(
                 }
                 if (entry.isBook) {
                     Text(
-                        entry.acquisitions.joinToString(" · ") { it.format.name },
+                        (listOfNotNull(stringResource(R.string.gutenberg_in_library).takeIf { inLibrary }) +
+                            entry.acquisitions.map { it.format.name }).joinToString(" · "),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -648,6 +847,19 @@ private fun EntryRow(
                 }
             }
         }
+    }
+}
+
+/** A tick on the cover of a book the library already has. */
+@Composable
+private fun InLibraryBadge(modifier: Modifier = Modifier) {
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = modifier) {
+        Icon(
+            imageVector = Icons.Outlined.Check,
+            contentDescription = stringResource(R.string.gutenberg_in_library),
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.padding(Spacing.xs).size(Sizes.iconSmall),
+        )
     }
 }
 
@@ -680,6 +892,8 @@ private fun Cover(
 @Composable
 private fun BookSheet(
     selection: OpdsSelection,
+    libraryBookId: Long?,
+    onOpenBook: (Long) -> Unit,
     cachedCover: (String) -> ImageBitmap?,
     loadCover: suspend (String) -> ImageBitmap?,
     onDownload: (OpdsAcquisition) -> Unit,
@@ -719,6 +933,23 @@ private fun BookSheet(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+            }
+            if (libraryBookId != null) {
+                // Already imported: say so, and offer to open it rather than download a second copy.
+                Surface(shape = RoundedCornerShape(Radii.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = Spacing.md, top = Spacing.xs, bottom = Spacing.xs, end = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                        Text(
+                            stringResource(R.string.gutenberg_in_library),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm),
+                        )
+                        TextButton(onClick = { onOpenBook(libraryBookId) }) { Text(stringResource(R.string.gutenberg_open_in_library)) }
                     }
                 }
             }
@@ -797,6 +1028,7 @@ private fun OpdsFailure.messageRes(): Int = when (this) {
 }
 
 private const val LoadMoreThreshold = 6
+private const val HttpPort = 80
 private const val HostWeight = 0.68f
 private const val PortWeight = 0.32f
 private const val MaxPortDigits = 5

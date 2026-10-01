@@ -80,6 +80,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vayana.core.common.LibraryIndex
 import com.vayana.core.designsystem.component.VayanaDropdownMenu
 import com.vayana.core.designsystem.component.VayanaLoadingIndicator
 import com.vayana.core.designsystem.component.VayanaMenuGroup

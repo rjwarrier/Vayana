@@ -154,4 +154,52 @@ class OpdsFeedsTest {
         assertFalse(looksLikeLocalServer("books.example.com"))
         assertFalse(looksLikeLocalServer(""))
     }
+
+    private fun fixture(name: String) = checkNotNull(javaClass.getResourceAsStream("/$name")).readBytes().toString(Charsets.UTF_8)
+
+    @Test
+    fun readsARealCalibreRootFeed() {
+        val feed = OpdsFeeds.parseFeed(fixture("calibre-root.xml"), "http://192.168.1.105:8080/opds")
+        assertEquals("calibre Library", feed.title)
+        assertTrue(feed.entries.isNotEmpty() && feed.entries.none { it.isBook })
+        assertEquals("http://192.168.1.105:8080/opds/navcatalog/4f6e6577657374?library_id=Books", feed.entries.first().navigationUrl)
+        assertEquals(
+            OpdsSearch.Template("http://192.168.1.105:8080/opds/search/{searchTerms}?library_id=Books"),
+            feed.search,
+        )
+    }
+
+    @Test
+    fun readsARealCalibreBookPage() {
+        val feed = OpdsFeeds.parseFeed(fixture("calibre-newest.xml"), "http://192.168.1.105:8080/opds/navcatalog/4f6e6577657374?library_id=Books")
+        assertEquals("http://192.168.1.105:8080/opds/navcatalog/4f6e6577657374?library_id=Books&offset=30", feed.nextUrl)
+        val book = feed.entries.first()
+        assertTrue(book.isBook)
+        assertEquals("The Order of Time", book.title)
+        assertEquals("Rovelli, Carlo", book.author)
+        assertEquals("http://192.168.1.105:8080/get/epub/312/Books", book.acquisitions.single().url)
+        assertEquals(5127436L, book.acquisitions.single().sizeBytes)
+        assertEquals("http://192.168.1.105:8080/get/thumb/312/Books", book.thumbnailUrl)
+        assertEquals(
+            "http://192.168.1.105:8080/opds/search/war%20%26%20peace?library_id=Books",
+            OpdsFeeds.searchUrl("http://192.168.1.105:8080/opds/search/{searchTerms}?library_id=Books", "war & peace", "http://x/"),
+        )
+    }
+
+    @Test
+    fun discoveryScansTheOtherAddressesOfThePhonesSubnet() {
+        val hosts = OpdsDiscovery.subnetHosts(byteArrayOf(192.toByte(), 168.toByte(), 1, 109))
+        assertEquals(253, hosts.size)
+        assertEquals("192.168.1.1", hosts.first())
+        assertEquals("192.168.1.254", hosts.last())
+        assertFalse("192.168.1.109" in hosts)
+        assertTrue(OpdsDiscovery.subnetHosts(byteArrayOf(1, 2)).isEmpty())
+    }
+
+    @Test
+    fun discoveryReadsTheFeedsOwnTitleFromTheFirstBytes() {
+        val head = fixture("calibre-root.xml").take(4096)
+        assertEquals("calibre Library", OpdsDiscovery.feedTitle(head))
+        assertNull(OpdsDiscovery.feedTitle("<feed><title> </title>"))
+    }
 }

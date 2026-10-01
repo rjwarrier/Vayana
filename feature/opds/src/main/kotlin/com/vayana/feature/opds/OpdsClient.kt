@@ -46,10 +46,12 @@ class OpdsClient @Inject constructor(
     private val missingCovers = object : LruCache<String, Boolean>(MissingCoverEntries) {}
     private val coverDownloads = Semaphore(ConcurrentCoverDownloads)
     private val feeds = object : LruCache<String, CachedFeed>(FeedCacheEntries) {}
+    private val searchTemplates = object : LruCache<String, String>(SearchTemplateEntries) {}
 
     /** Drops what is remembered of catalogues, after one was edited or removed. */
     fun forget() {
         feeds.evictAll()
+        searchTemplates.evictAll()
         covers.evictAll()
         missingCovers.evictAll()
     }
@@ -66,7 +68,8 @@ class OpdsClient @Inject constructor(
         if (!refresh) feeds.get(key)?.takeIf { now - it.fetchedAt < FeedCacheMillis }?.let { return it.feed }
         val xml = get(catalog, url, MaxFeedBytes).toString(Charsets.UTF_8)
         val parsed = try {
-            OpdsFeeds.parseFeed(xml, url)
+            // A big catalogue page is megabytes of XML: parse it where the bytes were read, not on the main thread.
+            withContext(dispatchers.io) { OpdsFeeds.parseFeed(xml, url) }
         } catch (error: Exception) {
             if (error is kotlinx.coroutines.CancellationException) throw error
             throw OpdsException(OpdsFailure.NOT_A_CATALOGUE, "Not an OPDS feed", error)
@@ -104,9 +107,10 @@ class OpdsClient @Inject constructor(
     suspend fun searchUrl(catalog: OpdsCatalog, search: OpdsSearch, terms: String): String? {
         val template = when (search) {
             is OpdsSearch.Template -> search.template
-            is OpdsSearch.Description -> OpdsFeeds.searchTemplateFromDescription(
-                get(catalog, search.url, MaxFeedBytes).toString(Charsets.UTF_8),
-            )
+            // The description never changes while browsing: read it once, not on every search.
+            is OpdsSearch.Description -> searchTemplates.get(search.url) ?: withContext(dispatchers.io) {
+                OpdsFeeds.searchTemplateFromDescription(get(catalog, search.url, MaxFeedBytes).toString(Charsets.UTF_8))
+            }?.also { searchTemplates.put(search.url, it) }
         } ?: return null
         val base = (search as? OpdsSearch.Description)?.url ?: catalog.url
         return OpdsFeeds.searchUrl(template, terms, base)
@@ -122,9 +126,11 @@ class OpdsClient @Inject constructor(
                 withContext(dispatchers.io) { decode(bytes) }
             } catch (error: IOException) {
                 currentCoroutineContext().ensureActive()
+                // Only a cover the server says is gone is remembered as missing; a timeout is worth asking again.
+                if (error.message == "HTTP 404" || error.message == "HTTP 410") missingCovers.put(key, true)
                 null
             }
-            if (bitmap != null) covers.put(key, bitmap) else missingCovers.put(key, true)
+            if (bitmap != null) covers.put(key, bitmap)
             bitmap
         }
     }
@@ -140,38 +146,41 @@ class OpdsClient @Inject constructor(
         val target = File(directory, "${fileStem(entry)}.${acquisition.format.extension}")
         val part = File(directory, "${target.name}.part")
         part.delete()
-        withConnection(catalog, acquisition.url) { connection ->
-            val total = acquisition.sizeBytes ?: connection.contentLengthLong.takeIf { it > 0 } ?: -1L
-            if (total > MaxBookBytes) throw IOException("Book is too large")
-            connection.inputStream.use { input ->
-                FileOutputStream(part).use { output ->
-                    val buffer = ByteArray(DownloadBufferBytes)
-                    var done = 0L
-                    var reported = -1
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        done += read
-                        if (done > MaxBookBytes) throw IOException("Book is too large")
-                        output.write(buffer, 0, read)
-                        // Whole percents only: a big book would otherwise update the screen hundreds of times.
-                        val percent = if (total > 0) (done * 100 / total).toInt().coerceIn(0, 100) else -1
-                        if (percent > reported) {
-                            reported = percent
-                            if (percent >= 0) onProgress(percent / 100f)
+        try {
+            withConnection(catalog, acquisition.url) { connection ->
+                val total = acquisition.sizeBytes ?: connection.contentLengthLong.takeIf { it > 0 } ?: -1L
+                if (total > MaxBookBytes) throw IOException("Book is too large")
+                connection.inputStream.use { input ->
+                    FileOutputStream(part).use { output ->
+                        val buffer = ByteArray(DownloadBufferBytes)
+                        var done = 0L
+                        var reported = -1
+                        while (true) {
+                            currentCoroutineContext().ensureActive()
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            done += read
+                            if (done > MaxBookBytes) throw IOException("Book is too large")
+                            output.write(buffer, 0, read)
+                            // Whole percents only: a big book would otherwise update the screen hundreds of times.
+                            val percent = if (total > 0) (done * 100 / total).toInt().coerceIn(0, 100) else -1
+                            if (percent > reported) {
+                                reported = percent
+                                if (percent >= 0) onProgress(percent / 100f)
+                            }
                         }
                     }
                 }
             }
-        }
-        if (part.length() == 0L) {
+            if (part.length() == 0L) throw IOException("Empty download")
+            target.delete()
+            if (!part.renameTo(target)) throw IOException("Could not save the book")
+            target
+        } catch (error: Throwable) {
+            // Cancelled, offline or too large: a half-written book must not sit in the cache.
             part.delete()
-            throw IOException("Empty download")
+            throw error
         }
-        target.delete()
-        if (!part.renameTo(target)) throw IOException("Could not save the book")
-        target
     }
 
     // Callers run on the main thread (view models): blocking network reads belong on the IO dispatcher.
@@ -204,9 +213,12 @@ class OpdsClient @Inject constructor(
             }
             // responseCode and reads block; disconnecting wakes them when the screen moves on to something else.
             val closeOnCancel = currentCoroutineContext()[Job]?.invokeOnCompletion { connection.disconnect() }
+            // A finished response (its stream read to the end and closed) leaves the socket for the next request to the
+            // same server: a screenful of covers shouldn't pay for a new connection each.
+            var finished = false
             try {
                 when (val status = connection.responseCode) {
-                    HttpURLConnection.HTTP_OK -> return block(connection)
+                    HttpURLConnection.HTTP_OK -> return block(connection).also { finished = true }
                     in RedirectCodes -> {
                         val location = connection.getHeaderField("Location")
                             ?: throw OpdsException(OpdsFailure.UNREACHABLE, "Redirect without a location")
@@ -228,7 +240,7 @@ class OpdsClient @Inject constructor(
                 throw OpdsException(OpdsFailure.UNREACHABLE, error.message ?: "Network error", error)
             } finally {
                 closeOnCancel?.dispose()
-                connection.disconnect()
+                if (!finished) connection.disconnect()
             }
         }
         throw OpdsException(OpdsFailure.UNREACHABLE, "Too many redirects")
@@ -296,6 +308,7 @@ class OpdsClient @Inject constructor(
         }.getOrDefault(false)
 
         private const val FeedCacheEntries = 24
+        private const val SearchTemplateEntries = 8
         private const val FeedCacheMillis = 5 * 60 * 1000L
     }
 }

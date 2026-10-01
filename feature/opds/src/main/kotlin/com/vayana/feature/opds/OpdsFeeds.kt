@@ -160,7 +160,7 @@ object OpdsFeeds {
         // No DTDs, so no entities. Checked here because Android's parser rejects the Xerces feature that would do it.
         if (DoctypeRegex.containsMatchIn(xml)) throw IllegalArgumentException("Feed has a DTD")
         val builder = synchronized(ParserFactory) { ParserFactory.newDocumentBuilder() }
-        return builder.parse(InputSource(StringReader(xml.trimStart('﻿')))).documentElement
+        return builder.parse(InputSource(StringReader(xml.trimStart('\uFEFF')))).documentElement
     }
 
     private fun Element.children(localName: String): List<Element> {

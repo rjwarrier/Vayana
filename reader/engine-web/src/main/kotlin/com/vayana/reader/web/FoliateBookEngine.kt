@@ -382,6 +382,16 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 append("font-size:inherit !important;")
                 append("}")
             }
+            if (theme.backgroundColorArgb.isDarkColor()) {
+                // A book can hard-code dark text (a class, an inline style) that body's colour does not reach, which
+                // is unreadable on a dark page. Every element takes the theme's light text instead, and loses the
+                // light box behind it that the dark text was written for.
+                append("body *{color:inherit !important;}")
+                append("body :where(div,p,span,section,article,aside,blockquote,li,ul,ol,dl,dt,dd,table,thead,tbody,tr,td,th,")
+                append("pre,code,figure,figcaption,header,footer,main,nav,h1,h2,h3,h4,h5,h6,a,em,strong,i,b,small,sup,sub,mark,cite){")
+                append("background-color:transparent !important;")
+                append("}")
+            }
             if (style.boldText) {
                 // Inherited, so the body alone reaches every letter; each keeps its own colour.
                 append("body{-webkit-text-stroke:$BoldTextStrokePx currentColor !important;}")
@@ -862,4 +872,12 @@ private fun String.toAnnotationColor(): String = when (lowercase()) {
     "pink" -> "#D77FA1"
     "popular" -> "#6366F1"
     else -> "#6366F1"
+}
+
+/** A page colour whose luminance is below half: the dark themes, where light text is the only readable choice. */
+internal fun Int.isDarkColor(): Boolean {
+    val red = (this shr 16 and 0xFF) / 255.0
+    val green = (this shr 8 and 0xFF) / 255.0
+    val blue = (this and 0xFF) / 255.0
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.5
 }

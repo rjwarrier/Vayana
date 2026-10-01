@@ -1,10 +1,10 @@
-package com.vayana.feature.gutenberg
+package com.vayana.core.common
 
 import java.text.Normalizer
 import java.util.LinkedHashMap
 
 /**
- * The library's books, keyed for spotting a Gutenberg book already in it. Gutenberg's titles and those in its EPUBs
+ * The library's books, keyed for spotting a catalogue book (Project Gutenberg, an OPDS server) already in it. Gutenberg's titles and those in its EPUBs
  * agree once case, accents, punctuation and subtitles ("Frankenstein; or, the modern prometheus") are set aside;
  * where both sides name an author, one surname-length word must also be shared, so two different "Poems" don't match.
  */
@@ -20,8 +20,11 @@ class LibraryIndex(books: List<LibraryBook>) {
     }
 
     /** The library book this Gutenberg book is, or null. */
-    fun find(gutenbergId: Long, title: String, author: String?): Long? {
-        byGutenbergId[gutenbergId]?.let { return it }
+    fun find(gutenbergId: Long, title: String, author: String?): Long? =
+        byGutenbergId[gutenbergId] ?: find(title, author)
+
+    /** The library book with this title and (when both sides name one) a shared author word, or null. */
+    fun find(title: String, author: String?): Long? {
         val lookup = Lookup(title, author)
         synchronized(matches) { if (matches.containsKey(lookup)) return matches[lookup] }
         val candidates = byTitle[titleKey(title)]

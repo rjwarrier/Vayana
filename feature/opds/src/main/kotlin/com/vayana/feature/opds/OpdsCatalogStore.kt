@@ -88,6 +88,16 @@ class OpdsCatalogStore @Inject constructor(@ApplicationContext context: Context)
     private val _catalogs = MutableStateFlow(load())
     val catalogs: StateFlow<List<OpdsCatalog>> = _catalogs.asStateFlow()
 
+    private val _gridView = MutableStateFlow(preferences.getBoolean(GridKey, true))
+
+    /** Browse as a grid of covers (default) or as a list; one choice for every catalogue. */
+    val gridView: StateFlow<Boolean> = _gridView.asStateFlow()
+
+    fun setGridView(grid: Boolean) {
+        _gridView.value = grid
+        preferences.edit().putBoolean(GridKey, grid).apply()
+    }
+
     fun find(id: String): OpdsCatalog? = _catalogs.value.firstOrNull { it.id == id }
 
     /** Adds a catalogue, or replaces the one with the same id. */
@@ -134,5 +144,6 @@ class OpdsCatalogStore @Inject constructor(@ApplicationContext context: Context)
 
     private companion object {
         const val Key = "catalogs"
+        const val GridKey = "grid_view"
     }
 }

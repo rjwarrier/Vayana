@@ -572,6 +572,7 @@ async function open(bookUrl, lastLocatorCfi) {
             post('log', { step: 'view.init pending', openedBy: openSource })
         }
 
+        if (!fixedLayout) await assertChaptersReadable(view.book)
         hasOpened = true
         pendingPdfPassword = null
         post('opened', {
@@ -598,6 +599,25 @@ async function open(bookUrl, lastLocatorCfi) {
     } finally {
         clearInterval(watchdog)
     }
+}
+
+/**
+ * A damaged EPUB (a truncated download, a zip whose chapters were lost) still has a package file listing its chapters,
+ * so it opens, and then shows a blank page with no hint why. If none of the first chapters can be read, say so.
+ */
+async function assertChaptersReadable(book) {
+    const sections = (book?.sections ?? []).filter(section => section.linear !== 'no').slice(0, 3)
+    if (!sections.length) return
+    let readable = false
+    for (const section of sections) {
+        try {
+            if (await section.load()) {
+                readable = true
+                break
+            }
+        } catch (_) {}
+    }
+    if (!readable) throw new Error('The book file is damaged: its chapters are missing. Try getting or exporting it again.')
 }
 
 /**
@@ -779,6 +799,7 @@ function layoutPopularBadges() {
 }
 
 window.addEventListener('resize', scheduleBadgeLayout)
+window.addEventListener('vayana-ink-marks', scheduleBadgeLayout)
 
 /**
  * A Foliate overlayer belongs to one loaded document and is discarded with it.
@@ -1414,7 +1435,8 @@ let inkMarks = false
 
 function setInkMarks(enabled) {
     inkMarks = Boolean(enabled)
-    scheduleBadgeLayout()
+    // The community count pills are drawn in the ink colour too: have them redrawn.
+    globalThis.dispatchEvent?.(new Event('vayana-ink-marks'))
 }
 
 function markColor(color) {

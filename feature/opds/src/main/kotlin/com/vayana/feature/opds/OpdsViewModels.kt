@@ -6,6 +6,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.common.IncomingBookFiles
+import com.vayana.core.common.LibraryBook
+import com.vayana.core.common.LibraryIndex
+import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.common.runCatchingCancellable
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -13,6 +16,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -28,8 +35,12 @@ sealed interface OpdsCheck {
 class OpdsCatalogsViewModel @Inject constructor(
     private val store: OpdsCatalogStore,
     private val client: OpdsClient,
+    private val discovery: OpdsDiscovery,
 ) : ViewModel() {
     val catalogs: StateFlow<List<OpdsCatalog>> = store.catalogs
+
+    /** Servers answering on the home network, as they are found. */
+    fun discover() = discovery.scan()
 
     /** Asks the server before saving, so a typo or a wrong login is caught while the editor is still open. */
     suspend fun check(id: String?, url: String, username: String, password: String): OpdsCheck {
@@ -93,6 +104,8 @@ private data class OpdsLevel(
 
 data class OpdsBrowseState(
     val catalog: OpdsCatalog? = null,
+    /** Identifies the folder on screen, so the list can keep a scroll position for each. */
+    val levelKey: String = "",
     val title: String = "",
     val canGoUp: Boolean = false,
     val entries: List<OpdsEntry> = emptyList(),
@@ -115,12 +128,25 @@ class OpdsBrowseViewModel @Inject constructor(
     private val store: OpdsCatalogStore,
     private val client: OpdsClient,
     private val incomingBookFiles: IncomingBookFiles,
+    bookRepository: BookRepository,
 ) : ViewModel() {
+    /** The library, to mark the catalogue books already in it. */
+    val library: StateFlow<LibraryIndex> = bookRepository.observeAll()
+        .map { books -> books.map { LibraryBook(it.id, it.title, it.author) } }
+        // Reading progress rewrites Book rows constantly; only identity matters here, so skip those emissions.
+        .distinctUntilChanged()
+        .map(::LibraryIndex)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), LibraryIndex.Empty)
+
     private val catalog: OpdsCatalog? = savedState.get<String>(CatalogIdKey)?.let(store::find)
 
     private val levels = ArrayDeque<OpdsLevel>()
     private val _state = MutableStateFlow(OpdsBrowseState(catalog = catalog, title = catalog?.name.orEmpty()))
     val state: StateFlow<OpdsBrowseState> = _state.asStateFlow()
+
+    val grid: StateFlow<Boolean> = store.gridView
+
+    fun setGrid(grid: Boolean) = store.setGridView(grid)
 
     private val _selection = MutableStateFlow<OpdsSelection?>(null)
     val selection: StateFlow<OpdsSelection?> = _selection.asStateFlow()
@@ -285,6 +311,7 @@ class OpdsBrowseViewModel @Inject constructor(
         val level = levels.lastOrNull() ?: return
         _state.update {
             it.copy(
+                levelKey = level.url,
                 title = level.title,
                 canGoUp = levels.size > 1,
                 entries = level.entries,
@@ -299,5 +326,6 @@ class OpdsBrowseViewModel @Inject constructor(
     companion object {
         const val CatalogIdKey = "catalogId"
         private const val Tag = "Opds"
+        private const val StopTimeoutMillis = 5_000L
     }
 }
