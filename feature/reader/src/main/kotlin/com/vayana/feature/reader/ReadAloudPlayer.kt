@@ -39,6 +39,9 @@ internal class ReadAloudPlayer(
     val engines: StateFlow<List<SpeechEngineOption>> = output.engines
 
     private var queue: List<SpeechUtterance> = emptyList()
+    private var sourceSentences: List<SpeechSentence> = emptyList()
+    private var pronunciations: List<SpeechPronunciation> = emptyList()
+    private var pronouncer = SpeechPronouncer(emptyList())
     private var indexById = mutableMapOf<String, Int>()
     private var position = 0
     private var playbackGeneration = 0L
@@ -151,6 +154,7 @@ internal class ReadAloudPlayer(
         resumeOnFocusGain = false
         val wasActive = _state.value.active
         queue = emptyList()
+        sourceSentences = emptyList()
         indexById.clear()
         position = 0
         enqueued = -1
@@ -198,6 +202,22 @@ internal class ReadAloudPlayer(
         if (_state.value.playing) speakFromPosition()
     }
 
+    fun setPronunciations(rules: List<SpeechPronunciation>) {
+        val next = normalizedPronunciations(rules)
+        if (next == pronunciations) return
+        pronunciations = next
+        pronouncer = SpeechPronouncer(next)
+        val current = queue.getOrNull(position)
+        val sourceStart = current?.sourceRange(0, 1)?.first ?: 0
+        queue = sourceSentences.flatMap { it.splitForSpeech(pronouncer) }
+        position = queue.indexOfFirst {
+            it.sourceId == current?.sourceId && it.sourceRange(0, it.text.length).second > sourceStart
+        }.coerceAtLeast(0)
+        indexById.clear()
+        output.stop()
+        if (_state.value.playing && queue.isNotEmpty()) speakFromPosition()
+    }
+
     fun cycleSleepTimer() {
         val minutes = SleepTimerSteps[(SleepTimerSteps.indexOf(_state.value.sleepTimerMinutes) + 1) % SleepTimerSteps.size]
         sleepJob?.cancel()
@@ -219,6 +239,12 @@ internal class ReadAloudPlayer(
     override fun onStart(utteranceId: String) {
         scope.launch {
             if (!_state.value.playing) return@launch
+            if (utteranceId.endsWith(":pause")) {
+                // A pause belongs to the upcoming sentence. Pausing/focus loss during it must resume that
+                // sentence, rather than replaying the preceding paragraph. No highlighting occurs here.
+                indexById[utteranceId.removeSuffix(":pause")]?.let { position = it }
+                return@launch
+            }
             val index = indexById[utteranceId] ?: return@launch
             position = index
             // The engine was fed only a few sentences ahead; keep it that far ahead as reading moves on.
@@ -231,8 +257,8 @@ internal class ReadAloudPlayer(
             if (range != null && !range.isEmpty()) {
                 engine()?.markSpeech(
                     utterance.sourceId,
-                    utterance.sourceOffset + range.first,
-                    utterance.sourceOffset + range.last + 1,
+                    utterance.sourceRange(range.first, range.last + 1).first,
+                    utterance.sourceRange(range.first, range.last + 1).second,
                 )
             }
         }
@@ -249,8 +275,8 @@ internal class ReadAloudPlayer(
             if (safeStart == safeEnd) return@launch
             engine()?.markSpeech(
                 utterance.sourceId,
-                utterance.sourceOffset + safeStart,
-                utterance.sourceOffset + safeEnd,
+                utterance.sourceRange(safeStart, safeEnd).first,
+                utterance.sourceRange(safeStart, safeEnd).second,
             )
         }
     }
@@ -289,7 +315,8 @@ internal class ReadAloudPlayer(
     }
 
     private fun load(chunk: SpeechChunk) {
-        queue = chunk.sentences.flatMap { it.splitForSpeech() }
+        sourceSentences = chunk.sentences
+        queue = sourceSentences.flatMap { it.splitForSpeech(pronouncer) }
         indexById.clear()
         position = 0
         enqueued = -1
@@ -343,6 +370,11 @@ internal class ReadAloudPlayer(
             val utterance = queue[enqueued]
             val id = "$playbackGeneration-$queueGeneration|${utterance.id}"
             indexById[id] = enqueued
+            // Do not repeat the paragraph pause when resuming/skipping directly to a sentence. Silence IDs
+            // are deliberately absent from indexById: their callbacks cannot mark words or advance chapters.
+            if (utterance.pauseBeforeMs > 0 && !first) {
+                output.silence("$id:pause", utterance.pauseBeforeMs, flush = false)
+            }
             output.speak(id, utterance.text, flush = first)
             first = false
         }
@@ -350,26 +382,48 @@ internal class ReadAloudPlayer(
 }
 
 /** Splits a sentence longer than one utterance may be into parts whose ids keep the sentence id before [PartSeparator]. */
-private data class SpeechUtterance(
+internal data class SpeechUtterance(
     val id: String,
     val text: String,
     val sourceId: String,
     val sourceOffset: Int,
-)
+    val pauseBeforeMs: Long = 0,
+    val pronounced: PronouncedSpeechText = PronouncedSpeechText(text),
+) {
+    fun sourceRange(start: Int, end: Int): Pair<Int, Int> = pronounced.sourceRange(sourceOffset + start, sourceOffset + end)
+}
 
-private fun SpeechSentence.splitForSpeech(): List<SpeechUtterance> =
-    if (text.length <= MaxUtteranceChars) {
-        listOf(SpeechUtterance(id = id, text = text, sourceId = id, sourceOffset = 0))
-    } else {
-        text.chunked(MaxUtteranceChars).mapIndexed { part, partText ->
-            SpeechUtterance(
-                id = "$id$PartSeparator$part",
-                text = partText,
-                sourceId = id,
-                sourceOffset = part * MaxUtteranceChars,
-            )
+internal fun SpeechSentence.splitForSpeech(pronunciations: List<SpeechPronunciation> = emptyList()): List<SpeechUtterance> =
+    splitForSpeech(SpeechPronouncer(pronunciations))
+
+internal fun SpeechSentence.splitForSpeech(pronouncer: SpeechPronouncer): List<SpeechUtterance> {
+    val pronounced = pronouncer.prepare(this.text)
+    val text = pronounced.text
+    val parts = mutableListOf<SpeechUtterance>()
+    var start = 0
+    while (start < text.length) {
+        var end = minOf(start + MaxUtteranceChars, text.length)
+        if (end < text.length) {
+            // Prefer a clause boundary in the latter half, otherwise split between words. A pathological
+            // token longer than the engine limit still needs a hard split, but never between a surrogate pair.
+            val minimum = start + MaxUtteranceChars / 2
+            val clause = (end - 1 downTo minimum).firstOrNull {
+                text[it].isWhitespace() && text[it - 1] in ",;:!?—"
+            }
+            val space = clause ?: (end - 1 downTo start + 1).firstOrNull { text[it].isWhitespace() }
+            if (space != null) end = space + 1
+            if (Character.isHighSurrogate(text[end - 1]) && Character.isLowSurrogate(text[end])) end--
         }
+        parts += SpeechUtterance(
+            id = if (text.length <= MaxUtteranceChars) id else "$id$PartSeparator${parts.size}",
+            text = text.substring(start, end), sourceId = id, sourceOffset = start,
+            pauseBeforeMs = if (start == 0) pauseBeforeMs else 0,
+            pronounced = pronounced,
+        )
+        start = end
     }
+    return parts
+}
 
 private fun firstSpokenWordRange(text: String): IntRange? = SpokenWordRegex.find(text)?.range
 

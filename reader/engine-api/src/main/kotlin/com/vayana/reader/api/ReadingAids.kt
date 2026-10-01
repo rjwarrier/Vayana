@@ -7,7 +7,7 @@ data class Footnote(val text: String, val href: String)
 data class FootnoteOpened(val footnote: Footnote) : EngineEvent
 
 /** One sentence to read aloud; [id] identifies its source range for word-level highlighting. */
-data class SpeechSentence(val id: String, val text: String)
+data class SpeechSentence(val id: String, val text: String, val pauseBeforeMs: Long = 0)
 
 /** Sentences to read aloud next; [endOfBook] means nothing comes after them. */
 data class SpeechChunk(val sentences: List<SpeechSentence>, val endOfBook: Boolean)

@@ -223,6 +223,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val engineGeneration by viewModel.engineGeneration.collectAsStateWithLifecycle()
     val readAloudVoices by viewModel.readAloudVoices.collectAsStateWithLifecycle()
     val readAloudEngines by viewModel.readAloudEngines.collectAsStateWithLifecycle()
+    val pronunciations by viewModel.pronunciations.collectAsStateWithLifecycle()
     val pdfBookPreferences by viewModel.pdfBookPreferences.collectAsStateWithLifecycle()
     val pdfPasswordPrompt by viewModel.pdfPasswordPrompt.collectAsStateWithLifecycle()
     val pdfThumbnails by viewModel.pdfThumbnails.collectAsStateWithLifecycle()
@@ -238,13 +239,16 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
             onBrowsePages = { showPdfPageBrowser = true },
         )
     }
-    val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines) {
+    val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines, pronunciations) {
         ReadAloudVoiceControls(
             voices = readAloudVoices,
             engines = readAloudEngines,
             onLoad = viewModel::loadReadAloudVoices,
             onVoiceChange = viewModel::updateReadAloudVoice,
             onEngineChange = viewModel::updateReadAloudEngine,
+            pronunciations = pronunciations,
+            onSavePronunciation = viewModel::savePronunciation,
+            onRemovePronunciation = viewModel::removePronunciation,
         )
     }
     val context = LocalContext.current
@@ -3040,6 +3044,7 @@ private fun ReadAloudSettingsPage(
             onValueChangeFinished = onPitchChange,
             subtitle = stringResource(R.string.settings_read_aloud_pitch_subtitle),
         )
+        SpeechPronunciationEditor(controls)
     }
 }
 

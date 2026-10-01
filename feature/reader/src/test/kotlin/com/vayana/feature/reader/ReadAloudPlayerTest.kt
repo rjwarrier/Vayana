@@ -28,6 +28,39 @@ class ReadAloudPlayerTest {
     private val scope = CoroutineScope(Dispatchers.Unconfined)
 
     @Test
+    fun paragraphSilenceDoesNotHighlightOrAdvanceAndIsNotRepeatedOnResume() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("One.", "Two.")))
+        engine.pauses = mapOf("0:1" to 250L)
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        assertEquals(listOf(250L), output.silences.map { it.second })
+        val silenceId = output.silences.single().first
+        output.sendRawStart(silenceId)
+        output.sendRawDone(silenceId)
+        assertTrue(engine.marked.isEmpty())
+        assertEquals(0, engine.nextCalls)
+        player.pause()
+        output.sendRawDone(silenceId)
+        assertEquals(0, engine.nextCalls)
+        player.play()
+        assertEquals(1, output.silences.size)
+        assertEquals(listOf("0:1"), output.queued)
+    }
+
+    @Test
+    fun pronunciationUpdatesRestartCurrentSentenceAndMapWordHighlight() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("Hermione smiled.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        player.setPronunciations(listOf(SpeechPronunciation("Hermione", "her MY oh nee")))
+        assertEquals("her MY oh nee smiled.", output.spoken.last())
+        output.listener!!.onRangeStart("0:0", 14, 20)
+        assertEquals(MarkedSpeech("0:0", 9, 15), engine.marked.last())
+    }
+
+    @Test
     fun readsChapterThenMovesToTheNextAndStopsAtTheEnd() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("One.", "Two."), listOf("Three.")))
@@ -548,7 +581,15 @@ class ReadAloudPlayerTest {
         override fun speak(utteranceId: String, text: String, flush: Boolean) {
             if (flush) rawQueued.clear()
             rawQueued += utteranceId
+            spoken += text
         }
+
+        override fun silence(utteranceId: String, durationMs: Long, flush: Boolean) {
+            silences += utteranceId to durationMs
+        }
+
+        val silences = mutableListOf<Pair<String, Long>>()
+        val spoken = mutableListOf<String>()
 
         private fun runtimeId(sourceId: String): String =
             rawQueued.lastOrNull { it.substringAfter('|') == sourceId } ?: sourceId
@@ -578,6 +619,7 @@ class ReadAloudPlayerTest {
     }
 
     private class FakeEngine(private val chapters: List<List<String>>) : BookEngine {
+        var pauses: Map<String, Long> = emptyMap()
         private var chapter = 0
         val marked = mutableListOf<MarkedSpeech>()
         var startedFrom: String? = null
@@ -605,7 +647,10 @@ class ReadAloudPlayerTest {
 
         private fun chunk(index: Int): SpeechChunk =
             chapters.getOrNull(index)
-                ?.let { sentences -> SpeechChunk(sentences.mapIndexed { n, text -> SpeechSentence("$index:$n", text) }, endOfBook = false) }
+                ?.let { sentences -> SpeechChunk(sentences.mapIndexed { n, text ->
+                    val id = "$index:$n"
+                    SpeechSentence(id, text, pauses[id] ?: 0)
+                }, endOfBook = false) }
                 ?: SpeechChunk(emptyList(), endOfBook = true)
 
         override suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook> =

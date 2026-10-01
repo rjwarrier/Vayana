@@ -57,6 +57,8 @@ internal interface SpeechOutput {
 
     fun speak(utteranceId: String, text: String, flush: Boolean)
 
+    fun silence(utteranceId: String, durationMs: Long, flush: Boolean)
+
     fun setRate(rate: Float)
 
     fun setPitch(pitch: Float)
@@ -93,6 +95,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
     private var selectedVoiceName: String? = null
     private var enginePackage: String? = null
     private var systemDefaultVoice: Voice? = null
+    private var speechLocale = Locale.getDefault()
     private var engineVoices: Set<Voice> = emptySet()
     private var preparing = false
     private val readinessCallbacks = mutableListOf<(Boolean) -> Unit>()
@@ -154,6 +157,7 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
                     created.setPitch(pitch)
                     created.setAudioAttributes(SpeechAudioAttributes)
                     systemDefaultVoice = created.defaultVoice
+                    speechLocale = systemDefaultVoice?.locale ?: Locale.getDefault()
                     engineVoices = created.installedVoices()
                     val defaultVoiceName = systemDefaultVoice?.name
                     val displayLocale = Locale.getDefault()
@@ -191,7 +195,13 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
 
     override fun speak(utteranceId: String, text: String, flush: Boolean) {
         if (!ready) return
-        tts?.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, utteranceId)
+        val spoken = speechWithNumberHints(text, speechLocale)
+        tts?.speak(spoken, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, utteranceId)
+    }
+
+    override fun silence(utteranceId: String, durationMs: Long, flush: Boolean) {
+        if (!ready) return
+        tts?.playSilentUtterance(durationMs, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, utteranceId)
     }
 
     override fun setRate(rate: Float) {
@@ -219,7 +229,9 @@ internal class AndroidSpeechOutput(context: Context) : SpeechOutput {
 
     private fun applySelectedVoice(engine: TextToSpeech) {
         val selected = selectedVoiceName?.let { name -> engineVoices.firstOrNull { it.name == name } }
-        (selected ?: systemDefaultVoice)?.let(engine::setVoice)
+        (selected ?: systemDefaultVoice)?.let { voice ->
+            if (engine.setVoice(voice) == TextToSpeech.SUCCESS) speechLocale = voice.locale
+        }
     }
 
     private fun TextToSpeech.installedEngines(): List<SpeechEngineOption> {

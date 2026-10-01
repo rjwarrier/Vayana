@@ -822,7 +822,10 @@ private fun JSONObject.toSpeechChunk(): SpeechChunk {
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
             val text = obj.optString("text").trim()
-            if (text.isNotEmpty()) add(SpeechSentence(id = obj.getString("id"), text = text))
+            if (text.isNotEmpty()) add(SpeechSentence(
+                id = obj.getString("id"), text = text,
+                pauseBeforeMs = obj.optLong("pauseBeforeMs", 0).coerceIn(0, 1_500),
+            ))
         }
     }
     return SpeechChunk(sentences, endOfBook = optBoolean("endOfBook"))

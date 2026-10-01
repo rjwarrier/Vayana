@@ -1563,4 +1563,11 @@
     <string name="widget_reading_avg_none" translatable="false">—</string>
     <string name="widget_reading_preview_average">43m</string>
     <string name="widget_reading_chart_description">Reading time, last 7 days: %1$s. 7-day average %2$s.</string>
+    <string name="reader_pronunciation_title">Pronunciations for this book</string>
+    <string name="reader_pronunciation_description">Correct a name or phrase by writing how it should sound. Corrections are saved on this device. Tap a correction to edit it.</string>
+    <string name="reader_pronunciation_original">Word or phrase in the book</string>
+    <string name="reader_pronunciation_spoken">Say it as</string>
+    <string name="reader_pronunciation_rule">%1$s → %2$s</string>
+    <string name="reader_pronunciation_save">Save pronunciation</string>
+    <string name="reader_pronunciation_remove">Remove</string>
 </resources>

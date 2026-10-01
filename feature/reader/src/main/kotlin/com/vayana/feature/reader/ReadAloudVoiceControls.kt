@@ -10,4 +10,7 @@ internal class ReadAloudVoiceControls(
     val onLoad: () -> Unit,
     val onVoiceChange: (String) -> Unit,
     val onEngineChange: (String) -> Unit,
+    val pronunciations: List<SpeechPronunciation>,
+    val onSavePronunciation: (String, String) -> Unit,
+    val onRemovePronunciation: (String) -> Unit,
 )

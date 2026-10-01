@@ -189,6 +189,34 @@ imported into the library like any picked file.
 
 ## Read aloud: focus, media controls, start from selection
 
+- **Natural pacing.** Additional pauses are queued before paragraphs (250 ms), headings (600 ms) and scene
+  breaks (900 ms), without adding delays between ordinary sentences. Resume and direct sentence skips do not
+  repeat the pause. Very long utterances split at clauses or word boundaries and preserve highlight offsets;
+  pathological oversized words split without breaking an emoji's UTF-16 pair.
+- **Pronunciation corrections.** Read Aloud → Pronunciations for this book lets you add, edit and remove up to
+  100 names or phrases and their spoken spelling. Matching is case-insensitive and respects whole words;
+  longer phrases win. Corrections are local to this device, keyed to the book's stable identity. Editing a
+  correction restarts the current utterance while retaining highlights on the original book text.
+- **Interjections.** Elongated murmurs and sounds (`hmmm`, `mmm`, `uhhh`, `ahhh`, `ohhh`, `shhhh`) use
+  short phonetic speech fallbacks (`hum`, `mum`, `uh`, `ah`, `oh`, `shush`) to avoid letter-by-letter reading.
+  These approximate the sounds; their delivery depends on the voice. Book pronunciation corrections take
+  priority. Whole-word matching leaves measurement units such as `mm`, uppercase acronyms and ordinary
+  words unchanged, and timed highlights continue to point at the original interjection.
+- **Number hints.** English-language voices receive Android `TtsSpan` hints for currency, percentages,
+  common measurements, valid ISO dates and times with clock context. These hints preserve text offsets.
+  Ambiguous numeric dates, ratios and other languages use the engine's own parsing. Engines may ignore hints.
+- **Reading text cleanup.** Marked footnote references and hidden text are omitted, while mathematical
+  superscripts remain. PDF printed line breaks are joined, word-wrap hyphens are repaired (common compound
+  prefixes retain their hyphens), and soft hyphens are removed from speech. Explicit page headers/footers are
+  skipped; inferred PDF running headers/footers must repeat on three distinct pages in the outer 5% margin.
+  The first two occurrences remain audible. Margin page numbers are omitted. The displayed book is unchanged.
+
+- **Abbreviations.** Speech preparation keeps common titles with names, numbered references with numbers,
+  and spaced name initials together. Dotted acronyms and `a.m.`/`p.m.` keep real sentence endings;
+  `e.g.`, `i.e.`, `etc.` and `vs.` are spoken as words. The displayed text is unchanged, and timed highlights
+  map back to the original words even when spoken text expands. Ambiguous sentence endings and paragraph
+  boundaries are preserved rather than suppressing every abbreviation period.
+
 - **Audio focus** (`PlaybackFocus.kt`). Read aloud requests focus when it starts speaking and gives it up when paused
   or stopped. A call or navigation prompt (`LOST_TEMPORARILY`) pauses it and it resumes by itself when focus returns;
   other audio taking focus for good (`LOST`) and unplugged headphones (`BECOMING_NOISY`) pause it until the reader

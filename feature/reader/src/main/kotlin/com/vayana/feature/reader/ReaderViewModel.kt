@@ -316,6 +316,10 @@ class ReaderViewModel @Inject constructor(
     )
     private var lastSpeechInteractionAt = 0L
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
+    private val pronunciationStore = SpeechPronunciationStore(appContext)
+    private var pronunciationBookKey: String? = null
+    private val _pronunciations = MutableStateFlow<List<SpeechPronunciation>>(emptyList())
+    internal val pronunciations: StateFlow<List<SpeechPronunciation>> = _pronunciations
     internal val readAloudVoices: StateFlow<List<SpeechVoiceOption>> = readAloudPlayer.voices
     internal val readAloudEngines: StateFlow<List<SpeechEngineOption>> = readAloudPlayer.engines
 
@@ -354,6 +358,9 @@ class ReaderViewModel @Inject constructor(
                 return@launch
             }
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
+            pronunciationBookKey = book.syncId
+            _pronunciations.value = pronunciationStore.load(book.syncId)
+            readAloudPlayer.setPronunciations(_pronunciations.value)
             _pdfBookPreferences.value = if (book.format == BookFormat.PDF) loadPdfBookPreferences() else null
             _pdfThumbnails.value = emptyMap()
             // Read before recordBookOpened below replaces it; a jump to a note or search hit isn't a "return".
@@ -968,6 +975,23 @@ class ReaderViewModel @Inject constructor(
     fun updateReadAloudVoice(name: String) {
         readAloudPlayer.setVoice(name)
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReadAloudVoiceName, name) }
+    }
+
+    internal fun savePronunciation(original: String, spoken: String) {
+        val rule = normalizedPronunciations(listOf(SpeechPronunciation(original, spoken))).firstOrNull() ?: return
+        updatePronunciations(_pronunciations.value.filterNot { it.original.equals(rule.original, ignoreCase = true) } + rule)
+    }
+
+    internal fun removePronunciation(original: String) {
+        updatePronunciations(_pronunciations.value.filterNot { it.original.equals(original, ignoreCase = true) })
+    }
+
+    private fun updatePronunciations(rules: List<SpeechPronunciation>) {
+        val key = pronunciationBookKey ?: return
+        val next = normalizedPronunciations(rules)
+        pronunciationStore.save(key, next)
+        _pronunciations.value = next
+        readAloudPlayer.setPronunciations(next)
     }
 
     fun updateBrightness(percent: Int) {

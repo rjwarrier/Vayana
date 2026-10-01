@@ -370,6 +370,7 @@ function nativePdfFile(bookUrl) {
 }
 
 async function open(bookUrl, lastLocatorCfi) {
+    speech.pdfMarginPages.clear()
     let phase = 'starting'
     const watchdog = setInterval(() => {
         post('log', { step: 'openWatchdog', phase })
@@ -1426,18 +1427,120 @@ function inkStyleFor(color) {
     if (!inkMarks) return null
     return InkStyleByColor[String(color).toLowerCase()] ?? 'highlight'
 }
-const speech = { index: -1, sentences: new Map(), markedOverlayer: null, turning: false }
+const speech = { index: -1, sentences: new Map(), markedOverlayer: null, turning: false, pdfMarginPages: new Map() }
+
+// Only classify PDF running text at the outer 5% of a page, and only after it repeats on three distinct pages.
+// This avoids removing a chapter title or repeated prose from the reading area. The first two occurrences stay audible.
+function repeatedPdfSpeechMargins(root, pageIndex) {
+    const groups = new Map()
+    for (const span of root.querySelectorAll('span')) {
+        if (!/^\d+(?:\.\d+)?%$/.test(span.style.top)) continue
+        const top = parseFloat(span.style.top)
+        if (top > 5 && top < 95) continue
+        const key = `${top <= 5 ? 'top' : 'bottom'}:${Math.round(top * 2) / 2}`
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(span)
+    }
+    const ignored = new Set()
+    for (const [position, spans] of groups) {
+        const label = spans.map(span => span.textContent).join(' ').replace(/\s+/gu, ' ').trim()
+        if (/^\d{1,5}$/.test(label)) { spans.forEach(span => ignored.add(span)); continue }
+        if ((label.match(/\p{L}/gu)?.length ?? 0) < 6) continue
+        const key = `${position}:${label.toLocaleLowerCase()}`
+        let pages = speech.pdfMarginPages.get(key)
+        if (!pages) {
+            if (speech.pdfMarginPages.size >= 128) speech.pdfMarginPages.delete(speech.pdfMarginPages.keys().next().value)
+            pages = new Set()
+            speech.pdfMarginPages.set(key, pages)
+        }
+        if (pages.size < 3) pages.add(pageIndex)
+        if (pages.size >= 3) spans.forEach(span => ignored.add(span))
+    }
+    return ignored
+}
+
+// Mask abbreviation stops before ICU sentence segmentation. Every replacement here has the same UTF-16
+// length as the source so timed highlighting can still address the original DOM. Ambiguous abbreviations
+// keep their final period before a capitalized sentence or paragraph break.
+function speechParagraphBreak(gap) {
+    return /\n\s*\n/u.test(gap.replace(/\r\n?/g, '\n'))
+}
+
+function speechTextWithoutAbbreviationStops(text) {
+    const withoutStop = (match, gap) => speechParagraphBreak(gap)
+        ? match : match.slice(0, -gap.length - 1) + ' ' + gap.replace(/[\r\n]/g, ' ')
+    let prepared = text.replace(
+        /(?<![\p{L}\p{N}_])(?:Mr|Mrs|Ms|Mx|Dr|Prof|Rev|Fr|Capt|Lt|Col|Gen|Sgt|Maj|Cmdr|Hon|Pres|Gov|Sen|Rep|Supt|Det)\.(\s+)(?=\p{L})/giu,
+        withoutStop,
+    )
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:No|Nos|Vol|Ch|Chap|Fig|Figs|Eq|Eqs|Sec|pp|p)\.(\s+)(?=\d)/giu,
+        withoutStop,
+    )
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:Mr|Mrs|Ms|Mx|Dr|Prof|Rev|Fr)[ \t]+[A-Z]\.(\s+)(?=[A-Z]\p{L})/gu,
+        withoutStop,
+    )
+    // Two or more spaced name initials, as in J. R. R. Tolkien. A single "A." may be a list label.
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:[A-Z]\.\s+){2,}(?=[A-Z]\p{L})/gu,
+        match => speechParagraphBreak(match) ? match : match.replace(/[.\r\n]/g, ' '),
+    )
+    // Dotted acronyms and clock suffixes: internal dots never end a sentence. The final dot can.
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:(?:[A-Z]\.){2,}|[ap]\.m\.)/gu,
+        (match, offset) => {
+            const following = prepared.slice(offset + match.length)
+            const gap = following.match(/^\s+/u)?.[0] ?? ''
+            const continues = !speechParagraphBreak(gap) && (/^\s+[a-z]/u.test(following) || /^[,;:]/u.test(following))
+            return match.slice(0, -1).replace(/\./g, ' ') + (continues ? ' ' : '.')
+        },
+    )
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:e\.g|i\.e|vs)\.(\s+)(?=\p{L})/giu,
+        (match, gap) => speechParagraphBreak(gap) ? match : match.replace(/[.\r\n]/g, ' '),
+    )
+    prepared = prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:e\.g\.|i\.e\.)(?=[,;:])/giu,
+        match => match.replace(/\./g, ' '),
+    )
+    return prepared.replace(
+        /(?<![\p{L}\p{N}_])(?:etc|vs)\.(?=\s+[a-z]|[,;:])/gu,
+        (match, offset) => {
+            const gap = prepared.slice(offset + match.length).match(/^\s+/u)?.[0] ?? ''
+            return speechParagraphBreak(gap) ? match : match.slice(0, -1) + ' '
+        },
+    )
+}
 
 // Android TTS reports UTF-16 offsets into the whitespace-normalized text it receives. Keep a boundary map back to
 // the EPUB's original text so every timed range can become an exact DOM Range even across collapsed whitespace.
-function normalizeSpeechSegment(segment) {
+function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set(), sourceOffset = 0) {
     let text = ''
     const sourceStarts = []
     const sourceEnds = []
+    // Speak familiar prose abbreviations as words. Each expanded character maps to the original abbreviation,
+    // while all later words keep their own exact source offsets.
+    const expansions = new Map()
+    const words = { 'e.g.': 'for example', 'i.e.': 'that is', 'etc.': 'et cetera', 'vs.': 'versus' }
+    for (const match of segment.matchAll(/(?<![\p{L}\p{N}_])(?:e\.g\.|i\.e\.|etc\.|vs\.)(?![\p{L}\p{N}_])/giu)) {
+        const end = match.index + match[0].length
+        const punctuation = prepared[end - 1] === '.' ? '.' : ''
+        expansions.set(match.index, { end, text: words[match[0].toLowerCase()] + punctuation })
+    }
     for (let index = 0; index < segment.length;) {
-        if (/\s/u.test(segment[index])) {
+        if (segment[index] === '\u00ad' || omitted.has(index + sourceOffset)) { index++; continue }
+        const expansion = expansions.get(index)
+        if (expansion) {
+            text += expansion.text
+            for (let i = 0; i < expansion.text.length; i++) {
+                sourceStarts.push(index)
+                sourceEnds.push(expansion.end)
+            }
+            index = expansion.end
+        } else if (/\s/u.test(prepared[index])) {
             let end = index + 1
-            while (end < segment.length && /\s/u.test(segment[end])) end++
+            while (end < segment.length && /\s/u.test(prepared[end])) end++
             if (text && end < segment.length) {
                 text += ' '
                 sourceStarts.push(index)
@@ -1445,7 +1548,7 @@ function normalizeSpeechSegment(segment) {
             }
             index = end
         } else {
-            text += segment[index]
+            text += prepared[index]
             sourceStarts.push(index)
             sourceEnds.push(index + 1)
             index++
@@ -1469,21 +1572,41 @@ function speechSentencesFor(doc, index, fromRange) {
     if (!doc.body) return []
     // On a PDF page only the text layer holds the words (the link layer can carry form text).
     const root = fixedLayout ? doc.querySelector('.textLayer') ?? doc.body : doc.body
-    const walker = doc.createTreeWalker(root, fixedLayout ? NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT : NodeFilter.SHOW_TEXT)
+    const ignoredMargins = fixedLayout ? repeatedPdfSpeechMargins(root, index) : new Set()
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
     const pieces = []
+    const boundaries = []
     let text = ''
     let lastBlock = null
+    let pendingPause = 0
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         if (node.nodeType === 1) {
-            // pdf.js ends each printed line with <br>: a word boundary, except after a hyphen that split a word.
-            if (node.localName === 'br' && text && !/\p{L}-$/u.test(text)) text += '\n'
+            if (node.localName === 'hr') {
+                pendingPause = 900
+                if (text) {
+                    text += '\n\n'
+                    boundaries.push({ start: text.length, pause: 900 })
+                }
+            }
+            // Keep printed line breaks until speech cleanup can distinguish word wraps from compound hyphens.
+            if (node.localName === 'br' && text) text += '\n'
             continue
         }
         const parent = node.parentElement
-        if (!node.data.trim() || parent?.closest('script, style, rt')) continue
+        if (!node.data || parent?.closest('script, style, rt, [hidden], [aria-hidden="true"], [role="doc-noteref"], [epub\\:type~="noteref"]')) continue
+        if (parent?.closest('a') && isSpeechNoteReference(parent.closest('a'))) continue
+        if (parent?.closest('[role="doc-pageheader"], [role="doc-pagefooter"]')) continue
+        if (fixedLayout && Array.from(ignoredMargins).some(span => span.contains(node))) continue
         // Separate blocks so a paragraph without closing punctuation doesn't run into the next one.
         const block = parent?.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, dd, dt, td, figcaption, div, section')
-        if (lastBlock && block !== lastBlock) text += '\n\n'
+        if (!node.data.trim() && (!block || block !== lastBlock)) continue
+        if (lastBlock && block !== lastBlock) {
+            text += '\n\n'
+            const heading = /^h[1-6]$/.test(block?.localName ?? '') || /^h[1-6]$/.test(lastBlock.localName)
+            const sceneBreak = /^[*#•\-—\s]{3,}$/u.test(lastBlock.textContent ?? '')
+            boundaries.push({ start: text.length, pause: Math.max(pendingPause, sceneBreak ? 900 : heading ? 600 : 250) })
+            pendingPause = 0
+        }
         lastBlock = block
         pieces.push({ node, start: text.length })
         text += node.data
@@ -1500,19 +1623,39 @@ function speechSentencesFor(doc, index, fromRange) {
         return [node, Math.max(0, Math.min(node.data.length, offset - start))]
     }
     const sentences = []
-    for (const { segment, index: segmentStart } of segmenterFor(doc, 'sentence').segment(text)) {
+    let previousStart = -1
+    let boundaryIndex = 0
+    const omitted = new Set()
+    let prepared = speechTextWithoutAbbreviationStops(text)
+    if (fixedLayout) {
+        // Printed line breaks are word boundaries. Join clear word-wrap hyphens, but retain common compound prefixes.
+        for (const match of text.matchAll(/(\p{L}+)[-\u00ad][ \t]*\n[ \t]*(?=\p{Ll})/gu)) {
+            const compound = text[match.index + match[1].length] === '-' && /^(?:well|self|ex|non|co|anti|pro|pre|re|high|low|long|short)$/iu.test(match[1])
+            for (let offset = match.index + match[1].length + (compound ? 1 : 0); offset < match.index + match[0].length; offset++) omitted.add(offset)
+        }
+        prepared = prepared.replace(/[^]/g, (character, offset) => omitted.has(offset) ? ' ' : character)
+        prepared = prepared.replace(/(?<!\n)\n(?!\n)/g, ' ')
+    }
+    for (const { segment, index: segmentStart } of segmenterFor(doc, 'sentence').segment(prepared)) {
         if (!/[\p{L}\p{N}]/u.test(segment)) continue
         // The sentence spans its first to last non-space character. Skip those that end before the page on screen
         // before doing any per-character work or building a Range for them.
         const start = segmentStart + segment.length - segment.trimStart().length
         const endPoint = pointAt(segmentStart + segment.trimEnd().length)
         if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
-        const normalized = normalizeSpeechSegment(segment)
+        const normalized = normalizeSpeechSegment(text.slice(segmentStart, segmentStart + segment.length), segment, omitted, segmentStart)
         const sentenceText = normalized.text
         const range = doc.createRange()
         range.setStart(...pointAt(start))
         range.setEnd(...endPoint)
         const id = `${index}:${sentences.length}`
+        let pauseBeforeMs = 0
+        while (boundaryIndex < boundaries.length && boundaries[boundaryIndex].start <= start) {
+            const boundary = boundaries[boundaryIndex++]
+            if (boundary.start > previousStart) pauseBeforeMs = Math.max(pauseBeforeMs, boundary.pause)
+        }
+        if (!sentences.length) pauseBeforeMs = 0
+        previousStart = start
         speech.sentences.set(id, {
             range,
             rangeForOffsets(startOffset, endOffset) {
@@ -1524,9 +1667,15 @@ function speechSentencesFor(doc, index, fromRange) {
                 return wordRange
             },
         })
-        sentences.push({ id, text: sentenceText })
+        sentences.push({ id, text: sentenceText, pauseBeforeMs })
     }
     return sentences
+}
+
+function isSpeechNoteReference(link) {
+    const types = `${link.getAttributeNS('http://www.idpf.org/2007/ops', 'type') ?? ''} ${link.getAttribute('epub:type') ?? ''}`
+    // Numeric superscript links are common in EPUBs lacking semantic markup. Ordinary superscripts (x²) remain spoken.
+    return /\bnoteref\b/.test(types) || (link.closest('sup') && /^[\[(]?\d{1,3}[\])]?$/u.test(link.textContent.trim()))
 }
 
 // [fromCfi] starts reading at the sentence holding that position (a selection) instead of at the top of the page.
