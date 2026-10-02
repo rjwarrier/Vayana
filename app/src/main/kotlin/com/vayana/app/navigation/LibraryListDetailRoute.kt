@@ -23,6 +23,10 @@ import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffold
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
@@ -101,6 +105,17 @@ fun LibraryListDetailRoute(
     val scope = rememberCoroutineScope()
     BackHandler(navigator.canNavigateBack()) {
         scope.launch { navigator.navigateBack() }
+    }
+
+    // The wide detail pane would otherwise sit empty on arrival: open the book read last, once per visit.
+    var openedInitialBook by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(libraryBooks.isNotEmpty()) {
+        if (openedInitialBook || libraryBooks.isEmpty()) return@LaunchedEffect
+        openedInitialBook = true
+        val lastRead = libraryBooks.filter { it.lastReadAt != null }.maxByOrNull { it.lastReadAt ?: 0L } ?: return@LaunchedEffect
+        if (navigator.currentDestination?.contentKey == null) {
+            navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, lastRead.id)
+        }
     }
 
     ListDetailPaneScaffold(
