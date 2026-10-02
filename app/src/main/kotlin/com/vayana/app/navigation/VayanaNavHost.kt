@@ -234,7 +234,12 @@ fun VayanaNavHost(
             )
         }
         composable<OfflineBooksRoute> { backStackEntry ->
+            val addBookRequested by backStackEntry.savedStateHandle
+                .getStateFlow(OFFLINE_ADD_BOOK_KEY, false)
+                .collectAsStateWithLifecycle()
             OfflineBooksScreenRoute(
+                addBookRequested = addBookRequested,
+                onAddBookRequestHandled = { backStackEntry.savedStateHandle[OFFLINE_ADD_BOOK_KEY] = false },
                 viewModel = navController.sharedLibraryViewModel(backStackEntry),
                 onBack = { navController.popBackStack() },
                 onBookClick = { bookId -> navController.navigate(BookDetailRoute(bookId)) },

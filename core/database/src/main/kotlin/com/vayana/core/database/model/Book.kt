@@ -123,4 +123,16 @@ data class Book(
     val borrowReturnAt: Long? = null,
     /** Stable Project Gutenberg identity, when imported from its catalogue. */
     val gutenbergId: Long? = null,
-)
+    /** Identity, owner and extra fields of a book mirrored from another app; all null for Vayana's own books. */
+    val syncUuid: String? = null,
+    val source: String? = null,
+    val sourceMetadata: String? = null,
+) {
+    /** Mirrored from Home Library: its catalog fields are read-only here. */
+    val isHomeLibrary: Boolean get() = source == BookSource.HOME_LIBRARY
+}
+
+/** Owners of mirrored books (`books.source`). */
+object BookSource {
+    const val HOME_LIBRARY = "home_library"
+}

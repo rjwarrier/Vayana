@@ -220,6 +220,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val recentLookups by viewModel.recentLookups.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val activeReadingSessionSeconds by viewModel.activeReadingSessionSeconds.collectAsStateWithLifecycle()
+    val paceFactor by viewModel.paceFactor.collectAsStateWithLifecycle()
     val engineGeneration by viewModel.engineGeneration.collectAsStateWithLifecycle()
     val readAloudVoices by viewModel.readAloudVoices.collectAsStateWithLifecycle()
     val readAloudEngines by viewModel.readAloudEngines.collectAsStateWithLifecycle()
@@ -321,6 +322,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onEngineReady = viewModel::bindEngine,
                 onEngineReleased = viewModel::releaseEngine,
                 activeReadingSessionSeconds = activeReadingSessionSeconds,
+                paceFactor = paceFactor,
                 onReaderInteraction = viewModel::onReaderInteraction,
                 onTapPrevious = viewModel::previousPage,
                 onTapNext = viewModel::nextPage,
@@ -440,6 +442,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onEngineReady = viewModel::bindEngine,
         onEngineReleased = viewModel::releaseEngine,
         activeReadingSessionSeconds = activeReadingSessionSeconds,
+        paceFactor = paceFactor,
         onReaderInteraction = viewModel::onReaderInteraction,
         onTapPrevious = viewModel::previousPage,
         onTapNext = viewModel::nextPage,
@@ -771,6 +774,7 @@ private fun ReaderScreen(
     onEngineReady: (BookEngine) -> Unit,
     onEngineReleased: (BookEngine) -> Unit,
     activeReadingSessionSeconds: Long,
+    paceFactor: Float,
     onReaderInteraction: () -> Unit,
     onTapPrevious: () -> Unit,
     onTapNext: () -> Unit,
@@ -1273,6 +1277,7 @@ private fun ReaderScreen(
                 modifier = Modifier.align(Alignment.TopEnd),
                 locator = uiState.currentLocator,
                 showBookTime = footerShowsBookTime,
+                paceFactor = paceFactor,
                 onToggle = { footerShowsBookTime = !footerShowsBookTime },
                 headerGap = headerGap,
             )
@@ -1755,10 +1760,13 @@ private fun ReaderTimeLeftHeader(
     modifier: Modifier = Modifier,
     locator: Locator?,
     showBookTime: Boolean,
+    paceFactor: Float,
     onToggle: () -> Unit,
     headerGap: Dp = readerHeaderTopPadding,
 ) {
-    val minutesLeft = if (showBookTime) locator?.bookMinutesLeft else locator?.chapterMinutesLeft
+    // The engine's estimate assumes one fixed reading speed; the factor is how this reader's own pace compares.
+    val minutesLeft = (if (showBookTime) locator?.bookMinutesLeft else locator?.chapterMinutesLeft)
+        ?.let { ReadingPace.scaled(it, paceFactor) }
     if (minutesLeft == null) return
     val labelRes = if (showBookTime) R.string.reader_footer_time_left_book else R.string.reader_footer_time_left_chapter
     Surface(

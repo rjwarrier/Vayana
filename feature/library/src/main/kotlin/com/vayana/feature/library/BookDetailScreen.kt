@@ -21,8 +21,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.LocalLibrary
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Share
@@ -123,6 +125,7 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.theme.VayanaSnackbarHost
+import com.vayana.core.homelibrary.HomeLibraryLauncher
 import com.vayana.core.common.ParsedQuote
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
@@ -366,6 +369,7 @@ private fun BookDetailScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val homeLibraryOpenFailedMessage = stringResource(R.string.home_library_open_failed)
     var deleteStep by remember { mutableStateOf<DeleteStep?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
@@ -510,11 +514,14 @@ private fun BookDetailScreen(
                         .padding(start = Spacing.sm),
                 )
                 if (book != null) {
-                    IconButton(onClick = { showEditDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = stringResource(R.string.library_edit_metadata),
-                        )
+                    // Home Library owns a mirrored book catalog fields: no editing here.
+                    if (!book.isHomeLibrary) {
+                        IconButton(onClick = { showEditDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Edit,
+                                contentDescription = stringResource(R.string.library_edit_metadata),
+                            )
+                        }
                     }
                     if (useWideActions) {
                         if (book.hasLocalReadableSource()) {
@@ -541,6 +548,19 @@ private fun BookDetailScreen(
                             groups = listOf(
                                 VayanaMenuGroup(
                                     buildList {
+                                        if (book.isHomeLibrary) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.home_library_view_book),
+                                                    icon = Icons.Outlined.LocalLibrary,
+                                                    onClick = {
+                                                        if (!HomeLibraryLauncher.showBook(context, book.syncUuid.orEmpty())) {
+                                                            coroutineScope.launch { snackbarHostState.showSnackbar(homeLibraryOpenFailedMessage) }
+                                                        }
+                                                    },
+                                                ),
+                                            )
+                                        }
                                         add(
                                             VayanaMenuItem(
                                                 label = stringResource(R.string.library_goodreads_import),
@@ -632,14 +652,17 @@ private fun BookDetailScreen(
                                                 ),
                                             )
                                         }
-                                        add(
-                                            VayanaMenuItem(
-                                                label = stringResource(R.string.library_delete_book),
-                                                icon = Icons.Outlined.Delete,
-                                                destructive = true,
-                                                onClick = { deleteStep = DeleteStep.CHOICE },
-                                            ),
-                                        )
+                                        // A mirrored book goes when Home Library removes it.
+                                        if (!book.isHomeLibrary) {
+                                            add(
+                                                VayanaMenuItem(
+                                                    label = stringResource(R.string.library_delete_book),
+                                                    icon = Icons.Outlined.Delete,
+                                                    destructive = true,
+                                                    onClick = { deleteStep = DeleteStep.CHOICE },
+                                                ),
+                                            )
+                                        }
                                     },
                                 ),
                             ),
@@ -677,14 +700,16 @@ private fun BookDetailScreen(
                     .padding(Paddings.screenHorizontal),
             )
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(if (useWideActions) 2 else 1),
+            // Staggered, not a row-aligned grid: on a wide screen each card drops into the shorter column
+            // instead of leaving a gap beside a tall neighbour.
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(if (useWideActions) 2 else 1),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentPadding = PaddingValues(Paddings.screenHorizontal),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+                verticalItemSpacing = Spacing.lg,
             ) {
                 item {
                     Column(
@@ -715,7 +740,7 @@ private fun BookDetailScreen(
                                         .size(width = Sizes.coverWidthDetail, height = Sizes.coverWidthDetail / Sizes.coverAspectRatio)
                                         .clickable { showCoverPreview = true },
                                 )
-                                AssistChip(
+                                if (!book.isHomeLibrary) AssistChip(
                                     onClick = { showEditCoverDialog = true },
                                     label = { Text(stringResource(R.string.library_edit_cover), style = MaterialTheme.typography.labelMedium) },
                                     leadingIcon = {
@@ -795,7 +820,15 @@ private fun BookDetailScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             val state = book.readingState()
                             // A book not started yet has nothing to rate - unless it was rated anyway (e.g. read before).
-                            if (state != BookReadingState.NOT_STARTED || book.rating > 0f) {
+                            if (book.isHomeLibrary) {
+                                if (book.rating > 0f) {
+                                    Text(
+                                        text = stringResource(R.string.library_rating_label) + " · " +
+                                            stringResource(R.string.library_rating_value, book.rating),
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                }
+                            } else if (state != BookReadingState.NOT_STARTED || book.rating > 0f) {
                                 BookRatingRow(
                                     rating = book.rating,
                                     onRatingChange = onUpdateRating,
@@ -840,7 +873,18 @@ private fun BookDetailScreen(
                         )
                     }
                 }
-                item {
+                if (book.isHomeLibrary) {
+                    item {
+                        HomeLibraryDetailsSection(
+                            book = book,
+                            onViewInHomeLibrary = {
+                                if (!HomeLibraryLauncher.showBook(context, book.syncUuid.orEmpty())) {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(homeLibraryOpenFailedMessage) }
+                                }
+                            },
+                        )
+                    }
+                } else item {
                     BookDetailSection(
                         icon = Icons.Outlined.Description,
                         title = stringResource(R.string.library_about_book),
@@ -885,7 +929,7 @@ private fun BookDetailScreen(
                         onRemoveFromShelf = onRemoveFromShelf,
                     )
                 }
-                item { Spacer(modifier = Modifier.height(Sizes.bottomNavHeight)) }
+                item(span = StaggeredGridItemSpan.FullLine) { Spacer(modifier = Modifier.height(Sizes.bottomNavHeight)) }
             }
         }
     }

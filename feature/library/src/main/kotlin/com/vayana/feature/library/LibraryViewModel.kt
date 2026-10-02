@@ -107,6 +107,8 @@ import com.vayana.core.filesystem.BookFileImporter
 import com.vayana.core.filesystem.ResolvedBooks
 import com.vayana.core.filesystem.CoverImages
 import com.vayana.core.filesystem.StorageRoots
+import com.vayana.core.homelibrary.HomeLibraryStatus
+import com.vayana.core.homelibrary.HomeLibrarySync
 import com.vayana.format.pdf.PdfPasswordProtectedException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -499,8 +501,12 @@ class LibraryViewModel @Inject constructor(
     private val vocabularyCardDao: VocabularyCardDao,
     private val annotationDao: AnnotationDao,
     private val incomingBookFiles: IncomingBookFiles,
+    homeLibrarySync: HomeLibrarySync,
     @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
+
+    /** Whether the Home Library mirror can reach Home Library; Offline books says so quietly when it cannot. */
+    val homeLibraryStatus: StateFlow<HomeLibraryStatus> = homeLibrarySync.status
 
     private val controls = MutableStateFlow(LibraryControls())
 
@@ -1977,7 +1983,7 @@ class LibraryViewModel @Inject constructor(
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlyPushAttempts) { attemptIndex ->
             val attempt = runCatchingCancellable {
-                val localBooks = bookRepository.observeAll().first()
+                val localBooks = bookRepository.observeAll().first().filterNot { it.isHomeLibrary }
                 val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
                 val progressTombstones = tombstoneDao.getAll()
                     .filter { isSyncedWithReadingProgress(it.entityType) }

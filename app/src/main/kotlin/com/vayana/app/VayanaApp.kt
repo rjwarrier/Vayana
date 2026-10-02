@@ -7,6 +7,7 @@ import com.vayana.core.common.ApplicationScope
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.diagnostics.CrashReporter
 import com.vayana.core.filesystem.StorageMaintenance
+import com.vayana.core.homelibrary.HomeLibrarySync
 import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.ReadingTimeWidgetUpdater
@@ -25,6 +26,7 @@ class VayanaApp : Application() {
     @Inject lateinit var reminderScheduler: ReminderScheduler
     @Inject lateinit var continueReadingWidgetUpdater: ContinueReadingWidgetUpdater
     @Inject lateinit var appShortcuts: AppShortcuts
+    @Inject lateinit var homeLibrarySync: HomeLibrarySync
     @Inject lateinit var readingTimeWidgetUpdater: ReadingTimeWidgetUpdater
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
 
@@ -39,6 +41,7 @@ class VayanaApp : Application() {
         continueReadingWidgetUpdater.start()
         appShortcuts.start()
         readingTimeWidgetUpdater.start()
+        homeLibrarySync.start()
         // Housekeeping waits until launch has settled, so it never competes with the first screen.
         applicationScope.launch {
             delay(StorageMaintenanceDelayMillis)

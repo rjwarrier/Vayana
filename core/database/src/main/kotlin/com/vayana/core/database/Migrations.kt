@@ -469,7 +469,7 @@ val MIGRATION_27_28 = object : Migration(27, 28) {
     override fun migrate(connection: SQLiteConnection) {
         // Start clean because an upgraded database has no trustworthy record of which existing
         // changes already reached the cloud. Subsequent full-sync-only writes are tracked exactly.
-        FullSyncChangeTracker.create(connection)
+        FullSyncChangeTracker.create(connection, skipMirroredBooks = false)
     }
 }
 
@@ -477,6 +477,21 @@ val MIGRATION_28_29 = object : Migration(28, 29) {
     override fun migrate(connection: SQLiteConnection) {
         // Version 28's INSERT OR REPLACE trigger body inherited Room's outer OR ABORT policy and crashed whenever
         // the singleton state row already existed. Rebuild every tracker trigger with conflict-free update/insert SQL.
+        FullSyncChangeTracker.recreate(connection, skipMirroredBooks = false)
+    }
+}
+
+val MIGRATION_29_30 = object : Migration(29, 30) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Rows mirrored from Home Library. Nullable (or defaulted) so every existing book stays valid; SQLite lets a
+        // unique index hold many NULLs, so only mirrored rows compete for a syncUuid.
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `syncUuid` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `source` TEXT")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `sourceUpdatedAt` INTEGER")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `sourceHasCover` INTEGER NOT NULL DEFAULT 0")
+        connection.execSQL("ALTER TABLE `books` ADD COLUMN `sourceMetadata` TEXT")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_books_syncUuid` ON `books` (`syncUuid`)")
+        // The book triggers now skip mirrored rows (they never reach the GitHub snapshot).
         FullSyncChangeTracker.recreate(connection)
     }
 }
@@ -486,5 +501,5 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
     MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28,
-    MIGRATION_28_29,
+    MIGRATION_28_29, MIGRATION_29_30,
 )

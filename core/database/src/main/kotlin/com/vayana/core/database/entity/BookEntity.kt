@@ -1,5 +1,6 @@
 package com.vayana.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -12,7 +13,7 @@ import java.util.UUID
  */
 @Entity(
     tableName = "books",
-    indices = [Index(value = ["syncId"], unique = true), Index(value = ["fileHash"]), Index(value = ["gutenbergId"])],
+    indices = [Index(value = ["syncId"], unique = true), Index(value = ["fileHash"]), Index(value = ["gutenbergId"]), Index(value = ["syncUuid"], unique = true)],
 )
 data class BookEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -76,4 +77,16 @@ data class BookEntity(
     val borrowReturnAt: Long? = null,
     /** Stable Project Gutenberg identity, when this row was imported from its catalogue. */
     val gutenbergId: Long? = null,
+    /**
+     * Identity of a row mirrored from another app (Home Library's `sync_uuid`); null for Vayana's own books. Unique,
+     * so a mirrored book is matched on it and never on title or ISBN.
+     */
+    val syncUuid: String? = null,
+    /** Which app owns a mirrored row ([com.vayana.core.database.model.BookSource]); null for Vayana's own books. */
+    val source: String? = null,
+    /** The owner's own `updated_at` for the row, so a changed cover is fetched again. */
+    val sourceUpdatedAt: Long? = null,
+    @ColumnInfo(defaultValue = "0") val sourceHasCover: Boolean = false,
+    /** The owner's extra fields (publisher, shelf location, ...) as JSON, see `HomeLibraryDetails`. */
+    val sourceMetadata: String? = null,
 )

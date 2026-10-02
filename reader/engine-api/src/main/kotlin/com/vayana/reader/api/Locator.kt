@@ -19,6 +19,8 @@ data class Locator(
     val totalPages: Int? = null,
     val chapterMinutesLeft: Int? = null,
     val bookMinutesLeft: Int? = null,
+    /** [bookMinutesLeft] unrounded, for measuring how fast the reader goes; null when it is not known. */
+    val bookMinutesLeftExact: Double? = null,
     val tocPages: Map<String, Int> = emptyMap(),
 )
 

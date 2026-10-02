@@ -976,7 +976,16 @@ function applyReaderMargin(percent) {
     readerSideMarginPercent = Math.max(0, Math.min(24, Number(percent) || 0))
     const viewportWidth = window.visualViewport?.width || innerWidth
     const marginPx = Math.round(viewportWidth * readerSideMarginPercent / 100)
-    const maxInlineSizePx = Math.max(240, Math.round(viewportWidth - marginPx * 2))
+    const contentWidth = Math.max(240, Math.round(viewportWidth - marginPx * 2))
+    const viewportHeight = window.visualViewport?.height || innerHeight
+    let maxInlineSizePx = contentWidth
+    if (viewportWidth >= 700) {
+        // Tablet: a landscape page becomes a two-page spread (each column just under half the width so the
+        // paginator picks two columns); a portrait page keeps one column capped at a readable line length.
+        maxInlineSizePx = viewportWidth > viewportHeight && viewportWidth >= 900
+            ? Math.round(contentWidth * 0.45)
+            : Math.min(contentWidth, 760)
+    }
     if (view?.renderer) {
         view.renderer.setAttribute('max-inline-size', `${maxInlineSizePx}px`)
         view.renderer.render?.()

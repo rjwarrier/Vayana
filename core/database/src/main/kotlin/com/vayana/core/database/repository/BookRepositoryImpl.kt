@@ -785,6 +785,9 @@ internal fun BookEntity.toDomain(): Book {
         physicalOwnership = ownership,
         borrowReturnAt = normalizedBorrowReturnAt,
         gutenbergId = gutenbergId,
+        syncUuid = syncUuid,
+        source = source,
+        sourceMetadata = sourceMetadata,
     )
 }
 

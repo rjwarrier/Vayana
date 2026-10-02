@@ -264,8 +264,31 @@ interface BookDao {
     )
     fun observeSearchIds(match: String, limit: Int): Flow<List<Long>>
 
-    @Query("SELECT * FROM books ORDER BY syncId ASC")
+    /** Vayana's own books; rows mirrored from Home Library are rebuilt from it and never enter a snapshot. */
+    @Query("SELECT * FROM books WHERE source IS NOT 'home_library' ORDER BY syncId ASC")
     suspend fun getAllForSync(): List<BookEntity>
+
+    @Query("SELECT * FROM books WHERE source = 'home_library'")
+    suspend fun getHomeLibraryBooks(): List<BookEntity>
+
+    /** The mirrored rows for just these identities, so an incremental sync never loads the whole mirror. */
+    @Query("SELECT * FROM books WHERE source = 'home_library' AND syncUuid IN (:syncUuids)")
+    suspend fun getHomeLibraryBooksByUuids(syncUuids: List<String>): List<BookEntity>
+
+    @Query("SELECT * FROM books WHERE syncUuid = :syncUuid LIMIT 1")
+    suspend fun findBySyncUuid(syncUuid: String): BookEntity?
+
+    /** Deletes mirrored rows outright: no tombstone, because they never reached the GitHub snapshot. */
+    @Query("DELETE FROM books WHERE source = 'home_library' AND id IN (:ids)")
+    suspend fun deleteHomeLibraryBooks(ids: List<Long>)
+
+    /** Mirrored books that should have a cover but have no file for it yet. */
+    @Query("SELECT * FROM books WHERE source = 'home_library' AND sourceHasCover = 1 AND (coverPath IS NULL OR coverPath = '')")
+    suspend fun getHomeLibraryBooksMissingCover(): List<BookEntity>
+
+    /** Sets a mirrored book's cover without bumping its version: a cover fetch is not a user edit. */
+    @Query("UPDATE books SET coverPath = :coverPath WHERE id = :id AND source = 'home_library'")
+    suspend fun setHomeLibraryCover(id: Long, coverPath: String?)
 
     @Query(
         """

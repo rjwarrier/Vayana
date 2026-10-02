@@ -29,6 +29,7 @@ include(":core:datastore")
 include(":core:filesystem")
 include(":core:sync")
 include(":core:diagnostics")
+include(":core:homelibrary")
 
 include(":feature:library")
 include(":feature:reader")

@@ -119,6 +119,42 @@ queues the chosen one.
 
 **Tests:** `feature/library/.../OfflineBookRepositoryTest.kt`, `core/backup/.../PortableReadingProgressJsonTest.kt`.
 
+### Home Library mirror (read-only)
+
+**Code:** `core/homelibrary` (`HomeLibrarySyncEngine`, `HomeLibrarySource`, `RoomHomeLibraryStore`,
+`HomeLibrarySync`, `HomeLibraryCovers`, `HomeLibraryLauncher`), `feature/settings/HomeLibraryCard.kt`,
+`feature/library/HomeLibraryDetailsSection.kt`. DB v30 (`books.syncUuid`, `source`, `sourceUpdatedAt`,
+`sourceHasCover`, `sourceMetadata`).
+
+Home Library (`com.mj.homelibrary`, same developer and signing key) publishes its catalog through a read-only
+ContentProvider (`content://com.mj.homelibrary.catalog`). When it is installed on the same phone, Vayana mirrors it into
+Offline books. Home Library owns the data; Vayana never writes to it.
+
+- **Identity:** a mirrored row is matched on Home Library's `sync_uuid` only (unique index), never on title or ISBN. Its
+  title, authors, series, tags, rating, page count and shelf location come from Home Library and are not editable in
+  Vayana (no edit, no delete; the book goes when Home Library removes it). Reading dates, pages read and Read Next stay
+  Vayana's own and are kept across updates. Everything else Home Library sends (publisher, ISBNs, room/bookcase/shelf,
+  read status, ...) lives in `books.sourceMetadata` and shows on Book details with a "View in Home Library" action.
+- **Sync:** `/info` is read first (schema version, book count, max `updated_at`); if it matches the last sync nothing is
+  queried. Otherwise `/books?updated_since=&limit=500` is paged into memory, applied in one Room transaction (creates,
+  updates, tombstone deletes), and only then is the checkpoint (`lastSyncUpdatedAt`, kept in its own DataStore, never
+  backed up) saved. An empty cursor means "no changes", never "delete everything". With no checkpoint, or none newer than
+  90 days (the tombstone retention), a full resync runs and mirrored books Home Library no longer lists are removed
+  (only when `/info` answers, and not when `/info` promises books but none arrive). A schema newer than 1 is skipped and
+  logged to diagnostics.
+- **Triggers:** app start and foreground (`MainActivity.onStart`, throttled), a `ContentObserver` on `/books`
+  (descendants, debounced 1 s) while the app runs, and a 6-hourly WorkManager fallback (no network needed). Settings →
+  Library has the "Sync with Home Library" switch (default on) and a status card with "Last synced" and "Sync now".
+- **Covers:** fetched after a sync commits, one at a time, from `/books/<uuid>/cover`, into the covers folder as
+  `homelibrary-<uuid>-<updated_at>.<ext>`; a changed `updated_at` fetches a new file and removes the old one.
+- **Not connected:** not installed, `SecurityException` or an unknown provider stops syncing quietly; Settings (and Offline
+  books, once it holds mirrored books) says "Home Library not connected".
+- **Kept out of GitHub sync:** mirrored rows are excluded from the snapshot (`BookDao.getAllForSync`) and from the full-sync
+  change triggers, so they never recommend a full sync or reach other devices.
+
+**Tests:** `core/homelibrary/.../HomeLibrarySyncEngineTest.kt` (fake provider), `RoomHomeLibraryStoreTest.kt` (real Room,
+rollback), `HomeLibraryProviderTest.kt` (fake ContentProvider, ContentObserver), `feature/library/.../Migration29To30Test.kt`.
+
 ## Deleting books
 
 **Code:** `feature/library/BookDeletionDialogs.kt`, `PermanentDeletionNotices.kt`, `LibraryViewModel.deleteBook` /

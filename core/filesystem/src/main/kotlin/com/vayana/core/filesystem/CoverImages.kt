@@ -24,13 +24,18 @@ object CoverImages {
     private const val MinSavingsPercent = 10
 
     /** [bytes] shrunk for storage, or [bytes] themselves when small already, undecodable or not worth changing. */
-    fun compact(bytes: ByteArray, extension: String): ByteArray {
-        if (bytes.size < CompactThresholdBytes) return bytes
+    fun compact(
+        bytes: ByteArray,
+        extension: String,
+        maxEdgePx: Int = MaxEdgePx,
+        thresholdBytes: Int = CompactThresholdBytes,
+    ): ByteArray {
+        if (bytes.size < thresholdBytes) return bytes
         val format = compressFormatFor(extension) ?: return bytes
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return bytes
-        val bitmap = decodeScaled(bytes, bounds.outWidth, bounds.outHeight) ?: return bytes
+        val bitmap = decodeScaled(bytes, bounds.outWidth, bounds.outHeight, maxEdgePx) ?: return bytes
         val output = try {
             ByteArrayOutputStream(bytes.size / 4).also { stream ->
                 bitmap.compress(format, if (format == Bitmap.CompressFormat.PNG) 100 else qualityFor(format), stream)
@@ -57,15 +62,15 @@ object CoverImages {
     }
 
     /** Decodes at the smallest power-of-two sample still at least [MaxEdgePx], then scales exactly to fit. */
-    private fun decodeScaled(bytes: ByteArray, width: Int, height: Int): Bitmap? {
+    private fun decodeScaled(bytes: ByteArray, width: Int, height: Int, maxEdgePx: Int): Bitmap? {
         val longEdge = maxOf(width, height)
         var sampleSize = 1
-        while (longEdge / (sampleSize * 2) >= MaxEdgePx) sampleSize *= 2
+        while (longEdge / (sampleSize * 2) >= maxEdgePx) sampleSize *= 2
         val sampled = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sampleSize })
             ?: return null
         val sampledLongEdge = maxOf(sampled.width, sampled.height)
-        if (sampledLongEdge <= MaxEdgePx) return sampled
-        val scale = MaxEdgePx.toFloat() / sampledLongEdge
+        if (sampledLongEdge <= maxEdgePx) return sampled
+        val scale = maxEdgePx.toFloat() / sampledLongEdge
         val scaled = Bitmap.createScaledBitmap(
             sampled,
             (sampled.width * scale).toInt().coerceAtLeast(1),

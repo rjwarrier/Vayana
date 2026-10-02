@@ -16,6 +16,7 @@ import com.vayana.app.widget.ShortcutDestination
 import com.vayana.app.widget.ShortcutRequests
 import com.vayana.core.common.AppLanguage
 import com.vayana.core.designsystem.theme.EinkPageKeys
+import com.vayana.core.homelibrary.HomeLibrarySync
 import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.common.incomingBookUris
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var openBookRequests: OpenBookRequests
     @Inject lateinit var shortcutRequests: ShortcutRequests
     @Inject lateinit var gutenbergCacheWarmer: GutenbergCacheWarmer
+    @Inject lateinit var homeLibrarySync: HomeLibrarySync
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguage.wrap(newBase))
@@ -43,6 +45,12 @@ class MainActivity : ComponentActivity() {
             VayanaAppRoot()
         }
         gutenbergCacheWarmer.start()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Back in front: pick up anything Home Library changed meanwhile (a cheap /info check first).
+        homeLibrarySync.onForeground()
     }
 
     // The hardware page buttons of an e-reader page the list on screen. Only while such a list exists: the reader turns

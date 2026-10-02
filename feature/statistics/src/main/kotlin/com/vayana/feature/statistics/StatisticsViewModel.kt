@@ -110,6 +110,8 @@ data class StatisticsSummary(
     val booksFinishedThisYear: Int = 0,
     val yearlyGoalBooks: Int = 0,
     val yearInBooks: YearInBooks? = null,
+    /** The shareable review of the year; null until there is a year's reading to show. */
+    val yearReview: YearReview? = null,
     /** Weeks (starting on the user's first day of the week) ending this week, oldest first, sized to a whole number of 7-day
      *  columns so the UI can chunk it directly with no partial-week special-casing - a
      *  GitHub-style contribution grid. Between [MinActivityGridWeeks] and [ActivityGridWeeks]
@@ -322,6 +324,7 @@ private fun List<Book>.toSummary(
         booksFinishedThisYear = yearInBooks.finishedCount,
         yearlyGoalBooks = yearlyGoalBooks,
         yearInBooks = yearInBooks,
+        yearReview = yearReview(this, sessions, annotations, vocabularyCards, today, zone),
         dailyReadingMinutes = dailyReadingMinutes,
         readingPace = readingPaceEstimate(secondsByDate, today, finishedThreshold),
         genreStats = genreStats(),

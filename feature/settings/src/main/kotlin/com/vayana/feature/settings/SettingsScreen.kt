@@ -748,6 +748,11 @@ private fun SettingsGroupDetail(
                 }
             }
         }
+        if (group == SettingsGroup.LIBRARY) {
+            item {
+                SettingsContentContainer { HomeLibraryCard() }
+            }
+        }
         if (group == SettingsGroup.APPEARANCE) {
             item {
                 SettingsContentContainer { AppLanguageCard() }
@@ -1276,6 +1281,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderControlsTapMode -> readerControlsTapMode
     SettingsRegistry.ReaderVolumeKeys -> readerVolumeKeys
     SettingsRegistry.ReaderKeepAwake -> readerKeepAwake
+    SettingsRegistry.ReaderPersonalPace -> readerPersonalPace
     SettingsRegistry.ReaderShowHeaders -> readerShowHeaders
     SettingsRegistry.ReaderShowFooter -> readerShowFooter
     SettingsRegistry.ReaderAutoMarkSelection -> readerAutoMarkSelection
@@ -1304,6 +1310,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.BorrowReminders -> borrowRemindersEnabled
     SettingsRegistry.YearlyBooksGoal -> yearlyBooksGoal
     SettingsRegistry.DefaultCoverSource -> defaultCoverSource
+    SettingsRegistry.HomeLibrarySync -> homeLibrarySyncEnabled
     SettingsRegistry.LandscapeTwoColumnLayout -> landscapeTwoColumnLayout
     SettingsRegistry.KindleDeviceName -> kindleDeviceName
     SettingsRegistry.GithubSyncEnabled -> githubSyncEnabled

@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,11 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -28,6 +34,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,14 +85,23 @@ fun PagedLazyColumn(
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     showPageButtons: Boolean = true,
     state: LazyListState = rememberLazyListState(),
+    maxContentWidth: Dp = 840.dp,
     content: LazyListScope.() -> Unit,
 ) {
     val pager = rememberEinkPager(state) { state.viewportHeightPx() }
-    Box(modifier) {
+    BoxWithConstraints(modifier) {
+        // Tablet: keep rows a readable width, centred, instead of stretching edge to edge.
+        val extra = ((maxWidth - maxContentWidth) / 2).coerceAtLeast(0.dp)
+        val layoutDirection = LocalLayoutDirection.current
         LazyColumn(
             state = state,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = contentPadding,
+            contentPadding = PaddingValues(
+                start = contentPadding.calculateLeftPadding(layoutDirection) + extra,
+                top = contentPadding.calculateTopPadding(),
+                end = contentPadding.calculateRightPadding(layoutDirection) + extra,
+                bottom = contentPadding.calculateBottomPadding(),
+            ),
             verticalArrangement = verticalArrangement,
             content = content,
         )
@@ -118,7 +136,37 @@ fun PagedLazyVerticalGrid(
     }
 }
 
+/** The staggered counterpart of [PagedLazyVerticalGrid]: each item drops into the shortest column, so cards of unequal height leave no gaps. */
+@Composable
+fun PagedLazyVerticalStaggeredGrid(
+    columns: StaggeredGridCells,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    verticalItemSpacing: Dp = 0.dp,
+    showPageButtons: Boolean = true,
+    state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
+    content: LazyStaggeredGridScope.() -> Unit,
+) {
+    val pager = rememberEinkPager(state) { state.viewportHeightPx() }
+    Box(modifier) {
+        LazyVerticalStaggeredGrid(
+            columns = columns,
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+            horizontalArrangement = horizontalArrangement,
+            verticalItemSpacing = verticalItemSpacing,
+            content = content,
+        )
+        if (showPageButtons) pager?.let { EinkPageControls(it, Modifier.align(Alignment.BottomEnd)) }
+    }
+}
+
 private fun LazyListState.viewportHeightPx(): Int =
+    layoutInfo.let { it.viewportSize.height - it.beforeContentPadding - it.afterContentPadding }
+
+private fun LazyStaggeredGridState.viewportHeightPx(): Int =
     layoutInfo.let { it.viewportSize.height - it.beforeContentPadding - it.afterContentPadding }
 
 private fun LazyGridState.viewportHeightPx(): Int =

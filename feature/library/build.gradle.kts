@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:diagnostics"))
     implementation(project(":core:filesystem"))
+    implementation(project(":core:homelibrary"))
     implementation(project(":core:sync"))
     implementation(project(":format:epub"))
     implementation(project(":format:pdf"))

@@ -18,6 +18,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:diagnostics"))
     implementation(project(":core:filesystem"))
+    implementation(project(":core:homelibrary"))
     implementation(project(":core:sync"))
     implementation(libs.room.runtime)
     implementation(libs.androidx.work.runtime.ktx)

@@ -90,6 +90,7 @@ private fun Int.toExitMessage(): String = when (this) {
     else -> "Vayana crashed"
 }
 
+@RequiresApi(Build.VERSION_CODES.R)
 private fun ApplicationExitInfo.toTechnicalDetail(): String = buildString {
     appendLine("Process: $processName")
     appendLine("Reason: $reason")
@@ -101,6 +102,7 @@ private fun ApplicationExitInfo.toTechnicalDetail(): String = buildString {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.R)
 private fun ApplicationExitInfo.readTrace(): String? = runCatching {
     traceInputStream?.use { stream ->
         InputStreamReader(stream, Charsets.UTF_8).use { reader ->

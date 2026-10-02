@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -223,6 +224,27 @@ class ReaderViewModel @Inject constructor(
 
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
+
+    // How fast this reader reads against the engine's fixed estimate, learned from their own page turns.
+    private val paceTracker = ReadingPaceTracker(System::currentTimeMillis)
+    private val paceTotals = MutableStateFlow<ReadingPaceTotals?>(null)
+
+    /** What to multiply the engine's "time left" by: 1 until the reader has been measured, or when they turned it off. */
+    val paceFactor: StateFlow<Float> = combine(paceTotals, settings.map { it.readerPersonalPace }.distinctUntilChanged()) { totals, enabled ->
+        if (enabled && totals != null) ReadingPace.factor(totals) else 1f
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    private fun learnPace(minutesLeft: Double?) {
+        // Pages turned by read aloud go at the narrator's speed, not the reader's.
+        if (readAloud.value.active) {
+            paceTracker.reset()
+            return
+        }
+        val sample = paceTracker.onRelocate(minutesLeft) ?: return
+        paceTotals.update { current -> current?.let { ReadingPace.add(it, sample) } }
+    }
 
     /** Non-null while this book has its own font/line-height/margin overrides (the product specification's per-book reading preferences). */
     private val _bookStyleOverride = MutableStateFlow<BookStyleOverride?>(null)
@@ -532,6 +554,7 @@ class ReaderViewModel @Inject constructor(
                     }
                     com.vayana.reader.api.EngineEvent.ControlsRequested -> _readerControlsRequest.update { it + 1L }
                     is com.vayana.reader.api.EngineEvent.Relocated -> {
+                        learnPace(event.locator.bookMinutesLeftExact)
                         _uiState.update { current ->
                             if (current is ReaderUiState.Loaded &&
                                 current.highlightCard?.isAnchoredTo(event.locator) == false
@@ -1378,6 +1401,16 @@ class ReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Start from what earlier reading measured, then save a few seconds after it last changed: every page
+            // turn changes it, and the settings file need not be rewritten that often.
+            val saved = settingsRepository.snapshot.first()
+            paceTotals.value = ReadingPaceTotals(saved.readerPaceActualSeconds, saved.readerPaceEstimatedSeconds)
+            paceTotals.filterNotNull().drop(1).debounce(PaceSaveDebounceMillis).collect { totals ->
+                settingsRepository.update(SettingsRegistry.ReaderPaceActualSeconds, totals.actualSeconds)
+                settingsRepository.update(SettingsRegistry.ReaderPaceEstimatedSeconds, totals.estimatedSeconds)
+            }
+        }
+        viewModelScope.launch {
             combine(readAloud, uiState) { playback, readerState ->
                 val loaded = readerState as? ReaderUiState.Loaded
                 // Progress only matters while reading aloud; when idle the snapshot must not change with every page.
@@ -1455,6 +1488,8 @@ class ReaderViewModel @Inject constructor(
 
     fun onResume() {
         readerResumed = true
+        // Time away is not time reading.
+        paceTracker.reset()
         persistReadingTime(readingTimeTracker.flush(System.currentTimeMillis()))
         resumeProgressSyncGate.onResume(bookOpen)?.let { generation ->
             // A reader kept open in the background has not seen progress made on another device.
@@ -1465,6 +1500,7 @@ class ReaderViewModel @Inject constructor(
 
     fun onPause() {
         readerResumed = false
+        paceTracker.reset()
         persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
         trackingJob?.cancel()
         trackingJob = null
@@ -1850,7 +1886,7 @@ private fun SettingsSnapshot.toBookStyle(pdfRotationDegrees: Int = 0): BookStyle
 
 private val ReaderFontFamily.cssFamily: String
     get() = when (this) {
-        ReaderFontFamily.SERIF -> "serif"
+        ReaderFontFamily.SERIF -> "'Libron', serif"
         ReaderFontFamily.SANS -> "sans-serif"
         ReaderFontFamily.MONO -> "monospace"
     }
@@ -1960,6 +1996,7 @@ private const val DefaultAnnotationColor = "yellow"
 private const val CfiPrefix = "epubcfi("
 private const val DefaultBookmarkColor = "bookmark"
 private const val StyleUpdateDebounceMillis = 80L
+private const val PaceSaveDebounceMillis = 10_000L
 private const val LocatorPersistDebounceMillis = 400L
 private const val RecentLookupsLimit = 5
 private const val MaxPdfThumbnailCache = 72

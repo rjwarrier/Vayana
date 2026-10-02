@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.Animatable
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,7 +36,7 @@ import java.time.Month
 import java.time.format.TextStyle
 
 @Composable
-internal fun YearInBooksCard(year: YearInBooks) {
+internal fun YearInBooksCard(year: YearInBooks, onOpenReview: (() -> Unit)? = null) {
     val maxMonth = year.monthlyFinishes.maxOrNull()?.coerceAtLeast(1) ?: 1
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -66,6 +67,11 @@ internal fun YearInBooksCard(year: YearInBooks) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            onOpenReview?.let { open ->
+                FilledTonalButton(onClick = open, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.statistics_year_review_open))
+                }
+            }
             year.goalPace?.let { pace ->
                 Text(
                     stringResource(R.string.statistics_goals_yearly_value, year.finishedCount, year.goalTarget),

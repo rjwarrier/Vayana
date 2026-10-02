@@ -110,6 +110,11 @@ data class SettingsSnapshot(
     val readerControlsTapMode: ReaderControlsTapMode = ReaderControlsTapMode.DOUBLE,
     val readerVolumeKeys: Boolean = false,
     val readerKeepAwake: Boolean = false,
+    /** Scale "time left" by how fast this reader has actually been reading. */
+    val readerPersonalPace: Boolean = true,
+    /** What the pace estimate has measured: seconds actually spent, and the seconds the fixed estimate gave the same text. */
+    val readerPaceActualSeconds: Float = 0f,
+    val readerPaceEstimatedSeconds: Float = 0f,
     val readerShowHeaders: Boolean = true,
     val readerShowFooter: Boolean = true,
     val readerAutoMarkSelection: Boolean = false,
@@ -134,6 +139,8 @@ data class SettingsSnapshot(
     val widgetProgressStyle: WidgetProgressStyle = WidgetProgressStyle.FLAT,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
+    /** Mirrors Home Library's catalog into Offline books while it is installed on this phone. */
+    val homeLibrarySyncEnabled: Boolean = true,
     val finishedPercent: Int = 98,
     val landscapeTwoColumnLayout: Boolean = true,
     val kindleDeviceName: String = "My Vayana",
@@ -386,6 +393,31 @@ object SettingsRegistry {
         titleRes = R.string.settings_reader_keep_awake_title,
         subtitleRes = R.string.settings_reader_keep_awake_subtitle,
         group = SettingsGroup.READER_CONTROLS,
+    )
+    val ReaderPersonalPace: BooleanSetting = BooleanSetting(
+        key = "reader.personal_pace",
+        defaultValue = true,
+        titleRes = R.string.settings_reader_personal_pace_title,
+        subtitleRes = R.string.settings_reader_personal_pace_subtitle,
+        group = SettingsGroup.READER_CONTROLS,
+    )
+    val ReaderPaceActualSeconds: FloatSetting = FloatSetting(
+        key = "reader.pace_actual_seconds",
+        defaultValue = 0f,
+        titleRes = R.string.settings_reader_personal_pace_title,
+        subtitleRes = null,
+        group = SettingsGroup.READER_CONTROLS,
+        range = 0f..PaceSecondsMax,
+        step = 1f,
+    )
+    val ReaderPaceEstimatedSeconds: FloatSetting = FloatSetting(
+        key = "reader.pace_estimated_seconds",
+        defaultValue = 0f,
+        titleRes = R.string.settings_reader_personal_pace_title,
+        subtitleRes = null,
+        group = SettingsGroup.READER_CONTROLS,
+        range = 0f..PaceSecondsMax,
+        step = 1f,
     )
     val ReaderShowHeaders: BooleanSetting = BooleanSetting(
         key = "reader.show_headers",
@@ -700,6 +732,13 @@ object SettingsRegistry {
         range = 0..100,
         step = 1,
     )
+    val HomeLibrarySync: BooleanSetting = BooleanSetting(
+        key = "library.home_library_sync",
+        defaultValue = true,
+        titleRes = R.string.settings_home_library_sync_title,
+        subtitleRes = R.string.settings_home_library_sync_subtitle,
+        group = SettingsGroup.LIBRARY,
+    )
     val DefaultCoverSource: ChoiceSetting<com.vayana.core.datastore.settings.DefaultCoverSource> =
         ChoiceSetting<com.vayana.core.datastore.settings.DefaultCoverSource>(
         key = "library.default_cover_source",
@@ -791,6 +830,7 @@ object SettingsRegistry {
         DateFormat,
         StartScreen,
         DefaultCoverSource,
+        HomeLibrarySync,
         LandscapeTwoColumnLayout,
         FinishedPercent,
         RecentlyDeletedRetention,
@@ -820,6 +860,7 @@ object SettingsRegistry {
         ReadAloudPitch,
         ReaderAutoMarkSelection,
         ReaderKeepAwake,
+        ReaderPersonalPace,
         DailyReadingGoalMinutes,
         ReadingReminderEnabled,
         ReadingReminderHour,
@@ -845,9 +886,14 @@ object SettingsRegistry {
         ReaderPdfFitWidth,
         WidgetCornerRadius,
         WidgetProgressBar,
+        ReaderPaceActualSeconds,
+        ReaderPaceEstimatedSeconds,
     )
     val persisted: List<Setting<out Any>> = all + internal
 }
+
+/** Far above any real reader's lifetime of reading, so the pace totals never reach the cap. */
+const val PaceSecondsMax = 1_000_000_000f
 
 /** Widgets follow the home screen's own corner radius. */
 const val WidgetCornerRadiusMatchLauncher = -1

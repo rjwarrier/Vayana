@@ -103,6 +103,9 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal const val LIBRARY_ADD_ACTION_KEY = "libraryAddAction"
+
+/** Set by the floating bar's add button on Offline books; that screen opens its add dialog and clears it. */
+internal const val OFFLINE_ADD_BOOK_KEY = "offlineAddBook"
 internal const val BOOK_DETAIL_READABLE_KEY = "bookDetailReadable"
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -174,7 +177,8 @@ fun VayanaFloatingBar(
     val showAddBookAttachment = currentDestination?.hasRoute(TopLevelRoute.Library::class) == true
     val bookDetailRoute = if (showBookDetailBackAttachment) currentBackStackEntry.toRoute<BookDetailRoute>() else null
     val showReadBookAttachment = bookDetailRoute != null && bookDetailReadable
-    val showRightAttachment = showAddBookAttachment || showReadBookAttachment
+    val showAddOfflineBookAttachment = currentDestination?.hasRoute(OfflineBooksRoute::class) == true
+    val showRightAttachment = showAddBookAttachment || showAddOfflineBookAttachment || showReadBookAttachment
     val attachmentShape = MaterialShapes.Ghostish.toShape()
     var addBookMenuExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(showAddBookAttachment) {
@@ -290,6 +294,8 @@ fun VayanaFloatingBar(
             onClick = {
                 if (showReadBookAttachment) {
                     navController.navigate(ReaderRoute(bookId = requireNotNull(bookDetailRoute).bookId))
+                } else if (showAddOfflineBookAttachment) {
+                    navController.currentBackStackEntry?.savedStateHandle?.set(OFFLINE_ADD_BOOK_KEY, true)
                 } else {
                     addBookMenuExpanded = !addBookMenuExpanded
                 }

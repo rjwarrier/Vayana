@@ -24,6 +24,7 @@ import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -107,7 +108,8 @@ fun LibraryListDetailRoute(
         value = navigator.scaffoldValue,
         modifier = Modifier.fillMaxSize(),
         listPane = {
-            AnimatedPane {
+            // The default 360dp list pane crowds the toolbar and leaves a 3-column grid on a large tablet.
+            AnimatedPane(modifier = Modifier.preferredWidth(LibraryListPaneWidth)) {
                 LibraryRoute(
                     onBookClick = { bookId, _ ->
                         scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, bookId) }
@@ -206,3 +208,5 @@ private fun LibraryDetailPlaceholder() {
         }
     }
 }
+
+private val LibraryListPaneWidth = 520.dp

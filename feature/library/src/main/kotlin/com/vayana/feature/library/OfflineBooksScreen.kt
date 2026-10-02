@@ -1,6 +1,14 @@
 package com.vayana.feature.library
 
 import androidx.compose.foundation.clickable
+import androidx.annotation.StringRes
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.remember
+import com.vayana.core.database.model.PhysicalBookOwnership
+import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,6 +61,7 @@ import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.homelibrary.HomeLibraryStatus
 import com.vayana.core.resources.R
 import kotlin.math.roundToInt
 
@@ -65,13 +75,21 @@ fun OfflineBooksRoute(
     onBookClick: (Long) -> Unit,
     /** Opens the new book's details straight into the Goodreads picker. */
     onFetchGoodreads: (Long) -> Unit,
+    /** The floating bar's add button was pressed; the screen opens its add dialog, then calls [onAddBookRequestHandled]. */
+    addBookRequested: Boolean,
+    onAddBookRequestHandled: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val books by viewModel.offlineBooks.collectAsStateWithLifecycle()
+    val homeLibraryStatus by viewModel.homeLibraryStatus.collectAsStateWithLifecycle()
     OfflineBooksScreen(
         modifier = modifier,
         books = books,
+        // Only worth a word once Home Library books are here: someone who never installed it is not told about it.
+        addBookRequested = addBookRequested,
+        onAddBookRequestHandled = onAddBookRequestHandled,
+        homeLibraryNotConnected = homeLibraryStatus == HomeLibraryStatus.NotConnected && books.any { it.isHomeLibrary },
         onBack = onBack,
         onBookClick = onBookClick,
         onAddBook = { draft ->
@@ -84,12 +102,27 @@ fun OfflineBooksRoute(
 @Composable
 private fun OfflineBooksScreen(
     books: List<Book>,
+    homeLibraryNotConnected: Boolean,
+    addBookRequested: Boolean,
+    onAddBookRequestHandled: () -> Unit,
     onBack: () -> Unit,
     onBookClick: (Long) -> Unit,
     onAddBook: (OfflineBookDraft) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var viewMode by rememberSaveable { mutableStateOf(LibraryViewMode.LIST) }
+    var category by rememberSaveable { mutableStateOf(OfflineCategory.ALL) }
+    val shownBooks = remember(books, category) { books.filter { category.includes(it) } }
+    // With the floating bar, its attached add button asks for the dialog; the extended button below is for the other
+    // navigation styles.
+    val usesFloatingBar = LocalFloatingNavigationInset.current > Elevations.none
+    LaunchedEffect(addBookRequested) {
+        if (addBookRequested) {
+            showAddDialog = true
+            onAddBookRequestHandled()
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -104,36 +137,89 @@ private fun OfflineBooksScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { viewMode = viewMode.toggled() }) {
+                        Icon(
+                            imageVector = viewMode.toggleIcon(),
+                            contentDescription = stringResource(viewMode.toggleLabelRes()),
+                        )
+                    }
+                },
                 // The app shell already pads for the status bar, as on Settings and Help.
                 windowInsets = WindowInsets(0, 0, 0, 0),
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showAddDialog = true },
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.offline_books_add)) },
-                modifier = Modifier.padding(bottom = LocalFloatingNavigationInset.current),
-            )
+            if (!usesFloatingBar) {
+                ExtendedFloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.offline_books_add)) },
+                )
+            }
         },
     ) { innerPadding ->
         if (books.isEmpty()) {
             OfflineBooksEmptyState(contentPadding = innerPadding)
         } else {
-            PagedLazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = Paddings.screenHorizontal,
-                    end = Paddings.screenHorizontal,
-                    top = innerPadding.calculateTopPadding() + Spacing.sm,
-                    // Clear the extended FAB as well as the floating bar.
-                    bottom = innerPadding.calculateBottomPadding() + Sizes.fab + Spacing.xl +
-                        LocalFloatingNavigationInset.current,
-                ),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                items(books, key = { it.id }) { book ->
-                    OfflineBookRow(book = book, onClick = { onBookClick(book.id) })
+            Column(modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding())) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Paddings.screenHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    OfflineCategory.entries.forEach { option ->
+                        FilterChip(
+                            selected = category == option,
+                            onClick = { category = option },
+                            label = { Text(stringResource(option.labelRes)) },
+                        )
+                    }
+                }
+                val bottomPadding = innerPadding.calculateBottomPadding() + Sizes.fab + Spacing.xl +
+                    LocalFloatingNavigationInset.current
+                when (viewMode) {
+                    LibraryViewMode.LIST -> PagedLazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = Paddings.screenHorizontal,
+                            end = Paddings.screenHorizontal,
+                            top = Spacing.sm,
+                            // Clear the extended FAB as well as the floating bar.
+                            bottom = bottomPadding,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        if (homeLibraryNotConnected) {
+                            item(key = "home-library-not-connected") { HomeLibraryNotConnectedNote() }
+                        }
+                        items(shownBooks, key = { it.id }) { book ->
+                            OfflineBookRow(book = book, onClick = { onBookClick(book.id) })
+                        }
+                    }
+                    LibraryViewMode.THUMBNAILS -> PagedLazyVerticalGrid(
+                        showPageButtons = false,
+                        columns = GridCells.Adaptive(minSize = Sizes.libraryGridCoverWidthMin),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = Paddings.screenHorizontal,
+                            end = Paddings.screenHorizontal,
+                            top = Spacing.sm,
+                            bottom = bottomPadding,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+                    ) {
+                        if (homeLibraryNotConnected) {
+                            item(key = "home-library-not-connected", span = { GridItemSpan(maxLineSpan) }) {
+                                HomeLibraryNotConnectedNote()
+                            }
+                        }
+                        gridItems(shownBooks, key = { it.id }) { book ->
+                            OfflineBookCover(book = book, onClick = { onBookClick(book.id) })
+                        }
+                    }
                 }
             }
         }
@@ -148,6 +234,58 @@ private fun OfflineBooksScreen(
             },
         )
     }
+}
+
+/** The two kinds of offline book: ones you own (every audiobook and ebook, and owned paper books) and loans. */
+private enum class OfflineCategory(@StringRes val labelRes: Int) {
+    ALL(R.string.library_filter_all),
+    OWN(R.string.offline_book_owned),
+    BORROWED(R.string.offline_book_borrowed);
+
+    fun includes(book: Book): Boolean = when (this) {
+        ALL -> true
+        OWN -> !book.isBorrowed()
+        BORROWED -> book.isBorrowed()
+    }
+}
+
+private fun Book.isBorrowed(): Boolean =
+    format == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED
+
+/** A cover with its title and author underneath, for the thumbnail view. */
+@Composable
+private fun OfflineBookCover(book: Book, onClick: () -> Unit) {
+    Column(modifier = Modifier.clickable(onClick = onClick)) {
+        BookCover(book = book, modifier = Modifier.fillMaxWidth())
+        Text(
+            text = book.title,
+            style = MaterialTheme.typography.labelLarge,
+            minLines = 2,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+        book.author?.takeIf { it.isNotBlank() }?.let { author ->
+            Text(
+                text = author,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** One quiet line: the mirrored books stay as they were, and syncing resumes by itself once Home Library is back. */
+@Composable
+private fun HomeLibraryNotConnectedNote() {
+    Text(
+        text = stringResource(R.string.home_library_status_not_connected),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = Spacing.xs),
+    )
 }
 
 @Composable

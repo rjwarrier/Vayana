@@ -20,8 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -58,7 +57,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.vayana.core.designsystem.theme.PagedLazyVerticalGrid
+import com.vayana.core.designsystem.theme.PagedLazyVerticalStaggeredGrid
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.WordLookupStat
 import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
@@ -163,8 +162,10 @@ private fun StatisticsDashboard(
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
 ) {
-    PagedLazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 340.dp),
+    var showYearReview by remember { mutableStateOf(false) }
+    if (showYearReview) summary.yearReview?.let { review -> YearReviewDialog(review) { showYearReview = false } }
+    PagedLazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Adaptive(minSize = 340.dp),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
@@ -173,7 +174,7 @@ private fun StatisticsDashboard(
             bottom = contentPadding.calculateBottomPadding() + Spacing.md + LocalFloatingNavigationInset.current,
         ),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalItemSpacing = Spacing.md,
     ) {
         item { StatisticsOverviewCard(summary) }
         item {
@@ -189,7 +190,7 @@ private fun StatisticsDashboard(
             }
         }
         summary.yearInBooks?.takeIf { it.finishedCount > 0 || summary.yearlyGoalBooks > 0 }?.let { year ->
-            item { YearInBooksCard(year) }
+            item { YearInBooksCard(year, onOpenReview = summary.yearReview?.let { { showYearReview = true } }) }
         }
         summary.readingHabits?.let { habits ->
             item {

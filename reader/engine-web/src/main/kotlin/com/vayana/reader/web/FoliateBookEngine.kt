@@ -57,6 +57,12 @@ private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
 private const val BOOK_PATH = "/book/current"
+private val BundledSerifFaces = listOf(
+    Triple("Libron-Regular.ttf", 400, "normal"),
+    Triple("Libron-Bold.ttf", 700, "normal"),
+    Triple("Libron-Italic.ttf", 400, "italic"),
+    Triple("Libron-BoldItalic.ttf", 700, "italic"),
+)
 private const val IMPORTED_FONT_FAMILY = "VayanaImportedReaderFont"
 private const val ReaderOpenTimeoutMillis = 60_000L
 private const val EinkBackgroundArgb = -0x1
@@ -349,6 +355,11 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         // draw that the OEM's E-Ink refresh logic handles far more cleanly.
         webView.setLayerType(if (isEinkTheme) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
         val css = buildString {
+            // Bundled default serif; loaded lazily by the WebView, so unused faces cost nothing.
+            for ((file, weight, fontStyle) in BundledSerifFaces) {
+                append("@font-face{font-family:'Libron';src:url('$ORIGIN/assets/fonts/$file');")
+                append("font-weight:$weight;font-style:$fontStyle;font-display:swap;}")
+            }
             style.customFontFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
                 append("@font-face{")
                 append("font-family:'$IMPORTED_FONT_FAMILY';")
@@ -644,6 +655,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                     totalPages = payload.optIntOrNull("totalPages"),
                     chapterMinutesLeft = payload.optMinutesOrNull("chapterMinutesLeft"),
                     bookMinutesLeft = payload.optMinutesOrNull("bookMinutesLeft"),
+                    bookMinutesLeftExact = payload.optExactMinutesOrNull("bookMinutesLeft"),
                     tocPages = payload.optJSONObject("tocPages")?.toIntMap()?.also { lastTocPages = it } ?: lastTocPages,
                 )
                 _location.value = locator
@@ -731,6 +743,9 @@ private fun JSONObject.optIntOrNull(name: String): Int? =
 private fun JSONObject.toIntMap(): Map<String, Int> = buildMap {
     for (key in keys()) optIntOrNull(key)?.let { put(key, it) }
 }
+
+private fun JSONObject.optExactMinutesOrNull(name: String): Double? =
+    if (has(name) && !isNull(name)) getDouble(name).takeIf { it.isFinite() && it >= 0.0 } else null
 
 private fun JSONObject.optMinutesOrNull(name: String): Int? =
     if (has(name) && !isNull(name)) ceil(getDouble(name)).toInt().coerceAtLeast(0) else null

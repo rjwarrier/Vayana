@@ -942,6 +942,13 @@ private fun LibraryTopBar(
             }
 
             val focusManager = LocalFocusManager.current
+            // Android hands initial focus to the first text field, which pops the keyboard on launch; only a tap should.
+            val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(200)
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+            }
             OutlinedTextField(
                 value = searchText,
                 onValueChange = onQueryChange,
@@ -993,17 +1000,17 @@ private fun LibraryTopBar(
     }
 }
 
-private fun LibraryViewMode.toggled(): LibraryViewMode = when (this) {
+internal fun LibraryViewMode.toggled(): LibraryViewMode = when (this) {
     LibraryViewMode.THUMBNAILS -> LibraryViewMode.LIST
     LibraryViewMode.LIST -> LibraryViewMode.THUMBNAILS
 }
 
-private fun LibraryViewMode.toggleIcon(): ImageVector = when (this) {
+internal fun LibraryViewMode.toggleIcon(): ImageVector = when (this) {
     LibraryViewMode.THUMBNAILS -> Icons.AutoMirrored.Outlined.ViewList
     LibraryViewMode.LIST -> Icons.Outlined.GridView
 }
 
-private fun LibraryViewMode.toggleLabelRes(): Int = when (this) {
+internal fun LibraryViewMode.toggleLabelRes(): Int = when (this) {
     LibraryViewMode.THUMBNAILS -> R.string.library_view_list_content_description
     LibraryViewMode.LIST -> R.string.library_view_thumbnails_content_description
 }

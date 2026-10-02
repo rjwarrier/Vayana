@@ -2,6 +2,16 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 30
+
+Adds the columns that let `books` hold rows mirrored from Home Library (`com.mj.homelibrary`): nullable `syncUuid`
+(unique index `index_books_syncUuid`; Home Library's stable identity, the only thing a mirrored row is matched on),
+`source` (`home_library`), `sourceUpdatedAt` (its `updated_at`, so a changed cover is fetched again),
+`sourceHasCover` (INTEGER NOT NULL DEFAULT 0) and `sourceMetadata` (JSON of the fields Vayana has no column for:
+publisher, ISBNs, shelf location, ...). Vayana's own books keep all five empty. Mirrored rows are excluded from the
+GitHub snapshot (`BookDao.getAllForSync`), and the full-sync change-tracking triggers now skip them, so a Home Library
+sync never recommends a full sync; the migration rebuilds those triggers.
+
 ## Version 29
 
 Rebuilds the full-sync change-tracking triggers so Room's `INSERT OR ABORT` and `UPDATE OR ABORT` annotation writes

@@ -6,6 +6,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -182,7 +183,7 @@ internal fun HighlightActions(
             ) {
                 HighlightColor.entries.forEach { color ->
                     val action = highlightSwatchAction(currentColorKey, color.key)
-                    BoxWithConstraints(contentAlignment = Alignment.Center) {
+                    Box(contentAlignment = Alignment.Center) {
                         VayanaSwatchButton(
                             color = color.swatch,
                             label = if (action == HighlightSwatchAction.Delete) {

@@ -29,10 +29,12 @@ object FontFamilies {
     )
 
     val Serif = FontFamily(
-        Font(R.font.lora, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-        Font(R.font.lora, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-        Font(R.font.lora, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-        Font(R.font.lora_italic, weight = FontWeight.Normal, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+        Font(R.font.libron_regular, weight = FontWeight.Normal),
+        Font(R.font.libron_regular, weight = FontWeight.Medium),
+        Font(R.font.libron_bold, weight = FontWeight.SemiBold),
+        Font(R.font.libron_bold, weight = FontWeight.Bold),
+        Font(R.font.libron_italic, weight = FontWeight.Normal, style = FontStyle.Italic),
+        Font(R.font.libron_bold_italic, weight = FontWeight.Bold, style = FontStyle.Italic),
     )
 
     /** Original substitute for the UI reference's `--font-ui` ("Google Sans") — see docs/DECISIONS.md. */
