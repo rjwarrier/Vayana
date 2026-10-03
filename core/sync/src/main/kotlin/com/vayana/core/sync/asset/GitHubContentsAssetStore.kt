@@ -1,6 +1,9 @@
 package com.vayana.core.sync.asset
 
 import java.io.IOException
+import java.io.File
+import java.io.FilterOutputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
@@ -45,6 +48,23 @@ class GitHubContentsAssetStore(
     override suspend fun put(path: String, bytes: ByteArray): Unit = withContext(dispatcher) {
         validateAssetPath(path)
         putContents(path, bytes, "Sync Vayana asset $path", replaceExisting = false)
+    }
+
+    override suspend fun putFile(path: String, file: File): Unit = withContext(dispatcher) {
+        validateAssetPath(path)
+        require(file.length() in 1..MaxEncryptedAssetBytes.toLong()) { "Cloud upload is empty or too large" }
+        val body = buildFilePutBody("Sync Vayana asset $path", file)
+        repeat(MaxPutAttempts) { attempt ->
+            val response = client.execute(GitHubHttpRequest(
+                method = "PUT", url = contentsUrl(path), headers = jsonHeaders(), streamingBody = body,
+            ))
+            if (response.statusCode == HttpURLConnection.HTTP_OK || response.statusCode == HttpURLConnection.HTTP_CREATED) {
+                return@withContext
+            }
+            if (response.statusCode != HttpURLConnection.HTTP_CONFLICT || attempt == MaxPutAttempts - 1) {
+                throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
+            }
+        }
     }
 
     /**
@@ -415,6 +435,24 @@ class GitHubContentsAssetStore(
         "User-Agent" to "VayanaSync",
     )
 
+    private fun buildFilePutBody(message: String, file: File): GitHubStreamingBody {
+        val prefix = """{"message":"${message.escapeJson()}","content":"""".toByteArray(Charsets.UTF_8)
+        val suffix = """","branch":"${repository.branch.escapeJson()}","committer":{"name":"${committerName.escapeJson()}","email":"${committerEmail.escapeJson()}"}}""".toByteArray(Charsets.UTF_8)
+        val encodedLength = ((file.length() + 2) / 3) * 4
+        return GitHubStreamingBody(prefix.size + encodedLength + suffix.size) { output ->
+            output.write(prefix)
+            // Closing the encoder emits padding, but the JSON suffix still needs the underlying stream.
+            val nonClosing = object : FilterOutputStream(output) {
+                override fun write(bytes: ByteArray, offset: Int, length: Int) = out.write(bytes, offset, length)
+                override fun close() = flush()
+            }
+            Base64.getEncoder().wrap(nonClosing).use { encoded ->
+                file.inputStream().use { it.copyTo(encoded) }
+            }
+            output.write(suffix)
+        }
+    }
+
     private fun buildPutBody(message: String, bytes: ByteArray, existingSha: String?): String {
         val encodedBytes = Base64.getEncoder().encodeToString(bytes)
         val shaProperty = existingSha?.let { ""","sha":"${it.escapeJson()}"""" }.orEmpty()
@@ -468,7 +506,10 @@ data class GitHubHttpRequest(
     val headers: Map<String, String> = emptyMap(),
     val body: ByteArray? = null,
     val maxResponseBytes: Int = MaxHttpResponseBytes,
+    val streamingBody: GitHubStreamingBody? = null,
 )
+
+class GitHubStreamingBody(val contentLength: Long, val writeTo: (OutputStream) -> Unit)
 
 data class GitHubHttpResponse(
     val statusCode: Int,
@@ -503,7 +544,13 @@ private class UrlConnectionGitHubHttpClient : GitHubHttpClient {
             connection.connectTimeout = NetworkTimeoutMillis
             connection.readTimeout = NetworkTimeoutMillis
             request.headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-            request.body?.let { body ->
+            check(request.body == null || request.streamingBody == null) { "Only one request body is allowed" }
+            val streamingBody = request.streamingBody
+            if (streamingBody != null) {
+                connection.doOutput = true
+                connection.setFixedLengthStreamingMode(streamingBody.contentLength)
+                connection.outputStream.use(streamingBody.writeTo)
+            } else request.body?.let { body ->
                 connection.doOutput = true
                 connection.outputStream.use { it.write(body) }
             }

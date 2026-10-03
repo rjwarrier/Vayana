@@ -277,6 +277,15 @@ internal fun ReturnRecapCard(
             chapterTitle?.takeIf { it.isNotBlank() }?.let { chapter ->
                 Text(text = stringResource(R.string.reader_return_recap_chapter, chapter), style = MaterialTheme.typography.bodyMedium)
             }
+            recap.journalText?.let { journal ->
+                Text(stringResource(R.string.tools_journal), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = journal,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             recap.highlight?.let { highlight ->
                 Text(
                     text = stringResource(R.string.reader_return_recap_highlight, highlight),

@@ -59,6 +59,15 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun getById(id: Long): Book? = bookDao.getById(id)?.toDomain()
 
+    override suspend fun addTags(id: Long, tagsCsv: String): Boolean = database.withTransaction {
+        val book = bookDao.getById(id) ?: return@withTransaction false
+        if (book.isDeleted || book.source == "home_library") return@withTransaction false
+        val merged = listOfNotNull(book.tagsCsv, tagsCsv).joinToString(",").normalizedBookTagsCsv()
+        if (merged == book.tagsCsv) return@withTransaction false
+        bookDao.updateTags(id, merged, System.currentTimeMillis())
+        true
+    }
+
     override suspend fun findActiveBySyncIdOrHash(syncId: String, fileHash: String): Book? =
         (bookDao.findBySyncId(syncId) ?: bookDao.findByHash(fileHash))?.toDomain()
 

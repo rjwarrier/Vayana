@@ -68,6 +68,7 @@ fun ShelvesRoute(
     val shelves by viewModel.shelves.collectAsStateWithLifecycle()
     val shelfBookCounts by viewModel.shelfBookCounts.collectAsStateWithLifecycle()
     val readNextQueue by viewModel.readNextQueue.collectAsStateWithLifecycle()
+    var showSmartShelves by remember { mutableStateOf(false) }
 
     ShelvesScreen(
         modifier = modifier,
@@ -80,12 +81,20 @@ fun ShelvesRoute(
         onCreateShelf = viewModel::createShelf,
         onDeleteShelf = viewModel::deleteShelf,
         onRemoveFromReadNext = { bookId -> viewModel.setReadNext(bookId, false) },
+        onSmartShelves = { showSmartShelves = true },
     )
+    if (showSmartShelves) {
+        val smartShelves by viewModel.smartShelfItems.collectAsStateWithLifecycle()
+        SmartShelvesDialog(smartShelves, viewModel::saveSmartShelf, viewModel::deleteSmartShelf,
+            onBookClick = { book -> showSmartShelves = false; onBookClick(book.id) },
+            onDismiss = { showSmartShelves = false })
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ShelvesScreen(
+    onSmartShelves: () -> Unit,
     modifier: Modifier = Modifier,
     shelves: List<Shelf>,
     shelfBookCounts: Map<Long, Int>,
@@ -112,6 +121,7 @@ private fun ShelvesScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.notes_back_content_description))
                     }
                 },
+                actions = { androidx.compose.material3.TextButton(onClick = onSmartShelves) { Text(stringResource(R.string.tools_smart_shelves)) } },
             )
         },
         floatingActionButton = {

@@ -11,11 +11,14 @@ import java.util.UUID
  * vocabulary review recommendation). [bookId] is not a foreign key on purpose - a card should
  * survive its source book being deleted, it just loses the "jump back to book" affordance.
  */
-@Entity(tableName = "vocabulary_cards", indices = [Index(value = ["syncId"], unique = true), Index("bookId")])
+@Entity(tableName = "vocabulary_cards", indices = [
+    Index(value = ["syncId"], unique = true), Index("bookId"),
+    Index(value = ["word", "known"]), Index(value = ["known", "dueAt", "createdAt"]),
+])
 data class VocabularyCardEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val syncId: String = "vocabulary-${UUID.randomUUID()}",
-    val word: String,
+    @ColumnInfo(collate = ColumnInfo.NOCASE) val word: String,
     val definition: String,
     val sentence: String?,
     val bookId: Long?,

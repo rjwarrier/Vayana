@@ -6,6 +6,11 @@ import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.filesystem.StorageRoots
 import java.io.File
+import java.io.Closeable
+import java.security.DigestInputStream
+import java.security.MessageDigest
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,8 +19,10 @@ import kotlinx.coroutines.withContext
 data class PreparedCloudAsset(
     val reference: CloudAssetReference,
     val path: String,
-    val encryptedBytes: ByteArray,
-)
+    val encryptedFile: File,
+) : Closeable {
+    override fun close() { encryptedFile.delete() }
+}
 
 enum class CloudBookFileDownloadPhase {
     ENCRYPTED_BYTES_DOWNLOADED,
@@ -28,37 +35,40 @@ class CloudBookAssetTransfer @Inject constructor(
     private val storageRoots: StorageRoots,
     private val stager: CloudAssetStager,
     private val dispatchers: DispatcherProvider,
+    @param:ApplicationContext private val context: Context,
 ) {
     private val cipher = CloudAssetCipher()
 
     suspend fun uploadBookFile(bookId: Long, passphrase: CharArray, store: CloudAssetStore): CloudAssetReference =
         withContext(dispatchers.io) {
             require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
-            val prepared = prepareBookFile(bookId, passphrase)
-            store.put(prepared.path, prepared.encryptedBytes)
-            bookRepository.markFileAssetUploaded(
-                id = bookId,
-                assetId = prepared.reference.id,
-                assetSha256 = prepared.reference.sha256,
-                assetSizeBytes = prepared.reference.sizeBytes,
-                assetUploadedAt = prepared.reference.uploadedAt,
-            )
-            prepared.reference
+            prepareBookFile(bookId, passphrase).use { prepared ->
+                store.putFile(prepared.path, prepared.encryptedFile)
+                bookRepository.markFileAssetUploaded(
+                    id = bookId,
+                    assetId = prepared.reference.id,
+                    assetSha256 = prepared.reference.sha256,
+                    assetSizeBytes = prepared.reference.sizeBytes,
+                    assetUploadedAt = prepared.reference.uploadedAt,
+                )
+                prepared.reference
+            }
         }
 
     suspend fun uploadCoverImage(bookId: Long, passphrase: CharArray, store: CloudAssetStore): CloudAssetReference =
         withContext(dispatchers.io) {
             require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
-            val prepared = prepareCoverImage(bookId, passphrase)
-            store.put(prepared.path, prepared.encryptedBytes)
-            bookRepository.markCoverAssetUploaded(
-                id = bookId,
-                assetId = prepared.reference.id,
-                assetSha256 = prepared.reference.sha256,
-                assetSizeBytes = prepared.reference.sizeBytes,
-                assetUploadedAt = prepared.reference.uploadedAt,
-            )
-            prepared.reference
+            prepareCoverImage(bookId, passphrase).use { prepared ->
+                store.putFile(prepared.path, prepared.encryptedFile)
+                bookRepository.markCoverAssetUploaded(
+                    id = bookId,
+                    assetId = prepared.reference.id,
+                    assetSha256 = prepared.reference.sha256,
+                    assetSizeBytes = prepared.reference.sizeBytes,
+                    assetUploadedAt = prepared.reference.uploadedAt,
+                )
+                prepared.reference
+            }
         }
 
     suspend fun downloadBookFile(
@@ -98,19 +108,7 @@ class CloudBookAssetTransfer @Inject constructor(
         val file = storageRoots.resolve(book.filePath)
         check(file.isFile) { "Book file is missing from this device" }
         check(file.length() <= MaxBookAssetBytes) { "Book file is too large for GitHub asset sync" }
-        val plaintext = file.readBytes()
-        val plaintextSha256 = Hashing.sha256(plaintext)
-        val reference = CloudAssetReference(
-            id = UUID.randomUUID().toString().replace("-", ""),
-            sha256 = plaintextSha256,
-            sizeBytes = plaintext.size.toLong(),
-            uploadedAt = System.currentTimeMillis(),
-        )
-        PreparedCloudAsset(
-            reference = reference,
-            path = CloudAssetLayout.pathFor(reference.id),
-            encryptedBytes = cipher.encrypt(plaintext, passphrase, reference.aad()),
-        )
+        prepareFile(file, passphrase)
     }
 
     suspend fun prepareCoverImage(bookId: Long, passphrase: CharArray): PreparedCloudAsset = withContext(dispatchers.io) {
@@ -120,19 +118,35 @@ class CloudBookAssetTransfer @Inject constructor(
         val file = storageRoots.resolve(coverPath)
         check(file.isFile) { "Book cover is missing from this device" }
         check(file.length() <= MaxCoverAssetBytes) { "Book cover is too large for GitHub asset sync" }
-        val plaintext = file.readBytes()
-        val plaintextSha256 = Hashing.sha256(plaintext)
+        prepareFile(file, passphrase)
+    }
+
+    private fun prepareFile(file: File, passphrase: CharArray): PreparedCloudAsset {
+        val size = file.length()
+        val plaintextSha256 = Hashing.sha256(file.inputStream())
         val reference = CloudAssetReference(
             id = UUID.randomUUID().toString().replace("-", ""),
             sha256 = plaintextSha256,
-            sizeBytes = plaintext.size.toLong(),
+            sizeBytes = size,
             uploadedAt = System.currentTimeMillis(),
         )
-        PreparedCloudAsset(
-            reference = reference,
-            path = CloudAssetLayout.pathFor(reference.id),
-            encryptedBytes = cipher.encrypt(plaintext, passphrase, reference.aad()),
-        )
+        val encrypted = File.createTempFile("vayana-upload-", ".bin", context.cacheDir)
+        try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            DigestInputStream(file.inputStream(), digest).use { input ->
+                encrypted.outputStream().buffered().use { output ->
+                    cipher.encrypt(input, output, passphrase, reference.aad())
+                }
+            }
+            // A replacement between hashing and encryption must never produce an invalid asset reference.
+            check(digest.digest().joinToString("") { "%02x".format(it) } == plaintextSha256 && file.length() == size) {
+                "Book or cover changed while preparing its upload"
+            }
+            return PreparedCloudAsset(reference, CloudAssetLayout.pathFor(reference.id), encrypted)
+        } catch (failure: Throwable) {
+            encrypted.delete()
+            throw failure
+        }
     }
 }
 

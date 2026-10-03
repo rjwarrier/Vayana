@@ -151,6 +151,8 @@ enum class LibraryAddAction {
     FREE_BOOKS,
 }
 
+private enum class LibraryTool { SMART_SHELVES, BULK }
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryRoute(
@@ -219,11 +221,24 @@ fun LibraryRoute(
         onFilterChange = viewModel::updateFilter,
         onGroupByChange = viewModel::updateGroupBy,
         onViewModeChange = viewModel::updateViewMode,
+        tools = { tool, dismiss, open ->
+            when (tool) {
+                LibraryTool.SMART_SHELVES -> {
+                    val shelves by viewModel.smartShelfItems.collectAsStateWithLifecycle()
+                    SmartShelvesDialog(shelves, viewModel::saveSmartShelf, viewModel::deleteSmartShelf, open, dismiss)
+                }
+                LibraryTool.BULK -> {
+                    val shelves by viewModel.shelves.collectAsStateWithLifecycle()
+                    BulkBooksDialog(uiState.books, shelves, viewModel::bulkAction, dismiss)
+                }
+            }
+        },
     )
 }
 
 @Composable
 private fun LibraryScreen(
+    tools: @Composable (LibraryTool, () -> Unit, (Book) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
     searchText: String,
@@ -298,6 +313,7 @@ private fun LibraryScreen(
     }
     var pendingFinishBook by remember { mutableStateOf<Book?>(null) }
     var showStatsShareDialog by remember { mutableStateOf(false) }
+    var selectedTool by remember { mutableStateOf<LibraryTool?>(null) }
     val markedFinishedMessage = stringResource(R.string.library_marked_finished)
     var syncRunning by remember { mutableStateOf(false) }
     var syncBadge by remember { mutableStateOf<LibrarySyncBadge?>(null) }
@@ -496,6 +512,8 @@ private fun LibraryScreen(
                     onShelvesClick = onShelvesClick,
                     onOfflineBooksClick = onOfflineBooksClick,
                     onStatsShareClick = { showStatsShareDialog = true },
+                    onSmartShelvesClick = { selectedTool = LibraryTool.SMART_SHELVES },
+                    onSelectBooksClick = { selectedTool = LibraryTool.BULK },
                     onQueryChange = onQueryChange,
                     onSortChange = onSortChange,
                     onFilterChange = onFilterChange,
@@ -641,6 +659,12 @@ private fun LibraryScreen(
     if (showStatsShareDialog) {
         LibraryStatsShareDialog(books = allBooks, onDismiss = { showStatsShareDialog = false })
     }
+    selectedTool?.let { tool ->
+        tools(tool, { selectedTool = null }) { book ->
+            selectedTool = null
+            handleBookClick(book, BookOpenTransitionSource.COVER)
+        }
+    }
 }
 
 @Composable
@@ -660,6 +684,8 @@ private enum class LibrarySyncBadge {
 
 @Composable
 private fun LibraryTopBar(
+    onSmartShelvesClick: () -> Unit,
+    onSelectBooksClick: () -> Unit,
     controls: LibraryControls,
     /** What the search box shows; held apart from [controls], which lag a frame behind typing. */
     searchText: String,
@@ -863,6 +889,10 @@ private fun LibraryTopBar(
                             expanded = moreExpanded,
                             onDismissRequest = { moreExpanded = false },
                             groups = buildList {
+                                add(VayanaMenuGroup(listOf(
+                                    VayanaMenuItem(label = stringResource(R.string.tools_smart_shelves), icon = Icons.Outlined.CollectionsBookmark, onClick = onSmartShelvesClick),
+                                    VayanaMenuItem(label = stringResource(R.string.tools_select_books), icon = Icons.Outlined.Check, onClick = onSelectBooksClick),
+                                )))
                                 // Narrow layouts have no room for the sort and view buttons, so they move in here.
                                 if (useCompactActions) {
                                     add(librarySortMenuGroup(controls, onSortChange))

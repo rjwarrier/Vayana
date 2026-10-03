@@ -63,6 +63,14 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { preferences -> preferences.write(setting, value) }
     }
 
+    override suspend fun updateAtomic(setting: StringSetting, transform: (String) -> String) {
+        dataStore.edit { preferences ->
+            val value = transform(preferences.read(setting))
+            require(value.length <= setting.maxLength) { "Saved reading tools are too large" }
+            preferences.write(setting, value)
+        }
+    }
+
     override suspend fun updateReaderImportedFonts(fonts: List<ImportedFont>) {
         dataStore.edit { preferences ->
             preferences[ReaderImportedFontsKey] = fonts.serializeImportedFonts()

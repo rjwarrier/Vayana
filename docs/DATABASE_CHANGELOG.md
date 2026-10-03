@@ -2,6 +2,14 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 31
+
+Adds vocabulary indexes for case-insensitive word lookup (`word`, `known`) and due-card selection/counting
+(`known`, `dueAt`, `createdAt`). The word column now uses NOCASE, matching the existing lookup query.
+Migration 30→31 copies every card and review schedule unchanged, preserves IDs and the AUTOINCREMENT high-water
+mark, and reinstalls the vocabulary sync-tracking triggers. Backup and sync formats are unchanged. Room performs
+the migration transactionally; a failed migration rolls back. Downgrading to a version-30 binary is unsupported.
+
 ## Version 30
 
 Adds the columns that let `books` hold rows mirrored from Home Library (`com.mj.homelibrary`): nullable `syncUuid`

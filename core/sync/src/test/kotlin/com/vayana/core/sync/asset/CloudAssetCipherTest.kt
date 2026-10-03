@@ -11,6 +11,18 @@ class CloudAssetCipherTest {
     private val cipher = CloudAssetCipher()
 
     @Test
+    fun streamedEnvelopeIsReadableByExistingDecryptor() {
+        val plaintext = ByteArray(1024 * 1024 + 7) { (it % 251).toByte() }
+        val output = java.io.ByteArrayOutputStream()
+        cipher.encrypt(plaintext.inputStream(), output, "secret".toCharArray(), "metadata".toByteArray())
+        assertEquals(plaintext.size + 53, output.size())
+        assertContentEquals(plaintext, cipher.decrypt(output.toByteArray(), "secret".toCharArray(), "metadata".toByteArray()))
+        assertFailsWith<AEADBadTagException> {
+            cipher.decrypt(output.toByteArray(), "secret".toCharArray(), "changed".toByteArray())
+        }
+    }
+
+    @Test
     fun roundTripsWithMatchingPassphraseAndMetadata() {
         val plaintext = "book bytes".toByteArray()
         val aad = "vayana.asset.v1:test".toByteArray()

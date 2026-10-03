@@ -6,6 +6,12 @@ android {
     namespace = "com.vayana.feature.library"
 }
 
+tasks.withType<Test>().configureEach {
+    val schemas = rootProject.file("core/database/schemas/com.vayana.core.database.VayanaDatabase")
+    inputs.dir(schemas)
+    systemProperty("vayana.test.schemas", schemas.absolutePath)
+}
+
 dependencies {
     implementation(project(":core:backup"))
     implementation(project(":core:database"))

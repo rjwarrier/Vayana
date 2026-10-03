@@ -105,6 +105,9 @@ import com.vayana.core.resources.R
 import java.io.File
 import com.vayana.core.designsystem.theme.asAppDate
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun NotesRoute(
@@ -163,6 +166,8 @@ private fun NotesScreen(
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var sharingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    var showNotebookExport by remember { mutableStateOf(false) }
+    var markdownExportBusy by remember { mutableStateOf(false) }
     val deleteUndoMessage = stringResource(R.string.notes_delete_undo_message)
     val deleteUndoAction = stringResource(R.string.notes_delete_undo_action)
     var selectedTag by remember { mutableStateOf<String?>(null) }
@@ -265,9 +270,19 @@ private fun NotesScreen(
                         }
                         activeBookItem?.let { bookItem ->
                             IconButton(
+                                enabled = !markdownExportBusy,
                                 onClick = {
+                                    markdownExportBusy = true
                                     scope.launch {
-                                        context.shareHighlightsMarkdown(bookItem.book, bookItem.annotations)
+                                        try {
+                                            context.shareHighlightsMarkdown(bookItem.book, bookItem.annotations)
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (_: Exception) {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.tools_failed))
+                                        } finally {
+                                            markdownExportBusy = false
+                                        }
                                     }
                                 },
                             ) {
@@ -276,6 +291,11 @@ private fun NotesScreen(
                                     contentDescription = stringResource(R.string.notes_export_markdown_content_description),
                                 )
                             }
+                        }
+                    }
+                    if (booksWithNotes.isNotEmpty()) {
+                        IconButton(enabled = !markdownExportBusy, onClick = { showNotebookExport = true }) {
+                            Icon(Icons.Outlined.AutoStories, contentDescription = stringResource(R.string.tools_export_notebooks))
                         }
                     }
                     }
@@ -522,6 +542,14 @@ private fun NotesScreen(
             shape = RoundedCornerShape(Radii.extraLargeIncreased),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = Elevations.shadowLarge,
+        )
+    }
+
+    if (showNotebookExport) {
+        NotesNotebookExportDialog(
+            books = booksWithNotes,
+            onExport = { context.shareMarkdownNotebooks(it) },
+            onDismiss = { showNotebookExport = false },
         )
     }
 
@@ -1416,31 +1444,7 @@ private fun Context.shareAnnotations(annotations: List<Annotation>) {
 
 /** Exports [book]'s highlights/notes as a Markdown file, grouped by chapter, and shares it. */
 private suspend fun Context.shareHighlightsMarkdown(book: Book, annotations: List<Annotation>) {
-    val markdown = buildString {
-        appendLine("# ${book.title}")
-        book.author?.takeIf { it.isNotBlank() }?.let { author -> appendLine("*${author}*") }
-        appendLine()
-
-        annotations
-            .filterNot { it.type == AnnotationType.BOOKMARK && it.selectedText.isBlank() }
-            .groupBy { it.chapterTitle?.takeIf { title -> title.isNotBlank() } }
-            .forEach { (chapterTitle, chapterAnnotations) ->
-                if (chapterTitle != null) {
-                    appendLine("## $chapterTitle")
-                    appendLine()
-                }
-                chapterAnnotations.forEach { annotation ->
-                    if (annotation.selectedText.isNotBlank()) {
-                        appendLine("> ${annotation.selectedText.replace("\n", "\n> ")}")
-                        appendLine()
-                    }
-                    annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
-                        appendLine(note)
-                        appendLine()
-                    }
-                }
-            }
-    }.trim()
+    val markdown = withContext(Dispatchers.Default) { highlightsMarkdown(book, annotations) }
 
     val safeTitle = book.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifBlank { "highlights" }
     shareFile(

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BookDao {
+    @Query("UPDATE books SET tagsCsv = :tags, updatedAt = :now WHERE id = :id AND isDeleted = 0 AND source IS NOT 'home_library'")
+    suspend fun updateTags(id: Long, tags: String?, now: Long)
+
     @Query("SELECT * FROM books WHERE isDeleted = 0 ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<BookEntity>>
 

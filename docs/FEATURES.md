@@ -5,6 +5,30 @@ reading one file. Keep this in step with the code when any of them changes.
 
 ---
 
+## Reading tools
+
+- **Smart shelves:** Library overflow → Smart shelves, or the button in Shelves. Save combined search,
+  author, exact tag, reading status, dormant-day and notes/highlights rules. Membership follows book
+  progress, metadata and annotations automatically; dormant rules refresh while the dialog is open.
+  Community quotes and empty bookmarks do not count as personal notes.
+- **Bulk actions:** Library overflow → Select books. Select from the current filtered library, then
+  add to a shelf, add comma-separated tags, or download cloud copies. Tags preserve existing values;
+  downloads run sequentially and results distinguish completed, failed and skipped books.
+- **Reading presets:** Reader → Style → Reading presets. Save the effective current style under a name.
+  Typography follows the existing per-book custom-style toggle; theme and text options remain global.
+  Imported fonts fall back to the saved built-in family when unavailable on another device.
+- **Finish-by plans:** Book details → Finish by. Choose a date to calculate daily pages, measured
+  reading minutes, or a progress percentage when no pace is available. Today counts as a reading day.
+- **Reading journal:** Reader → Notes → Reading journal. Entries retain the current position as normal
+  notes, can be edited/exported in Notes, and appear in the return recap after an extended absence.
+- **Markdown notebooks:** Notes toolbar → Export Markdown notebooks. Select books and share one ZIP
+  with a Markdown file per book, including title/author/tag frontmatter, chapters, quotes and notes.
+
+Smart shelves, presets and finish dates are registered structured DataStore settings included in
+settings backups and portable snapshot exports. Normal library sync keeps these settings local.
+Finish dates use book sync identities. Journals use ordinary synced
+annotation records. These tools do not require another database schema change.
+
 ## Onboarding
 
 **Code:** `feature/onboarding/` (`OnboardingScreen.kt`, `OnboardingViewModel.kt`), `app/.../VayanaAppRoot.kt`,

@@ -53,6 +53,41 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun journalNotesPersistWithoutSelectedTextAndKeepStableSyncIdentity() = runBlocking {
+        val book = repository.insertOfflineBook("Dune", null, BookFormat.PHYSICAL, null, null)
+        val notes = com.vayana.core.database.repository.AnnotationRepositoryImpl(database, database.annotationDao(),
+            database.bookDao(), database.bookAliasDao(), database.tombstoneDao())
+        val entry = notes.create(book.id, com.vayana.core.database.model.AnnotationType.NOTE, "journal",
+            "epubcfi(/6/2)", "Chapter one", "chapter.xhtml", "", "Stopped after the revelation. #reflection")
+        assertEquals(entry, notes.observeForBook(book.id).first().single())
+        assertTrue(entry.syncId.isNotBlank())
+        val synced = database.annotationDao().getAllForSync().single()
+        assertEquals("journal", synced.colorKey)
+        assertEquals(entry.readerNote, synced.readerNote)
+        assertEquals("", synced.selectedText)
+        notes.update(entry.copy(readerNote = "Revised reflection"))
+        assertEquals(entry.syncId, notes.getById(entry.id)!!.syncId)
+        notes.softDelete(entry.id)
+        assertTrue(notes.observeForBook(book.id).first().isEmpty())
+        assertTrue(database.annotationDao().getAllForSync().single().isDeleted)
+    }
+
+    @Test
+    fun additiveTagsPreserveMetadataAndAreIdempotent() = runBlocking {
+        val book = repository.insertOfflineBook("Dune", "Frank Herbert", BookFormat.PHYSICAL, 100, null)
+        assertTrue(repository.addTags(book.id, "Favorite, Fiction"))
+        assertTrue(repository.addTags(book.id, "fiction, Space"))
+        val updated = repository.getById(book.id)!!
+        assertEquals("Favorite, Fiction, Space", updated.tagsCsv)
+        assertEquals(book.title, updated.title)
+        assertEquals(book.author, updated.author)
+        assertEquals(book.startedReadingAt, updated.startedReadingAt)
+        assertEquals(book.readingPercent, updated.readingPercent)
+        kotlin.test.assertFalse(repository.addTags(book.id, "SPACE, favorite"))
+        assertEquals(updated.updatedAt, repository.getById(book.id)!!.updatedAt)
+    }
+
+    @Test
     fun insertedOfflineBookIsLocalFileLessAndFinishedWhenGivenAFinishDate() = runBlocking {
         val book = repository.insertOfflineBook("Piranesi", "Susanna Clarke", BookFormat.AUDIOBOOK, startedAt = 100, finishedAt = 200)
 

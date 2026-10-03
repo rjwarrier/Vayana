@@ -878,7 +878,14 @@ object SettingsRegistry {
     )
 
     /** Persisted and backed up, but edited only by purpose-built feature UI. */
+    val SmartShelves = StringSetting("library.smart_shelves", "[]", R.string.tools_smart_shelves, null, SettingsGroup.LIBRARY, maxLength = 262_144)
+    val ReadingPresets = StringSetting("reader.named_presets", "[]", R.string.tools_presets, null, SettingsGroup.READER_TEXT, maxLength = 262_144)
+    val ReadingPlans = StringSetting("goals.finish_by", "{}", R.string.tools_finish_by, null, SettingsGroup.GOALS, maxLength = 262_144)
+
     val internal: List<Setting<out Any>> = listOf(
+        SmartShelves,
+        ReadingPresets,
+        ReadingPlans,
         ReadAloudVoiceName,
         ReadAloudEngine,
         LibraryViewMode,

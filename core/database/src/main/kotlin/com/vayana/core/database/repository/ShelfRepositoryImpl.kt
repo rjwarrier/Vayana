@@ -55,6 +55,7 @@ class ShelfRepositoryImpl @Inject constructor(
         database.withTransaction {
             val book = bookDao.getById(bookId)
             val shelf = shelfDao.getById(shelfId)
+            if (book == null || book.isDeleted || shelf == null) return@withTransaction
             if (book != null && shelf != null) {
                 tombstoneDao.deleteBySyncId(shelfMembershipTombstoneSyncId(book.syncId, shelf.syncId))
             }

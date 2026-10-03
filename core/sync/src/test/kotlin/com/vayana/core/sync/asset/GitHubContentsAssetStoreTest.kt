@@ -29,6 +29,34 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 
 class GitHubContentsAssetStoreTest {
+    @Test
+    fun fileUploadStreamsValidJsonAndCanReplayAfterConflict() = runBlocking {
+        val file = java.io.File.createTempFile("asset-upload-test", ".bin")
+        try {
+            // Exercise every base64 padding length as well as the copy buffer boundary.
+            for (size in listOf(8192, 8193, 8194)) {
+                val bytes = ByteArray(size) { (it % 251).toByte() }
+                file.writeBytes(bytes)
+                val client = RecordingGitHubHttpClient(GitHubHttpResponse(409, byteArrayOf()), GitHubHttpResponse(201, byteArrayOf()))
+                testStore(client).putFile(CloudAssetLayout.pathFor(AssetId), file)
+                assertEquals(2, client.requests.size)
+                for (request in client.requests) {
+                    assertEquals(null, request.body)
+                    val body = assertNotNull(request.streamingBody)
+                    val output = java.io.ByteArrayOutputStream()
+                    body.writeTo(output)
+                    assertEquals(body.contentLength, output.size().toLong())
+                    val json = org.json.JSONObject(output.toString("UTF-8"))
+                    assertContentEquals(bytes, Base64.getDecoder().decode(json.getString("content")))
+                    assertEquals("main", json.getString("branch"))
+                    assertTrue(json.has("committer"))
+                }
+            }
+        } finally {
+            file.delete()
+        }
+    }
+
     @BeforeTest
     fun clearProcessCaches() {
         GitHubBlobCache.clear()

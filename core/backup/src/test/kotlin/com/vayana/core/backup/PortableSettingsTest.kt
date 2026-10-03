@@ -8,6 +8,9 @@ import kotlin.test.assertTrue
 class PortableSettingsTest {
     @Test
     fun allowlistContainsOnlyPortablePreferences() {
+        assertTrue(SettingsRegistry.SmartShelves.key in PortableSettings.allowlist)
+        assertTrue(SettingsRegistry.ReadingPresets.key in PortableSettings.allowlist)
+        assertTrue(SettingsRegistry.ReadingPlans.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.ReaderFontSize.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.ReaderTheme.key in PortableSettings.allowlist)
         assertTrue(SettingsRegistry.DailyReadingGoalMinutes.key in PortableSettings.allowlist)

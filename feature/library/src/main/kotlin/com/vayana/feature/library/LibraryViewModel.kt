@@ -53,6 +53,7 @@ import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
+import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
@@ -87,6 +88,9 @@ import com.vayana.core.datastore.settings.LaunchReadingProgressCheckMarker
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
+import com.vayana.core.datastore.settings.ReadingToolsRepository
+import com.vayana.core.datastore.settings.SmartShelf
+import java.time.LocalDate
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
 import com.vayana.core.sync.asset.CloudAssetReference
@@ -133,6 +137,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -478,6 +483,7 @@ class LibraryViewModel @Inject constructor(
     private val shelfRepository: ShelfRepository,
     private val vocabularyCardRepository: VocabularyCardRepository,
     private val settingsRepository: SettingsRepository,
+    private val readingTools: ReadingToolsRepository,
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
     private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val snapshotExporter: SnapshotExporter,
@@ -561,30 +567,27 @@ class LibraryViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    val uiState: StateFlow<LibraryUiState> = combine(
+    private val librarySelection = LibrarySelection()
+    private val listState = combine(
         libraryBooks,
         controls,
-        githubSyncReady,
         finishedThreshold,
-        fullSyncRecommended,
-    ) { books, controls, syncReady, finishedThreshold, recommendFullSync ->
+    ) { books, controls, finishedThreshold ->
         LibraryUiState(
             allBooks = books,
             // Books read outside the app live on their own screen; the library is what can be opened here. Filtered
             // here rather than by combining [readableBooks], which would run this whole pass twice per change.
-            books = books
-                .filter { !it.format.isOffline }
-                .filterBy(controls.filter, finishedThreshold)
-                .filterByQuery(controls.query)
-                .sortedBy(controls.sort, controls.sortDirection),
+            books = librarySelection.select(books, controls, finishedThreshold),
             controls = controls,
-            githubSyncReady = syncReady,
-            fullSyncRecommended = recommendFullSync,
         )
     }
-        // Filtering (including description search) and sorting run per keystroke and per DB change: keep them
-        // off the main thread.
         .flowOn(dispatchers.default)
+
+    val uiState: StateFlow<LibraryUiState> = combine(
+        listState, githubSyncReady, fullSyncRecommended,
+    ) { state, syncReady, recommendFullSync ->
+        state.copy(githubSyncReady = syncReady, fullSyncRecommended = recommendFullSync)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
     fun observeBook(bookId: Long): StateFlow<Book?> = libraryBooks
@@ -742,6 +745,52 @@ class LibraryViewModel @Inject constructor(
 
     val shelves: StateFlow<List<Shelf>> = shelfRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    internal val smartShelfItems = combine(libraryBooks, readingTools.smartShelves,
+        annotationRepository.observeAll().map { notes -> notes.filter {
+            !it.isDeleted && !it.isCommunityQuote() && (it.type != AnnotationType.BOOKMARK || !it.readerNote.isNullOrBlank())
+        }.mapTo(HashSet()) { it.bookId } }.distinctUntilChanged(),
+        finishedThreshold,
+        kotlinx.coroutines.flow.flow {
+            while (true) { emit(System.currentTimeMillis()); kotlinx.coroutines.delay(60_000) }
+        },
+    ) { books, definitions, notedBooks, threshold, now ->
+        definitions.map { shelf -> SmartShelfItem(shelf, books.filter { shelf.matches(it, notedBooks, threshold, now) }.sortedBy { it.title.lowercase() }) }
+    }.flowOn(dispatchers.default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val finishByDates = readingTools.plans.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    internal suspend fun saveSmartShelf(shelf: SmartShelf) = readingTools.saveShelf(shelf)
+    internal suspend fun deleteSmartShelf(id: String) = readingTools.deleteShelf(id)
+    suspend fun setFinishBy(syncId: String, date: LocalDate?) = readingTools.setFinishBy(syncId, date)
+
+    internal suspend fun bulkAction(ids: Set<Long>, action: BulkLibraryAction): BulkLibraryResult = withContext(dispatchers.io) {
+        var completed = 0
+        var failed = 0
+        var skipped = 0
+        for (id in ids) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val outcome = runCatchingCancellable {
+                val book = bookRepository.getById(id)
+                if (book == null || libraryBooks.value.none { it.id == id }) return@runCatchingCancellable false
+                when (action) {
+                    is BulkLibraryAction.AddToShelf -> { shelfRepository.addBookToShelf(id, action.shelfId); true }
+                    is BulkLibraryAction.AddTags -> bookRepository.addTags(id, action.tags)
+                    BulkLibraryAction.Download -> {
+                        if (book.fileAvailability != BookFileAvailability.CLOUD_ONLY) return@runCatchingCancellable false
+                        check(downloadCloudBook(book) == CloudBookDownloadResult.DOWNLOADED) { "Download failed" }
+                        true
+                    }
+                }
+            }
+            when {
+                outcome.isFailure -> failed++
+                outcome.getOrDefault(false) -> completed++
+                else -> skipped++
+            }
+        }
+        BulkLibraryResult(completed, failed, skipped)
+    }
 
     val landscapeTwoColumnLayout: StateFlow<Boolean> = settingsRepository.snapshot
         .map { it.landscapeTwoColumnLayout }
@@ -3051,6 +3100,30 @@ private fun List<Book>.sortedBy(sort: LibrarySort, direction: LibrarySortDirecti
         LibrarySort.PROGRESS -> primary { it.book.readingPercent }.thenBy { it.title }
     }
     return map(::SortEntry).sortedWith(comparator).map { it.book }
+}
+
+/** One cached selection; presentation controls do not invalidate filtering and sorting. */
+internal class LibrarySelection {
+    private var inputs: Inputs? = null
+    private var selected: List<Book> = emptyList()
+
+    fun select(books: List<Book>, controls: LibraryControls, finishedThreshold: Float): List<Book> {
+        // Grouping and grid/list changes do not affect membership or ordering.
+        val next = Inputs(books, controls.query, controls.filter, controls.sort, controls.sortDirection, finishedThreshold)
+        if (inputs != next) {
+            selected = books.filterNot { it.format.isOffline }
+                .filterBy(controls.filter, finishedThreshold)
+                .filterByQuery(controls.query)
+                .sortedBy(controls.sort, controls.sortDirection)
+            inputs = next
+        }
+        return selected
+    }
+
+    private data class Inputs(
+        val books: List<Book>, val query: String, val filter: LibraryFilter,
+        val sort: LibrarySort, val direction: LibrarySortDirection, val finishedThreshold: Float,
+    )
 }
 
 /** Only for spotting a synced status change worth a prompt; library filters use the user's finished percent. */

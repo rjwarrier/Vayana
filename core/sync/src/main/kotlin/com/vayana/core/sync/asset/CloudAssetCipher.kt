@@ -1,6 +1,8 @@
 package com.vayana.core.sync.asset
 
 import java.security.SecureRandom
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.Arrays
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -11,6 +13,27 @@ import javax.crypto.spec.SecretKeySpec
 class CloudAssetCipher(
     private val secureRandom: SecureRandom = SecureRandom(),
 ) {
+    /** Writes the same v1 envelope as the byte-array API, with bounded plaintext buffers. */
+    fun encrypt(plaintext: InputStream, output: OutputStream, passphrase: CharArray, aad: ByteArray) {
+        require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
+        val salt = ByteArray(SaltBytes).also(secureRandom::nextBytes)
+        val nonce = ByteArray(NonceBytes).also(secureRandom::nextBytes)
+        val cipher = Cipher.getInstance(Transformation)
+        cipher.init(Cipher.ENCRYPT_MODE, deriveKey(passphrase, salt), GCMParameterSpec(GcmTagBits, nonce))
+        cipher.updateAAD(aad)
+        output.write(Magic)
+        output.write(EnvelopeVersion.toInt())
+        output.write(salt)
+        output.write(nonce)
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = plaintext.read(buffer)
+            if (read < 0) break
+            cipher.update(buffer, 0, read)?.let(output::write)
+        }
+        output.write(cipher.doFinal())
+    }
+
     fun encrypt(plaintext: ByteArray, passphrase: CharArray, aad: ByteArray): ByteArray {
         require(passphrase.isNotEmpty()) { "Cloud asset passphrase is required" }
         val salt = ByteArray(SaltBytes).also(secureRandom::nextBytes)

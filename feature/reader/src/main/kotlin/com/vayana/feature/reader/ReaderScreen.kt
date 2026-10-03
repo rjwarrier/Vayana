@@ -215,6 +215,10 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settings by viewModel.effectiveSettings.collectAsStateWithLifecycle()
     val usingCustomStyle by viewModel.usingCustomStyle.collectAsStateWithLifecycle()
+    val readingPresets by viewModel.presets.collectAsStateWithLifecycle()
+    val presetsPanel: @Composable () -> Unit = {
+        ReadingPresetsPanel(readingPresets, viewModel::saveReadingPreset, viewModel::applyReadingPreset, viewModel::deleteReadingPreset)
+    }
     val dictionaryLookup by viewModel.dictionaryLookup.collectAsStateWithLifecycle()
     val readingPositionPrompt by viewModel.readingPositionPrompt.collectAsStateWithLifecycle()
     val recentLookups by viewModel.recentLookups.collectAsStateWithLifecycle()
@@ -304,6 +308,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 syncStatus = syncStatus,
                 usingCustomStyle = usingCustomStyle,
                 onUseCustomStyleChange = viewModel::setUseCustomStyle,
+                presetsPanel = presetsPanel,
+                onSaveJournal = viewModel::saveJournalEntry,
                 dictionaryLookup = dictionaryLookup,
                 readingPositionPrompt = readingPositionPrompt,
                 recentLookups = recentLookups,
@@ -424,6 +430,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         syncStatus = syncStatus,
         usingCustomStyle = usingCustomStyle,
         onUseCustomStyleChange = viewModel::setUseCustomStyle,
+        presetsPanel = presetsPanel,
+        onSaveJournal = viewModel::saveJournalEntry,
         dictionaryLookup = dictionaryLookup,
         readingPositionPrompt = readingPositionPrompt,
         recentLookups = recentLookups,
@@ -756,6 +764,8 @@ private fun ReaderScreen(
     syncStatus: ReaderSyncStatus,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
+    presetsPanel: @Composable () -> Unit,
+    onSaveJournal: suspend (String) -> Unit,
     dictionaryLookup: DictionaryLookupState,
     recentLookups: List<String>,
     searchResults: List<com.vayana.reader.api.SearchResult>,
@@ -1342,6 +1352,8 @@ private fun ReaderScreen(
                 settings = settings,
                 usingCustomStyle = usingCustomStyle,
                 onUseCustomStyleChange = onUseCustomStyleChange,
+                onSaveJournal = onSaveJournal,
+                presetsPanel = presetsPanel,
                 selectedPanel = selectedPanel,
                 onPanelSelected = { selectedPanel = it },
                 onBack = { chromeVisible = false },
@@ -2043,6 +2055,8 @@ private fun ReaderChrome(
     settings: SettingsSnapshot,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
+    presetsPanel: @Composable () -> Unit,
+    onSaveJournal: suspend (String) -> Unit,
     selectedPanel: ReaderPanel,
     onPanelSelected: (ReaderPanel) -> Unit,
     onBack: () -> Unit,
@@ -2078,6 +2092,9 @@ private fun ReaderChrome(
     onChapterWordClick: (String) -> Unit,
     onSaveChapterWord: (ChapterWord) -> Unit,
 ) {
+    var showJournal by remember { mutableStateOf(false) }
+    if (showJournal) ReadingJournalDialog(onDismiss = { showJournal = false }, onSave = onSaveJournal)
+
     // PDF pages have no reflowable text to restyle: the style panel offers page fit and crop instead.
     val fixedLayout = (uiState as? ReaderUiState.Loaded)?.fixedLayout == true
     val chromeSurfaceColor = readerChromeSurfaceColor()
@@ -2221,6 +2238,7 @@ private fun ReaderChrome(
                         showTypography = !fixedLayout,
                         usingCustomStyle = usingCustomStyle,
                         onUseCustomStyleChange = onUseCustomStyleChange,
+                        presetsPanel = presetsPanel,
                         onFontSizeChange = onFontSizeChange,
                         onLineHeightChange = onLineHeightChange,
                         onFontFamilyChange = onFontFamilyChange,
@@ -2242,7 +2260,7 @@ private fun ReaderChrome(
                         onRateChange = onReadAloudRateChange,
                         onPitchChange = onReadAloudPitchChange,
                     )
-                    ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick)
+                    ReaderPanel.NOTES -> NotesPanel(uiState = uiState, onAnnotationClick = onAnnotationClick, onJournal = { showJournal = true })
                     ReaderPanel.SEARCH -> SearchPanel(
                         results = searchResults,
                         onQueryChange = onSearchQueryChange,
@@ -2444,24 +2462,18 @@ private fun ProgressPanel(
 }
 
 @Composable
-private fun NotesPanel(uiState: ReaderUiState, onAnnotationClick: (Annotation) -> Unit) {
+private fun NotesPanel(uiState: ReaderUiState, onAnnotationClick: (Annotation) -> Unit, onJournal: () -> Unit) {
     val annotations = (uiState as? ReaderUiState.Loaded)?.annotations.orEmpty()
-    if (annotations.isEmpty()) {
-        Text(
-            text = stringResource(R.string.reader_notes_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(Spacing.lg),
-        )
-        return
-    }
-
     LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth)) {
+        item { TextButton(onClick = onJournal) { Text(stringResource(R.string.tools_journal)) } }
+        if (annotations.isEmpty()) item {
+            Text(stringResource(R.string.reader_notes_empty), modifier = Modifier.padding(Spacing.lg))
+        }
         items(annotations, key = { it.id }) { annotation ->
             TextButton(onClick = { onAnnotationClick(annotation) }) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = annotation.selectedText.ifBlank { stringResource(R.string.notes_bookmark_without_text) },
+                        text = annotation.selectedText.ifBlank { annotation.readerNote.orEmpty().ifBlank { stringResource(R.string.notes_bookmark_without_text) } },
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -2674,6 +2686,7 @@ private fun StylePanel(
     showTypography: Boolean,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
+    presetsPanel: @Composable () -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -2722,6 +2735,8 @@ private fun StylePanel(
             )
             Switch(checked = usingCustomStyle, onCheckedChange = onUseCustomStyleChange)
         }
+
+        presetsPanel()
 
         Text(text = stringResource(R.string.settings_reader_theme_title), style = MaterialTheme.typography.labelLarge)
         Row(

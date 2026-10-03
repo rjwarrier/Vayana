@@ -1,6 +1,7 @@
 package com.vayana.core.datastore.settings
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 interface SettingsRepository {
     val snapshot: Flow<SettingsSnapshot>
@@ -10,6 +11,11 @@ interface SettingsRepository {
     fun <T : Any> observe(setting: Setting<T>): Flow<T>
 
     suspend fun <T : Any> update(setting: Setting<T>, value: T)
+
+    /** Atomically edits a structured setting without losing concurrent changes. */
+    suspend fun updateAtomic(setting: StringSetting, transform: (String) -> String) {
+        update(setting, transform(observe(setting).first()))
+    }
 
     suspend fun updateReaderImportedFonts(fonts: List<ImportedFont>)
 

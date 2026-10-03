@@ -4,6 +4,9 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 
 object PortableSettings {
     val allowlist: Set<String> = setOf(
+        SettingsRegistry.SmartShelves.key,
+        SettingsRegistry.ReadingPresets.key,
+        SettingsRegistry.ReadingPlans.key,
         SettingsRegistry.ReaderFontSize.key,
         SettingsRegistry.ReaderLineHeight.key,
         SettingsRegistry.ReaderFontFamily.key,

@@ -3,6 +3,7 @@ package com.vayana.core.database.repository
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.PhysicalBookOwnership
+import com.vayana.core.database.model.normalizedBookTagsCsv
 import kotlinx.coroutines.flow.Flow
 
 sealed interface ReadingProgressMergeResult {
@@ -157,6 +158,16 @@ interface BookRepository {
     suspend fun recordBookOpened(id: Long)
 
     suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?)
+
+    /** Adds tags while retaining current metadata; returns false for unchanged or read-only books. */
+    suspend fun addTags(id: Long, tagsCsv: String): Boolean {
+        val book = getById(id) ?: return false
+        if (book.isHomeLibrary) return false
+        val merged = listOfNotNull(book.tagsCsv, tagsCsv).joinToString(",").normalizedBookTagsCsv()
+        if (merged == book.tagsCsv) return false
+        updateMetadata(id, book.title, book.author, book.series, book.seriesNumber, book.description, merged)
+        return true
+    }
 
     suspend fun updateRating(id: Long, rating: Float)
 

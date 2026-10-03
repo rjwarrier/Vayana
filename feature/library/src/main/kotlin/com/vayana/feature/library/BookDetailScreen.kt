@@ -154,6 +154,7 @@ fun BookDetailRoute(
     val book = observedBook ?: libraryBooks.firstOrNull { libraryBook -> libraryBook.id == bookId }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val yearlyBooksGoal by viewModel.yearlyBooksGoal.collectAsStateWithLifecycle()
+    val finishByDates by viewModel.finishByDates.collectAsStateWithLifecycle()
     val detailMessage by viewModel.bookDetailMessage.collectAsStateWithLifecycle()
     val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsStateWithLifecycle()
     val allShelves by viewModel.shelves.collectAsStateWithLifecycle()
@@ -202,6 +203,8 @@ fun BookDetailRoute(
         },
         libraryBooks = libraryBooks,
         yearlyBooksGoal = yearlyBooksGoal,
+        finishByDate = book?.syncId?.let(finishByDates::get),
+        onFinishByChange = { date -> book?.let { viewModel.setFinishBy(it.syncId, date) } },
         detailMessage = detailMessage,
         coverImageDownloadInProgress = coverImageDownloadInProgress,
         allShelves = allShelves,
@@ -313,6 +316,8 @@ internal data class BookShareImageOptions(
 
 @Composable
 private fun BookDetailScreen(
+    finishByDate: java.time.LocalDate?,
+    onFinishByChange: suspend (java.time.LocalDate?) -> Unit,
     modifier: Modifier = Modifier,
     book: Book?,
     transitionSource: BookOpenTransitionSource?,
@@ -843,6 +848,7 @@ private fun BookDetailScreen(
                     }
                 }
                 val readingState = book.readingState()
+                item { FinishByCard(book, finishByDate, onFinishByChange) }
                 val syncAction: (@Composable () -> Unit)? = if (showSyncReadingProgress) {
                     { SyncProgressButton(running = syncReadingProgressRunning, onClick = ::syncReadingProgress) }
                 } else {

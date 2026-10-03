@@ -24,6 +24,8 @@ import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderHyphenation
 import com.vayana.core.datastore.settings.ReaderTextAlign
 import com.vayana.core.datastore.settings.ReaderTheme
+import com.vayana.core.datastore.settings.ReadingPreset
+import com.vayana.core.datastore.settings.ReadingToolsRepository
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
@@ -156,7 +158,7 @@ data class PdfBookPreferences(
 )
 
 /** Shown when a book is reopened after a while: how long since it was last read, and the reader's latest highlight in it. */
-data class ReaderRecap(val awayMillis: Long, val highlight: String?, val dueWords: Int = 0)
+data class ReaderRecap(val awayMillis: Long, val highlight: String?, val dueWords: Int = 0, val journalText: String? = null)
 
 /** Whether a looked-up word is already a vocabulary card, and whether it has been marked as known. */
 enum class SavedWordStatus { NOT_SAVED, SAVED, KNOWN }
@@ -193,6 +195,7 @@ class ReaderViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
+    private val readingToolsRepository: ReadingToolsRepository,
     private val dictionaryRepository: DictionaryRepository,
     private val onlineDictionary: OnlineDictionary,
     private val wordLookupStatRepository: WordLookupStatRepository,
@@ -224,6 +227,9 @@ class ReaderViewModel @Inject constructor(
 
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
+
+    val presets: StateFlow<List<ReadingPreset>> = readingToolsRepository.presets
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // How fast this reader reads against the engine's fixed estimate, learned from their own page turns.
     private val paceTracker = ReadingPaceTracker(System::currentTimeMillis)
@@ -719,6 +725,68 @@ class ReaderViewModel @Inject constructor(
             if (existing is ReaderUiState.Loaded) existing.copy(returnLocator = null) else existing
         }
         dispatch(NavTarget.ToLocator(target))
+    }
+
+    suspend fun saveReadingPreset(name: String) {
+        readingToolsRepository.savePreset(ReadingPreset.capture(name, effectiveSettings.value))
+    }
+
+    suspend fun deleteReadingPreset(id: String) {
+        readingToolsRepository.deletePreset(id)
+    }
+
+    suspend fun applyReadingPreset(preset: ReadingPreset) {
+        val snapshot = settingsRepository.snapshot.first()
+        val customFontId = preset.customFontId?.takeIf { id -> snapshot.readerImportedFonts.any { it.id == id } }
+        val globalValues = mutableMapOf(
+            SettingsRegistry.ReaderTheme.key to preset.theme.name,
+            SettingsRegistry.ReaderBolderText.key to preset.bolderText.toString(),
+            SettingsRegistry.ReaderTextAlign.key to preset.textAlign.name,
+            SettingsRegistry.ReaderHyphenation.key to preset.hyphenation.name,
+            SettingsRegistry.ReaderPublisherStyles.key to preset.usePublisherStyles.toString(),
+        )
+        val override = _bookStyleOverride.value
+        if (override == null) {
+            globalValues[SettingsRegistry.ReaderFontSize.key] = preset.fontSizePercent.toString()
+            globalValues[SettingsRegistry.ReaderLineHeight.key] = preset.lineHeight.toString()
+            globalValues[SettingsRegistry.ReaderFontFamily.key] = preset.fontFamily.name
+            globalValues[SettingsRegistry.ReaderSideMargin.key] = preset.sideMarginPercent.toString()
+        } else {
+            val updated = override.copy(
+                fontSizePercent = preset.fontSizePercent.coerceIn(SettingsRegistry.ReaderFontSize.range),
+                lineHeight = preset.lineHeight.coerceIn(SettingsRegistry.ReaderLineHeight.range),
+                fontFamily = if (customFontId == null) preset.fontFamily else null,
+                sideMarginPercent = preset.sideMarginPercent.coerceIn(SettingsRegistry.ReaderSideMargin.range),
+            )
+            bookRepository.updateReaderPrefs(
+                id = bookId,
+                fontSizePercent = updated.fontSizePercent,
+                lineHeight = updated.lineHeight,
+                fontFamily = updated.fontFamily?.name,
+                sideMarginPercent = updated.sideMarginPercent,
+            )
+            _bookStyleOverride.value = updated
+        }
+        settingsRepository.importFromMap(globalValues)
+        settingsRepository.updateReaderCustomFontId(customFontId)
+    }
+
+    suspend fun saveJournalEntry(text: String) {
+        val body = text.trim().take(4000)
+        require(body.isNotBlank())
+        val state = uiState.value as? ReaderUiState.Loaded ?: error("Book is not open")
+        val locator = state.currentLocator ?: error("Reading position unavailable")
+        val cfi = locator.cfi?.takeIf { it.isNotBlank() } ?: error("Reading position unavailable")
+        annotationRepository.create(
+            bookId = bookId,
+            type = AnnotationType.NOTE,
+            colorKey = "journal",
+            locator = cfi,
+            chapterTitle = locator.chapterTitle,
+            chapterHref = locator.href,
+            selectedText = "",
+            readerNote = body,
+        )
     }
 
     fun updateFontSize(percent: Int) {
@@ -1724,13 +1792,16 @@ class ReaderViewModel @Inject constructor(
         val awayMillis = System.currentTimeMillis() - (previousReadAt ?: return)
         if (awayMillis < ReturnRecapMinAwayMillis) return
         viewModelScope.launch {
-            val highlight = annotationRepository.observeForBook(bookId).first()
+            val annotations = annotationRepository.observeForBook(bookId).first()
+            val highlight = annotations
                 .firstOrNull { it.type != AnnotationType.BOOKMARK && it.selectedText.isNotBlank() && !it.isCommunityQuote() }
                 ?.selectedText
             _returnRecap.value = ReaderRecap(
                 awayMillis = awayMillis,
                 highlight = highlight,
                 dueWords = vocabularyCardRepository.observeDueCount().first(),
+                journalText = annotations.filter { it.type == AnnotationType.NOTE && it.colorKey == "journal" }
+                    .maxByOrNull { it.createdAt }?.readerNote?.takeIf { it.isNotBlank() },
             )
         }
     }
@@ -1935,7 +2006,7 @@ private fun Book.toStyleOverrideOrNull(): BookStyleOverride? {
 }
 
 private fun Annotation.toReaderAnnotation(): ReaderAnnotation? {
-    if (type == AnnotationType.BOOKMARK) return null
+    if (type == AnnotationType.BOOKMARK || (type == AnnotationType.NOTE && colorKey == "journal")) return null
     val cfi = locator.ifBlank { "text:${id}" }
     return ReaderAnnotation(
         id = id.toString(),

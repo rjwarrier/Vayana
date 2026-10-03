@@ -496,10 +496,36 @@ val MIGRATION_29_30 = object : Migration(29, 30) {
     }
 }
 
+val MIGRATION_30_31 = object : Migration(30, 31) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Match findByWord's existing NOCASE semantics on fresh installs and upgraded databases.
+        connection.execSQL(
+            "CREATE TABLE `vocabulary_cards_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`syncId` TEXT NOT NULL, `word` TEXT COLLATE NOCASE NOT NULL, `definition` TEXT NOT NULL, " +
+                "`sentence` TEXT, `bookId` INTEGER, `bookTitle` TEXT, `createdAt` INTEGER NOT NULL, " +
+                "`lastReviewedAt` INTEGER, `known` INTEGER NOT NULL, `dueAt` INTEGER, " +
+                "`intervalDays` INTEGER NOT NULL DEFAULT 0, `easeFactor` REAL NOT NULL DEFAULT 2.5, " +
+                "`repetitions` INTEGER NOT NULL DEFAULT 0)",
+        )
+        val columns = "`id`, `syncId`, `word`, `definition`, `sentence`, `bookId`, `bookTitle`, `createdAt`, " +
+            "`lastReviewedAt`, `known`, `dueAt`, `intervalDays`, `easeFactor`, `repetitions`"
+        connection.execSQL("INSERT INTO `vocabulary_cards_new` ($columns) SELECT $columns FROM `vocabulary_cards`")
+        // Keep AUTOINCREMENT's high-water mark, including IDs of cards already deleted.
+        connection.execSQL("UPDATE sqlite_sequence SET seq = MAX(seq, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'vocabulary_cards'), 0)) WHERE name = 'vocabulary_cards_new'")
+        connection.execSQL("DROP TABLE `vocabulary_cards`")
+        connection.execSQL("ALTER TABLE `vocabulary_cards_new` RENAME TO `vocabulary_cards`")
+        connection.execSQL("CREATE UNIQUE INDEX `index_vocabulary_cards_syncId` ON `vocabulary_cards` (`syncId`)")
+        connection.execSQL("CREATE INDEX `index_vocabulary_cards_bookId` ON `vocabulary_cards` (`bookId`)")
+        connection.execSQL("CREATE INDEX `index_vocabulary_cards_word_known` ON `vocabulary_cards` (`word`, `known`)")
+        connection.execSQL("CREATE INDEX `index_vocabulary_cards_known_dueAt_createdAt` ON `vocabulary_cards` (`known`, `dueAt`, `createdAt`)")
+        FullSyncChangeTracker.create(connection)
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
     MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28,
-    MIGRATION_28_29, MIGRATION_29_30,
+    MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31,
 )

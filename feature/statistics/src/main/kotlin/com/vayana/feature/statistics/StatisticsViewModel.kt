@@ -3,6 +3,8 @@ package com.vayana.feature.statistics
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.database.model.Annotation
+import com.vayana.core.database.model.AnnotationType
+import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.model.VocabularyCard
@@ -170,11 +172,13 @@ class StatisticsViewModel @Inject constructor(
     private val vocabularyCards = vocabularyCardRepository.observeAll()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
+    private val summaryCalculator = StatisticsSummaryCalculator()
     val summary: StateFlow<StatisticsSummary> = combine(
         coreInputs,
         vocabularyCards,
     ) { inputs, vocabularyCards ->
-        inputs.books.toSummary(
+        summaryCalculator.calculate(
+            books = inputs.books,
             annotations = inputs.annotations,
             topWords = inputs.topWords,
             sessions = inputs.sessions,
@@ -185,7 +189,7 @@ class StatisticsViewModel @Inject constructor(
             firstDayOfWeek = inputs.settings.firstDayOfWeek,
         )
     }
-        // Summarising every book and session re-runs on each change to any of them; keep it off the main thread.
+        // Cached domains still do CPU work when their own inputs change; keep that work off the main thread.
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
@@ -254,20 +258,75 @@ private data class SummarySettings(
     val firstDayOfWeek: DayOfWeek,
 )
 
-private fun List<Book>.toSummary(
-    annotations: List<Annotation>,
-    topWords: List<WordLookupStat>,
+/** Single-entry caches keep independent domains from rebuilding each other's charts and aggregates. */
+internal class StatisticsSummaryCalculator {
+    private var readingInputs: ReadingInputs? = null
+    private var reading = StatisticsSummary()
+    private var annotationInputs: Pair<List<Annotation>, Pair<LocalDate, ZoneId>>? = null
+    private var notes = 0
+    private var highlights = emptyList<Annotation>()
+    private var yearHighlights = 0
+    private var yearNotes = 0
+    private var vocabularyInputs: VocabularyInputs? = null
+    private var growth: VocabularyGrowth? = null
+    private var yearWords = 0
+
+    fun calculate(
+        books: List<Book>, annotations: List<Annotation>, topWords: List<WordLookupStat>,
+        sessions: List<ReadingSession>, vocabularyCards: List<VocabularyCard>,
+        dailyGoalMinutes: Int, yearlyGoalBooks: Int, finishedThreshold: Float, firstDayOfWeek: DayOfWeek,
+        zone: ZoneId = ZoneId.systemDefault(), today: LocalDate = LocalDate.now(zone),
+    ): StatisticsSummary {
+        val nextReading = ReadingInputs(books, sessions,
+            SummarySettings(dailyGoalMinutes, yearlyGoalBooks, finishedThreshold, firstDayOfWeek), today, zone)
+        if (readingInputs != nextReading) {
+            reading = books.readingSummary(sessions, dailyGoalMinutes, yearlyGoalBooks, finishedThreshold, firstDayOfWeek, today, zone)
+            readingInputs = nextReading
+        }
+        val nextAnnotations = annotations to (today to zone)
+        if (annotationInputs != nextAnnotations) {
+            notes = annotations.count { !it.readerNote.isNullOrBlank() }
+            highlights = dailyHighlights(annotations, today)
+            val marks = annotations.filter {
+                !it.isDeleted && !it.isCommunityQuote() && Instant.ofEpochMilli(it.createdAt).atZone(zone).year == today.year
+            }
+            yearHighlights = marks.count { it.type == AnnotationType.HIGHLIGHT }
+            yearNotes = marks.count { !it.readerNote.isNullOrBlank() }
+            annotationInputs = nextAnnotations
+        }
+        val nextVocabulary = VocabularyInputs(vocabularyCards, today, zone, firstDayOfWeek)
+        if (vocabularyInputs != nextVocabulary) {
+            growth = vocabularyGrowth(vocabularyCards, zone, today, firstDayOfWeek)
+            yearWords = vocabularyCards.count { Instant.ofEpochMilli(it.createdAt).atZone(zone).year == today.year }
+            vocabularyInputs = nextVocabulary
+        }
+        return reading.copy(
+            totalAnnotations = annotations.size,
+            notesWithText = notes,
+            highlightsToRevisit = highlights,
+            topLookedUpWords = topWords,
+            vocabularyGrowth = growth,
+            yearReview = reading.yearReview?.copy(highlights = yearHighlights, notes = yearNotes, savedWords = yearWords),
+        )
+    }
+
+    private data class ReadingInputs(val books: List<Book>, val sessions: List<ReadingSession>,
+        val settings: SummarySettings, val today: LocalDate, val zone: ZoneId)
+    private data class VocabularyInputs(val cards: List<VocabularyCard>, val today: LocalDate,
+        val zone: ZoneId, val firstDayOfWeek: DayOfWeek)
+}
+
+private fun List<Book>.readingSummary(
     sessions: List<ReadingSession>,
-    vocabularyCards: List<VocabularyCard>,
     dailyGoalMinutes: Int,
     yearlyGoalBooks: Int,
     finishedThreshold: Float,
     firstDayOfWeek: DayOfWeek,
+    today: LocalDate,
+    zone: ZoneId,
 ): StatisticsSummary {
     val average = averageActiveProgressPercent(finishedThreshold)
     val countedSessions = sessions.filter { it.durationSeconds >= MinCountedSessionSeconds }
-    val zone = ZoneId.systemDefault()
-    val today = LocalDate.now(zone)
     // One pass over sessions, keyed by day, backs the streak check, the activity chart, and the
     // pace estimate below - the alternative (re-filtering the session list per day) is quadratic
     // in the chart window for no benefit.
@@ -310,10 +369,6 @@ private fun List<Book>.toSummary(
         readingBooks = count { it.readingPercent > 0f && it.readingPercent < finishedThreshold },
         finishedBooks = count { it.readingPercent >= finishedThreshold },
         averageProgressPercent = average.coerceIn(0, 100),
-        totalAnnotations = annotations.size,
-        notesWithText = annotations.count { it.readerNote?.isNotBlank() == true },
-        highlightsToRevisit = dailyHighlights(annotations, today),
-        topLookedUpWords = topWords,
         sessionCount = countedSessions.size,
         totalReadingSeconds = countedSessions.sumOf { it.durationSeconds },
         longestSessionSeconds = countedSessions.maxOfOrNull { it.durationSeconds } ?: 0L,
@@ -324,7 +379,7 @@ private fun List<Book>.toSummary(
         booksFinishedThisYear = yearInBooks.finishedCount,
         yearlyGoalBooks = yearlyGoalBooks,
         yearInBooks = yearInBooks,
-        yearReview = yearReview(this, sessions, annotations, vocabularyCards, today, zone),
+        yearReview = yearReview(this, sessions, emptyList(), emptyList(), today, zone),
         dailyReadingMinutes = dailyReadingMinutes,
         readingPace = readingPaceEstimate(secondsByDate, today, finishedThreshold),
         genreStats = genreStats(),
@@ -332,7 +387,6 @@ private fun List<Book>.toSummary(
         uniqueAuthorCount = mapNotNull { it.author?.trim()?.lowercase()?.ifBlank { null } }.distinct().size,
         topAuthor = topAuthor(),
         topSeries = topSeries(finishedThreshold),
-        vocabularyGrowth = vocabularyGrowth(vocabularyCards, zone, today, firstDayOfWeek),
     )
 }
 
