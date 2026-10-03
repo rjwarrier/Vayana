@@ -129,6 +129,31 @@ queues the chosen one.
 - **Pages:** total pages live in the existing `pageEstimate` column (`Book.pageCount`); the current page is
   `readingPercent × pageCount`, so page progress needs no schema change and syncs with the book. Reaching the last
   page finishes the book and going back un-finishes it (`BookRepositoryImpl.updateOfflinePages`).
+- **Physical reading timer:** Book details offers M3 Expressive connected Start, Pause/Resume and Stop controls.
+  Start confirms the starting page; Stop opens a page checkpoint dialog. Saving atomically records active time,
+  starting/ending pages and progress, including completion at the last page. One durable timer runs at a time and
+  survives screen changes, phone locking and app process recreation; paused time is excluded. Dismissing the Stop
+  dialog keeps the stopped session pending, while Discard explicitly drops it. Forward page movement in timed logs
+  provides pages/hour and estimated reading time remaining when total pages is known. Existing untimed progress
+  does not contribute to this pace. Saved time contributes to book time and Statistics, and optional page checkpoints
+  travel through backup and sync. After a phone reboot a running timer is restored paused at its last saved duration.
+- **Currently reading physical books:** Book details offers **Mark as reading** and **Read today** without adding
+  guessed reading time. Starting/resuming the timer and changing the current page update last-read status. Home
+  shows the three most recently read unfinished physical books in both list and grid views, including a library
+  with no digital books. An active or pending timer is pinned first with its clock and status; tapping opens the
+  book, and **View all** opens books read outside Vayana. Searching/filtering unrelated states hides this shelf.
+- **Physical session insights:** The timer shows average logged session duration and a scrollable complete session
+  history with local start times, active durations and page checkpoints. Pages/hour and remaining-time estimates
+  use the five most recent valid forward-reading sessions, displaying the measured page and session counts;
+  untimed progress, stationary pages and backwards movement do not supply pace. History uses lazy rows, and the
+  active clock alone updates each second while the screen is visible.
+  The timer loads a count/time summary and only three recent checkpoints/five pace samples; the full history flow
+  is collected only while the history dialog is open. Stop validates both starting and ending pages against totals.
+- **Manual physical sessions:** Reading timer → **Add session manually** records a date, start time, duration,
+  starting/current pages and optional total pages with the same logs, pace, Statistics and sync support. Future
+  sessions, zero durations and invalid pages are rejected. **Update current page** is optional and defaults off
+  when choosing a past date, so historical entries preserve current progress and completion. Last-read dates never
+  move backwards, and retries reuse one session ID to avoid double-counting time.
 - Physical books can be marked **Owned** or **Borrowed**. A borrowed book may include a return date; ownership and
   return date are editable from Book details and travel with the synced book metadata. Sunday return dates move to
   Saturday. While pages remain, Book details shows the available reading days and the rounded-up pages-per-day target
@@ -159,6 +184,13 @@ Offline books. Home Library owns the data; Vayana never writes to it.
   Vayana (no edit, no delete; the book goes when Home Library removes it). Reading dates, pages read and Read Next stay
   Vayana's own and are kept across updates. Everything else Home Library sends (publisher, ISBNs, room/bookcase/shelf,
   read status, ...) lives in `books.sourceMetadata` and shows on Book details with a "View in Home Library" action.
+- **Native titles:** Offline books and Book details prefer the original-script title when supplied, with the catalog
+  title underneath. Text shares include both. Image shares default to the native title and offer Original script /
+  Catalog title choices alongside the editable title field; these never change Home Library's catalog.
+- **Browse your shelves:** Offline books gains search across both titles, author, series, genre, ISBN and shelf
+  location when Home Library books are present. Search normalizes Unicode to NFC. **Read from my shelves** shows owned
+  Home Library books not started in Vayana, with language and genre filters; shelf locations appear in list and grid
+  views. Historical Home Library read status does not override Vayana's reading dates or progress.
 - **Sync:** `/info` is read first (schema version, book count, max `updated_at`); if it matches the last sync nothing is
   queried. Otherwise `/books?updated_since=&limit=500` is paged into memory, applied in one Room transaction (creates,
   updates, tombstone deletes), and only then is the checkpoint (`lastSyncUpdatedAt`, kept in its own DataStore, never

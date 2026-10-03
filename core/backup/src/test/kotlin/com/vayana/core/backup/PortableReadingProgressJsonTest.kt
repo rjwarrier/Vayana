@@ -9,6 +9,18 @@ import org.json.JSONObject
 
 class PortableReadingProgressJsonTest {
     @Test
+    fun physicalSessionPagesRoundTripAndOlderLogsRemainValid() {
+        val log = PortableReadingSession("physical", "book", 1000, 61000, 60, 10, 15)
+        val legacy = log.copy(syncId = "legacy", startPage = null, endPage = null)
+        val snapshot = PortableSnapshot(formatVersion = 1, exportedAt = 62000, deviceLabel = "Phone",
+            books = emptyList(), annotations = emptyList(), shelves = emptyList(), shelfMemberships = emptyList(),
+            readingSessions = listOf(log, legacy), vocabularyCards = emptyList(), wordLookupCounters = emptyList(),
+            settings = emptyMap())
+        assertEquals(listOf(log, legacy), parsePortableReadingSessions(snapshot.toJsonString()))
+        val patched = patchPortableReadingProgressOnly("{}", emptyList(), 62000, readingSessions = listOf(log, legacy))
+        assertEquals(listOf(log, legacy), parsePortableReadingSessions(patched.jsonText))
+    }
+    @Test
     fun extractsValidProgressRows() {
         val snapshot = parsePortableReadingProgressSnapshot(
             """

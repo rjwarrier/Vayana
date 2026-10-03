@@ -8,6 +8,7 @@ import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.model.ReadingSession
+import com.vayana.core.database.model.PhysicalReadingSessionSummary
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,6 +29,15 @@ class ReadingSessionRepositoryImpl @Inject constructor(
 
     override fun observeForBook(bookId: Long): Flow<List<ReadingSession>> =
         readingSessionDao.observeForBook(bookId).map { entities -> entities.map { it.toDomain() } }
+
+    override fun observePhysicalSummary(bookId: Long): Flow<PhysicalReadingSessionSummary> =
+        readingSessionDao.observePhysicalSummary(bookId)
+
+    override fun observeRecentPhysicalSessions(bookId: Long, limit: Int, forwardOnly: Boolean): Flow<List<ReadingSession>> {
+        require(limit > 0)
+        return readingSessionDao.observeRecentPhysicalSessions(bookId, limit, forwardOnly)
+            .map { entities -> entities.map { it.toDomain() } }
+    }
 
     override suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long?) {
         val durationSeconds = (durationSeconds ?: ((endedAt - startedAt) / 1000L)).coerceAtLeast(0L)
@@ -60,6 +70,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                     startedAt = record.startedAt,
                     endedAt = record.endedAt,
                     durationSeconds = record.durationSeconds,
+                    startPage = record.startPage?.takeIf { it >= 0 },
+                    endPage = record.endPage?.takeIf { it >= 0 },
                 ),
             )
             if (insertedId == -1L) ReadingSessionMergeResult.SKIPPED else ReadingSessionMergeResult.CREATED
@@ -74,4 +86,6 @@ private fun ReadingSessionEntity.toDomain(): ReadingSession = ReadingSession(
     startedAt = startedAt,
     endedAt = endedAt,
     durationSeconds = durationSeconds,
+    startPage = startPage,
+    endPage = endPage,
 )

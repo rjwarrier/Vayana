@@ -13,7 +13,8 @@ import kotlinx.coroutines.withContext
 internal fun Book.toShareText(context: android.content.Context): String {
     val progress = (readingPercent * 100).toInt()
     return buildString {
-        appendLine(title)
+        appendLine(homeLibraryDisplayTitle)
+        if (homeLibraryOriginalTitle != null) appendLine(title)
         author?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
         appendLine(context.getString(R.string.library_share_book_progress, progress))
     }.trim()

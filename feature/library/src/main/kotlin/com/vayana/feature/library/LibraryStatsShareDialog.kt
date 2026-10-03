@@ -25,7 +25,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -118,9 +117,8 @@ internal fun LibraryStatsShareDialog(books: List<Book>, onDismiss: () -> Unit) {
             renderLibraryStatsCard(context, snapshot, format, palette, date, copy, spineStyle, fonts)
         }
     }
-    DisposableEffect(bitmap) {
-        onDispose { bitmap?.takeUnless(Bitmap::isRecycled)?.recycle() }
-    }
+    // Compose's ImageBitmap and recorded draw commands share this bitmap. Let GC release it
+    // once all references are gone; effect disposal does not mean drawing has finished.
     val preview = remember(bitmap) { bitmap?.asImageBitmap() }
     val heightLimit = LocalConfiguration.current.screenHeightDp.dp * 0.9f
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {

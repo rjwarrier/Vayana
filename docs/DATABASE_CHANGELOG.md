@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 32
+
+Adds nullable `startPage` and `endPage` to `reading_sessions` for timed physical-book reading.
+Migration 31→32 preserves existing logs with null page checkpoints. Optional page fields travel through
+backup and both sync paths; older snapshots remain valid. Physical-session saves atomically insert the log,
+add reading time, and update page progress; a stable session ID makes retries idempotent.
+
 ## Version 31
 
 Adds vocabulary indexes for case-insensitive word lookup (`word`, `known`) and due-card selection/counting

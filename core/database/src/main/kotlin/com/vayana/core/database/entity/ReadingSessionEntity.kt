@@ -30,4 +30,6 @@ data class ReadingSessionEntity(
     val startedAt: Long,
     val endedAt: Long,
     val durationSeconds: Long,
+    val startPage: Int? = null,
+    val endPage: Int? = null,
 )

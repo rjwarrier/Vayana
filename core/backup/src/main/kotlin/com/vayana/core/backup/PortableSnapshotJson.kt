@@ -64,6 +64,8 @@ fun parsePortableReadingSessions(jsonText: String): List<PortableReadingSession>
                     startedAt = startedAt,
                     endedAt = endedAt,
                     durationSeconds = durationSeconds,
+                    startPage = if (obj.has("startPage") && !obj.isNull("startPage")) obj.optInt("startPage", -1).takeIf { it >= 0 } else null,
+                    endPage = if (obj.has("endPage") && !obj.isNull("endPage")) obj.optInt("endPage", -1).takeIf { it >= 0 } else null,
                 ),
             )
         }
@@ -518,6 +520,8 @@ private fun PortableReadingSession.toJson(): JSONObject =
         .put("startedAt", startedAt)
         .put("endedAt", endedAt)
         .put("durationSeconds", durationSeconds)
+        .put("startPage", startPage)
+        .put("endPage", endPage)
 
 private fun PortableVocabularyCard.toJson(): JSONObject =
     JSONObject()

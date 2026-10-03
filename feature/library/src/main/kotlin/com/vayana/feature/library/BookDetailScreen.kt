@@ -187,6 +187,8 @@ fun BookDetailRoute(
         openGoodreadsOnStart = openGoodreads,
         onChangeOfflineFormat = { format -> viewModel.updateOfflineFormat(bookId, format) },
         onUpdateOfflinePages = { pageCount, currentPage -> viewModel.updateOfflinePages(bookId, pageCount, currentPage) },
+        physicalTimer = { physicalBook -> PhysicalReadingTimerCard(physicalBook, viewModel) },
+        onMarkPhysicalReading = { viewModel.markPhysicalBookReading(bookId) },
         onUpdatePhysicalBookLoan = { ownership, returnAt -> viewModel.updatePhysicalBookLoan(bookId, ownership, returnAt) },
         showSyncReadingProgress = uiState.githubSyncReady,
         syncReadingProgressRunning = syncReadingProgressRunning,
@@ -316,6 +318,7 @@ internal data class BookShareImageOptions(
 
 @Composable
 private fun BookDetailScreen(
+    onMarkPhysicalReading: suspend () -> Unit,
     finishByDate: java.time.LocalDate?,
     onFinishByChange: suspend (java.time.LocalDate?) -> Unit,
     modifier: Modifier = Modifier,
@@ -324,6 +327,7 @@ private fun BookDetailScreen(
     openGoodreadsOnStart: Boolean,
     onChangeOfflineFormat: (BookFormat) -> Unit,
     onUpdateOfflinePages: (pageCount: Int?, currentPage: Int?) -> Unit,
+    physicalTimer: @Composable (Book) -> Unit,
     onUpdatePhysicalBookLoan: (ownership: PhysicalBookOwnership, returnAt: Long?) -> Unit,
     showSyncReadingProgress: Boolean,
     syncReadingProgressRunning: Boolean,
@@ -374,6 +378,8 @@ private fun BookDetailScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    var physicalStatusBusy by remember(book?.id) { mutableStateOf(false) }
+    val physicalStatusFailed = stringResource(R.string.physical_timer_failed)
     val homeLibraryOpenFailedMessage = stringResource(R.string.home_library_open_failed)
     var deleteStep by remember { mutableStateOf<DeleteStep?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -401,6 +407,9 @@ private fun BookDetailScreen(
     var readNextSeriesBreakWarning by remember { mutableStateOf<ReadNextSeriesBreakWarning?>(null) }
     var actionsExpanded by remember { mutableStateOf(false) }
     var shareImageOptions by remember { mutableStateOf(BookShareImageOptions()) }
+    var shareImageBookTitle by rememberSaveable(book?.id, book?.title, book?.homeLibraryOriginalTitle) {
+        mutableStateOf(book?.homeLibraryDisplayTitle.orEmpty())
+    }
     var editingReadingDate by remember { mutableStateOf<ReadingDateField?>(null) }
     val detailMessageText = detailMessage?.label()
     val sourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -767,11 +776,12 @@ private fun BookDetailScreen(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = book.title,
+                                    text = book.homeLibraryDisplayTitle,
                                     style = MaterialTheme.typography.headlineSmall,
                                     maxLines = 4,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                HomeLibraryCatalogTitle(book)
                                 book.author?.let {
                                     Text(
                                         text = it,
@@ -801,6 +811,18 @@ private fun BookDetailScreen(
                             state = book.readingState(),
                             notesCount = highlightCount ?: 0,
                             onMarkFinished = onMarkFinished,
+                            onMarkPhysicalReading = {
+                                if (!physicalStatusBusy) {
+                                    physicalStatusBusy = true
+                                    coroutineScope.launch {
+                                        try { onMarkPhysicalReading() }
+                                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                        catch (_: Exception) { snackbarHostState.showSnackbar(physicalStatusFailed) }
+                                        finally { physicalStatusBusy = false }
+                                    }
+                                }
+                            },
+                            physicalStatusBusy = physicalStatusBusy,
                             onReadAgain = onReadFromStart
                                 ?.takeIf { book.hasLocalReadableSource() && book.finishedLongAgo(System.currentTimeMillis()) }
                                 ?.let { read -> { read(book.id) } },
@@ -878,6 +900,9 @@ private fun BookDetailScreen(
                             onEditBorrowReturnDate = { showBorrowReturnDateDialog = true },
                         )
                     }
+                }
+                if (book.format == BookFormat.PHYSICAL) {
+                    item { physicalTimer(book) }
                 }
                 if (book.isHomeLibrary) {
                     item {
@@ -1198,17 +1223,21 @@ private fun BookDetailScreen(
             options = {
                 BookShareImageOptionsPanel(
                     options = shareImageOptions,
+                    bookTitle = shareImageBookTitle,
+                    onBookTitleChange = { shareImageBookTitle = it },
                     hasRating = book.rating > 0f,
                     hasSeries = !book.series.isNullOrBlank() || !book.seriesNumber.isNullOrBlank(),
                     hasTags = book.tags().isNotEmpty(),
                     hasYearlyGoal = yearlyBooksGoal > 0,
                     onOptionsChange = { shareImageOptions = it },
                     stats = shareStats,
+                    originalScriptTitle = book.homeLibraryOriginalTitle,
+                    catalogTitle = book.title,
                 )
             },
         ) {
             BookShareCard(
-                title = book.title,
+                title = shareImageBookTitle.trim().ifBlank { book.homeLibraryDisplayTitle },
                 author = book.author,
                 series = book.seriesDisplay(),
                 statusLabel = shareStats.statusLabel,
@@ -1254,6 +1283,8 @@ private fun BookDetailScreen(
  */
 @Composable
 private fun BookQuickActions(
+    onMarkPhysicalReading: () -> Unit,
+    physicalStatusBusy: Boolean,
     book: Book,
     state: BookReadingState,
     notesCount: Int,
@@ -1265,6 +1296,16 @@ private fun BookQuickActions(
     onShare: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        if (book.format == BookFormat.PHYSICAL && state != BookReadingState.FINISHED) {
+            BookQuickAction(
+                icon = Icons.Outlined.AutoStories,
+                label = stringResource(if (state == BookReadingState.NOT_STARTED)
+                    R.string.physical_mark_reading else R.string.physical_read_today),
+                onClick = onMarkPhysicalReading,
+                enabled = !physicalStatusBusy,
+                modifier = Modifier.weight(1f),
+            )
+        }
         val queued = book.readNextAddedAt != null
         if (onReadAgain != null && !queued) {
             BookQuickAction(
@@ -1314,11 +1355,12 @@ private fun BookQuickAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    enabled: Boolean = true,
 ) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(Radii.large))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -1339,7 +1381,7 @@ private fun BookQuickAction(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             textAlign = TextAlign.Center,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.xs),
         )

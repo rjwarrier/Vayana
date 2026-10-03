@@ -199,6 +199,13 @@ interface BookRepository {
      */
     suspend fun updateOfflinePages(id: Long, pageCount: Int?, currentPage: Int?)
 
+    /** Marks a physical book as currently reading and records a reading occasion without inventing timed minutes. */
+    suspend fun markPhysicalBookReading(id: Long)
+
+    /** Atomically logs time, page checkpoints and progress. Retrying a session ID never counts it twice. */
+    suspend fun recordPhysicalReadingSession(id: Long, syncId: String, startedAt: Long, endedAt: Long,
+        durationSeconds: Long, startPage: Int, endPage: Int, pageCount: Int?, updateProgress: Boolean = true)
+
     suspend fun updateCover(id: Long, coverPath: String?)
 
     /** Goodreads import extras. Saving them does not disturb reading-position conflict detection. */

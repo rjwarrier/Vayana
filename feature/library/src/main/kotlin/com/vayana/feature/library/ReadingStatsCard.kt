@@ -189,6 +189,13 @@ private fun OfflineReadingStatsCard(
         }
     }
     val stats = listOfNotNull(
+        book.lastReadAt?.takeIf { book.format == BookFormat.PHYSICAL }?.let {
+            ReadingStat(stringResource(R.string.library_stat_last_read), it.formatDate())
+        },
+        if (book.totalReadingSeconds <= 0) null else ReadingStat(
+            label = stringResource(if (finished) R.string.library_stat_time_taken else R.string.library_stat_time_so_far),
+            value = formatReadingDuration(book.totalReadingSeconds, context),
+        ),
         // An audiobook has no pages, so it gets no page tile.
         if (!book.format.tracksPages) null else ReadingStat(
             label = stringResource(R.string.offline_book_pages_label),

@@ -427,6 +427,8 @@ private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): 
         startedAt = startedAt,
         endedAt = endedAt,
         durationSeconds = durationSeconds,
+        startPage = startPage,
+        endPage = endPage,
     )
 }
 
@@ -436,6 +438,8 @@ private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord = Cloud
     startedAt = startedAt,
     endedAt = endedAt,
     durationSeconds = durationSeconds,
+    startPage = startPage,
+    endPage = endPage,
 )
 
 private fun PortableWordLookupCounter.toRecord(): CloudWordLookupCounter = CloudWordLookupCounter(

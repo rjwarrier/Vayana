@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +28,8 @@ import kotlin.math.roundToInt
 @Composable
 internal fun BookShareImageOptionsPanel(
     options: BookShareImageOptions,
+    bookTitle: String,
+    onBookTitleChange: (String) -> Unit,
     hasRating: Boolean,
     hasSeries: Boolean,
     hasTags: Boolean,
@@ -34,8 +37,32 @@ internal fun BookShareImageOptionsPanel(
     onOptionsChange: (BookShareImageOptions) -> Unit,
     /** Names the stat and date chips after what this book's card shows in those places. */
     stats: BookShareStats,
+    originalScriptTitle: String? = null,
+    catalogTitle: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        OutlinedTextField(
+            value = bookTitle,
+            onValueChange = onBookTitleChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.share_card_image_options_book_title)) },
+            supportingText = { Text(stringResource(R.string.share_card_image_options_book_title_hint)) },
+            singleLine = true,
+        )
+        if (originalScriptTitle != null && catalogTitle != null) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                ShareCardOptionChip(
+                    selected = bookTitle == originalScriptTitle,
+                    label = stringResource(R.string.home_library_original_script_title),
+                    onClick = { onBookTitleChange(originalScriptTitle) },
+                )
+                ShareCardOptionChip(
+                    selected = bookTitle == catalogTitle,
+                    label = stringResource(R.string.home_library_catalog_title),
+                    onClick = { onBookTitleChange(catalogTitle) },
+                )
+            }
+        }
         ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_layout))
         ShareCardChoiceRow(
             choices = BookShareCardLayout.entries,

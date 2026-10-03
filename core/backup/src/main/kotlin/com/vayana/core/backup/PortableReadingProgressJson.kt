@@ -283,7 +283,9 @@ private fun JSONObject.appendMissingReadingSessions(readingSessions: List<Portab
                 .put("bookSyncId", session.bookSyncId)
                 .put("startedAt", session.startedAt)
                 .put("endedAt", session.endedAt)
-                .put("durationSeconds", session.durationSeconds),
+                .put("durationSeconds", session.durationSeconds)
+                .put("startPage", session.startPage)
+                .put("endPage", session.endPage),
         )
         existingSessionSyncIds += session.syncId
         added += 1

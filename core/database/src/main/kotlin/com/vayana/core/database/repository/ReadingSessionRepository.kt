@@ -1,6 +1,7 @@
 package com.vayana.core.database.repository
 
 import com.vayana.core.database.model.ReadingSession
+import com.vayana.core.database.model.PhysicalReadingSessionSummary
 import kotlinx.coroutines.flow.Flow
 
 data class CloudReadingSessionRecord(
@@ -9,6 +10,8 @@ data class CloudReadingSessionRecord(
     val startedAt: Long,
     val endedAt: Long,
     val durationSeconds: Long,
+    val startPage: Int? = null,
+    val endPage: Int? = null,
 )
 
 enum class ReadingSessionMergeResult {
@@ -19,6 +22,8 @@ enum class ReadingSessionMergeResult {
 interface ReadingSessionRepository {
     fun observeAll(): Flow<List<ReadingSession>>
     fun observeForBook(bookId: Long): Flow<List<ReadingSession>>
+    fun observePhysicalSummary(bookId: Long): Flow<PhysicalReadingSessionSummary>
+    fun observeRecentPhysicalSessions(bookId: Long, limit: Int, forwardOnly: Boolean = false): Flow<List<ReadingSession>>
 
     /** Sessions (this device's and synced ones) started at or after [since], epoch millis. */
     fun observeSince(since: Long): Flow<List<ReadingSession>>

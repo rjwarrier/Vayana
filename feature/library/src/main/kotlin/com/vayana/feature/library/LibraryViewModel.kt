@@ -478,6 +478,7 @@ class LibraryViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val annotationRepository: AnnotationRepository,
     private val readingSessionRepository: ReadingSessionRepository,
+    private val physicalReadingTimerController: PhysicalReadingTimerController,
     private val wordLookupStatRepository: WordLookupStatRepository,
     private val bookFileImporter: BookFileImporter,
     private val shelfRepository: ShelfRepository,
@@ -2295,6 +2296,24 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { bookRepository.updateOfflinePages(bookId, pageCount, currentPage) }
     }
 
+    internal val physicalReadingTimer get() = physicalReadingTimerController
+    internal fun observeReadingSessionsForBook(bookId: Long) = readingSessionRepository.observeForBook(bookId)
+    internal fun observePhysicalSessionSummary(bookId: Long) = readingSessionRepository.observePhysicalSummary(bookId)
+    internal fun observeRecentPhysicalSessions(bookId: Long, limit: Int, forwardOnly: Boolean = false) =
+        readingSessionRepository.observeRecentPhysicalSessions(bookId, limit, forwardOnly)
+
+    internal suspend fun markPhysicalBookReading(bookId: Long) = withContext(dispatchers.io) {
+        bookRepository.markPhysicalBookReading(bookId)
+    }
+
+    internal suspend fun saveManualPhysicalReadingSession(bookId: Long, syncId: String,
+        session: ManualPhysicalReadingSession, updateProgress: Boolean) {
+        kotlinx.coroutines.withContext(dispatchers.io) {
+            bookRepository.recordPhysicalReadingSession(bookId, syncId, session.startedAt, session.endedAt,
+                session.durationSeconds, session.startPage, session.endPage, session.pageCount, updateProgress)
+        }
+    }
+
     fun updateOfflineFormat(bookId: Long, format: BookFormat) {
         viewModelScope.launch { bookRepository.updateOfflineFormat(bookId, format) }
     }
@@ -2850,6 +2869,8 @@ private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): 
         startedAt = startedAt,
         endedAt = endedAt,
         durationSeconds = durationSeconds,
+        startPage = startPage,
+        endPage = endPage,
     )
 }
 
@@ -2860,6 +2881,8 @@ private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord =
         startedAt = startedAt,
         endedAt = endedAt,
         durationSeconds = durationSeconds,
+        startPage = startPage,
+        endPage = endPage,
     )
 
 private fun PortableWordLookupCounter.toRecord(): CloudWordLookupCounter = CloudWordLookupCounter(

@@ -18,6 +18,7 @@ import com.vayana.core.database.model.OfflinePages
 import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.database.model.normalizeBorrowReturnAt
 import java.util.UUID
+import kotlin.math.roundToInt
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -226,6 +227,9 @@ class BookRepositoryImpl @Inject constructor(
             val pages = OfflinePages.of(pageCount, currentPage)
             val now = System.currentTimeMillis()
             val percent = pages.percent
+            val previousPage = existing.pageEstimate?.let { (existing.readingPercent * it).roundToInt() }
+            val pageChanged = pages.current != null && pages.current != previousPage &&
+                (pages.current!! > 0 || existing.startedReadingAt != null)
             val updated = if (percent == null) {
                 existing.copy(pageEstimate = pages.total, updatedAt = now)
             } else {
@@ -237,11 +241,56 @@ class BookRepositoryImpl @Inject constructor(
                     readingPercent = percent,
                     startedReadingAt = existing.startedReadingAt ?: now.takeIf { percent > 0f },
                     finishedReadingAt = if (finished) existing.finishedReadingAt ?: now else null,
+                    lastReadAt = if (existing.format == BookFormat.PHYSICAL.name && pageChanged)
+                        existing.lastReadAt?.coerceAtLeast(now) ?: now else existing.lastReadAt,
                     updatedAt = now,
                 )
             }
             // Saving the pages dialog unchanged is not an edit (see updateReadingDates).
             if (updated.copy(updatedAt = existing.updatedAt) != existing) bookDao.update(updated)
+        }
+    }
+
+    override suspend fun markPhysicalBookReading(id: Long) {
+        database.withTransaction {
+            val book = requireNotNull(bookDao.getById(id)) { "Book no longer exists" }
+            require(!book.isDeleted && book.format == BookFormat.PHYSICAL.name)
+            val now = System.currentTimeMillis()
+            bookDao.update(book.copy(
+                startedReadingAt = book.startedReadingAt ?: now,
+                finishedReadingAt = null,
+                readingPercent = if (book.finishedReadingAt != null || book.readingPercent >= 1f) 0f else book.readingPercent,
+                lastReadAt = book.lastReadAt?.coerceAtLeast(now) ?: now,
+                updatedAt = now,
+            ))
+        }
+    }
+
+    override suspend fun recordPhysicalReadingSession(id: Long, syncId: String, startedAt: Long, endedAt: Long,
+        durationSeconds: Long, startPage: Int, endPage: Int, pageCount: Int?, updateProgress: Boolean) {
+        require(syncId.isNotBlank() && startedAt > 0 && endedAt >= startedAt && durationSeconds > 0)
+        require(startPage >= 0 && endPage >= 0 && (pageCount == null || (pageCount > 0 && endPage <= pageCount)))
+        database.withTransaction {
+            val book = requireNotNull(bookDao.getById(id)) { "Book no longer exists" }
+            require(!book.isDeleted && book.format == BookFormat.PHYSICAL.name) { "Book is no longer physical" }
+            val inserted = readingSessionDao.insertIgnore(com.vayana.core.database.entity.ReadingSessionEntity(
+                syncId = syncId, bookId = id, startedAt = startedAt, endedAt = endedAt,
+                durationSeconds = durationSeconds, startPage = startPage, endPage = endPage,
+            ))
+            if (inserted == -1L) return@withTransaction
+            val total = pageCount ?: book.pageEstimate
+            require(total == null || (startPage <= total && endPage <= total))
+            val percent = total?.takeIf { it > 0 }?.let { endPage.toFloat() / it } ?: book.readingPercent
+            bookDao.update(book.copy(
+                pageEstimate = if (updateProgress) total else book.pageEstimate,
+                readingPercent = if (updateProgress) percent else book.readingPercent,
+                totalReadingSeconds = book.totalReadingSeconds + durationSeconds,
+                startedReadingAt = book.startedReadingAt?.coerceAtMost(startedAt) ?: startedAt,
+                finishedReadingAt = if (!updateProgress) book.finishedReadingAt
+                    else if (percent >= 1f) book.finishedReadingAt ?: endedAt else null,
+                lastReadAt = book.lastReadAt?.coerceAtLeast(endedAt) ?: endedAt,
+                updatedAt = System.currentTimeMillis(),
+            ))
         }
     }
 

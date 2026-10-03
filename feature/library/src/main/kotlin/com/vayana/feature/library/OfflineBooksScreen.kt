@@ -113,7 +113,34 @@ private fun OfflineBooksScreen(
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var viewMode by rememberSaveable { mutableStateOf(LibraryViewMode.LIST) }
     var category by rememberSaveable { mutableStateOf(OfflineCategory.ALL) }
-    val shownBooks = remember(books, category) { books.filter { category.includes(it) } }
+    var query by rememberSaveable { mutableStateOf("") }
+    var fromShelves by rememberSaveable { mutableStateOf(false) }
+    var language by rememberSaveable { mutableStateOf<String?>(null) }
+    var genre by rememberSaveable { mutableStateOf<String?>(null) }
+    val entries = remember(books) { homeLibraryBrowseEntries(books) }
+    val hasHomeLibrary = remember(books) { books.any { it.isHomeLibrary } }
+    val shelfEntries = remember(entries) {
+        val emptyQuery = HomeLibraryBrowseQuery("")
+        entries.filter { it.matches(emptyQuery, true, null, null) }
+    }
+    val languages = remember(shelfEntries) { shelfEntries.mapNotNull { it.language }.distinct().sorted() }
+    val genres = remember(shelfEntries) { shelfEntries.flatMap { it.genres }.distinct().sorted() }
+    val activeLanguage = validHomeLibraryLanguageSelection(language, languages)
+    val activeGenre = genre?.takeIf { it in genres }
+    LaunchedEffect(activeLanguage, activeGenre, books.isNotEmpty()) {
+        // Ignore the initial empty emission while the catalog is loading after state restoration.
+        if (books.isNotEmpty()) {
+            language = activeLanguage
+            genre = activeGenre
+        }
+    }
+    val preparedQuery = remember(query, hasHomeLibrary) { HomeLibraryBrowseQuery(query.takeIf { hasHomeLibrary }.orEmpty()) }
+    val shownBooks = remember(entries, category, preparedQuery, fromShelves, activeLanguage, activeGenre, hasHomeLibrary) {
+        entries.filter {
+            category.includes(it.book) && it.matches(preparedQuery, fromShelves && hasHomeLibrary,
+                activeLanguage.takeIf { fromShelves && hasHomeLibrary }, activeGenre.takeIf { fromShelves && hasHomeLibrary })
+        }.map { it.book }
+    }
     // With the floating bar, its attached add button asks for the dialog; the extended button below is for the other
     // navigation styles.
     val usesFloatingBar = LocalFloatingNavigationInset.current > Elevations.none
@@ -163,6 +190,26 @@ private fun OfflineBooksScreen(
             OfflineBooksEmptyState(contentPadding = innerPadding)
         } else {
             Column(modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding())) {
+                if (hasHomeLibrary) {
+                    HomeLibraryBrowseControls(
+                        query = query,
+                        onQueryChange = { query = it },
+                        fromShelves = fromShelves,
+                        onFromShelvesChange = {
+                            fromShelves = it
+                            language = null
+                            genre = null
+                            if (it) category = OfflineCategory.OWN
+                        },
+                        languages = languages,
+                        language = activeLanguage,
+                        onLanguageChange = { language = it },
+                        genres = genres,
+                        genre = activeGenre,
+                        onGenreChange = { genre = it },
+                        modifier = Modifier.padding(horizontal = Paddings.screenHorizontal),
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -172,7 +219,14 @@ private fun OfflineBooksScreen(
                     OfflineCategory.entries.forEach { option ->
                         FilterChip(
                             selected = category == option,
-                            onClick = { category = option },
+                            onClick = {
+                                category = option
+                                if (option == OfflineCategory.BORROWED) {
+                                    fromShelves = false
+                                    language = null
+                                    genre = null
+                                }
+                            },
                             label = { Text(stringResource(option.labelRes)) },
                         )
                     }
@@ -194,6 +248,9 @@ private fun OfflineBooksScreen(
                         if (homeLibraryNotConnected) {
                             item(key = "home-library-not-connected") { HomeLibraryNotConnectedNote() }
                         }
+                        if (shownBooks.isEmpty()) {
+                            item(key = "no-matches") { Text(stringResource(R.string.home_library_browse_empty)) }
+                        }
                         items(shownBooks, key = { it.id }) { book ->
                             OfflineBookRow(book = book, onClick = { onBookClick(book.id) })
                         }
@@ -214,6 +271,11 @@ private fun OfflineBooksScreen(
                         if (homeLibraryNotConnected) {
                             item(key = "home-library-not-connected", span = { GridItemSpan(maxLineSpan) }) {
                                 HomeLibraryNotConnectedNote()
+                            }
+                        }
+                        if (shownBooks.isEmpty()) {
+                            item(key = "no-matches", span = { GridItemSpan(maxLineSpan) }) {
+                                Text(stringResource(R.string.home_library_browse_empty))
                             }
                         }
                         gridItems(shownBooks, key = { it.id }) { book ->
@@ -255,16 +317,19 @@ private fun Book.isBorrowed(): Boolean =
 /** A cover with its title and author underneath, for the thumbnail view. */
 @Composable
 private fun OfflineBookCover(book: Book, onClick: () -> Unit) {
+    val displayTitle = remember(book.title, book.source, book.sourceMetadata) { book.homeLibraryDisplayTitle }
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         BookCover(book = book, modifier = Modifier.fillMaxWidth())
         Text(
-            text = book.title,
+            text = displayTitle,
             style = MaterialTheme.typography.labelLarge,
             minLines = 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.xs),
         )
+        HomeLibraryCatalogTitle(book)
+        HomeLibraryShelfLocation(book)
         book.author?.takeIf { it.isNotBlank() }?.let { author ->
             Text(
                 text = author,
@@ -290,6 +355,7 @@ private fun HomeLibraryNotConnectedNote() {
 
 @Composable
 private fun OfflineBookRow(book: Book, onClick: () -> Unit) {
+    val displayTitle = remember(book.title, book.source, book.sourceMetadata) { book.homeLibraryDisplayTitle }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -317,11 +383,13 @@ private fun OfflineBookRow(book: Book, onClick: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 Text(
-                    text = book.title,
+                    text = displayTitle,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                HomeLibraryCatalogTitle(book)
+                HomeLibraryShelfLocation(book)
                 book.author?.takeIf { it.isNotBlank() }?.let { author ->
                     Text(
                         text = author,

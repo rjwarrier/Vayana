@@ -43,6 +43,12 @@ internal fun HomeLibraryDetailsSection(
             Text(text = subtitle, style = MaterialTheme.typography.bodyLarge)
         }
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            details.languageCode?.let { code ->
+                DetailRow(stringResource(R.string.home_library_detail_language), homeLibraryLanguageLabel(code))
+            }
+            (listOfNotNull(details.mainGenre) + details.subGenres).takeIf { it.isNotEmpty() }?.let { genres ->
+                DetailRow(stringResource(R.string.home_library_detail_genre), genres.distinct().joinToString(" · "))
+            }
             details.location.takeIf { it.isNotEmpty() }?.let { location ->
                 DetailRow(stringResource(R.string.home_library_detail_location), location.joinToString(" · "))
             }
@@ -58,6 +64,31 @@ internal fun HomeLibraryDetailsSection(
             Text(stringResource(R.string.home_library_view_book))
         }
     }
+}
+
+@Composable
+internal fun HomeLibraryCatalogTitle(book: Book) {
+    val originalTitle = remember(book.title, book.source, book.sourceMetadata) { book.homeLibraryOriginalTitle }
+    if (originalTitle != null) Text(
+        text = book.title,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+internal fun HomeLibraryShelfLocation(book: Book) {
+    if (!book.isHomeLibrary) return
+    val location = remember(book.sourceMetadata) { HomeLibraryDetails.fromJson(book.sourceMetadata).location }
+    if (location.isNotEmpty()) Text(
+        text = location.joinToString(" · "),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+    )
 }
 
 @Composable

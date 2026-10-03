@@ -172,6 +172,7 @@ fun LibraryRoute(
 ) {
     val viewModel: LibraryViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val physicalTimer by viewModel.physicalReadingTimer.session.collectAsStateWithLifecycle()
     val importSummary by viewModel.importSummary.collectAsStateWithLifecycle()
     val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
     val syncProgress by viewModel.syncProgress.collectAsStateWithLifecycle()
@@ -183,6 +184,7 @@ fun LibraryRoute(
     LibraryScreen(
         modifier = modifier,
         uiState = uiState,
+        physicalTimer = physicalTimer,
         searchText = viewModel.searchText,
         allBooks = uiState.allBooks,
         readNextQueue = readNextQueue,
@@ -238,6 +240,7 @@ fun LibraryRoute(
 
 @Composable
 private fun LibraryScreen(
+    physicalTimer: PhysicalTimerSession?,
     tools: @Composable (LibraryTool, () -> Unit, (Book) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
@@ -281,6 +284,14 @@ private fun LibraryScreen(
     onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     val context = LocalContext.current
+    val physicalBooks = remember(allBooks, physicalTimer?.bookId, uiState.controls.query, uiState.controls.filter) {
+        if (uiState.controls.query.isBlank() && uiState.controls.filter in listOf(LibraryFilter.ALL, LibraryFilter.READING))
+            physicalReadingHomeBooks(allBooks, physicalTimer?.bookId) else emptyList()
+    }
+    val physicalShelf: (@Composable () -> Unit)? = if (physicalBooks.isEmpty()) null else {
+        { PhysicalReadingHomeShelf(physicalBooks, physicalTimer,
+            onBookClick = { onBookClick(it.id, BookOpenTransitionSource.COVER) }, onViewAll = onOfflineBooksClick) }
+    }
     val rootView = LocalView.current
     val searchFocusRequester = remember { FocusRequester() }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -524,7 +535,7 @@ private fun LibraryScreen(
         },
         snackbarHost = { VayanaSnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        if (uiState.books.isEmpty()) {
+        if (uiState.books.isEmpty() && physicalShelf == null) {
             LibraryEmptyState(
                 contentPadding = innerPadding,
                 hasControls = uiState.controls != LibraryControls(),
@@ -535,6 +546,7 @@ private fun LibraryScreen(
         } else {
             when (uiState.controls.viewMode) {
                 LibraryViewMode.THUMBNAILS -> LibraryGrid(
+                    physicalShelf = physicalShelf,
                     books = uiState.books,
                     readNextQueue = activeReadNextQueue,
                     showReadNextSuggestions = showReadNextSuggestions,
@@ -552,6 +564,7 @@ private fun LibraryScreen(
                     onViewAllReadNext = onShelvesClick,
                 )
                 LibraryViewMode.LIST -> LibraryList(
+                    physicalShelf = physicalShelf,
                     books = uiState.books,
                     readNextQueue = activeReadNextQueue,
                     showReadNextSuggestions = showReadNextSuggestions,
@@ -1154,6 +1167,7 @@ private fun List<SeriesLibraryItem>.withoutLoneHero(hero: Book?): List<SeriesLib
 private data class LibraryGroupSection(val label: String, val books: List<Book>)
 @Composable
 private fun LibraryGrid(
+    physicalShelf: (@Composable () -> Unit)?,
     books: List<Book>,
     readNextQueue: List<Book>,
     showReadNextSuggestions: Boolean,
@@ -1191,6 +1205,9 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
+        if (physicalShelf != null) {
+            item(key = "physical-reading", contentType = "physical-reading", span = { GridItemSpan(maxLineSpan) }) { physicalShelf() }
+        }
         displayBooks.hero?.let { heroBook ->
             item(key = "hero:${heroBook.id}", contentType = "hero", span = { GridItemSpan(maxLineSpan) }) {
                 LibraryHeroCard(
@@ -1279,6 +1296,7 @@ private fun LibraryGrid(
 
 @Composable
 private fun LibraryList(
+    physicalShelf: (@Composable () -> Unit)?,
     books: List<Book>,
     readNextQueue: List<Book>,
     showReadNextSuggestions: Boolean,
@@ -1314,6 +1332,9 @@ private fun LibraryList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        if (physicalShelf != null) {
+            item(key = "physical-reading", contentType = "physical-reading") { physicalShelf() }
+        }
         displayBooks.hero?.let { heroBook ->
             item(key = "hero:${heroBook.id}") {
                 LibraryHeroCard(

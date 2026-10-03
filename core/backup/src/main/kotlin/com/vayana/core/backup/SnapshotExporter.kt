@@ -173,6 +173,8 @@ class SnapshotExporter @Inject constructor(
             startedAt = startedAt,
             endedAt = endedAt,
             durationSeconds = durationSeconds,
+            startPage = startPage,
+            endPage = endPage,
         )
     }
 

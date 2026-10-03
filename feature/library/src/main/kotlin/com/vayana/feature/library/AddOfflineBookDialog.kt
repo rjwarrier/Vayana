@@ -349,18 +349,20 @@ internal fun offlinePagesInput(totalText: String, currentText: String): OfflineP
 }
 
 @Composable
-private fun OfflinePageFields(
+internal fun OfflinePageFields(
     totalPages: String,
     currentPage: String,
     onTotalPagesChange: (String) -> Unit,
     onCurrentPageChange: (String) -> Unit,
     currentPageTooHigh: Boolean,
+    enabled: Boolean = true,
 ) {
     val colors = expressiveTextFieldColors()
     val digits = { text: String -> text.filter(Char::isDigit).take(MaxPageDigits) }
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         OutlinedTextField(
             value = currentPage,
+            enabled = enabled,
             onValueChange = { onCurrentPageChange(digits(it)) },
             modifier = Modifier.weight(1f),
             label = { Text(stringResource(R.string.offline_book_current_page)) },
@@ -377,6 +379,7 @@ private fun OfflinePageFields(
         )
         OutlinedTextField(
             value = totalPages,
+            enabled = enabled,
             onValueChange = { onTotalPagesChange(digits(it)) },
             modifier = Modifier.weight(1f),
             label = { Text(stringResource(R.string.offline_book_total_pages)) },
