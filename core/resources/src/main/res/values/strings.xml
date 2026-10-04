@@ -690,13 +690,17 @@
     <string name="physical_manual_invalid">Use a positive duration, valid page numbers, and a session that has already ended. Minutes must be 0–59.</string>
     <string name="physical_timer_other_book">A timer is active for %1$s. Return to that book to pause, stop or log it.</string>
     <string name="physical_timer_failed">Couldn\'t save the timer or session. Please try again.</string>
+    <string name="physical_timer_notification_channel">Physical reading timer</string>
+    <string name="physical_timer_notification_channel_description">Control an active physical-book reading session from the notification or lock screen.</string>
+    <string name="physical_timer_notification_running">Reading from page %1$d</string>
+    <string name="physical_timer_notification_paused">Paused · %1$s elapsed</string>
     <string name="physical_timer_total_time">Time read: %1$s</string>
     <string name="physical_timer_speed">%1$s pages per hour</string>
     <string name="physical_mark_reading">Mark as reading</string>
     <string name="physical_read_today">Read today</string>
     <string name="physical_home_reading">Currently reading · Physical books</string>
-    <string name="physical_home_open">Open reading timer and progress</string>
     <string name="physical_home_page">Page %1$d of %2$d</string>
+    <string name="physical_home_current_page">Page %1$d</string>
     <string name="physical_home_session_recorded">Recorded a new session: %1$s in %2$s.</string>
     <plurals name="physical_home_session_pages">
         <item quantity="one">%1$d page</item>
@@ -1805,19 +1809,31 @@
     <string name="home_library_detail_location">Shelf location</string>
 
     <string name="today_title">Today</string>
+    <string name="today_title_with_goal">Today · %1$d min goal</string>
+    <string name="today_options">Today card options</string>
+    <string name="today_minutes_read">%1$d min read</string>
+    <string name="today_goal_reached">Goal reached</string>
+    <string name="today_goal_remaining">%1$d min left</string>
+    <string name="today_continue_book">Continue · %1$s</string>
+    <string name="today_caught_up">You’re all caught up for today.</string>
+    <plurals name="today_words_due">
+        <item quantity="one">%d word due</item>
+        <item quantity="other">%d words due</item>
+    </plurals>
+    <plurals name="today_highlights_due">
+        <item quantity="one">%d highlight due</item>
+        <item quantity="other">%d highlights due</item>
+    </plurals>
     <string name="today_hide">Hide Today card</string>
     <string name="today_show">Show Today card</string>
-    <string name="today_goal">%1$d of %2$d minutes read today</string>
-    <string name="today_reviews">%1$d words · %2$d highlights due</string>
-    <string name="today_review_words">Review words</string>
-    <string name="today_review_highlights">Review highlights</string>
-    <string name="today_continue">Continue reading</string>
     <string name="today_plan_minutes">%1$s: %2$d minutes per day</string>
     <string name="today_plan_pages">%1$s: %2$d pages per day</string>
     <string name="today_plan_percent">%1$s: %2$d%% per day</string>
     <string name="today_plan_overdue">%1$s: finish date passed</string>
-    <string name="today_expand">Expand Today</string>
-    <string name="today_collapse">Collapse Today</string>
+    <string name="today_plan_minutes_compact">%1$d minutes today · %2$s</string>
+    <string name="today_plan_pages_compact">%1$d pages today · %2$s</string>
+    <string name="today_plan_percent_compact">%1$d%% today · %2$s</string>
+    <string name="today_plan_overdue_compact">Finish date passed · %1$s</string>
     <string name="queue_manage">Manage Read Next</string>
     <string name="queue_capacity">Queue capacity</string>
     <string name="queue_full">Read Next is full. Remove a book or increase its capacity.</string>

@@ -1,11 +1,15 @@
 package com.vayana.app
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.vayana.app.widget.AppShortcuts
@@ -21,8 +25,15 @@ import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.common.incomingBookUris
 import com.vayana.feature.gutenberg.GutenbergCacheWarmer
+import com.vayana.feature.library.PhysicalReadingTimerNotification
+import com.vayana.feature.library.PhysicalReadingTimerController
+import com.vayana.feature.library.PhysicalTimerPhase
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -31,6 +42,13 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var shortcutRequests: ShortcutRequests
     @Inject lateinit var gutenbergCacheWarmer: GutenbergCacheWarmer
     @Inject lateinit var homeLibrarySync: HomeLibrarySync
+    @Inject lateinit var physicalReadingTimer: PhysicalReadingTimerController
+    @Inject lateinit var physicalReadingTimerNotification: PhysicalReadingTimerNotification
+
+    private var notificationPermissionSession: String? = null
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) physicalReadingTimerNotification.refresh()
+    }
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguage.wrap(newBase))
@@ -45,6 +63,22 @@ class MainActivity : ComponentActivity() {
             VayanaAppRoot()
         }
         gutenbergCacheWarmer.start()
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                physicalReadingTimer.session.collect { timer ->
+                    val active = timer?.takeIf {
+                        it.phase == PhysicalTimerPhase.RUNNING || it.phase == PhysicalTimerPhase.PAUSED
+                    } ?: return@collect
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+                        notificationPermissionSession != active.syncId
+                    ) {
+                        notificationPermissionSession = active.syncId
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
+        }
     }
 
     override fun onStart() {

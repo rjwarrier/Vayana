@@ -5,12 +5,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Spellcheck
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -19,6 +29,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.*
 import com.vayana.core.datastore.settings.*
 import com.vayana.core.designsystem.tokens.*
+import com.vayana.core.designsystem.theme.VayanaLinearWavyProgressIndicator
 import com.vayana.core.filesystem.ResolvedBooks
 import com.vayana.core.resources.R
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -113,33 +124,130 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
     val enabled by viewModel.enabled.collectAsStateWithLifecycle()
     if (!enabled) return
     val state by viewModel.today.collectAsStateWithLifecycle()
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    Surface(shape = RoundedCornerShape(Radii.large), color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(Paddings.card), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.today_title), style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = { expanded = !expanded }) { Text(stringResource(if (expanded) R.string.today_collapse else R.string.today_expand)) }
-            }
-            Text(stringResource(R.string.today_goal, state.minutes, state.goal))
-            Text(stringResource(R.string.today_reviews, state.words, state.highlights), style = MaterialTheme.typography.bodySmall)
-            if (expanded) {
-                state.plans.forEach { (book, plan) ->
-                    val label = when (plan.unit) {
-                        PlanUnit.MINUTES -> R.string.today_plan_minutes
-                        PlanUnit.PAGES -> R.string.today_plan_pages
-                        PlanUnit.PERCENT -> R.string.today_plan_percent
-                        else -> R.string.today_plan_overdue
+    var optionsExpanded by remember { mutableStateOf(false) }
+    val hasGoal = state.goal > 0
+    val goalReached = hasGoal && state.minutes >= state.goal
+    val goalProgress = if (hasGoal) state.minutes.toFloat() / state.goal else 0f
+    val containerColor = if (goalReached) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceContainerHigh
+    val contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.onSurface
+    Surface(
+        shape = RoundedCornerShape(Radii.extraLarge),
+        color = containerColor,
+        contentColor = contentColor,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(Paddings.card), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    Text(
+                        if (hasGoal) stringResource(R.string.today_title_with_goal, state.goal)
+                        else stringResource(R.string.today_title),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Text(
+                        stringResource(R.string.today_minutes_read, state.minutes),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                if (hasGoal) {
+                    Surface(
+                        shape = RoundedCornerShape(Radii.full),
+                        color = if (goalReached) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (goalReached) Icon(Icons.Outlined.CheckCircle, contentDescription = null)
+                            Text(
+                                if (goalReached) stringResource(R.string.today_goal_reached)
+                                else stringResource(R.string.today_goal_remaining, (state.goal - state.minutes).coerceAtLeast(0)),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
                     }
-                    Text(stringResource(label, book.title, plan.amount), style = MaterialTheme.typography.bodyMedium)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    TextButton(onClick = onWords, enabled = state.words > 0) { Text(stringResource(R.string.today_review_words)) }
-                    TextButton(onClick = onHighlights, enabled = state.highlights > 0) { Text(stringResource(R.string.today_review_highlights)) }
+                Box {
+                    IconButton(onClick = { optionsExpanded = true }) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.today_options))
+                    }
+                    DropdownMenu(expanded = optionsExpanded, onDismissRequest = { optionsExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.today_hide)) },
+                            onClick = {
+                                optionsExpanded = false
+                                viewModel.showToday(false)
+                            },
+                        )
+                    }
                 }
-                TextButton(onClick = { viewModel.showToday(false) }) { Text(stringResource(R.string.today_hide)) }
             }
-            state.current?.let { book -> FilledTonalButton(onClick = { onContinue(book) }) { Text(stringResource(R.string.today_continue)) } }
+            if (hasGoal) {
+                VayanaLinearWavyProgressIndicator(
+                    progress = { goalProgress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            state.current?.let { book ->
+                Button(
+                    onClick = { onContinue(book) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = Radii.buttonShape,
+                ) {
+                    Icon(Icons.Outlined.AutoStories, contentDescription = null)
+                    Spacer(Modifier.width(Spacing.sm))
+                    Text(
+                        stringResource(R.string.today_continue_book, book.homeLibraryDisplayTitle),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (state.words > 0 || state.highlights > 0) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    if (state.words > 0) AssistChip(
+                        onClick = onWords,
+                        label = { Text(pluralStringResource(R.plurals.today_words_due, state.words, state.words)) },
+                        leadingIcon = { Icon(Icons.Outlined.Spellcheck, contentDescription = null) },
+                    )
+                    if (state.highlights > 0) AssistChip(
+                        onClick = onHighlights,
+                        label = { Text(pluralStringResource(R.plurals.today_highlights_due, state.highlights, state.highlights)) },
+                        leadingIcon = { Icon(Icons.Outlined.FormatQuote, contentDescription = null) },
+                    )
+                }
+            } else if (state.current == null) {
+                Text(stringResource(R.string.today_caught_up), style = MaterialTheme.typography.bodyMedium)
+            }
+            state.plans.forEach { (book, plan) ->
+                val label = when (plan.unit) {
+                    PlanUnit.MINUTES -> stringResource(R.string.today_plan_minutes_compact, plan.amount, book.homeLibraryDisplayTitle)
+                    PlanUnit.PAGES -> stringResource(R.string.today_plan_pages_compact, plan.amount, book.homeLibraryDisplayTitle)
+                    PlanUnit.PERCENT -> stringResource(R.string.today_plan_percent_compact, plan.amount, book.homeLibraryDisplayTitle)
+                    else -> stringResource(R.string.today_plan_overdue_compact, book.homeLibraryDisplayTitle)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Flag, contentDescription = null, tint = contentColor.copy(alpha = 0.72f))
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = contentColor.copy(alpha = 0.82f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }

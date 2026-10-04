@@ -12,6 +12,7 @@ import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.ReadingTimeWidgetUpdater
 import com.vayana.feature.reminders.ReminderScheduler
+import com.vayana.feature.library.PhysicalReadingTimerNotification
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,7 @@ class VayanaApp : Application() {
     @Inject lateinit var epubContentIndex: com.vayana.feature.search.EpubContentIndex
     @Inject lateinit var homeLibrarySync: HomeLibrarySync
     @Inject lateinit var readingTimeWidgetUpdater: ReadingTimeWidgetUpdater
+    @Inject lateinit var physicalReadingTimerNotification: PhysicalReadingTimerNotification
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
 
     override fun attachBaseContext(base: Context) {
@@ -43,6 +45,7 @@ class VayanaApp : Application() {
         continueReadingWidgetUpdater.start()
         appShortcuts.start()
         readingTimeWidgetUpdater.start()
+        physicalReadingTimerNotification.start()
         homeLibrarySync.start()
         notebookExport.start()
         applicationScope.launch { delay(StorageMaintenanceDelayMillis); epubContentIndex.start() }

@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -103,21 +105,48 @@ internal fun PhysicalReadingHomeShelf(
         }
         books.forEach { book ->
             val active = timer?.takeIf { it.bookId == book.id }
+            val currentPage = book.currentPage()
+            val totalPages = book.pageCount?.takeIf { it > 0 }
+            val progress = if (currentPage != null && totalPages != null) {
+                currentPage.toFloat().div(totalPages).coerceIn(0f, 1f)
+            } else null
+            val containerColor = when (active?.phase) {
+                PhysicalTimerPhase.RUNNING -> MaterialTheme.colorScheme.primaryContainer
+                PhysicalTimerPhase.PAUSED -> MaterialTheme.colorScheme.secondaryContainer
+                PhysicalTimerPhase.STOPPED -> MaterialTheme.colorScheme.tertiaryContainer
+                null -> MaterialTheme.colorScheme.surfaceContainerHigh
+            }
+            val borderColor = when (active?.phase) {
+                PhysicalTimerPhase.RUNNING -> MaterialTheme.colorScheme.primary
+                PhysicalTimerPhase.PAUSED -> MaterialTheme.colorScheme.secondary
+                PhysicalTimerPhase.STOPPED -> MaterialTheme.colorScheme.tertiary
+                null -> null
+            }
             val interaction = remember(book.id) { MutableInteractionSource() }
             Surface(onClick = { onBookClick(book) }, interactionSource = interaction,
                 modifier = Modifier.fillMaxWidth().vayanaPressScale(interaction),
                 shape = RoundedCornerShape(Radii.extraLargeIncreased),
-                color = if (active != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                border = if (active != null) BorderStroke(Strokes.emphasis, MaterialTheme.colorScheme.primary) else null) {
+                color = containerColor,
+                border = borderColor?.let { BorderStroke(Strokes.emphasis, it) }) {
                 Row(Modifier.padding(Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     verticalAlignment = Alignment.CenterVertically) {
                     BookCover(book, Modifier.width(Sizes.coverWidthMin * 0.6f).bookSharedElement(book.id, BookOpenTransitionSource.COVER))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         Text(book.homeLibraryDisplayTitle, style = MaterialTheme.typography.titleMedium,
                             maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        book.currentPage()?.let { page ->
-                            Text(stringResource(R.string.physical_home_page, page, book.pageCount!!),
+                        currentPage?.let { page ->
+                            Text(
+                                if (totalPages != null) stringResource(R.string.physical_home_page, page, totalPages)
+                                else stringResource(R.string.physical_home_current_page, page),
                                 style = MaterialTheme.typography.bodySmall)
+                        }
+                        progress?.let {
+                            LinearProgressIndicator(
+                                progress = { it },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = borderColor ?: MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            )
                         }
                         if (active != null) {
                             Text(stringResource(when (active.phase) {
@@ -132,8 +161,6 @@ internal fun PhysicalReadingHomeShelf(
                                     style = MaterialTheme.typography.bodySmall)
                             }
                         }
-                        Text(stringResource(R.string.physical_home_open), style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary)
                     }
                     PhysicalHomeTimerControls(
                         timer = active,
@@ -205,6 +232,10 @@ private fun PhysicalHomeTimerControls(
     onPause: () -> Unit,
     onStop: () -> Unit,
 ) {
+    val stopColors = IconButtonDefaults.filledTonalIconButtonColors(
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         when (timer?.phase) {
             null -> FilledTonalIconButton(onClick = onPlay, enabled = enabled) {
@@ -214,7 +245,7 @@ private fun PhysicalHomeTimerControls(
                 FilledTonalIconButton(onClick = onPause, enabled = enabled) {
                     Icon(Icons.Outlined.Pause, contentDescription = stringResource(R.string.physical_timer_pause))
                 }
-                FilledTonalIconButton(onClick = onStop, enabled = enabled) {
+                FilledTonalIconButton(onClick = onStop, enabled = enabled, colors = stopColors) {
                     Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_stop))
                 }
             }
@@ -222,11 +253,15 @@ private fun PhysicalHomeTimerControls(
                 FilledTonalIconButton(onClick = onPlay, enabled = enabled) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.physical_timer_resume))
                 }
-                FilledTonalIconButton(onClick = onStop, enabled = enabled) {
+                FilledTonalIconButton(onClick = onStop, enabled = enabled, colors = stopColors) {
                     Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_stop))
                 }
             }
-            PhysicalTimerPhase.STOPPED -> FilledTonalIconButton(onClick = onStop, enabled = enabled) {
+            PhysicalTimerPhase.STOPPED -> FilledTonalIconButton(
+                onClick = onStop,
+                enabled = enabled,
+                colors = stopColors,
+            ) {
                 Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_finish_log))
             }
         }
