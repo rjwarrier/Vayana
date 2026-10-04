@@ -561,4 +561,3 @@ Diagnostic logs stay on the device until you explicitly copy/share or clear them
 - [Architecture and implementation decisions](DECISIONS.md)
 - [Database changelog](DATABASE_CHANGELOG.md)
 - [Vayana 0.87 release](https://github.com/rjwarrier/Vayana/releases/tag/v0.87)
-
