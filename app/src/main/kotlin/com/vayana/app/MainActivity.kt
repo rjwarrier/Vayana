@@ -12,6 +12,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.OpenBookRequest
@@ -27,12 +30,10 @@ import com.vayana.core.common.incomingBookUris
 import com.vayana.feature.gutenberg.GutenbergCacheWarmer
 import com.vayana.feature.library.PhysicalReadingTimerNotification
 import com.vayana.feature.library.PhysicalReadingTimerController
+import com.vayana.feature.library.PhysicalReadingTimerService
 import com.vayana.feature.library.PhysicalTimerPhase
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        notificationPermissionSession = savedInstanceState?.getString(NotificationPermissionSessionKey)
         enableEdgeToEdge()
         // A recreated activity (rotation, process restore) still holds the original intent; it was handled already.
         if (savedInstanceState == null) handleIncoming(intent)
@@ -81,6 +83,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(NotificationPermissionSessionKey, notificationPermissionSession)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onStart() {
         super.onStart()
         // Back in front: pick up anything Home Library changed meanwhile (a cheap /info check first).
@@ -104,6 +111,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncoming(intent: Intent) {
+        if (PhysicalReadingTimerService.isFinishRequest(intent)) {
+            shortcutRequests.offer(ShortcutDestination.LIBRARY)
+            lifecycleScope.launch { physicalReadingTimer.stop() }
+            return
+        }
         val passage = intent.data?.toString()?.let { com.vayana.core.common.parsePassageLink(it) }
         if (intent.action == Intent.ACTION_VIEW && passage != null) {
             openBookRequests.offer(OpenBookRequest(bookSyncId = passage.bookSyncId, annotationSyncId = passage.annotationSyncId))
@@ -125,3 +137,4 @@ class MainActivity : ComponentActivity() {
 }
 
 private const val NoBook = -1L
+private const val NotificationPermissionSessionKey = "notification_permission_session"

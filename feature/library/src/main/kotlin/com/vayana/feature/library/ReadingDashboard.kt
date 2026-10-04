@@ -127,7 +127,9 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
     var optionsExpanded by remember { mutableStateOf(false) }
     val hasGoal = state.goal > 0
     val goalReached = hasGoal && state.minutes >= state.goal
-    val goalProgress = if (hasGoal) state.minutes.toFloat() / state.goal else 0f
+    val goalProgress = if (hasGoal) {
+        (state.minutes.toFloat() / state.goal).coerceIn(0f, 1f)
+    } else 0f
     val containerColor = if (goalReached) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainerHigh
     val contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimaryContainer

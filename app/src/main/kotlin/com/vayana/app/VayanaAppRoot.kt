@@ -111,6 +111,7 @@ fun VayanaAppRoot() {
         LaunchedEffect(shortcutRequest) {
             val destination = shortcutRequest ?: return@LaunchedEffect
             when (destination) {
+                ShortcutDestination.LIBRARY -> navController.navigateToTopLevel(TopLevelRoute.Library)
                 ShortcutDestination.FREE_BOOKS -> {
                     navController.navigateToTopLevel(TopLevelRoute.Library)
                     navController.navigate(GutenbergRoute) { launchSingleTop = true }

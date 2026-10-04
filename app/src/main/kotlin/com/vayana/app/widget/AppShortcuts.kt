@@ -102,7 +102,7 @@ class AppShortcuts @Inject constructor(
 }
 
 /** Screens a launcher shortcut (or a widget) asked for, waiting for the app's navigation. */
-enum class ShortcutDestination { FREE_BOOKS, SEARCH, STATISTICS }
+enum class ShortcutDestination { LIBRARY, FREE_BOOKS, SEARCH, STATISTICS }
 
 @Singleton
 class ShortcutRequests @Inject constructor() {

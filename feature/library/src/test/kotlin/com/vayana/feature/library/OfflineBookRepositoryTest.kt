@@ -182,6 +182,27 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun rebootRecoveryPersistsPausedTimerWithCurrentBootCount() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val preferences = context.getSharedPreferences("physical_reading_timer", android.content.Context.MODE_PRIVATE)
+        preferences.edit().clear().commit()
+        val book = repository.insertOfflineBook("Paper", null, BookFormat.PHYSICAL, null, null)
+        PhysicalReadingTimerController(context, repository).start(book.id, book.title, 10, 100)
+        val stored = org.json.JSONObject(preferences.getString("session", null)!!)
+            .put("bootCount", -1)
+            .put("phase", PhysicalTimerPhase.RUNNING.name)
+        preferences.edit().putString("session", stored.toString()).commit()
+
+        val restored = PhysicalReadingTimerController(context, repository)
+        assertEquals(PhysicalTimerPhase.PAUSED, restored.session.value!!.phase)
+        restored.restoreAfterBoot()
+
+        val persisted = org.json.JSONObject(preferences.getString("session", null)!!)
+        assertEquals(PhysicalTimerPhase.PAUSED.name, persisted.getString("phase"))
+        assertEquals(restored.session.value!!.bootCount, persisted.getInt("bootCount"))
+    }
+
+    @Test
     fun repeatedTimerControlsPreserveStoredStateAndDuration() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val preferences = context.getSharedPreferences("physical_reading_timer", android.content.Context.MODE_PRIVATE)

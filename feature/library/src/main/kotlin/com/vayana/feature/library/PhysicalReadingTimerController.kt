@@ -61,6 +61,19 @@ class PhysicalReadingTimerController @Inject constructor(
             startPage, runningSince = SystemClock.elapsedRealtime(), bootCount = bootCount, pageCount = pageCount))
     }
 
+    /** Persists the safe paused state produced when monotonic time was reset by a reboot. */
+    suspend fun restoreAfterBoot() = mutex.withLock {
+        val timer = mutableSession.value ?: return@withLock
+        if (timer.bootCount == bootCount) return@withLock
+        persist(
+            timer.copy(
+                phase = if (timer.phase == PhysicalTimerPhase.RUNNING) PhysicalTimerPhase.PAUSED else timer.phase,
+                bootCount = bootCount,
+                runningSince = SystemClock.elapsedRealtime(),
+            ),
+        )
+    }
+
     suspend fun pause() = mutex.withLock {
         mutableSession.value?.let { persist(it.pause(SystemClock.elapsedRealtime())) }
     }
