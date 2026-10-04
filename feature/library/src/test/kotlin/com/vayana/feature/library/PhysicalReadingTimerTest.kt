@@ -54,6 +54,17 @@ class PhysicalReadingTimerTest {
     }
 
     @Test
+    fun recordedSummaryUsesPageDistanceAndWholeElapsedMinutes() {
+        val stopped = timer().copy(accumulatedMillis = 614_000, phase = PhysicalTimerPhase.STOPPED)
+        assertEquals(PhysicalSessionRecorded(11, 10), physicalSessionRecorded(stopped, 51))
+        assertEquals(PhysicalSessionRecorded(10, 10), physicalSessionRecorded(stopped, 30))
+        assertEquals(
+            PhysicalSessionRecorded(0, 1),
+            physicalSessionRecorded(stopped.copy(accumulatedMillis = 900), 40),
+        )
+    }
+
+    @Test
     fun paceUsesOnlyTimedForwardPageMovement() {
         val logs = listOf(log(40, 50, 600), log(50, 70, 1200), log(null, null, 5000), log(70, 60, 900))
         val pace = physicalReadingPace(logs, 200, 100)

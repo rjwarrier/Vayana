@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -175,10 +177,32 @@ internal fun ReadNextManagerDialog(onDismiss: () -> Unit, onBook: (Book) -> Unit
 }
 
 @Composable
-internal fun BookDispositionControl(book: Book, viewModel: ReadingDashboardViewModel = hiltViewModel()) {
+internal fun BookDispositionControl(
+    book: Book,
+    modifier: Modifier = Modifier,
+    asChip: Boolean = false,
+    viewModel: ReadingDashboardViewModel = hiltViewModel(),
+) {
     var editing by rememberSaveable(book.id) { mutableStateOf(false) }
-    TextButton(onClick = { editing = true }) {
-        Text(stringResource(R.string.reading_disposition) + ": " + stringResource(dispositionLabel(book.readingDisposition)))
+    if (asChip) {
+        AssistChip(
+            onClick = { editing = true },
+            label = {
+                Text(stringResource(R.string.reading_disposition) + " · " + stringResource(dispositionLabel(book.readingDisposition)))
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                )
+            },
+            modifier = modifier,
+        )
+    } else {
+        TextButton(onClick = { editing = true }, modifier = modifier) {
+            Text(stringResource(R.string.reading_disposition) + ": " + stringResource(dispositionLabel(book.readingDisposition)))
+        }
     }
     if (!editing) return
     var status by remember(book.id) { mutableStateOf(book.readingDisposition) }

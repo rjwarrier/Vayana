@@ -44,6 +44,9 @@ interface ReadingSessionDao {
     @Query("SELECT syncId FROM reading_sessions WHERE bookId = :bookId")
     suspend fun syncIdsForBook(bookId: Long): List<String>
 
+    @Query("UPDATE reading_sessions SET startPage = :startPage, endPage = :endPage WHERE syncId = :syncId")
+    suspend fun updatePages(syncId: String, startPage: Int, endPage: Int): Int
+
     @Query("DELETE FROM reading_sessions WHERE bookId = :bookId")
     suspend fun deleteForBook(bookId: Long)
 

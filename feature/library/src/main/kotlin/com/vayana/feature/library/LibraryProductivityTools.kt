@@ -7,6 +7,8 @@ import com.vayana.core.designsystem.theme.PagedLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +19,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.Shelf
 import com.vayana.core.datastore.settings.SmartShelf
 import com.vayana.core.datastore.settings.SmartShelfStatus
+import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 import java.time.Instant
@@ -188,7 +191,12 @@ internal fun BulkBooksDialog(books: List<Book>, shelves: List<Shelf>, onAction: 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun FinishByCard(book: Book, target: LocalDate?, onChange: suspend (LocalDate?) -> Unit) {
+internal fun FinishByCard(
+    book: Book,
+    target: LocalDate?,
+    onChange: suspend (LocalDate?) -> Unit,
+    embedded: Boolean = false,
+) {
     var picker by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
@@ -198,9 +206,15 @@ internal fun FinishByCard(book: Book, target: LocalDate?, onChange: suspend (Loc
         try { onChange(date); picker = false } catch (e: CancellationException) { throw e }
         catch (_: Exception) { error = true } finally { busy = false }
     } }
-    OutlinedCard(Modifier.fillMaxWidth()) {
+    val content: @Composable () -> Unit = {
         Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(stringResource(R.string.tools_finish_by), style = MaterialTheme.typography.titleMedium)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Icon(Icons.Outlined.Event, contentDescription = null)
+                Text(stringResource(R.string.tools_finish_by), style = MaterialTheme.typography.titleMedium)
+            }
             target?.let { date ->
                 Text(stringResource(R.string.tools_plan_date, date.toString()))
                 val plan = finishByPlan(book, date)
@@ -213,11 +227,40 @@ internal fun FinishByCard(book: Book, target: LocalDate?, onChange: suspend (Loc
                 })
             }
             if (error) Text(stringResource(R.string.tools_failed), color = MaterialTheme.colorScheme.error)
-            Row {
-                TextButton(enabled = !busy, onClick = { picker = true }) { Text(stringResource(if (target == null) R.string.tools_set_target else R.string.tools_change_target)) }
-                if (target != null) TextButton(enabled = !busy, onClick = { save(null) }) { Text(stringResource(R.string.tools_clear_target)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                FilledTonalButton(
+                    enabled = !busy,
+                    onClick = { picker = true },
+                    shape = Radii.buttonShape,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                ) {
+                    Text(stringResource(if (target == null) R.string.tools_set_target else R.string.tools_change_target))
+                }
+                if (target != null) {
+                    OutlinedButton(
+                        enabled = !busy,
+                        onClick = { save(null) },
+                        shape = Radii.buttonShape,
+                    ) {
+                        Text(stringResource(R.string.tools_clear_target))
+                    }
+                }
             }
         }
+    }
+    if (embedded) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            content = content,
+        )
+    } else {
+        OutlinedCard(Modifier.fillMaxWidth()) { content() }
     }
     if (picker) {
         val dateState = rememberDatePickerState(initialSelectedDateMillis = (target ?: LocalDate.now()).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())

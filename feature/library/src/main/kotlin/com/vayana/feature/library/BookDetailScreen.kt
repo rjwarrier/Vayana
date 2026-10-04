@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -714,6 +715,9 @@ private fun BookDetailScreen(
                     .padding(Paddings.screenHorizontal),
             )
         } else {
+            val isOwnedPhysicalReading = book.format == BookFormat.PHYSICAL &&
+                (book.physicalOwnership ?: PhysicalBookOwnership.OWNED) == PhysicalBookOwnership.OWNED &&
+                book.readingState() == BookReadingState.READING
             // Staggered, not a row-aligned grid: on a wide screen each card drops into the shorter column
             // instead of leaving a gap beside a tall neighbour.
             LazyVerticalStaggeredGrid(
@@ -732,10 +736,20 @@ private fun BookDetailScreen(
                                 bookId = book.id,
                                 enabled = transitionSource == BookOpenTransitionSource.HERO_CARD,
                             )
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .then(
+                                if (isOwnedPhysicalReading) {
+                                    Modifier
+                                        .clip(RoundedCornerShape(Radii.extraLarge))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                        .padding(Spacing.lg)
+                                } else {
+                                    Modifier
+                                },
+                            ),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        BookDispositionControl(book)
+                        if (!isOwnedPhysicalReading) BookDispositionControl(book)
                         // Cover on the left, identity (title, author, series, Goodreads) beside it; cover editing
                         // lives in its own dialog so the top of the screen stays compact.
                         Row(
@@ -800,6 +814,13 @@ private fun BookDetailScreen(
                                     )
                                 }
                                 BookStatusLine(book = book, modifier = Modifier.padding(top = Spacing.xs))
+                                if (isOwnedPhysicalReading) {
+                                    BookDispositionControl(
+                                        book = book,
+                                        modifier = Modifier.padding(top = Spacing.sm),
+                                        asChip = true,
+                                    )
+                                }
                                 GoodreadsInfoLine(
                                     book = book,
                                     communityQuoteCount = communityQuoteCount,
@@ -871,7 +892,9 @@ private fun BookDetailScreen(
                     }
                 }
                 val readingState = book.readingState()
-                item { FinishByCard(book, finishByDate, onFinishByChange) }
+                if (!isOwnedPhysicalReading) {
+                    item { FinishByCard(book, finishByDate, onFinishByChange) }
+                }
                 val syncAction: (@Composable () -> Unit)? = if (showSyncReadingProgress) {
                     { SyncProgressButton(running = syncReadingProgressRunning, onClick = ::syncReadingProgress) }
                 } else {
@@ -899,6 +922,18 @@ private fun BookDetailScreen(
                                 onUpdatePhysicalBookLoan(ownership, book.borrowReturnAt)
                             },
                             onEditBorrowReturnDate = { showBorrowReturnDateDialog = true },
+                            plan = if (isOwnedPhysicalReading) {
+                                {
+                                    FinishByCard(
+                                        book = book,
+                                        target = finishByDate,
+                                        onChange = onFinishByChange,
+                                        embedded = true,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                         )
                     }
                 }

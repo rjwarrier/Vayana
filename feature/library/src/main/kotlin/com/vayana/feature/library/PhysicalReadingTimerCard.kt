@@ -4,15 +4,19 @@ import android.os.SystemClock
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,7 +29,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,7 +70,6 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
     var showHistory by rememberSaveable(book.id) { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     LaunchedEffect(timer?.syncId, timer?.phase) {
         if (timer?.phase == PhysicalTimerPhase.STOPPED) showStop = true
     }
@@ -113,40 +115,52 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
             VayanaConnectedButtonGroup(buttons, iconAboveLabel = true)
         }
         if (failed) Text(stringResource(R.string.physical_timer_failed), color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = { failed = false; showManual = true }, enabled = !busy && timer == null) {
-            Text(stringResource(R.string.physical_manual_add))
-        }
-        if (book.totalReadingSeconds > 0) Text(
-            stringResource(R.string.physical_timer_total_time, formatTimerClock(book.totalReadingSeconds)),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        pace.pagesPerHour?.let {
-            Text(stringResource(R.string.physical_timer_speed, String.format(Locale.getDefault(), "%.1f", it)),
-                style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.physical_timer_pace_basis, pace.timedPages, pace.sampleCount),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        pace.remainingSeconds?.let {
-            Text(stringResource(R.string.physical_timer_remaining, formatReadingDuration(it, context)))
-        } ?: Text(stringResource(R.string.physical_timer_estimate_hint), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (summary.sessionCount > 0) Text(stringResource(R.string.physical_timer_session_count, summary.sessionCount),
-            style = MaterialTheme.typography.labelLarge)
-        if (summary.sessionCount > 0) {
-            Text(stringResource(R.string.physical_timer_average_session, formatReadingDuration(summary.averageSeconds, context)))
-            TextButton(onClick = { showHistory = true }) { Text(stringResource(R.string.physical_timer_history)) }
-        }
-        pageLogs.forEach { log ->
-            Text(stringResource(R.string.physical_timer_recent_session, log.startedAt.formatDate(),
-                formatTimerClock(log.durationSeconds), log.startPage!!, log.endPage!!),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            OutlinedButton(
+                onClick = { failed = false; showManual = true },
+                enabled = !busy && timer == null,
+                modifier = Modifier.weight(1f),
+                shape = Radii.buttonShape,
+            ) {
+                Text(stringResource(R.string.physical_manual_add))
+            }
+            if (summary.sessionCount > 0) {
+                FilledTonalButton(
+                    onClick = { showHistory = true },
+                    modifier = Modifier.weight(1f),
+                    shape = Radii.buttonShape,
+                ) {
+                    Icon(Icons.Outlined.History, contentDescription = null)
+                    Text(
+                        stringResource(R.string.physical_timer_log_button, summary.sessionCount),
+                        modifier = Modifier.padding(start = Spacing.sm),
+                    )
+                }
+            }
         }
     }
     if (showHistory) {
         val sessions by remember(book.id) { viewModel.observeReadingSessionsForBook(book.id) }
             .collectAsStateWithLifecycle(initialValue = emptyList())
         val history = remember(sessions) { sessions.filter { it.startPage != null && it.endPage != null } }
-        PhysicalSessionHistoryDialog(book, history, onDismiss = { showHistory = false })
+        PhysicalSessionHistoryDialog(
+            book = book,
+            sessions = history,
+            summary = summary,
+            pace = pace,
+            onUpdatePages = { session, startPage, endPage ->
+                viewModel.updatePhysicalReadingSessionPages(
+                    syncId = session.syncId,
+                    startPage = startPage,
+                    endPage = endPage,
+                    pageCount = book.pageCount,
+                )
+            },
+            onDismiss = { showHistory = false },
+        )
     }
     if (showStart && active == null) {
         PhysicalTimerPageDialog(book, currentPage ?: 0, starting = true, busy = busy, failed = failed,
@@ -195,7 +209,7 @@ internal fun formatTimerClock(seconds: Long): String = String.format(Locale.getD
     seconds.coerceAtLeast(0) / 3600, seconds.coerceAtLeast(0) / 60 % 60, seconds.coerceAtLeast(0) % 60)
 
 @Composable
-private fun PhysicalTimerPageDialog(book: Book, page: Int, starting: Boolean, busy: Boolean, failed: Boolean,
+internal fun PhysicalTimerPageDialog(book: Book, page: Int, starting: Boolean, busy: Boolean, failed: Boolean,
     onDismiss: () -> Unit, onDiscard: (() -> Unit)?, onSave: (Int, Int?) -> Unit) {
     var pageText by rememberSaveable(book.id, starting) { mutableStateOf(page.toString()) }
     var totalText by rememberSaveable(book.id, starting) { mutableStateOf(book.pageCount?.toString().orEmpty()) }

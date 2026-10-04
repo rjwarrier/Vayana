@@ -109,6 +109,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -188,6 +189,7 @@ fun LibraryRoute(
         modifier = modifier,
         uiState = uiState,
         physicalTimer = physicalTimer,
+        physicalTimerController = viewModel.physicalReadingTimer,
         searchText = viewModel.searchText,
         allBooks = uiState.allBooks,
         readNextQueue = readNextQueue,
@@ -245,6 +247,7 @@ fun LibraryRoute(
 @Composable
 private fun LibraryScreen(
     physicalTimer: PhysicalTimerSession?,
+    physicalTimerController: PhysicalReadingTimerController,
     tools: @Composable (LibraryTool, () -> Unit, (Book) -> Unit) -> Unit,
     todayCard: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -289,13 +292,22 @@ private fun LibraryScreen(
     onViewModeChange: (LibraryViewMode) -> Unit,
 ) {
     val context = LocalContext.current
+    var recordedPhysicalSession by remember { mutableStateOf<PhysicalSessionRecorded?>(null) }
     val physicalBooks = remember(allBooks, physicalTimer?.bookId, uiState.controls.query, uiState.controls.filter) {
         if (uiState.controls.query.isBlank() && uiState.controls.filter in listOf(LibraryFilter.ALL, LibraryFilter.READING))
             physicalReadingHomeBooks(allBooks, physicalTimer?.bookId) else emptyList()
     }
     val physicalShelf: (@Composable () -> Unit)? = if (physicalBooks.isEmpty()) null else {
-        { PhysicalReadingHomeShelf(physicalBooks, physicalTimer,
-            onBookClick = { onBookClick(it.id, BookOpenTransitionSource.COVER) }, onViewAll = onOfflineBooksClick) }
+        {
+            PhysicalReadingHomeShelf(
+                books = physicalBooks,
+                timer = physicalTimer,
+                controller = physicalTimerController,
+                onSessionRecorded = { recordedPhysicalSession = it },
+                onBookClick = { onBookClick(it.id, BookOpenTransitionSource.COVER) },
+                onViewAll = onOfflineBooksClick,
+            )
+        }
     }
     val rootView = LocalView.current
     val searchFocusRequester = remember { FocusRequester() }
@@ -303,6 +315,18 @@ private fun LibraryScreen(
     PermanentDeletionNoticeEffect(deletionNotice, snackbarHostState, onDeletionNoticeShown)
     RemoteBookDeletionNoticeEffect(remoteBookDeletions, snackbarHostState, onRemoteBookDeletionsShown)
     val coroutineScope = rememberCoroutineScope()
+    val recordedPhysicalSessionMessage = recordedPhysicalSession?.let { session ->
+        stringResource(
+            R.string.physical_home_session_recorded,
+            pluralStringResource(R.plurals.physical_home_session_pages, session.pagesRead, session.pagesRead),
+            pluralStringResource(R.plurals.physical_home_session_minutes, session.minutesRead, session.minutesRead),
+        )
+    }
+    LaunchedEffect(recordedPhysicalSessionMessage) {
+        val message = recordedPhysicalSessionMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        recordedPhysicalSession = null
+    }
     val importSummaryMessage = importSummary?.let { summary ->
         stringResource(
             R.string.library_import_summary,

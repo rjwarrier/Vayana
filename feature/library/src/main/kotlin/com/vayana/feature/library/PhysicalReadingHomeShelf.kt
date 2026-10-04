@@ -10,11 +10,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,6 +39,8 @@ import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 internal fun physicalReadingHomeBooks(books: List<Book>, activeBookId: Long?): List<Book> {
     val order = compareByDescending<Book> { it.id == activeBookId }
@@ -43,13 +57,49 @@ internal fun physicalReadingHomeBooks(books: List<Book>, activeBookId: Long?): L
 }
 
 @Composable
-internal fun PhysicalReadingHomeShelf(books: List<Book>, timer: PhysicalTimerSession?,
-    onBookClick: (Book) -> Unit, onViewAll: () -> Unit) {
+internal fun PhysicalReadingHomeShelf(
+    books: List<Book>,
+    timer: PhysicalTimerSession?,
+    controller: PhysicalReadingTimerController,
+    onSessionRecorded: (PhysicalSessionRecorded) -> Unit,
+    onBookClick: (Book) -> Unit,
+    onViewAll: () -> Unit,
+) {
+    var stopBookId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun perform(action: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        failed = false
+        scope.launch {
+            try {
+                action()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                failed = true
+            } finally {
+                busy = false
+            }
+        }
+    }
+    LaunchedEffect(timer?.syncId, timer?.phase) {
+        if (timer?.phase == PhysicalTimerPhase.STOPPED) stopBookId = timer.bookId
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.physical_home_reading), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f))
             TextButton(onClick = onViewAll) { Text(stringResource(R.string.library_read_next_view_all)) }
+        }
+        if (failed) {
+            Text(
+                stringResource(R.string.physical_timer_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
         books.forEach { book ->
             val active = timer?.takeIf { it.bookId == book.id }
@@ -85,7 +135,99 @@ internal fun PhysicalReadingHomeShelf(books: List<Book>, timer: PhysicalTimerSes
                         Text(stringResource(R.string.physical_home_open), style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary)
                     }
+                    PhysicalHomeTimerControls(
+                        timer = active,
+                        enabled = !busy && (timer == null || active != null),
+                        onPlay = {
+                            when (active?.phase) {
+                                PhysicalTimerPhase.PAUSED -> perform { controller.resume() }
+                                PhysicalTimerPhase.STOPPED -> stopBookId = book.id
+                                PhysicalTimerPhase.RUNNING -> Unit
+                                null -> perform {
+                                    controller.start(
+                                        bookId = book.id,
+                                        title = book.homeLibraryDisplayTitle,
+                                        startPage = book.currentPage() ?: 0,
+                                        pageCount = book.pageCount,
+                                    )
+                                }
+                            }
+                        },
+                        onPause = { perform { controller.pause() } },
+                        onStop = {
+                            if (active?.phase == PhysicalTimerPhase.STOPPED) {
+                                stopBookId = book.id
+                            } else {
+                                perform {
+                                    controller.stop()
+                                    stopBookId = book.id
+                                }
+                            }
+                        },
+                    )
                 }
+            }
+        }
+    }
+    val stoppedTimer = timer?.takeIf { it.phase == PhysicalTimerPhase.STOPPED && it.bookId == stopBookId }
+    val stopBook = books.firstOrNull { it.id == stoppedTimer?.bookId }
+    if (stoppedTimer != null && stopBook != null) {
+        PhysicalTimerPageDialog(
+            book = stopBook.copy(pageCount = stoppedTimer.pageCount ?: stopBook.pageCount),
+            page = stoppedTimer.startPage,
+            starting = false,
+            busy = busy,
+            failed = failed,
+            onDismiss = { stopBookId = null; failed = false },
+            onDiscard = {
+                perform {
+                    controller.discard()
+                    stopBookId = null
+                }
+            },
+            onSave = { page, total ->
+                val recorded = physicalSessionRecorded(stoppedTimer, page)
+                perform {
+                    controller.save(page, total)
+                    stopBookId = null
+                    onSessionRecorded(recorded)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun PhysicalHomeTimerControls(
+    timer: PhysicalTimerSession?,
+    enabled: Boolean,
+    onPlay: () -> Unit,
+    onPause: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        when (timer?.phase) {
+            null -> FilledTonalIconButton(onClick = onPlay, enabled = enabled) {
+                Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.physical_timer_start))
+            }
+            PhysicalTimerPhase.RUNNING -> {
+                FilledTonalIconButton(onClick = onPause, enabled = enabled) {
+                    Icon(Icons.Outlined.Pause, contentDescription = stringResource(R.string.physical_timer_pause))
+                }
+                FilledTonalIconButton(onClick = onStop, enabled = enabled) {
+                    Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_stop))
+                }
+            }
+            PhysicalTimerPhase.PAUSED -> {
+                FilledTonalIconButton(onClick = onPlay, enabled = enabled) {
+                    Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.physical_timer_resume))
+                }
+                FilledTonalIconButton(onClick = onStop, enabled = enabled) {
+                    Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_stop))
+                }
+            }
+            PhysicalTimerPhase.STOPPED -> FilledTonalIconButton(onClick = onStop, enabled = enabled) {
+                Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_finish_log))
             }
         }
     }

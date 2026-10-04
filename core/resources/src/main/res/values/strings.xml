@@ -697,10 +697,26 @@
     <string name="physical_home_reading">Currently reading · Physical books</string>
     <string name="physical_home_open">Open reading timer and progress</string>
     <string name="physical_home_page">Page %1$d of %2$d</string>
+    <string name="physical_home_session_recorded">Recorded a new session: %1$s in %2$s.</string>
+    <plurals name="physical_home_session_pages">
+        <item quantity="one">%1$d page</item>
+        <item quantity="other">%1$d pages</item>
+    </plurals>
+    <plurals name="physical_home_session_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
     <string name="physical_timer_pace_basis">Based on %1$d pages in your last %2$d timed sessions</string>
     <string name="physical_timer_average_session">Average session: %1$s</string>
     <string name="physical_timer_history">Session history</string>
+    <string name="physical_timer_reading_log">Reading log</string>
+    <string name="physical_timer_log_button">Reading log (%1$d)</string>
     <string name="physical_timer_history_pages">Pages %1$d → %2$d</string>
+    <string name="physical_timer_edit_pages">Edit pages</string>
+    <string name="physical_timer_edit_pages_hint">Only this log’s page range will change. Its date, reading time, and current book progress stay the same.</string>
+    <string name="physical_timer_end_page">Ending page</string>
+    <string name="physical_timer_edit_pages_invalid">Enter zero or a positive page number.</string>
+    <string name="physical_timer_edit_pages_invalid_with_total">Use page numbers from 0 to %1$d.</string>
     <string name="physical_timer_start_page_too_high">Total pages must include your starting page (%1$d).</string>
     <string name="physical_timer_remaining">Estimated reading time remaining: %1$s</string>
     <string name="physical_timer_estimate_hint">Log a session with page movement and set total pages to estimate remaining reading time.</string>
@@ -856,14 +872,25 @@
     <string name="help_title">Help &amp; About</string>
     <string name="help_back_content_description">Back</string>
     <string name="help_heading">Getting the most out of vayana</string>
+    <string name="help_documentation_title">Complete user guide</string>
+    <string name="help_documentation_description">Open the illustrated Vayana documentation on GitHub.</string>
+    <string name="vayana_documentation_url" translatable="false">https://github.com/rjwarrier/Vayana/blob/main/docs/USER_GUIDE.md</string>
+    <string name="help_section_expand_content_description">Show tips for %1$s</string>
+    <string name="help_section_collapse_content_description">Hide tips for %1$s</string>
+    <string name="help_section_discover_title">Add &amp; discover books</string>
     <string name="help_section_library_title">Library</string>
     <string name="help_section_reader_title">Reader</string>
+    <string name="help_section_offline_title">Offline &amp; borrowed books</string>
+    <string name="help_section_reading_tools_title">Dictionary, translation &amp; read aloud</string>
     <string name="help_section_notes_title">Notes</string>
     <string name="help_section_statistics_title">Statistics</string>
+    <string name="help_section_widgets_title">Widgets &amp; shortcuts</string>
     <string name="help_section_search_title">Search</string>
     <string name="help_section_sync_title">Backup &amp; Sync</string>
     <string name="help_section_trash_title">Recently Deleted</string>
     <string name="help_section_settings_title">Settings</string>
+    <string name="help_section_accessibility_title">E-ink &amp; accessibility</string>
+    <string name="help_section_diagnostics_title">Diagnostics &amp; support</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_tablet_select_category">Select a settings category</string>
@@ -879,6 +906,8 @@
     <string name="settings_open_help_subtitle">Feature guide, reading tips, sync basics, and recovery notes.</string>
     <string name="settings_open_diagnostics_title">Diagnostics</string>
     <string name="settings_open_diagnostics_subtitle">Open crash and sync logs recorded on this device.</string>
+    <string name="about_feature_summary">A private EPUB and PDF reader with book discovery, annotations, language tools, reading insights, widgets, offline collection tracking, backup, and encrypted GitHub sync.</string>
+    <string name="about_documentation">Read the user guide</string>
     <string name="settings_reset_one_content_description">Reset setting</string>
     <string name="settings_reset_all_content_description">Reset all settings</string>
     <string name="settings_reset_all_title">Reset all settings?</string>
@@ -1295,6 +1324,13 @@
     <string name="settings_reader_edge_swipe_light_subtitle">Swipe up or down along the left edge for brightness and the right edge for warm light.</string>
 
     <!-- Help screen -->
+    <string name="help_section_discover_description">Bring in your own files or find free books from inside Vayana.</string>
+    <string-array name="help_section_discover_tips">
+        <item>Import EPUB and PDF files with the file picker, a watched folder, or Android’s Open with action.</item>
+        <item>Browse and download public-domain books from Project Gutenberg.</item>
+        <item>Add OPDS catalogs to explore other compatible book collections.</item>
+        <item>Review book details and storage options before adding a title to your library.</item>
+    </string-array>
     <string name="help_section_library_description">Your bookshelf — everything you\'re reading, have read, or plan to.</string>
     <string-array name="help_section_library_tips">
         <item>Tap a book\'s cover to jump straight into the reader.</item>
@@ -1302,13 +1338,27 @@
         <item>Use shelves to group books by series, genre, or mood.</item>
         <item>Pull down to sync recent changes from your other devices.</item>
     </string-array>
-    <string name="help_section_reader_description">The reading view itself, with highlights, notes, and typography controls.</string>
+    <string name="help_section_reader_description">Read EPUB and PDF books with progress, navigation, and focused display controls.</string>
     <string-array name="help_section_reader_tips">
         <item>Tap the center of the page to show or hide the reading toolbar.</item>
         <item>Select text to highlight it or attach a note.</item>
         <item>Open the type settings to change font, size, line spacing, and theme.</item>
         <item>Use the table of contents to jump between chapters instantly.</item>
+        <item>PDF books include page navigation, zoom, progress, bookmarks, and reading history.</item>
         <item>Your position syncs automatically as you read.</item>
+    </string-array>
+    <string name="help_section_offline_description">Track books you own, borrowed copies, and titles that are not stored as reader files.</string>
+    <string-array name="help_section_offline_tips">
+        <item>Add physical and borrowed books with ownership, lender, due-date, and return details.</item>
+        <item>Use Home Library mode to browse your personal shelves separately from digital books.</item>
+        <item>Mark progress and reading status even when a book has no EPUB or PDF file.</item>
+    </string-array>
+    <string name="help_section_reading_tools_description">Understand unfamiliar text and listen without leaving your book.</string>
+    <string-array name="help_section_reading_tools_tips">
+        <item>Select a word for the dictionary, Wikipedia, Wiktionary, or translation tools.</item>
+        <item>Save useful words to your vocabulary list for later review.</item>
+        <item>Use Read aloud for text-to-speech, then adjust voice, rate, and pitch in Settings.</item>
+        <item>Choose the book language so lookup and speech tools use the right language.</item>
     </string-array>
     <string name="help_section_notes_description">All highlights and notes you\'ve captured across every book, in one place.</string>
     <string-array name="help_section_notes_tips">
@@ -1323,6 +1373,13 @@
         <item>See time spent per book and overall reading pace.</item>
         <item>Review vocabulary you\'ve looked up with spaced-repetition flashcards.</item>
         <item>Trends update automatically as you keep reading.</item>
+    </string-array>
+    <string name="help_section_widgets_description">Continue reading and see progress directly from your home screen.</string>
+    <string-array name="help_section_widgets_tips">
+        <item>Add Vayana widgets from your Android launcher’s widget picker.</item>
+        <item>Use Continue Reading to reopen the current book with one tap.</item>
+        <item>Use reading progress and goal widgets to keep your activity visible.</item>
+        <item>App shortcuts provide quick access to common destinations when supported by your launcher.</item>
     </string-array>
     <string name="help_section_search_description">Find any book, note, or highlight across your entire library.</string>
     <string-array name="help_section_search_tips">
@@ -1349,6 +1406,20 @@
         <item>Adjust appearance, typography, and layout to match your taste.</item>
         <item>Set reading goals to track progress over time.</item>
         <item>Reset a single setting or everything back to defaults.</item>
+    </string-array>
+    <string name="help_section_accessibility_description">Tune Vayana for clearer reading, calmer motion, and e-ink displays.</string>
+    <string-array name="help_section_accessibility_tips">
+        <item>Choose the e-ink display profile for high contrast and reduced visual effects.</item>
+        <item>Adjust bolder text, margins, alignment, hyphenation, and two-column landscape layout.</item>
+        <item>Reduce motion, use volume-key page turns, keep the screen awake, or enter full screen.</item>
+        <item>Control reader brightness and warm light, including optional edge-swipe gestures.</item>
+    </string-array>
+    <string name="help_section_diagnostics_description">Capture useful crash and sync information when something goes wrong.</string>
+    <string-array name="help_section_diagnostics_tips">
+        <item>Open Settings → Help and about → Diagnostics after a crash or failed sync.</item>
+        <item>Review the captured app, device, crash, and sync details before sharing.</item>
+        <item>Use Share diagnostics to send the report to the developer with steps to reproduce the problem.</item>
+        <item>Diagnostics are stored on this device and can be cleared from the same screen.</item>
     </string-array>
 
     <!-- Settings search keywords: space-separated words (and synonyms) people might type to find each setting -->

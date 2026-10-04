@@ -67,6 +67,8 @@ internal fun ReadingStatsCard(
     onChangeOwnership: ((PhysicalBookOwnership) -> Unit)? = null,
     /** For a borrowed physical book: opens its return-date editor. */
     onEditBorrowReturnDate: (() -> Unit)? = null,
+    /** Optional reading plan shown inside this card so progress and pace read as one story. */
+    plan: (@Composable () -> Unit)? = null,
 ) {
     if (book.format.isOffline) {
         OfflineReadingStatsCard(
@@ -79,6 +81,7 @@ internal fun ReadingStatsCard(
             onEditPages = onEditPages,
             onChangeOwnership = onChangeOwnership,
             onEditBorrowReturnDate = onEditBorrowReturnDate,
+            plan = plan,
         )
         return
     }
@@ -156,6 +159,7 @@ private fun OfflineReadingStatsCard(
     onEditPages: (() -> Unit)?,
     onChangeOwnership: ((PhysicalBookOwnership) -> Unit)?,
     onEditBorrowReturnDate: (() -> Unit)?,
+    plan: (@Composable () -> Unit)?,
 ) {
     val context = LocalContext.current
     val notSet = stringResource(R.string.offline_book_date_not_set)
@@ -243,6 +247,7 @@ private fun OfflineReadingStatsCard(
                 readingPlan?.let { BorrowedReadingPlanText(it) }
             }
         }
+        plan?.invoke()
         OfflineBookMetadataChips(
             book = book,
             ownership = ownership,

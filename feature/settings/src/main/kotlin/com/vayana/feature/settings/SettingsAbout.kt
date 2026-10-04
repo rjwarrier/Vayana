@@ -209,6 +209,7 @@ internal fun HelpAndAboutDetail(
 private fun SettingsAboutSection() {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val documentationUrl = stringResource(R.string.vayana_documentation_url)
     val coroutineScope = rememberCoroutineScope()
     var showShareDialog by rememberSaveable { mutableStateOf(false) }
     val version = remember(context) { context.appVersion() }
@@ -258,6 +259,12 @@ private fun SettingsAboutSection() {
                 Text(
                     text = stringResource(R.string.app_tagline),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = stringResource(R.string.about_feature_summary),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
@@ -311,6 +318,14 @@ private fun SettingsAboutSection() {
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(text = shareTitle, textAlign = TextAlign.Center)
             }
+        }
+        FilledTonalButton(
+            onClick = { uriHandler.openUri(documentationUrl) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(imageVector = Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+            Spacer(modifier = Modifier.width(Spacing.xs))
+            Text(text = stringResource(R.string.about_documentation), textAlign = TextAlign.Center)
         }
         FilledTonalButton(
             onClick = { uriHandler.openUri(VAYANA_RELEASES_URL) },

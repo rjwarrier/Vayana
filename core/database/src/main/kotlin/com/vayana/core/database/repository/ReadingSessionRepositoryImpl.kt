@@ -54,6 +54,17 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun updatePages(
+        syncId: String,
+        startPage: Int,
+        endPage: Int,
+        pageCount: Int?,
+    ): Boolean {
+        require(syncId.isNotBlank() && startPage >= 0 && endPage >= 0)
+        require(pageCount == null || (pageCount > 0 && startPage <= pageCount && endPage <= pageCount))
+        return readingSessionDao.updatePages(syncId, startPage, endPage) == 1
+    }
+
     override suspend fun deleteBySyncId(syncId: String): Int = readingSessionDao.deleteBySyncId(syncId)
 
     override suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult {

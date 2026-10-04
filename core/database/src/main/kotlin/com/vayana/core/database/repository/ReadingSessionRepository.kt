@@ -34,6 +34,9 @@ interface ReadingSessionRepository {
     /** Records a finished session. Callers should drop sessions that never really started (0s). */
     suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long? = null)
 
+    /** Changes only a physical session's page range, preserving its time and duration. */
+    suspend fun updatePages(syncId: String, startPage: Int, endPage: Int, pageCount: Int?): Boolean
+
     suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult
 
     /** Removes one session, for a synced reading-stats reset. Returns how many rows went (0 or 1). */

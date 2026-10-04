@@ -2,8 +2,17 @@ package com.vayana.feature.library
 
 import com.vayana.core.database.model.ReadingSession
 import kotlin.math.ceil
+import kotlin.math.abs
 
 enum class PhysicalTimerPhase { RUNNING, PAUSED, STOPPED }
+
+internal data class PhysicalSessionRecorded(val pagesRead: Int, val minutesRead: Int)
+
+internal fun physicalSessionRecorded(timer: PhysicalTimerSession, endPage: Int): PhysicalSessionRecorded {
+    val pages = abs(endPage.toLong() - timer.startPage).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val seconds = (timer.accumulatedMillis / 1000).coerceAtLeast(1)
+    return PhysicalSessionRecorded(pagesRead = pages, minutesRead = (seconds / 60).coerceAtLeast(1).toInt())
+}
 
 internal fun validPhysicalTimerPages(startPage: Int?, endPage: Int?, totalText: String, knownTotal: Int? = null): Boolean {
     if (startPage == null || endPage == null || startPage < 0 || endPage < 0) return false

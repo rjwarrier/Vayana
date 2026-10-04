@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.Lifecycle
@@ -45,7 +46,6 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
 
@@ -86,7 +86,7 @@ internal fun ManualPhysicalSessionDialog(book: Book, currentPage: Int, busy: Boo
             } while (true)
         }
     }
-    val locale = Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     val dateLabel = remember(dateMillis, locale) {
         Instant.ofEpochMilli(dateMillis).atZone(ZoneOffset.UTC).toLocalDate()
             .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))

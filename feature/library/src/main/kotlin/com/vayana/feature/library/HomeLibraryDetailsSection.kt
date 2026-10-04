@@ -6,15 +6,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.LocalLibrary
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.HomeLibraryDetails
+import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 
@@ -60,7 +61,10 @@ internal fun HomeLibraryDetailsSection(
                 DetailRow(stringResource(R.string.home_library_detail_isbn), isbn)
             }
         }
-        TextButton(onClick = onViewInHomeLibrary) {
+        FilledTonalButton(
+            onClick = onViewInHomeLibrary,
+            shape = Radii.buttonShape,
+        ) {
             Text(stringResource(R.string.home_library_view_book))
         }
     }

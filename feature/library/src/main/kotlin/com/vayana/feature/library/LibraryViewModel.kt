@@ -2310,6 +2310,17 @@ class LibraryViewModel @Inject constructor(
     internal fun observeRecentPhysicalSessions(bookId: Long, limit: Int, forwardOnly: Boolean = false) =
         readingSessionRepository.observeRecentPhysicalSessions(bookId, limit, forwardOnly)
 
+    internal suspend fun updatePhysicalReadingSessionPages(
+        syncId: String,
+        startPage: Int,
+        endPage: Int,
+        pageCount: Int?,
+    ) = withContext(dispatchers.io) {
+        check(readingSessionRepository.updatePages(syncId, startPage, endPage, pageCount)) {
+            "Reading session no longer exists"
+        }
+    }
+
     internal suspend fun markPhysicalBookReading(bookId: Long) = withContext(dispatchers.io) {
         bookRepository.markPhysicalBookReading(bookId)
     }
