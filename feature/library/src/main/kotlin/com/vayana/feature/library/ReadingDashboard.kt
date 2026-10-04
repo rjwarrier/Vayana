@@ -130,10 +130,10 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
     val goalProgress = if (hasGoal) {
         (state.minutes.toFloat() / state.goal).coerceIn(0f, 1f)
     } else 0f
-    val containerColor = if (goalReached) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh
-    val contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurface
+    // Keep the large dashboard surface calm even after the goal is reached. Achievement
+    // color belongs on the status and progress accents rather than flooding the whole card.
+    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val contentColor = MaterialTheme.colorScheme.onSurface
     Surface(
         shape = RoundedCornerShape(Radii.extraLarge),
         color = containerColor,
@@ -152,14 +152,15 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
                         stringResource(R.string.today_minutes_read, state.minutes),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = if (goalReached) MaterialTheme.colorScheme.primary else contentColor,
                     )
                 }
                 if (hasGoal) {
                     Surface(
                         shape = RoundedCornerShape(Radii.full),
-                        color = if (goalReached) MaterialTheme.colorScheme.primary
+                        color = if (goalReached) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimary
+                        contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimaryContainer
                             else MaterialTheme.colorScheme.onSecondaryContainer,
                     ) {
                         Row(

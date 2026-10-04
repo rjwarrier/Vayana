@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -185,7 +186,8 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
 /** Only this display observes the tick; actions, dialogs and session history do not recompose each second. */
 @Composable
 internal fun PhysicalTimerClock(timer: PhysicalTimerSession?, modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.displayMedium) {
+    style: TextStyle = MaterialTheme.typography.displayMedium,
+    color: Color = MaterialTheme.colorScheme.primary) {
     var now by remember(timer?.syncId) { mutableStateOf(SystemClock.elapsedRealtime()) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(timer, lifecycle) {
@@ -200,7 +202,7 @@ internal fun PhysicalTimerClock(timer: PhysicalTimerSession?, modifier: Modifier
     Text(
         text = formatTimerClock((timer?.elapsedMillis(now) ?: 0) / 1000),
         style = style,
-        color = MaterialTheme.colorScheme.primary,
+        color = color,
         modifier = modifier,
     )
 }

@@ -1,6 +1,5 @@
 package com.vayana.feature.library
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
@@ -39,7 +39,6 @@ import com.vayana.core.designsystem.theme.vayanaPressScale
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
-import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -110,24 +109,17 @@ internal fun PhysicalReadingHomeShelf(
             val progress = if (currentPage != null && totalPages != null) {
                 currentPage.toFloat().div(totalPages).coerceIn(0f, 1f)
             } else null
-            val containerColor = when (active?.phase) {
-                PhysicalTimerPhase.RUNNING -> MaterialTheme.colorScheme.primaryContainer
-                PhysicalTimerPhase.PAUSED -> MaterialTheme.colorScheme.secondaryContainer
-                PhysicalTimerPhase.STOPPED -> MaterialTheme.colorScheme.tertiaryContainer
-                null -> MaterialTheme.colorScheme.surfaceContainerHigh
-            }
-            val borderColor = when (active?.phase) {
+            val accentColor = when (active?.phase) {
                 PhysicalTimerPhase.RUNNING -> MaterialTheme.colorScheme.primary
                 PhysicalTimerPhase.PAUSED -> MaterialTheme.colorScheme.secondary
                 PhysicalTimerPhase.STOPPED -> MaterialTheme.colorScheme.tertiary
-                null -> null
+                null -> MaterialTheme.colorScheme.primary
             }
             val interaction = remember(book.id) { MutableInteractionSource() }
             Surface(onClick = { onBookClick(book) }, interactionSource = interaction,
                 modifier = Modifier.fillMaxWidth().vayanaPressScale(interaction),
                 shape = RoundedCornerShape(Radii.extraLargeIncreased),
-                color = containerColor,
-                border = borderColor?.let { BorderStroke(Strokes.emphasis, it) }) {
+                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.padding(Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     verticalAlignment = Alignment.CenterVertically) {
                     BookCover(book, Modifier.width(Sizes.coverWidthMin * 0.6f).bookSharedElement(book.id, BookOpenTransitionSource.COVER))
@@ -144,8 +136,8 @@ internal fun PhysicalReadingHomeShelf(
                             LinearProgressIndicator(
                                 progress = { it },
                                 modifier = Modifier.fillMaxWidth(),
-                                color = borderColor ?: MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                color = accentColor,
+                                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f),
                             )
                         }
                         if (active != null) {
@@ -153,8 +145,16 @@ internal fun PhysicalReadingHomeShelf(
                                 PhysicalTimerPhase.RUNNING -> R.string.physical_timer_running
                                 PhysicalTimerPhase.PAUSED -> R.string.physical_timer_paused
                                 PhysicalTimerPhase.STOPPED -> R.string.physical_timer_stopped
-                            }), style = MaterialTheme.typography.labelMedium)
-                            PhysicalTimerClock(active, style = MaterialTheme.typography.titleLarge)
+                            }),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accentColor,
+                            )
+                            PhysicalTimerClock(
+                                timer = active,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = accentColor,
+                            )
                         } else {
                             book.lastReadAt?.let {
                                 Text(stringResource(R.string.library_last_read_on, it.formatDate()),
