@@ -8,12 +8,14 @@
   <h1>Vayana</h1>
 
   <p><strong>Read, undisturbed.</strong></p>
-  <p>A calm, local-first EPUB reader for Android, built for regular screens and E‑Ink devices.</p>
+  <p>A calm, local-first EPUB and PDF reader for Android, built for regular screens and E‑Ink devices.</p>
 
   <p>
     <a href="https://github.com/rjwarrier/Vayana/releases/latest"><strong>Download the latest release</strong></a>
     ·
-    <a href="docs/releases/v0.85.md">Release notes</a>
+    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.87">Release notes</a>
+    ·
+    <a href="docs/USER_GUIDE.md">User guide</a>
     ·
     <a href="docs/FEATURES.md">Feature documentation</a>
     ·
@@ -21,7 +23,7 @@
   </p>
 
   <p>
-    <img alt="Release v0.85" src="https://img.shields.io/badge/release-v0.85-00695c?style=flat-square">
+    <img alt="Release v0.87" src="https://img.shields.io/badge/release-v0.87-00695c?style=flat-square">
     <img alt="Android 8.0 and newer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
@@ -37,6 +39,16 @@
 Most reading apps stop at displaying a book. Vayana treats reading as a connected practice: organize what you want to read, stay immersed in the text, keep meaningful passages, learn unfamiliar words, revisit what mattered, and carry your progress safely between devices.
 
 Vayana does this without requiring a Vayana account or putting ads in the reading experience. Your library is local by default. Optional online features—such as Goodreads enrichment and self-managed GitHub sync—remain under your control.
+
+## Highlights in 0.87
+
+- Read **EPUB and PDF** books, including PDF outlines, text selection, annotations, dictionary lookup, zoom and per-book display controls.
+- Find and download public-domain books through **Project Gutenberg**, or connect **OPDS catalogs** such as Calibre, Calibre-Web and Standard Ebooks.
+- Keep one reading library for digital, offline, physical and borrowed books, with due-date reminders and an optional read-only **Home Library** mirror.
+- Look up words and phrases in the book's language using the offline dictionary, Wiktionary, Wikipedia or translation tools.
+- Resume reading, control read-aloud and review seven-day reading time from configurable **home-screen widgets and shortcuts**.
+- Capture crashes and sync failures in a privacy-aware **Diagnostics** screen, then share a sanitized report with the developer.
+- Use Vayana in English, Spanish, Portuguese, Russian, German, French, Italian, Malayalam or Tamil.
 
 ## Screenshots
 
@@ -114,36 +126,43 @@ Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to 
 
 | Area | Highlights |
 | --- | --- |
-| **Library** | EPUB import, folder scanning, Android **Open with**, duplicate detection, grid/list views, filters, sorting, Currently Reading, Read Next, shelves, series folders and Recently Deleted |
+| **Library** | EPUB/PDF import, folder scanning, Android **Open with**, duplicate detection, grid/list views, filters, sorting, Currently Reading, Read Next, shelves, series folders and Recently Deleted |
+| **Offline and physical books** | Track books without a local file, reading progress and timers, owned/borrowed status, return dates and reminders; optionally mirror the catalog shared by Home Library |
 | **Book details** | Editable metadata, series and tags, ratings, reading dates, time spent, custom covers, source-file replacement, file sharing and visual reading cards |
 | **Goodreads** | Preview and import series details, genres, description, cover, publication year, rating and popular quotes; browser fallback when direct fetching is blocked |
-| **Reader** | Contents navigation, remembered position, per-book preferences, imported fonts, themes, margins, headers/footers, publisher styles, tap zones, volume keys, fullscreen and two-column landscape layout |
+| **Book discovery** | Browse and download from Project Gutenberg by topic or language, and connect OPDS catalogs including Calibre, Calibre-Web and Standard Ebooks |
+| **EPUB reader** | Contents navigation, remembered position, per-book preferences, imported fonts, themes, margins, headers/footers, publisher styles, tap zones, volume keys, fullscreen and two-column landscape layout |
+| **PDF reader** | Page and outline navigation, fit/zoom controls, text selection, dictionary lookup, highlights, underlines, notes, bookmarks, copy and quote cards for text PDFs |
 | **Typography** | Font family and size, line height, custom fonts, alignment, hyphenation, bolder text and optional bionic reading |
 | **Annotations** | Highlights, underlines, bookmarks, notes, annotation tags, overlapping-highlight merge, footnote popups and direct navigation back to a passage |
 | **Notes and quotes** | Global and per-book Notes views, Kindle `My Clippings.txt` import, Markdown export, Goodreads quote import and shareable quote-card images |
-| **Dictionary** | Offline lookup, on-tap Wiktionary/Wikipedia fallback, saved vocabulary, chapter words, spaced review, known-word tracking and Anki/Markdown export |
+| **Dictionary and translation** | Book-language-aware offline lookup, phrase search, Wiktionary/Wikipedia fallback, translation, saved vocabulary, chapter words, spaced review, known-word tracking and Anki/Markdown export |
+| **Read aloud** | Sentence-following Android TTS with chapter advance, selection start, sleep timer, voice/speed/pitch controls, audio focus, headset/Bluetooth and notification controls |
 | **Search** | Fast full-text search across books, metadata, highlighted text, notes and chapter names, with prefix matching and recent searches |
 | **Statistics** | Reading time and sessions, streaks, daily/yearly goals, finished books, date-based activity, book-level reading history and storage used on the device (books, covers, notes and quotes, dictionary, cache; largest/smallest book, per format) |
+| **Widgets and shortcuts** | Continue Reading with read-aloud play/pause, a responsive seven-day reading-time chart and shortcuts into key library destinations |
 | **Backup** | Manual portable ZIP backup/restore and automatic backups to a selected folder with daily, weekly or 30-day schedules and retention controls |
+| **Diagnostics** | Local crash and sync history, environment details, sensitive-data sanitization, copy/share actions and a one-tap developer support path |
+| **Languages** | In-app language selection for English, Spanish, Portuguese, Russian, German, French, Italian, Malayalam and Tamil |
 | **Appearance** | Material 3, system/light/dark modes, true black, optional Material You colour, Standard/E‑Ink profiles, motion controls and adaptive phone/tablet navigation |
 
-Vayana can also track physical books without an EPUB file, including progress, dates, ratings, notes and statistics.
+Vayana can also track physical and borrowed books without a digital file, including progress, dates, ratings, notes and statistics.
 
 ## Install
 
 Vayana supports **Android 8.0 (API 26) and newer**.
 
 1. Open the [latest GitHub release](https://github.com/rjwarrier/Vayana/releases/latest).
-2. Download the APK (`Vayana-v0.85.apk` for the first release).
+2. Download `Vayana-v0.87.apk`.
 3. Allow installation from your browser or file manager if Android asks, then open the APK.
 
 Android may warn that the app came from outside Google Play. Release assets include a `.sha256` file so the download can be checked before installation.
 
-For v0.85:
+For v0.87:
 
 ```text
 APK SHA-256
-826EA831F37964F7B6EB67367B66DF5337975AA9E62206F33583A20B55D35352
+783642D1B39F7941CE0C0A97EACB31CFE3163D50504051012F6E84D5EADEA909
 
 Release certificate SHA-256
 53:2C:F4:07:D5:F0:D1:21:58:8A:5C:F1:6E:61:12:C8:F1:BB:3B:7E:D9:CF:F1:39:80:6A:7B:63:C6:43:96:C7
@@ -151,8 +170,8 @@ Release certificate SHA-256
 
 ## Current scope
 
-- **Readable ebook format:** EPUB. Physical books can be tracked without a file.
-- **Online access:** Core reading, notes, dictionary and statistics work locally. Goodreads enrichment, cover browsing, Wiktionary/Wikipedia lookups and GitHub sync require internet access when used; a word is sent to Wikimedia only when you tap to look it up there.
+- **Readable ebook formats:** EPUB and PDF. Scanned PDFs without a text layer support viewing, zoom and bookmarks, but not text selection. Physical books can be tracked without a file.
+- **Online access:** Core reading, notes, dictionary and statistics work locally. Project Gutenberg, OPDS, Goodreads enrichment, cover browsing, translation, Wiktionary/Wikipedia lookups and GitHub sync require internet access when used; selected text is sent to an online provider only when you choose that action.
 - **E‑Ink refresh:** Portable Android behavior is implemented. Vendor-specific refresh modes such as Onyx/Boox SDK modes are not yet integrated.
 - **Cloud history:** Permanently deleted encrypted files may remain in older commits of the GitHub sync repository because Git history is immutable unless rewritten.
 
@@ -203,12 +222,14 @@ Without an external path, the build looks for an ignored `keystore.properties` f
 
 ```text
 app/                    Application shell and navigation
-core/                   Database, settings, files, backup, sync and design system
-feature/                Library, reader, notes, search, statistics, settings and onboarding
+core/                   Database, settings, files, backup, sync, diagnostics, Home Library integration and design system
+feature/                Library, reader, discovery, notes, reminders, search, statistics, settings and onboarding
 reader/engine-api/      Reader engine contract
 reader/engine-web/      Foliate-based EPUB engine and WebView bridge
 format/epub/            EPUB metadata and import support
-dictionary/             Dictionary API, bundled StarDict implementation and Wikimedia online lookup
+format/pdf/             PDF metadata, rendering and text support
+format/convert/         Shared document conversion support
+dictionary/             Dictionary API, bundled StarDict implementation and online lookup
 build-logic/            Shared Android and Kotlin build conventions
 ```
 
@@ -216,11 +237,14 @@ The app uses Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, WorkMan
 
 ## Documentation
 
+- [User guide and detailed feature help](docs/USER_GUIDE.md)
+- [Documentation index](docs/README.md)
 - [Feature behavior and invariants](docs/FEATURES.md)
 - [GitHub sync setup](docs/GITHUB_SYNC_SETUP.md)
 - [Architecture and implementation decisions](docs/DECISIONS.md)
 - [Database changelog](docs/DATABASE_CHANGELOG.md)
 - [GitHub sync design](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
+- [v0.87 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.87)
 - [v0.85 release notes](docs/releases/v0.85.md)
 
 ## Feedback
