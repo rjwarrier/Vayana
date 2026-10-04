@@ -70,6 +70,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncoming(intent: Intent) {
+        val passage = intent.data?.toString()?.let { com.vayana.core.common.parsePassageLink(it) }
+        if (intent.action == Intent.ACTION_VIEW && passage != null) {
+            openBookRequests.offer(OpenBookRequest(bookSyncId = passage.bookSyncId, annotationSyncId = passage.annotationSyncId))
+            return
+        }
         when (intent.action) {
             ContinueReadingWidgetUpdater.ActionOpenBook ->
                 intent.getLongExtra(ContinueReadingWidgetUpdater.ExtraBookId, NoBook).takeIf { it != NoBook }?.let { bookId ->

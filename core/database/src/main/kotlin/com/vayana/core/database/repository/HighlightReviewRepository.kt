@@ -22,6 +22,9 @@ data class HighlightReview(
 data class HighlightReviewSessionData(val annotations: List<Annotation>, val reviewableCount: Int)
 
 interface HighlightReviewRepository {
+    fun observeDueCount(now: Long): Flow<Int>
+    suspend fun reset(syncId: String)
+
     /** Every schedule by the annotation's sync id. */
     fun observeAll(): Flow<Map<String, HighlightReview>>
 
@@ -44,6 +47,9 @@ class HighlightReviewRepositoryImpl @Inject constructor(
     private val dao: HighlightReviewDao,
     private val database: VayanaDatabase,
 ) : HighlightReviewRepository {
+    override fun observeDueCount(now: Long): Flow<Int> = dao.observeDueCount(now, ReviewWhitespace)
+    override suspend fun reset(syncId: String) = dao.reset(syncId)
+
     override suspend fun session(now: Long, limit: Int): HighlightReviewSessionData = database.withTransaction {
         HighlightReviewSessionData(
             annotations = dao.due(now, limit, ReviewWhitespace).map { it.toDomain() },

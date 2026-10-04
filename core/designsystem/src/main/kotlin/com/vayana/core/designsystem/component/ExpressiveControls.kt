@@ -45,6 +45,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.LocalEinkPalette
+import com.vayana.core.designsystem.theme.isMonochrome
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
 import com.vayana.core.designsystem.theme.vayanaSpring
 import com.vayana.core.designsystem.tokens.Radii
@@ -122,6 +124,7 @@ private fun RowScope.ConnectedButtonItem(
     contentColor: Color,
 ) {
     val eink = LocalDisplayProfile.current == DisplayProfile.E_INK
+    val monochrome = LocalDisplayProfile.current.isMonochrome(LocalEinkPalette.current)
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val innerRadius by animateDpAsState(
@@ -144,8 +147,8 @@ private fun RowScope.ConnectedButtonItem(
             .heightIn(min = if (eink) Sizes.touchTargetEink else Sizes.touchTarget)
             .semantics { role = Role.Button },
         shape = shape,
-        color = if (eink) MaterialTheme.colorScheme.surface else containerColor,
-        contentColor = if (eink) MaterialTheme.colorScheme.onSurface else contentColor,
+        color = if (monochrome) MaterialTheme.colorScheme.surface else containerColor,
+        contentColor = if (monochrome) MaterialTheme.colorScheme.onSurface else contentColor,
         border = if (eink) BorderStroke(Strokes.hairlineEink, MaterialTheme.colorScheme.outline) else null,
         interactionSource = interactionSource,
     ) {

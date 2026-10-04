@@ -166,6 +166,7 @@ class BookRepositoryImpl @Inject constructor(
         fileHash: String,
         addedAt: Long?,
         remoteUpdatedAt: Long,
+        pinned: Boolean,
     ): Boolean {
         if (syncId.isBlank() || fileHash.isBlank() || remoteUpdatedAt <= 0L || (addedAt != null && addedAt <= 0L)) {
             return false
@@ -175,7 +176,7 @@ class BookRepositoryImpl @Inject constructor(
             val local = book.readNextState()
             val remote = ReadNextState(addedAt = addedAt, updatedAt = remoteUpdatedAt)
             if (remote.version <= local.version) return@withTransaction false
-            bookDao.applySyncedReadNext(book.id, remote.addedAt, remote.version)
+            bookDao.applySyncedReadNext(book.id, remote.addedAt, remote.version, pinned && addedAt != null)
             if (remote.addedAt != null) trimReadNextQueueKeepingUpdatedAt()
             true
         }
@@ -186,7 +187,13 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun recordBookOpened(id: Long) {
-        bookDao.recordBookOpened(id, System.currentTimeMillis())
+        database.withTransaction {
+            val now = System.currentTimeMillis()
+            val book = bookDao.getById(id)
+            if (book != null && book.readingDisposition != "ACTIVE") bookDao.updateDisposition(id, "ACTIVE", null,
+                maxOf(now, (book.dispositionUpdatedAt ?: 0L) + 1))
+            bookDao.recordBookOpened(id, now)
+        }
     }
 
     override suspend fun updateMetadata(id: Long, title: String, author: String?, series: String?, seriesNumber: String?, description: String?, tagsCsv: String?) {
@@ -257,6 +264,9 @@ class BookRepositoryImpl @Inject constructor(
             require(!book.isDeleted && book.format == BookFormat.PHYSICAL.name)
             val now = System.currentTimeMillis()
             bookDao.update(book.copy(
+                readingDisposition = "ACTIVE",
+                dispositionReason = if (book.readingDisposition != "ACTIVE") null else book.dispositionReason,
+                dispositionUpdatedAt = if (book.readingDisposition != "ACTIVE") maxOf(now, (book.dispositionUpdatedAt ?: 0L) + 1) else book.dispositionUpdatedAt,
                 startedReadingAt = book.startedReadingAt ?: now,
                 finishedReadingAt = null,
                 readingPercent = if (book.finishedReadingAt != null || book.readingPercent >= 1f) 0f else book.readingPercent,
@@ -572,16 +582,44 @@ class BookRepositoryImpl @Inject constructor(
         return bookDao.observeSearchIds(match, limit)
     }
 
-    override suspend fun setReadNext(id: Long, queued: Boolean): List<Book> =
+    override suspend fun setReadNext(id: Long, queued: Boolean, capacity: Int): List<Book> =
         database.withTransaction {
-            val timestamp = System.currentTimeMillis()
+            require(capacity in 2..50)
+            val book = bookDao.getById(id) ?: return@withTransaction emptyList()
+            if (book.isDeleted) return@withTransaction emptyList()
+            val queue = bookDao.getReadNextQueueIdsNewestFirst()
+            if (queued && id !in queue && queue.size >= capacity) throw ReadNextQueueFullException()
+            if (queued && id in queue) return@withTransaction emptyList()
+            val timestamp = maxOf(System.currentTimeMillis(), (book.readNextUpdatedAt ?: 0L) + 1)
             bookDao.setReadNext(id, if (queued) timestamp else null, timestamp)
-            if (!queued) return@withTransaction emptyList()
-            overflowReadNextIds().mapNotNull { overflowId ->
-                bookDao.setReadNext(overflowId, null, timestamp)
-                bookDao.getById(overflowId)?.toDomain()
-            }
+            emptyList()
         }
+
+    override suspend fun reorderReadNext(ids: List<Long>) {
+        database.withTransaction {
+            val queued = bookDao.getReadNextQueueIdsNewestFirst().toSet()
+            require(ids.distinct().size == ids.size && ids.all { it in queued })
+            val now = maxOf(System.currentTimeMillis(), queued.maxOfOrNull { (bookDao.getById(it)?.readNextUpdatedAt ?: 0L) + 1 } ?: 0L)
+            val order = ids + (queued - ids.toSet()).sorted()
+            order.forEachIndexed { index, id -> bookDao.reorderReadNext(id, now - order.size + index, now) }
+        }
+    }
+
+    override suspend fun pinReadNext(id: Long, pinned: Boolean) {
+        database.withTransaction {
+            val book = bookDao.getById(id) ?: return@withTransaction
+            bookDao.pinReadNext(id, pinned, maxOf(System.currentTimeMillis(), (book.readNextUpdatedAt ?: 0L) + 1))
+        }
+    }
+
+    override suspend fun updateDisposition(id: Long, disposition: String, reason: String?) {
+        require(disposition in setOf("ACTIVE", "PAUSED", "DNF"))
+        database.withTransaction {
+            val book = bookDao.getById(id) ?: return@withTransaction
+            bookDao.updateDisposition(id, disposition, reason?.trim()?.take(2000)?.takeIf { it.isNotBlank() },
+                maxOf(System.currentTimeMillis(), (book.dispositionUpdatedAt ?: 0L) + 1))
+        }
+    }
 
     override suspend fun attachDownloadedFile(
         id: Long,
@@ -750,6 +788,10 @@ class BookRepositoryImpl @Inject constructor(
                     gutenbergId = existing.gutenbergId ?: record.gutenbergId,
                     readNextAddedAt = readNext.addedAt,
                     readNextUpdatedAt = readNext.updatedAt,
+                    readNextPinned = if (record.readNextState().version > existing.readNextState().version) record.readNextPinned else existing.readNextPinned,
+                    readingDisposition = if ((record.dispositionUpdatedAt ?: 0L) > (existing.dispositionUpdatedAt ?: 0L)) record.readingDisposition else existing.readingDisposition,
+                    dispositionReason = if ((record.dispositionUpdatedAt ?: 0L) > (existing.dispositionUpdatedAt ?: 0L)) record.dispositionReason else existing.dispositionReason,
+                    dispositionUpdatedAt = maxOf(record.dispositionUpdatedAt ?: 0L, existing.dispositionUpdatedAt ?: 0L).takeIf { it > 0L },
                     updatedAt = maxOf(existing.updatedAt, record.updatedAt),
                 )
                 if (merged != existing) {
@@ -766,6 +808,7 @@ class BookRepositoryImpl @Inject constructor(
                     .withMergedGoodreadsFieldsFrom(existing)
                     .withMergedGutenbergIdFrom(existing)
                     .withMergedReadNextFrom(existing)
+                    .withMergedDispositionFrom(existing)
                     .keepingResetProgress(existing, progressResetAt),
             )
             return CloudBookMergeResult.UPDATED
@@ -832,6 +875,10 @@ internal fun BookEntity.toDomain(): Book {
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
         readNextUpdatedAt = readNextUpdatedAt,
+        readNextPinned = readNextPinned,
+        readingDisposition = readingDisposition,
+        dispositionReason = dispositionReason,
+        dispositionUpdatedAt = dispositionUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating,
         goodreadsRatingsCount = goodreadsRatingsCount,
@@ -898,7 +945,7 @@ private fun CloudBookRecord.readNextState(): ReadNextState = ReadNextState(readN
 
 private fun BookEntity.withMergedReadNextFrom(existing: BookEntity): BookEntity {
     val readNext = existing.readNextState().mergedWith(readNextState())
-    return copy(readNextAddedAt = readNext.addedAt, readNextUpdatedAt = readNext.updatedAt)
+    return copy(readNextAddedAt = readNext.addedAt, readNextUpdatedAt = readNext.updatedAt, readNextPinned = if (readNextState().version > existing.readNextState().version) readNextPinned else existing.readNextPinned)
 }
 
 private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): BookEntity =
@@ -944,6 +991,10 @@ private fun CloudBookRecord.toCloudOnlyEntity(id: Long, coverPath: String?): Boo
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
         readNextUpdatedAt = readNextUpdatedAt,
+        readNextPinned = readNextPinned,
+        readingDisposition = readingDisposition,
+        dispositionReason = dispositionReason,
+        dispositionUpdatedAt = dispositionUpdatedAt,
         deletionUpdatedAt = deletionUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating?.coerceIn(0f, 5f),
@@ -972,7 +1023,7 @@ private fun <T> T?.mergeRemoteOptional(remote: T?, remoteIsNewer: Boolean): T? =
 internal fun Float.sanitizedReadingPercent(): Float =
     if (isFinite()) coerceIn(0f, 1f) else 0f
 
-private const val MaxReadNextQueueBooks = 2
+private const val MaxReadNextQueueBooks = 50
 private const val RemoteProgressEventBufferCapacity = 32
 
 /** A new, unread book row with its file on this device (none for a book read outside the app). */
@@ -1038,3 +1089,10 @@ private fun BookEntity.withOfflineReadingFrom(record: CloudBookRecord): BookEnti
         else -> borrowReturnAt
     },
 )
+
+private fun BookEntity.withMergedDispositionFrom(existing: BookEntity): BookEntity =
+    if ((dispositionUpdatedAt ?: 0L) > (existing.dispositionUpdatedAt ?: 0L)) this else copy(
+        readingDisposition = existing.readingDisposition,
+        dispositionReason = existing.dispositionReason,
+        dispositionUpdatedAt = existing.dispositionUpdatedAt,
+    )

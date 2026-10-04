@@ -27,6 +27,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +67,7 @@ internal fun rememberReadNextShelfBooks(
 /** The next unread book in the series being read, else the author's next unread book; empty when nothing fits. */
 internal fun suggestedReadNext(books: List<Book>, currentBook: Book?): List<Book> {
     val current = currentBook
-        ?.takeIf { it.hasStartedReading() && it.finishedReadingAt == null }
+        ?.takeIf { it.hasStartedReading() && it.finishedReadingAt == null && it.readingDisposition == "ACTIVE" }
         ?: return emptyList()
     val currentSeries = current.series?.metadataKey()?.takeIf { it.isNotBlank() } ?: return emptyList()
     val currentSeriesNumber = current.seriesNumber?.toDoubleOrNull()
@@ -97,6 +102,8 @@ internal fun ReadNextShelf(
     onViewAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var managing by remember { mutableStateOf(false) }
+    if (managing) ReadNextManagerDialog(onDismiss = { managing = false }, onBook = onBookClick)
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -120,16 +127,16 @@ internal fun ReadNextShelf(
                 )
             }
             if (!isSuggestion) {
-                TextButton(onClick = onViewAll) {
-                    Text(stringResource(R.string.library_read_next_view_all))
+                TextButton(onClick = { managing = true }) {
+                    Text(stringResource(R.string.queue_manage))
                 }
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            books.forEach { book ->
+            books.take(5).forEach { book ->
                 ReadNextBookCard(
                     book = book,
                     isSuggestion = isSuggestion,
@@ -137,7 +144,7 @@ internal fun ReadNextShelf(
                     downloadProgress = if (book.id == downloadingBookId) downloadProgress else null,
                     onClick = { onBookClick(book) },
                     onRemove = { onRemove(book) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(Sizes.libraryGridCoverWidthMin * 2),
                 )
             }
         }
@@ -304,7 +311,8 @@ internal fun ReadNextSeriesBreakDialog(
     }
 }
 
-private fun Book.isReadNextCandidate(): Boolean = !format.isOffline && !isFinished()
+private fun Book.isReadNextCandidate(): Boolean =
+    readingDisposition == "ACTIVE" && !format.isOffline && !isFinished()
 
 /** The lowest-numbered unread book of [seriesKey] after [afterNumber] (any number when null), excluding [current]. */
 private fun List<Book>.nextInSeries(current: Book, seriesKey: String, afterNumber: Double?): Book? = asSequence()
@@ -319,7 +327,7 @@ private fun List<Book>.nextInSeries(current: Book, seriesKey: String, afterNumbe
 internal fun List<Book>.readNextSeriesBreakWarningFor(queuedBook: Book): ReadNextSeriesBreakWarning? {
     val current = asSequence()
         .filter { it.id != queuedBook.id }
-        .filter { it.hasStartedReading() && it.finishedReadingAt == null }
+        .filter { it.hasStartedReading() && it.finishedReadingAt == null && it.readingDisposition == "ACTIVE" }
         .filter { !it.series.isNullOrBlank() && !it.seriesNumber.isNullOrBlank() }
         .maxByOrNull { it.lastReadAt ?: it.startedReadingAt ?: 0L }
         ?: return null

@@ -61,6 +61,7 @@ internal class RemoteReadingProgressMerger(
                     fileHash = state.fileHash,
                     addedAt = state.addedAt,
                     remoteUpdatedAt = state.updatedAt,
+                pinned = state.pinned,
                 )
             ) {
                 applied += 1

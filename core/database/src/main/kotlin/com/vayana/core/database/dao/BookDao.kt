@@ -219,20 +219,30 @@ interface BookDao {
     )
     suspend fun clearReaderPrefs(id: Long, updatedAt: Long)
 
-    @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :updatedAt, updatedAt = :updatedAt WHERE id = :id")
+    @Query("UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :updatedAt, readNextPinned = CASE WHEN :readNextAddedAt IS NULL THEN 0 ELSE readNextPinned END, updatedAt = MAX(updatedAt, :updatedAt) WHERE id = :id")
     suspend fun setReadNext(id: Long, readNextAddedAt: Long?, updatedAt: Long)
 
     @Query(
-        "UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :readNextUpdatedAt, " +
+        "UPDATE books SET readNextAddedAt = :readNextAddedAt, readNextUpdatedAt = :readNextUpdatedAt, readNextPinned = :pinned, " +
             "updatedAt = MAX(updatedAt, :readNextUpdatedAt) WHERE id = :id",
     )
-    suspend fun applySyncedReadNext(id: Long, readNextAddedAt: Long?, readNextUpdatedAt: Long)
+    suspend fun applySyncedReadNext(id: Long, readNextAddedAt: Long?, readNextUpdatedAt: Long, pinned: Boolean = false)
 
-    @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextAddedAt DESC")
+    @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextPinned DESC, readNextAddedAt DESC")
     suspend fun getReadNextQueueIdsNewestFirst(): List<Long>
 
+
+    @Query("UPDATE books SET readNextAddedAt = :position, readNextUpdatedAt = :now, updatedAt = MAX(updatedAt, :now) WHERE id = :id AND readNextAddedAt IS NOT NULL AND isDeleted = 0")
+    suspend fun reorderReadNext(id: Long, position: Long, now: Long)
+
+    @Query("UPDATE books SET readNextPinned = :pinned, readNextUpdatedAt = :now, updatedAt = MAX(updatedAt, :now) WHERE id = :id AND readNextAddedAt IS NOT NULL AND isDeleted = 0")
+    suspend fun pinReadNext(id: Long, pinned: Boolean, now: Long)
+
+    @Query("UPDATE books SET readingDisposition = :disposition, dispositionReason = :reason, dispositionUpdatedAt = :now, updatedAt = MAX(updatedAt, :now) WHERE id = :id AND isDeleted = 0")
+    suspend fun updateDisposition(id: Long, disposition: String, reason: String?, now: Long)
+
     /** Doesn't touch updatedAt: trimming the queue after a sync merge isn't a user edit. */
-    @Query("UPDATE books SET readNextAddedAt = NULL WHERE id IN (:ids)")
+    @Query("UPDATE books SET readNextAddedAt = NULL, readNextPinned = 0 WHERE id IN (:ids)")
     suspend fun clearReadNextKeepingUpdatedAt(ids: List<Long>)
 
     @Query("SELECT EXISTS(SELECT 1 FROM books WHERE isDeleted = 0)")
@@ -243,20 +253,20 @@ interface BookDao {
      * where watching every book would reload the whole library each time the reader saves its place.
      */
     @Query(
-        "SELECT * FROM books WHERE isDeleted = 0 AND lastReadAt > 0 AND filePath != '' " +
+        "SELECT * FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt > 0 AND filePath != '' " +
             "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
     )
     fun observeContinueReading(): Flow<BookEntity?>
 
     /** The most recently read book whose file is on this device, so it can open in the reader. */
     @Query(
-        "SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt IS NOT NULL AND filePath != '' " +
+        "SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt IS NOT NULL AND filePath != '' " +
             "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
     )
     suspend fun lastReadOpenableBookId(): Long?
 
     /** The most recently read active book, wherever its file is. */
-    @Query("SELECT id FROM books WHERE isDeleted = 0 AND lastReadAt > 0 ORDER BY lastReadAt DESC LIMIT 1")
+    @Query("SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt > 0 ORDER BY lastReadAt DESC LIMIT 1")
     suspend fun lastReadBookId(): Long?
 
     /** Ids of active books matching an FTS [match], most recently read first. */

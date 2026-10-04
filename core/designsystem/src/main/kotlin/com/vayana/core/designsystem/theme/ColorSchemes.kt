@@ -132,6 +132,61 @@ object ColorSchemes {
         onErrorContainer = Palette.EinkForeground,
     )
 
+    /** Solid, neutral surface steps and high-contrast text; accents keep color without tinting every surface. */
+    val eInkColorLight: ColorScheme = light.copy(
+        primary = Palette.EinkColorPrimary, onPrimary = Palette.White,
+        secondary = Palette.EinkColorSecondary, onSecondary = Palette.White,
+        tertiary = Palette.EinkColorTertiary, onTertiary = Palette.White,
+        primaryContainer = Palette.EinkColorPrimaryContainer, onPrimaryContainer = Palette.Amoled,
+        secondaryContainer = Palette.EinkColorSecondaryContainer, onSecondaryContainer = Palette.Amoled,
+        tertiaryContainer = Palette.EinkColorTertiaryContainer, onTertiaryContainer = Palette.Amoled,
+        background = Palette.White, onBackground = Palette.Amoled,
+        surface = Palette.White, onSurface = Palette.Amoled,
+        surfaceBright = Palette.White, surfaceDim = Palette.EinkColorSurfaceHighest,
+        surfaceVariant = Palette.EinkColorSurfaceHigh, onSurfaceVariant = Palette.Amoled,
+        surfaceContainerLowest = Palette.White,
+        surfaceContainerLow = Palette.EinkColorSurfaceLow,
+        surfaceContainer = Palette.EinkColorSurface,
+        surfaceContainerHigh = Palette.EinkColorSurfaceHigh,
+        surfaceContainerHighest = Palette.EinkColorSurfaceHighest,
+        outline = Palette.EinkColorOutline, outlineVariant = Palette.EinkColorOutlineVariant,
+        surfaceTint = Color.Transparent,
+        inverseSurface = Palette.Amoled, inverseOnSurface = Palette.White,
+        inversePrimary = Palette.EinkColorPrimaryDark,
+        error = Palette.EinkColorError, onError = Palette.White,
+        errorContainer = Palette.EinkColorErrorContainer, onErrorContainer = Palette.Amoled,
+        primaryFixed = Palette.EinkColorPrimaryContainer, primaryFixedDim = Palette.EinkColorPrimaryDark,
+        onPrimaryFixed = Palette.Amoled, onPrimaryFixedVariant = Palette.Amoled,
+        secondaryFixed = Palette.EinkColorSecondaryContainer, secondaryFixedDim = Palette.EinkColorSecondaryDark,
+        onSecondaryFixed = Palette.Amoled, onSecondaryFixedVariant = Palette.Amoled,
+        tertiaryFixed = Palette.EinkColorTertiaryContainer, tertiaryFixedDim = Palette.EinkColorTertiaryDark,
+        onTertiaryFixed = Palette.Amoled, onTertiaryFixedVariant = Palette.Amoled,
+    )
+
+    /** Respect an explicit dark theme, with the same neutral surfaces and distinct accent families. */
+    val eInkColorDark: ColorScheme = eInkColorLight.copy(
+        primary = Palette.EinkColorPrimaryDark, onPrimary = Palette.Amoled,
+        secondary = Palette.EinkColorSecondaryDark, onSecondary = Palette.Amoled,
+        tertiary = Palette.EinkColorTertiaryDark, onTertiary = Palette.Amoled,
+        primaryContainer = Palette.EinkColorPrimaryContainerDark, onPrimaryContainer = Palette.White,
+        secondaryContainer = Palette.EinkColorSecondaryContainerDark, onSecondaryContainer = Palette.White,
+        tertiaryContainer = Palette.EinkColorTertiaryContainerDark, onTertiaryContainer = Palette.White,
+        background = Palette.Amoled, onBackground = Palette.White,
+        surface = Palette.Amoled, onSurface = Palette.White,
+        surfaceDim = Palette.Amoled, surfaceBright = Palette.EinkColorSurfaceHighestDark,
+        surfaceVariant = Palette.EinkColorSurfaceHighDark, onSurfaceVariant = Palette.White,
+        surfaceContainerLowest = Palette.Amoled,
+        surfaceContainerLow = Palette.EinkColorSurfaceLowDark,
+        surfaceContainer = Palette.EinkColorSurfaceDark,
+        surfaceContainerHigh = Palette.EinkColorSurfaceHighDark,
+        surfaceContainerHighest = Palette.EinkColorSurfaceHighestDark,
+        outline = Palette.White, outlineVariant = Palette.EinkColorSurfaceHighest,
+        inverseSurface = Palette.White, inverseOnSurface = Palette.Amoled,
+        inversePrimary = Palette.EinkColorPrimary,
+        error = Palette.EinkColorErrorDark, onError = Palette.Amoled,
+        errorContainer = Palette.EinkColorErrorContainerDark, onErrorContainer = Palette.White,
+    )
+
     /** Material You colors from the wallpaper (Android 12+), keeping true black when that dark variant is chosen. */
     @RequiresApi(Build.VERSION_CODES.S)
     fun dynamic(context: Context, isDark: Boolean, darkVariant: DarkVariant): ColorScheme {
@@ -151,8 +206,14 @@ object ColorSchemes {
         surfaceContainerHighest = Palette.M3SurfaceContainerDark,
     )
 
-    fun forProfile(profile: DisplayProfile, isDark: Boolean, darkVariant: DarkVariant): ColorScheme = when {
-        profile == DisplayProfile.E_INK -> eInk
+    fun forProfile(
+        profile: DisplayProfile,
+        isDark: Boolean,
+        darkVariant: DarkVariant,
+        einkPalette: EinkPalette = EinkPalette.MONOCHROME,
+    ): ColorScheme = when {
+        profile.isMonochrome(einkPalette) -> eInk
+        profile == DisplayProfile.E_INK -> if (isDark) eInkColorDark else eInkColorLight
         !isDark -> light
         darkVariant == DarkVariant.TRUE_BLACK -> trueBlack
         darkVariant == DarkVariant.SOFTER -> softerDark

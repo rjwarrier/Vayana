@@ -166,6 +166,9 @@ fun LibraryRoute(
     onShelvesClick: () -> Unit,
     onOfflineBooksClick: () -> Unit,
     onFreeBooksClick: () -> Unit = {},
+    onContinueReading: (Long, String?) -> Unit = { id, _ -> onBookClick(id, BookOpenTransitionSource.HERO_CARD) },
+    onReviewWords: () -> Unit = {},
+    onReviewHighlights: () -> Unit = {},
     addBookAction: LibraryAddAction? = null,
     onAddBookActionHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -223,6 +226,7 @@ fun LibraryRoute(
         onFilterChange = viewModel::updateFilter,
         onGroupByChange = viewModel::updateGroupBy,
         onViewModeChange = viewModel::updateViewMode,
+        todayCard = { TodayCard(onContinue = { onContinueReading(it.id, null) }, onWords = onReviewWords, onHighlights = onReviewHighlights) },
         tools = { tool, dismiss, open ->
             when (tool) {
                 LibraryTool.SMART_SHELVES -> {
@@ -242,6 +246,7 @@ fun LibraryRoute(
 private fun LibraryScreen(
     physicalTimer: PhysicalTimerSession?,
     tools: @Composable (LibraryTool, () -> Unit, (Book) -> Unit) -> Unit,
+    todayCard: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     uiState: LibraryUiState,
     searchText: String,
@@ -547,6 +552,7 @@ private fun LibraryScreen(
             when (uiState.controls.viewMode) {
                 LibraryViewMode.THUMBNAILS -> LibraryGrid(
                     physicalShelf = physicalShelf,
+                    todayCard = todayCard.takeIf { uiState.controls.query.isBlank() && uiState.controls.filter == LibraryFilter.ALL },
                     books = uiState.books,
                     readNextQueue = activeReadNextQueue,
                     showReadNextSuggestions = showReadNextSuggestions,
@@ -565,6 +571,7 @@ private fun LibraryScreen(
                 )
                 LibraryViewMode.LIST -> LibraryList(
                     physicalShelf = physicalShelf,
+                    todayCard = todayCard.takeIf { uiState.controls.query.isBlank() && uiState.controls.filter == LibraryFilter.ALL },
                     books = uiState.books,
                     readNextQueue = activeReadNextQueue,
                     showReadNextSuggestions = showReadNextSuggestions,
@@ -1168,6 +1175,7 @@ private data class LibraryGroupSection(val label: String, val books: List<Book>)
 @Composable
 private fun LibraryGrid(
     physicalShelf: (@Composable () -> Unit)?,
+    todayCard: (@Composable () -> Unit)?,
     books: List<Book>,
     readNextQueue: List<Book>,
     showReadNextSuggestions: Boolean,
@@ -1205,6 +1213,7 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
+        todayCard?.let { card -> item(key = "today", span = { GridItemSpan(maxLineSpan) }) { card() } }
         if (physicalShelf != null) {
             item(key = "physical-reading", contentType = "physical-reading", span = { GridItemSpan(maxLineSpan) }) { physicalShelf() }
         }
@@ -1297,6 +1306,7 @@ private fun LibraryGrid(
 @Composable
 private fun LibraryList(
     physicalShelf: (@Composable () -> Unit)?,
+    todayCard: (@Composable () -> Unit)?,
     books: List<Book>,
     readNextQueue: List<Book>,
     showReadNextSuggestions: Boolean,
@@ -1332,6 +1342,7 @@ private fun LibraryList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        todayCard?.let { card -> item(key = "today") { card() } }
         if (physicalShelf != null) {
             item(key = "physical-reading", contentType = "physical-reading") { physicalShelf() }
         }
@@ -1428,7 +1439,7 @@ private fun LibraryList(
  */
 private fun rememberLibraryDisplayBooks(books: List<Book>, keepHeroInRows: Boolean): LibraryDisplayBooks =
     remember(books, keepHeroInRows) {
-        val hero = books.maxByOrNull { it.lastReadAt ?: 0L }
+        val hero = books.filter { it.readingDisposition == "ACTIVE" }.maxByOrNull { it.lastReadAt ?: 0L }
             ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
         LibraryDisplayBooks(
             hero = hero,
@@ -2080,6 +2091,8 @@ internal fun LibraryFilter.label(): String = when (this) {
     LibraryFilter.READING -> stringResource(R.string.library_filter_reading)
     LibraryFilter.FINISHED -> stringResource(R.string.library_filter_finished)
     LibraryFilter.NOT_STARTED -> stringResource(R.string.library_filter_not_started)
+    LibraryFilter.PAUSED -> stringResource(R.string.disposition_paused)
+    LibraryFilter.DNF -> stringResource(R.string.disposition_dnf)
 }
 
 internal fun Book.hasLocalReadableSource(): Boolean =

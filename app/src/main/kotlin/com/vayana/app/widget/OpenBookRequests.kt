@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** A book to open in the reader - and, from the widget's play button, to read aloud. */
-data class OpenBookRequest(val bookId: Long, val readAloud: Boolean = false)
+data class OpenBookRequest(val bookId: Long = 0, val readAloud: Boolean = false, val bookSyncId: String? = null, val annotationSyncId: String? = null, val locator: String? = null, val offline: Boolean = false)
 
 /** A book to open, asked for from outside the app (the widget, a shortcut), waiting for the app's navigation. */
 @Singleton

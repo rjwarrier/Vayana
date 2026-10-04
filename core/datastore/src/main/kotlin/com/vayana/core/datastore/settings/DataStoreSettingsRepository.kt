@@ -191,12 +191,13 @@ abstract class SettingsModule {
     abstract fun bindSettingsRepository(repository: DataStoreSettingsRepository): SettingsRepository
 }
 
-private fun Preferences.toSnapshot(): SettingsSnapshot {
+internal fun Preferences.toSnapshot(): SettingsSnapshot {
     val importedFonts = readImportedFonts()
     return SettingsSnapshot(
         onboardingCompleted = this[OnboardingCompletedKey] ?: false,
         themeMode = read(SettingsRegistry.ThemeMode),
         displayProfile = read(SettingsRegistry.DisplayProfile),
+        einkPalette = read(SettingsRegistry.EinkPalette),
         darkVariant = read(SettingsRegistry.DarkVariant),
         motionSetting = read(SettingsRegistry.Motion),
         navigationMode = read(SettingsRegistry.NavigationMode),

@@ -35,6 +35,7 @@ fun parsePortableAnnotations(jsonText: String): List<PortableAnnotation> {
                     chapterHref = obj.optSnapshotBoundedString("chapterHref", MaxSnapshotLocatorChars),
                     selectedText = obj.optPortableStringOrNull("selectedText").orEmpty().take(MaxSnapshotTextChars),
                     readerNote = obj.optSnapshotBoundedString("readerNote", MaxSnapshotTextChars),
+                    reviewQuestion = obj.optSnapshotBoundedString("reviewQuestion", 2000),
                     createdAt = createdAt,
                     updatedAt = updatedAt,
                     isDeleted = obj.optBoolean("isDeleted", false),
@@ -469,6 +470,10 @@ private fun PortableBook.toJson(): JSONObject =
         .putOptional("customSideMarginPercent", customSideMarginPercent)
         .putOptional("readNextAddedAt", readNextAddedAt)
         .putOptional("readNextUpdatedAt", readNextUpdatedAt)
+        .put("readNextPinned", readNextPinned)
+        .put("readingDisposition", readingDisposition)
+        .putOptional("dispositionReason", dispositionReason)
+        .putOptional("dispositionUpdatedAt", dispositionUpdatedAt)
         .putOptional("deletionUpdatedAt", deletionUpdatedAt)
         .putOptional("goodreadsUrl", goodreadsUrl)
         .putOptional("goodreadsRating", goodreadsRating?.toDouble())
@@ -496,6 +501,7 @@ private fun PortableAnnotation.toJson(): JSONObject =
         .putOptional("chapterHref", chapterHref)
         .put("selectedText", selectedText)
         .putOptional("readerNote", readerNote)
+        .putOptional("reviewQuestion", reviewQuestion)
         .put("createdAt", createdAt)
         .put("updatedAt", updatedAt)
         .put("isDeleted", isDeleted)

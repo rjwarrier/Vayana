@@ -26,6 +26,8 @@ class VayanaApp : Application() {
     @Inject lateinit var reminderScheduler: ReminderScheduler
     @Inject lateinit var continueReadingWidgetUpdater: ContinueReadingWidgetUpdater
     @Inject lateinit var appShortcuts: AppShortcuts
+    @Inject lateinit var notebookExport: com.vayana.feature.notes.AutomaticNotebookExport
+    @Inject lateinit var epubContentIndex: com.vayana.feature.search.EpubContentIndex
     @Inject lateinit var homeLibrarySync: HomeLibrarySync
     @Inject lateinit var readingTimeWidgetUpdater: ReadingTimeWidgetUpdater
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
@@ -42,6 +44,8 @@ class VayanaApp : Application() {
         appShortcuts.start()
         readingTimeWidgetUpdater.start()
         homeLibrarySync.start()
+        notebookExport.start()
+        applicationScope.launch { delay(StorageMaintenanceDelayMillis); epubContentIndex.start() }
         // Housekeeping waits until launch has settled, so it never competes with the first screen.
         applicationScope.launch {
             delay(StorageMaintenanceDelayMillis)

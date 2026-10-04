@@ -53,7 +53,6 @@ import com.vayana.core.database.entity.BookAliasEntity
 import com.vayana.core.database.entity.TombstoneEntity
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
-import com.vayana.core.database.model.isCommunityQuote
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
@@ -186,6 +185,7 @@ sealed interface BookDetailMessage {
     data object GOODREADS_QUOTES_FAILED : BookDetailMessage
     data object GOODREADS_FAILED : BookDetailMessage
     data object READING_STATS_RESET : BookDetailMessage
+    data object QUEUE_FULL : BookDetailMessage
     data object READING_STATS_RESET_FAILED : BookDetailMessage
 }
 
@@ -450,7 +450,7 @@ enum class LibrarySort { IMPORT_DATE, TITLE, AUTHOR, LAST_READ, PROGRESS }
 
 enum class LibrarySortDirection { ASCENDING, DESCENDING }
 
-enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED }
+enum class LibraryFilter { ALL, READING, FINISHED, NOT_STARTED, PAUSED, DNF }
 
 enum class LibraryGroupBy { NONE, AUTHOR, SERIES, SERIES_FOLDERS }
 
@@ -747,17 +747,19 @@ class LibraryViewModel @Inject constructor(
     val shelves: StateFlow<List<Shelf>> = shelfRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    internal val smartShelfItems = combine(libraryBooks, readingTools.smartShelves,
-        annotationRepository.observeAll().map { notes -> notes.filter {
-            !it.isDeleted && !it.isCommunityQuote() && (it.type != AnnotationType.BOOKMARK || !it.readerNote.isNullOrBlank())
-        }.mapTo(HashSet()) { it.bookId } }.distinctUntilChanged(),
-        finishedThreshold,
-        kotlinx.coroutines.flow.flow {
+    private val smartShelfBooks = libraryBooks.map { books ->
+        books.sortedBy { it.title.lowercase() }
+    }.flowOn(dispatchers.default)
+
+    internal val smartShelfItems = observeSmartShelfItems(
+        books = smartShelfBooks,
+        definitions = readingTools.smartShelves,
+        notes = annotationRepository::observePersonalNotesBookIds,
+        threshold = finishedThreshold,
+        clock = kotlinx.coroutines.flow.flow {
             while (true) { emit(System.currentTimeMillis()); kotlinx.coroutines.delay(60_000) }
         },
-    ) { books, definitions, notedBooks, threshold, now ->
-        definitions.map { shelf -> SmartShelfItem(shelf, books.filter { shelf.matches(it, notedBooks, threshold, now) }.sortedBy { it.title.lowercase() }) }
-    }.flowOn(dispatchers.default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    ).flowOn(dispatchers.default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val finishByDates = readingTools.plans.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
@@ -799,7 +801,7 @@ class LibraryViewModel @Inject constructor(
 
     /** Queued books in queue order (earliest added = next up), taken from the library already in memory. */
     val readNextQueue: StateFlow<List<Book>> = libraryBooks
-        .map { books -> books.filter { it.readNextAddedAt != null }.sortedBy { it.readNextAddedAt } }
+        .map { books -> books.filter { it.readNextAddedAt != null }.sortedWith(compareByDescending<Book> { it.readNextPinned }.thenBy { it.readNextAddedAt }) }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -843,7 +845,12 @@ class LibraryViewModel @Inject constructor(
 
     fun setReadNext(bookId: Long, queued: Boolean) {
         viewModelScope.launch {
-            val bumped = bookRepository.setReadNext(bookId, queued)
+            val capacity = settingsRepository.observe(SettingsRegistry.ReadNextCapacity).first()
+            val bumped = try { bookRepository.setReadNext(bookId, queued, capacity) }
+            catch (_: com.vayana.core.database.repository.ReadNextQueueFullException) {
+                _bookDetailMessage.value = BookDetailMessage.QUEUE_FULL
+                return@launch
+            }
             if (bumped.isNotEmpty()) readNextBumpedEvents.emit(bumped)
             readingProgressOnlySyncer.syncReadingProgress(force = true)
         }
@@ -2051,6 +2058,7 @@ class LibraryViewModel @Inject constructor(
                             totalReadingSeconds = book.totalReadingSeconds,
                             readNextAddedAt = book.readNextAddedAt,
                             readNextUpdatedAt = book.readNextUpdatedAt,
+                            readNextPinned = book.readNextPinned,
                         )
                     },
                     exportedAt = System.currentTimeMillis(),
@@ -2842,6 +2850,10 @@ private fun PortableCloudBook.toRecord(): CloudBookRecord? {
         customSideMarginPercent = customSideMarginPercent,
         readNextAddedAt = readNextAddedAt,
         readNextUpdatedAt = readNextUpdatedAt,
+        readNextPinned = readNextPinned,
+        readingDisposition = readingDisposition,
+        dispositionReason = dispositionReason,
+        dispositionUpdatedAt = dispositionUpdatedAt,
         deletionUpdatedAt = deletionUpdatedAt,
         goodreadsUrl = goodreadsUrl,
         goodreadsRating = goodreadsRating,
@@ -2911,6 +2923,7 @@ private fun PortableAnnotation.toRecord(): AnnotationRecord? {
         chapterHref = chapterHref,
         selectedText = selectedText,
         readerNote = readerNote,
+        reviewQuestion = reviewQuestion,
         createdAt = createdAt,
         updatedAt = updatedAt,
         isDeleted = isDeleted,
@@ -3063,9 +3076,11 @@ private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(
 
 private fun List<Book>.filterBy(filter: LibraryFilter, finishedThreshold: Float): List<Book> = when (filter) {
     LibraryFilter.ALL -> this
-    LibraryFilter.READING -> filter { it.readingPercent > 0f && it.readingPercent < finishedThreshold }
+    LibraryFilter.READING -> filter { it.readingDisposition == "ACTIVE" && it.readingPercent > 0f && it.readingPercent < finishedThreshold }
     LibraryFilter.FINISHED -> filter { it.readingPercent >= finishedThreshold }
-    LibraryFilter.NOT_STARTED -> filter { it.readingPercent <= 0f }
+    LibraryFilter.PAUSED -> filter { it.readingDisposition == "PAUSED" }
+    LibraryFilter.DNF -> filter { it.readingDisposition == "DNF" }
+    LibraryFilter.NOT_STARTED -> filter { it.readingDisposition == "ACTIVE" && it.readingPercent <= 0f }
 }
 
 internal fun Book.hasMeaningfulSyncedProgressChange(after: Book): Boolean {

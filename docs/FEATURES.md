@@ -29,6 +29,52 @@ settings backups and portable snapshot exports. Normal library sync keeps these 
 Finish dates use book sync identities. Journals use ordinary synced
 annotation records. These tools do not require another database schema change.
 
+## Today, reading status and capture
+
+- **Today card:** At the top of the main Library, see today's saved session minutes versus the daily goal,
+  due vocabulary/highlight counts and Continue reading. Expand for up to three finish-by plans and review
+  shortcuts. Hide the card there and restore it in Settings → Library.
+- **Paused / Did not finish:** Book details → Reading status. Save an optional reason. Dates, progress,
+  time and sessions remain intact. Paused/DNF books leave Currently Reading and suggestions; Library filters
+  and smart-shelf status rules can find them. Opening a book resumes Active status. These fields sync in full
+  snapshots and backups; they do not travel in the lighter reading-progress-only payload.
+- **Review questions:** In Notes, use the school icon on a personal highlight to write a question whose answer
+  is the passage. Review highlights hides the answer until Reveal answer and then enables grading. Editing or
+  removing a question resets its local review schedule. Questions sync and export with their highlights.
+- **Photo highlights:** Notes → overflow → Photo to highlight. Pick a gallery image, select an existing physical
+  book, run offline OCR, correct the recognized text and optionally add a page. Save creates an ordinary personal
+  highlight that can be searched, reviewed, exported and synced. The bundled recognizer supports Latin script;
+  manual correction is available. No camera or broad photo-library permission is requested.
+
+## Automatic Markdown notebooks
+
+Notes → overflow → Automatic notebook export selects a writable folder through Android's folder picker.
+Vayana writes generated files in its own `Vayana` subfolder and refreshes after library/annotation changes,
+with a 15-minute background retry and Export now. File names use stable book identities, so renaming a book
+updates its existing notebook. Removing the final highlight refreshes the notebook to remove that passage.
+Notebooks for books removed from the library remain as archives. Disabling export keeps existing files.
+The folder grant is device-local and is excluded from backups. When export is disabled, its data observers
+and periodic work are stopped. Enabled exports ignore reading-progress/status/queue-only changes, inventory
+the folder once per run and compare existing files in fixed-size buffers.
+
+Each notebook includes Markdown/frontmatter and stable `vayana://passage` links back to the original
+annotation. Links resolve book and annotation sync IDs on this device; physical books open their details,
+and locally available EPUB/PDF books open at the saved annotation. Deleted/missing annotations do not open.
+The exporter checks its ownership marker before replacing a file, stages writes, and preserves the previous
+notebook if the folder provider rejects replacement. Folder providers must support document rename.
+
+## Downloaded EPUB content search
+
+Global Search also searches a disposable device-local FTS4 index of downloaded EPUB spine text. Indexing
+runs after startup and when Search opens, refreshes when files/hashes change, and exposes progress and retry
+on failure. Up to 60 matching passages show chapter names and excerpts. Tapping opens that chapter at the
+passage (or the chapter start if exact text navigation fails). Cloud-only, removed and stale-file entries are
+excluded. PDF and physical-book contents are not indexed; their personal highlights remain searchable.
+The index is excluded from snapshots and backups, and rebuilds locally. Cached book identities are checked
+in one database query; passage generation/insertion uses batches of at most 100 inside a transaction, so a
+failed generation or insert preserves the previous index without retaining every passage in memory. EPUB extraction is bounded to
+4 MiB per entry, 32 MiB of chapter text per book and 3,000 spine entries.
+
 ## Onboarding
 
 **Code:** `feature/onboarding/` (`OnboardingScreen.kt`, `OnboardingViewModel.kt`), `app/.../VayanaAppRoot.kt`,
@@ -64,7 +110,7 @@ annotation records. These tools do not require another database schema change.
 **Screen behaviour:**
 - Typing is debounced by 150 ms; clearing the box applies immediately. While a newer query is pending, the previous
   results stay on screen (`isSearching`) instead of flashing "No matches".
-- Chips filter the results: All / Books / Notes, each showing its count.
+- Chips filter the results: All / Books / Notes / Contents, each showing its count.
 - Matched word prefixes are shown bold in the primary colour in titles, authors, highlights and notes. Chips under
   each result name the fields that matched.
 - Opening a note result opens the reader at its locator; notes on physical books open the book's detail page.
@@ -84,10 +130,14 @@ cover and file paths, instead of each resolving paths on every library change.
 **Queue:**
 - A book is queued from its detail page ("Read next" button; hidden for physical books) and removed there, from
   the Library shelf, or from Shelves.
-- The queue holds **2 books** (`MaxReadNextQueueBooks`). Queueing past that drops the books added longest ago;
-  `setReadNext` returns them, and Book Detail shows a snackbar naming the book that left. The cap lives only in
-  `BookRepositoryImpl` (`MaxReadNextQueueBooks`); Library and Shelves take the queue from the books in memory.
-- Library shows the queue as a shelf above the grid/list; "View all" opens Shelves.
+- Queue capacity is configurable from 2 to 50 books (default 10). Adding beyond capacity reports a full queue
+  without evicting an existing entry. Reducing capacity preserves the current queue and prevents further additions
+  until there is room.
+- Library previews up to five entries in a scrolling shelf. View all opens the queue manager, with move up/down,
+  pin/unpin and remove actions. Pinned entries stay ahead of unpinned entries; each group retains its order.
+- Queue order, pins and removal timestamps travel through full and reading-progress-only sync. The repository
+  serializes changes and uses increasing versions so rapid edits cannot overwrite each other.
+
 
 **Suggestions** (shown on the shelf only while the queue is empty) come from the pure function
 `suggestedReadNext(books, currentBook)`:

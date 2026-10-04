@@ -34,10 +34,11 @@ object FullSyncChangeTracker {
     // Rows mirrored from Home Library (`books.source`, added in version 30) are rewritten by its sync and excluded from
     // the snapshot: they must not recommend a full sync. Migrations that run before that column exists build the
     // triggers without the condition, because SQLite resolves a trigger's columns when it fires.
-    private fun triggers(skipMirroredBooks: Boolean): List<String> {
+    private fun triggers(skipMirroredBooks: Boolean, hasDisposition: Boolean): List<String> {
         val ownBook = if (skipMirroredBooks) "NEW.`source` IS NOT 'home_library'" else null
         val bookInsertCondition = ownBook?.let { " WHEN $it" }.orEmpty()
-        val bookUpdateCondition = " WHEN " + listOfNotNull(ownBook, "($BookMetadataChanged)").joinToString(" AND ")
+        val changes = if (hasDisposition) "$BookMetadataChanged OR OLD.`readingDisposition` IS NOT NEW.`readingDisposition` OR OLD.`dispositionReason` IS NOT NEW.`dispositionReason` OR OLD.`dispositionUpdatedAt` IS NOT NEW.`dispositionUpdatedAt`" else BookMetadataChanged
+        val bookUpdateCondition = " WHEN " + listOfNotNull(ownBook, "($changes)").joinToString(" AND ")
         return listOf(
             "CREATE TRIGGER IF NOT EXISTS `full_sync_books_insert` AFTER INSERT ON `books`$bookInsertCondition " +
                 "BEGIN $MarkRequired END",
@@ -64,7 +65,12 @@ object FullSyncChangeTracker {
     /** Pass `skipMirroredBooks = false` only from a migration to a version before `books.source` exists. */
     fun create(connection: SQLiteConnection, skipMirroredBooks: Boolean = true) {
         connection.execSQL(CreateTable)
-        triggers(skipMirroredBooks).forEach(connection::execSQL)
+        val hasDisposition = connection.prepare("PRAGMA table_info(`books`)").use { statement ->
+            var present = false
+            while (statement.step()) if (statement.getText(1) == "readingDisposition") present = true
+            present
+        }
+        triggers(skipMirroredBooks, hasDisposition).forEach(connection::execSQL)
     }
 
     fun recreate(connection: SQLiteConnection, skipMirroredBooks: Boolean = true) {

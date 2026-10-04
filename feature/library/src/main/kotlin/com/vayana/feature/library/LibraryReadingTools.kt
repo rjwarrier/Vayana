@@ -6,8 +6,39 @@ import com.vayana.core.datastore.settings.SmartShelfStatus
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.ceil
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 internal data class SmartShelfItem(val shelf: SmartShelf, val books: List<Book>)
+
+/** Subscribe to notes and time only when saved rules need them. The caller supplies title-sorted books. */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun observeSmartShelfItems(
+    books: Flow<List<Book>>,
+    definitions: Flow<List<SmartShelf>>,
+    notes: () -> Flow<Set<Long>>,
+    threshold: Flow<Float>,
+    clock: Flow<Long>,
+): Flow<List<SmartShelfItem>> = definitions.flatMapLatest { rules ->
+    if (rules.isEmpty()) return@flatMapLatest flowOf(emptyList())
+    val notedBooks = if (rules.any { it.withNotes }) notes() else flowOf(emptySet())
+    combine(books, notedBooks, threshold) { library, noted, finished ->
+        Triple(library, noted, finished)
+    }.flatMapLatest { (library, noted, finished) ->
+        val staticItems = rules.filter { it.dormantDays <= 0 }.associate { shelf ->
+            shelf.id to SmartShelfItem(shelf, library.filter { shelf.matches(it, noted, finished, 0L) })
+        }
+        fun select(time: Long) = rules.map { shelf ->
+            staticItems[shelf.id] ?: SmartShelfItem(shelf, library.filter { shelf.matches(it, noted, finished, time) })
+        }
+        if (rules.any { it.dormantDays > 0 }) clock.map(::select) else flowOf(select(0L))
+    }
+}.distinctUntilChanged()
 
 internal fun SmartShelf.matches(book: Book, booksWithNotes: Set<Long>, finishedThreshold: Float, now: Long): Boolean {
     val progress = book.readingPercent.coerceIn(0f, 1f)
@@ -15,9 +46,11 @@ internal fun SmartShelf.matches(book: Book, booksWithNotes: Set<Long>, finishedT
     val started = book.hasStartedReading()
     val statusMatches = when (status) {
         SmartShelfStatus.ALL -> true
-        SmartShelfStatus.UNREAD -> !started && !finished
-        SmartShelfStatus.READING -> started && !finished
+        SmartShelfStatus.UNREAD -> book.readingDisposition == "ACTIVE" && !started && !finished
+        SmartShelfStatus.READING -> book.readingDisposition == "ACTIVE" && started && !finished
         SmartShelfStatus.FINISHED -> finished
+        SmartShelfStatus.PAUSED -> book.readingDisposition == "PAUSED"
+        SmartShelfStatus.DNF -> book.readingDisposition == "DNF"
     }
     if (!statusMatches || (withNotes && book.id !in booksWithNotes)) return false
     if (author.isNotBlank() && !book.author.orEmpty().contains(author.trim(), ignoreCase = true)) return false

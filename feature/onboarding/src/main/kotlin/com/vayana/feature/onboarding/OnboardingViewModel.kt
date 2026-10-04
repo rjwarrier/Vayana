@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.EinkPalette
 import com.vayana.core.resources.UiText
 import com.vayana.core.sync.setup.GitHubConnectionTestOutcome
 import com.vayana.core.sync.setup.GitHubConnectionTester
@@ -61,6 +62,10 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.update(SettingsRegistry.DisplayProfile, profile)
         }
+    }
+
+    fun chooseEinkPalette(palette: EinkPalette) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.EinkPalette, palette) }
     }
 
     /** A status from an earlier choice no longer applies once the reader switches between setting up and importing. */

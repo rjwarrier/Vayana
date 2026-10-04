@@ -4,6 +4,8 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 
 object PortableSettings {
     val allowlist: Set<String> = setOf(
+        SettingsRegistry.TodayCardEnabled.key,
+        SettingsRegistry.ReadNextCapacity.key,
         SettingsRegistry.SmartShelves.key,
         SettingsRegistry.ReadingPresets.key,
         SettingsRegistry.ReadingPlans.key,

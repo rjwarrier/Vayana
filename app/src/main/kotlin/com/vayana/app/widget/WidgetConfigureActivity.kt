@@ -103,6 +103,7 @@ class WidgetConfigureActivity : ComponentActivity() {
             VayanaTheme(
                 themeMode = settings.themeMode,
                 displayProfile = settings.displayProfile,
+                einkPalette = settings.einkPalette,
                 darkVariant = settings.darkVariant,
                 motionSetting = settings.motionSetting,
                 dynamicColor = settings.dynamicColor,

@@ -38,6 +38,9 @@ object DatabaseModule {
             .build()
 
     @Provides
+    fun provideEpubPassageDao(database: VayanaDatabase): com.vayana.core.database.dao.EpubPassageDao = database.epubPassageDao()
+
+    @Provides
     fun provideBookDao(database: VayanaDatabase): BookDao = database.bookDao()
 
     @Provides

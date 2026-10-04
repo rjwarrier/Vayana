@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class SmartShelfStatus { ALL, UNREAD, READING, FINISHED }
+enum class SmartShelfStatus { ALL, UNREAD, READING, FINISHED, PAUSED, DNF }
 
 data class SmartShelf(
     val id: String = UUID.randomUUID().toString(),

@@ -88,6 +88,10 @@ data class CloudBookRecord(
     val gutenbergId: Long? = null,
     /** When the book was last deleted or restored on the device that exported it; null from older app versions. */
     val deletionUpdatedAt: Long? = null,
+    val readNextPinned: Boolean = false,
+    val readingDisposition: String = "ACTIVE",
+    val dispositionReason: String? = null,
+    val dispositionUpdatedAt: Long? = null,
 )
 
 enum class CloudBookMergeResult {
@@ -151,6 +155,7 @@ interface BookRepository {
         fileHash: String,
         addedAt: Long?,
         remoteUpdatedAt: Long,
+        pinned: Boolean = false,
     ): Boolean
 
     suspend fun addReadingTime(id: Long, addedSeconds: Long)
@@ -291,8 +296,12 @@ interface BookRepository {
 
     suspend fun clearReaderPrefs(id: Long)
 
-    /** Queues or unqueues [id]; returns the books dropped from "Read next" to keep it within its cap. */
-    suspend fun setReadNext(id: Long, queued: Boolean): List<Book>
+    /** Queues or unqueues [id]. A full queue rejects additions without evicting books; the legacy removal result stays empty. */
+    suspend fun setReadNext(id: Long, queued: Boolean, capacity: Int = 50): List<Book>
+    suspend fun reorderReadNext(ids: List<Long>)
+    suspend fun pinReadNext(id: Long, pinned: Boolean)
+    suspend fun updateDisposition(id: Long, disposition: String, reason: String?)
+
 
     suspend fun attachDownloadedFile(
         id: Long,
@@ -334,3 +343,6 @@ interface BookRepository {
 
     suspend fun mergeCloudBook(record: CloudBookRecord): CloudBookMergeResult
 }
+
+/** Adding a new queue entry never removes another book to make room. */
+class ReadNextQueueFullException : IllegalStateException("Read Next queue is full")

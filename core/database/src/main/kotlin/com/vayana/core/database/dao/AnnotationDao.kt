@@ -13,6 +13,16 @@ interface AnnotationDao {
     @Query("SELECT * FROM annotations WHERE isDeleted = 0 ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<AnnotationEntity>>
 
+    /** Smart shelves need membership, not full highlighted text and note bodies. */
+    @Query(
+        "SELECT DISTINCT bookId FROM annotations WHERE isDeleted = 0 " +
+            "AND (type != 'BOOKMARK' OR LENGTH(TRIM(COALESCE(readerNote, ''), " +
+            "CHAR(9,10,11,12,13,28,29,30,31,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288))) > 0) " +
+            "AND NOT (type = 'UNDERLINE' AND colorKey = 'popular' " +
+            "AND (locator GLOB 'quote:*' OR locator GLOB 'goodreads-quote:*'))",
+    )
+    fun observePersonalNotesBookIds(): Flow<List<Long>>
+
     @Query("SELECT * FROM annotations WHERE bookId = :bookId AND isDeleted = 0 ORDER BY updatedAt DESC")
     fun observeForBook(bookId: Long): Flow<List<AnnotationEntity>>
 

@@ -148,6 +148,8 @@ fun VayanaNavHost(
                 onShelvesClick = { navController.navigate(ShelvesRoute) },
                 onOfflineBooksClick = { navController.navigate(OfflineBooksRoute) },
                 onFreeBooksClick = { navController.navigate(GutenbergRoute) },
+                onReviewWords = { navController.navigate(VocabularyReviewRoute) },
+                onReviewHighlights = { navController.navigate(HighlightReviewRoute) },
                 onContinueReading = { bookId, locator ->
                     navController.navigate(ReaderRoute(bookId = bookId, targetLocator = locator))
                 },

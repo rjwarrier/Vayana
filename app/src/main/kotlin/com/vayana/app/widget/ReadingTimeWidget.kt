@@ -29,6 +29,7 @@ import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.designsystem.theme.ColorSchemes
 import com.vayana.core.designsystem.theme.DarkVariant
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.EinkPalette
 import com.vayana.core.designsystem.theme.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -245,7 +246,7 @@ class ReadingTimeWidgetUpdater @Inject constructor(
         ) {
             ColorSchemes.dynamic(context, isDark, theme.darkVariant)
         } else {
-            ColorSchemes.forProfile(theme.displayProfile, isDark, theme.darkVariant)
+            ColorSchemes.forProfile(theme.displayProfile, isDark, theme.darkVariant, theme.einkPalette)
         }
         return scheme.toWidgetPalette(theme.displayProfile == DisplayProfile.E_INK)
     }
@@ -318,6 +319,7 @@ private data class ReadingWidgetTheme(
     val appearance: WidgetAppearance,
     val themeMode: ThemeMode,
     val displayProfile: DisplayProfile,
+    val einkPalette: EinkPalette,
     val darkVariant: DarkVariant,
     val dynamicColor: Boolean,
 )
@@ -326,6 +328,7 @@ private fun readingWidgetTheme(settings: SettingsSnapshot) = ReadingWidgetTheme(
     appearance = WidgetAppearance(settings.widgetCornerRadius, settings.widgetProgressStyle),
     themeMode = settings.themeMode,
     displayProfile = settings.displayProfile,
+    einkPalette = settings.einkPalette,
     darkVariant = settings.darkVariant,
     dynamicColor = settings.dynamicColor,
 )

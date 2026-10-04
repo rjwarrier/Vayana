@@ -129,6 +129,8 @@ private fun SmartShelfStatus.labelRes() = when (this) {
     SmartShelfStatus.UNREAD -> R.string.tools_unread
     SmartShelfStatus.READING -> R.string.tools_reading
     SmartShelfStatus.FINISHED -> R.string.tools_finished
+    SmartShelfStatus.PAUSED -> R.string.disposition_paused
+    SmartShelfStatus.DNF -> R.string.disposition_dnf
 }
 
 @Composable

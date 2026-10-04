@@ -6,13 +6,13 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 
 /**
- * Book covers on an E-Ink panel: greyscale with the contrast pushed up. A colour cover otherwise arrives as a flat
+ * Book covers on a monochrome E-Ink panel: greyscale with the contrast pushed up. A colour cover otherwise arrives as a flat
  * mid-grey where red, green and blue happen to share a luminance, and its title text loses its edge.
  * Null on every other display, where the cover is drawn as it is.
  */
 @Composable
 fun rememberCoverColorFilter(): ColorFilter? {
-    val eink = LocalDisplayProfile.current == DisplayProfile.E_INK
+    val eink = LocalDisplayProfile.current.isMonochrome(LocalEinkPalette.current)
     return remember(eink) { if (eink) EinkCoverColorFilter else null }
 }
 

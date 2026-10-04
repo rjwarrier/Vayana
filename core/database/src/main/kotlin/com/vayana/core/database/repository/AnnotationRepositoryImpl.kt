@@ -14,6 +14,7 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
@@ -28,6 +29,9 @@ class AnnotationRepositoryImpl @Inject constructor(
     override fun observeAll(): Flow<List<Annotation>> =
         annotationDao.observeAll().map { entities -> entities.map { it.toDomain() } }
 
+    override fun observePersonalNotesBookIds(): Flow<Set<Long>> =
+        annotationDao.observePersonalNotesBookIds().map { it.toSet() }.distinctUntilChanged()
+
     override fun observeSearch(text: String, limit: Int): Flow<List<Annotation>> {
         val match = ftsPrefixMatch(searchTokens(text)) ?: return flowOf(emptyList())
         return annotationDao.observeSearch(match, limit).map { entities -> entities.map { it.toDomain() } }
@@ -40,6 +44,8 @@ class AnnotationRepositoryImpl @Inject constructor(
 
     override fun observeCommunityQuoteCountForBook(bookId: Long): Flow<Int> =
         annotationDao.observeCommunityQuoteCountForBook(bookId)
+
+    override suspend fun getBySyncId(syncId: String): Annotation? = annotationDao.findBySyncId(syncId)?.takeUnless { it.isDeleted }?.toDomain()
 
     override suspend fun getById(id: Long): Annotation? = annotationDao.getById(id)?.toDomain()
 
@@ -84,7 +90,14 @@ class AnnotationRepositoryImpl @Inject constructor(
     }
 
     override suspend fun update(annotation: Annotation) {
-        annotationDao.update(annotation.toEntity(updatedAt = System.currentTimeMillis()))
+        database.withTransaction {
+            val previous = annotationDao.getById(annotation.id) ?: return@withTransaction
+            annotationDao.update(annotation.toEntity(updatedAt = maxOf(System.currentTimeMillis(), previous.updatedAt + 1)))
+            if (previous.reviewQuestion != annotation.reviewQuestion ||
+                (annotation.reviewQuestion != null && previous.selectedText != annotation.selectedText)) {
+                database.highlightReviewDao().reset(previous.syncId)
+            }
+        }
     }
 
     override suspend fun softDelete(id: Long) = softDeleteAll(listOf(id))
@@ -150,6 +163,7 @@ class AnnotationRepositoryImpl @Inject constructor(
                     chapterHref = record.chapterHref,
                     selectedText = record.selectedText,
                     readerNote = record.readerNote,
+                    reviewQuestion = record.reviewQuestion,
                     createdAt = record.createdAt,
                     updatedAt = record.updatedAt,
                     isDeleted = false,
@@ -174,9 +188,14 @@ class AnnotationRepositoryImpl @Inject constructor(
                 chapterHref = record.chapterHref,
                 selectedText = record.selectedText,
                 readerNote = record.readerNote,
+                reviewQuestion = record.reviewQuestion,
                 updatedAt = record.updatedAt,
             ),
         )
+        if (existing.reviewQuestion != record.reviewQuestion ||
+            (record.reviewQuestion != null && existing.selectedText != record.selectedText)) {
+            database.highlightReviewDao().reset(existing.syncId)
+        }
         AnnotationMergeResult.UPDATED
     }
 }
@@ -191,6 +210,7 @@ internal fun AnnotationEntity.toDomain(): Annotation = Annotation(
     chapterHref = chapterHref,
     selectedText = selectedText,
     readerNote = readerNote,
+    reviewQuestion = reviewQuestion,
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted,
@@ -207,6 +227,7 @@ private fun Annotation.toEntity(updatedAt: Long): AnnotationEntity = AnnotationE
     chapterHref = chapterHref,
     selectedText = selectedText,
     readerNote = readerNote,
+    reviewQuestion = reviewQuestion,
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted,

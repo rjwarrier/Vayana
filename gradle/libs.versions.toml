@@ -81,6 +81,7 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 konsist = { module = "com.lemonappdev:konsist", version = "0.17.3" }
 org-json = { module = "org.json:json", version.ref = "orgJson" }
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version = "16.0.1" }
 mlkit-language-id = { module = "com.google.mlkit:language-id", version.ref = "mlkitLanguageId" }
 
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }

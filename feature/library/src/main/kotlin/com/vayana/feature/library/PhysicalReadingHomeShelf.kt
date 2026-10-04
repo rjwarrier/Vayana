@@ -33,7 +33,7 @@ internal fun physicalReadingHomeBooks(books: List<Book>, activeBookId: Long?): L
         .thenByDescending { it.lastReadAt ?: it.startedReadingAt ?: 0L }.thenBy { it.id }
     val recent = ArrayList<Book>(4)
     for (book in books) {
-        if (book.format != BookFormat.PHYSICAL || (book.id != activeBookId && book.readingState() != BookReadingState.READING)) continue
+        if (book.readingDisposition != "ACTIVE" || book.format != BookFormat.PHYSICAL || (book.id != activeBookId && book.readingState() != BookReadingState.READING)) continue
         val index = recent.indexOfFirst { order.compare(book, it) < 0 }.let { if (it < 0) recent.size else it }
         if (index >= 3) continue
         recent.add(index, book)

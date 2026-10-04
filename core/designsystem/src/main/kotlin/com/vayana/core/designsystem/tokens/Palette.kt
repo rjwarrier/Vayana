@@ -137,6 +137,35 @@ object Palette {
     val EinkOutline = Amoled
     val EinkOutlineVariant = Color(0xFF767676)
 
+    // Color E-Ink: neutral surfaces keep text on the monochrome channel; color is reserved for accents.
+    // These are UI choices, not a simulation or calibration of any particular panel/front light.
+    val EinkColorPrimary = Color(0xFF00604B)
+    val EinkColorSecondary = Color(0xFF214F99)
+    val EinkColorTertiary = Color(0xFF803359)
+    val EinkColorPrimaryContainer = Color(0xFFAADDCC)
+    val EinkColorSecondaryContainer = Color(0xFFBBDDFF)
+    val EinkColorTertiaryContainer = Color(0xFFFFCCDD)
+    val EinkColorSurfaceLow = Color(0xFFF5F5F5)
+    val EinkColorSurface = Color(0xFFEEEEEE)
+    val EinkColorSurfaceHigh = Color(0xFFDDDDDD)
+    val EinkColorSurfaceHighest = Color(0xFFCCCCCC)
+    val EinkColorOutline = Color(0xFF444444)
+    val EinkColorOutlineVariant = Color(0xFF666666)
+    val EinkColorError = Color(0xFF990000)
+    val EinkColorErrorContainer = Color(0xFFFFDDDD)
+    val EinkColorErrorDark = Color(0xFFFF9999)
+    val EinkColorErrorContainerDark = Color(0xFF550000)
+    val EinkColorPrimaryDark = Color(0xFF55CCAA)
+    val EinkColorSecondaryDark = Color(0xFF88BBFF)
+    val EinkColorTertiaryDark = Color(0xFFFF99CC)
+    val EinkColorPrimaryContainerDark = Color(0xFF003322)
+    val EinkColorSecondaryContainerDark = Color(0xFF002855)
+    val EinkColorTertiaryContainerDark = Color(0xFF441133)
+    val EinkColorSurfaceLowDark = Color(0xFF111111)
+    val EinkColorSurfaceDark = Color(0xFF222222)
+    val EinkColorSurfaceHighDark = Color(0xFF333333)
+    val EinkColorSurfaceHighestDark = Color(0xFF444444)
+
     /**
      * Reader sync-status dot. Mid-tone and saturated so a single value reads on every reader surface,
      * from Cream/Sepia through Dark and OLED, without a per-theme variant. The E-Ink profile never uses

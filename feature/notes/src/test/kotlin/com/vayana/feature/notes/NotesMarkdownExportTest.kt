@@ -10,8 +10,88 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 
 class NotesMarkdownExportTest {
+    @Test fun streamingComparisonKeepsOwnershipChecksAndHandlesBufferBoundaries() {
+        val marker = "<!-- Vayana generated notebook: test -->"
+        val content = "$marker\n" + "Café 雪 passage\n".repeat(2000)
+        assertTrue(notebookIsUnchanged(content.reader(), content, marker))
+        assertFalse(notebookIsUnchanged((content + "extra").reader(), content, marker))
+        assertFalse(notebookIsUnchanged(content.dropLast(1).reader(), content, marker))
+        assertFalse(notebookIsUnchanged(content.replace("Café", "Other").reader(), content, marker))
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            notebookIsUnchanged("Handwritten notes".reader(), content, marker)
+        }
+        // An early change must not force a full read of a large notebook.
+        var readCount = 0
+        val counting = object : java.io.FilterReader(content.replaceFirst("Café", "Other").reader()) {
+            override fun read(): Int = super.read().also { if (it >= 0) readCount++ }
+            override fun read(buffer: CharArray, offset: Int, length: Int): Int =
+                super.read(buffer, offset, length).also { if (it > 0) readCount += it }
+        }
+        assertFalse(notebookIsUnchanged(counting, content, marker))
+        assertTrue(readCount <= marker.length + 1 + 8192)
+    }
+
+    @Test fun onlyExportedBookMetadataTriggersNotebookRefresh() {
+        val original = book()
+        assertEquals(notebookMetadata(original), notebookMetadata(original.copy(
+            readingPercent = .6f, lastReadAt = 500, lastLocator = "epubcfi(test)", totalReadingSeconds = 900,
+            updatedAt = 1000, readingDisposition = "PAUSED", readNextAddedAt = 200, readNextPinned = true)))
+        assertNotEquals(notebookMetadata(original), notebookMetadata(original.copy(title = "Renamed")))
+        assertNotEquals(notebookMetadata(original), notebookMetadata(original.copy(tagsCsv = "new tag")))
+    }
+
+    @Test fun notebookContainsReviewQuestionAndStablePassageLink() {
+        val note = annotation("Answer", null, "Chapter").copy(syncId = "note & café", reviewQuestion = "What happened?")
+        val exported = highlightsMarkdown(book(), listOf(note))
+        assertTrue(exported.contains("What happened?"))
+        assertTrue(exported.contains(com.vayana.core.common.passageLink("book", "note & café")))
+        assertTrue(exported.contains("> Answer"))
+        assertFalse(automaticNotebookFileName("../unsafe").contains("/"))
+        assertNotEquals(automaticNotebookFileName("book"), automaticNotebookFileName("other"))
+    }
+
+    @Test
+    fun zipRetainsEachNotebookAndDeduplicatesBooks() = runBlocking {
+        val first = BookNotesItem(book().copy(title = "Same 📚"), listOf(annotation("Unicode café", "#thought", "Chapter")))
+        val second = BookNotesItem(book().copy(id = 2, title = "Same 📚"), listOf(annotation("", "Journal body", null, AnnotationType.NOTE)))
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { writeMarkdownNotebooks(it, listOf(first, first, second)) }
+        val entries = linkedMapOf<String, String>()
+        ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+        assertEquals(mapOf(notebookFileName(first.book) to highlightsMarkdown(first.book, first.annotations),
+            notebookFileName(second.book) to highlightsMarkdown(second.book, second.annotations)), entries)
+    }
+
+    @Test
+    fun cancelledExportStopsBeforeWritingEntries() = runBlocking {
+        val output = ByteArrayOutputStream()
+        var cancelled = false
+        ZipOutputStream(output).use { zip ->
+            try {
+                withContext(Job().apply { cancel() }) {
+                    writeMarkdownNotebooks(zip, listOf(BookNotesItem(book(), emptyList())))
+                }
+            } catch (_: CancellationException) { cancelled = true }
+        }
+        assertTrue(cancelled)
+        ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { kotlin.test.assertNull(it.nextEntry) }
+    }
+
     @Test
     fun chaptersQuotesNotesAndJournalBodiesSurviveExport() {
         val output = highlightsMarkdown(book(), listOf(

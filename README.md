@@ -71,7 +71,9 @@ E‑Ink is a first-class display profile rather than a colour filter:
 
 - Continuous motion is removed, including a static squiggly reading-progress line.
 - Page-turn animation is disabled and the reader clock updates only on page turns.
-- Covers use high-contrast greyscale; highlights become black shape-coded marks that work without colour.
+- Choose **Monochrome** or **Color** under **Settings → Appearance → E-ink palette**, or during onboarding. Monochrome remains the default: covers use high-contrast greyscale and highlights become black shape-coded marks. Color preserves covers, illustrations, highlights and theme accents for color E-Ink panels.
+- Both palettes retain E-Ink motion, paging and refresh behavior; color capability does not re-enable animation.
+- Color E-Ink uses a dedicated high-contrast palette: neutral surfaces, black/white text, solid outlines and teal/blue/berry accents. Light and dark are supported; wallpaper colors and OLED surface variants are bypassed in this profile. Covers and reader page-theme choices remain intact. Digital contrast checks do not replace testing on the panel with its front light and refresh settings.
 - Hardware page keys turn reader pages and page through long app screens.
 - Library, Notes, Search, Settings, Shelves and Statistics gain screen-sized paging controls.
 - Clean reader refreshes can run every chosen number of pages and at chapter/menu transitions.

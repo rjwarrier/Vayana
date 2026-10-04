@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 class AppSettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val bookRepository: BookRepository,
+    private val annotationRepository: com.vayana.core.database.repository.AnnotationRepository,
     private val recentlyDeletedAutoPurge: RecentlyDeletedAutoPurge,
     incomingBookFiles: IncomingBookFiles,
     private val openBookRequests: OpenBookRequests,
@@ -44,6 +45,14 @@ class AppSettingsViewModel @Inject constructor(
 
     /** A book the home-screen widget asked to open, until navigation has opened it. */
     val openBookRequest: StateFlow<OpenBookRequest?> = openBookRequests.pending
+
+    suspend fun resolveOpenBookRequest(request: OpenBookRequest): OpenBookRequest? {
+        if (request.bookSyncId == null) return request
+        val book = bookRepository.observeAll().first().firstOrNull { it.syncId == request.bookSyncId } ?: return null
+        val annotation = request.annotationSyncId?.let { annotationRepository.getBySyncId(it) } ?: return null
+        if (annotation.bookId != book.id) return null
+        return request.copy(bookId = book.id, locator = annotation.locator, offline = book.format.isOffline)
+    }
 
     fun consumeOpenBookRequest(request: OpenBookRequest) = openBookRequests.consume(request)
 

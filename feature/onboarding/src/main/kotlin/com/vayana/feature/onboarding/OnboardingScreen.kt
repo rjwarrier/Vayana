@@ -68,6 +68,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.EinkPalette
+import com.vayana.core.designsystem.theme.LocalDisplayProfile
+import com.vayana.core.designsystem.theme.LocalEinkPalette
 import com.vayana.core.designsystem.theme.vayanaContentTransform
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
@@ -87,6 +90,7 @@ fun OnboardingRoute(
         suggestedDeviceName = viewModel.suggestedDeviceName,
         syncStatus = syncStatus,
         onDisplayProfileSelected = viewModel::chooseDisplayProfile,
+        onEinkPaletteSelected = viewModel::chooseEinkPalette,
         onSyncModeChanged = { viewModel.resetSyncStatus() },
         onImportSetup = viewModel::importSetup,
         onTestFreshSync = viewModel::testFreshSync,
@@ -99,6 +103,7 @@ private fun OnboardingScreen(
     suggestedDeviceName: String,
     syncStatus: SyncSetupStatus,
     onDisplayProfileSelected: (DisplayProfile) -> Unit,
+    onEinkPaletteSelected: (EinkPalette) -> Unit,
     onSyncModeChanged: () -> Unit,
     onImportSetup: (file: Uri, passphrase: String, deviceName: String) -> Unit,
     onTestFreshSync: (FreshSyncConfig) -> Unit,
@@ -140,6 +145,7 @@ private fun OnboardingScreen(
                     OnboardingPageContent(
                         page = targetPage,
                         onDisplayProfileSelected = onDisplayProfileSelected,
+                        onEinkPaletteSelected = onEinkPaletteSelected,
                     ) {
                         when (targetPage) {
                             OnboardingPage.DEVICE -> OutlinedTextField(
@@ -205,6 +211,7 @@ private fun OnboardingScreen(
 private fun OnboardingPageContent(
     page: OnboardingPage,
     onDisplayProfileSelected: (DisplayProfile) -> Unit,
+    onEinkPaletteSelected: (EinkPalette) -> Unit,
     extra: @Composable () -> Unit,
 ) {
     Column(
@@ -262,6 +269,20 @@ private fun OnboardingPageContent(
                     shape = RoundedCornerShape(Radii.full),
                 ) {
                     Text(stringResource(R.string.onboarding_display_eink))
+                }
+            }
+        }
+        if (page == OnboardingPage.APPEARANCE && LocalDisplayProfile.current == DisplayProfile.E_INK) {
+            Text(stringResource(R.string.settings_eink_palette_title), style = MaterialTheme.typography.titleMedium)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                EinkPalette.entries.forEachIndexed { index, palette ->
+                    SegmentedButton(
+                        selected = LocalEinkPalette.current == palette,
+                        onClick = { onEinkPaletteSelected(palette) },
+                        shape = SegmentedButtonDefaults.itemShape(index, EinkPalette.entries.size),
+                    ) {
+                        Text(stringResource(if (palette == EinkPalette.COLOR) R.string.settings_eink_palette_color else R.string.settings_eink_palette_monochrome))
+                    }
                 }
             }
         }

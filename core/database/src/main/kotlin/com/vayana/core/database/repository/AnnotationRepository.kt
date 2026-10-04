@@ -2,7 +2,10 @@ package com.vayana.core.database.repository
 
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
+import com.vayana.core.database.model.isCommunityQuote
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /** A remote annotation ready to merge in - already validated/typed by the caller (mirrors how
  *  [CloudBookRecord] is the typed counterpart of a parsed portable book). */
@@ -19,6 +22,7 @@ data class AnnotationRecord(
     val createdAt: Long,
     val updatedAt: Long,
     val isDeleted: Boolean,
+    val reviewQuestion: String? = null,
 )
 
 enum class AnnotationMergeResult {
@@ -35,12 +39,18 @@ enum class AnnotationMergeResult {
 
 interface AnnotationRepository {
     fun observeAll(): Flow<List<Annotation>>
+    fun observePersonalNotesBookIds(): Flow<Set<Long>> = observeAll().map { notes ->
+        notes.asSequence().filter {
+            !it.isDeleted && !it.isCommunityQuote() && (it.type != AnnotationType.BOOKMARK || !it.readerNote.isNullOrBlank())
+        }.map { it.bookId }.toSet()
+    }.distinctUntilChanged()
     /** Annotations whose text matches every word of [text] (as word prefixes), newest first. */
     fun observeSearch(text: String, limit: Int): Flow<List<Annotation>>
     fun observeForBook(bookId: Long): Flow<List<Annotation>>
     fun observeCountForBook(bookId: Long): Flow<Int>
     fun observeCommunityQuoteCountForBook(bookId: Long): Flow<Int>
     suspend fun getById(id: Long): Annotation?
+    suspend fun getBySyncId(syncId: String): Annotation?
     suspend fun create(
         bookId: Long,
         type: AnnotationType,

@@ -8,7 +8,7 @@ fun searchTokens(text: String): List<String> =
  * FTS MATCH expression: every word must appear, each as a word prefix ("tolk" finds "Tolkien"). Tokens are
  * lower-case, so they can never be read as the upper-case AND/OR/NOT/NEAR operators.
  */
-internal fun ftsPrefixMatch(tokens: List<String>): String? =
+fun ftsPrefixMatch(tokens: List<String>): String? =
     tokens.takeIf { it.isNotEmpty() }?.joinToString(" ") { "$it*" }
 
 /** The FTS rule applied to one field, to tell a result which of its fields matched: some word starts with a token. */

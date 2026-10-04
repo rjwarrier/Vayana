@@ -41,6 +41,9 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -166,6 +169,11 @@ private fun NotesScreen(
     var editingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var deletingAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var sharingAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    var showAutomaticExport by remember { mutableStateOf(false) }
+    var showPhotoHighlight by remember { mutableStateOf(false) }
+    var showNoteTools by remember { mutableStateOf(false) }
+    if (showAutomaticExport) NotebookExportDialog(onDismiss = { showAutomaticExport = false })
+    if (showPhotoHighlight) PhotoHighlightDialog(onDismiss = { showPhotoHighlight = false })
     var showNotebookExport by remember { mutableStateOf(false) }
     var markdownExportBusy by remember { mutableStateOf(false) }
     val deleteUndoMessage = stringResource(R.string.notes_delete_undo_message)
@@ -254,6 +262,13 @@ private fun NotesScreen(
                         )
                     }
                     Row {
+                    Box {
+                        IconButton(onClick = { showNoteTools = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.notes_export_content_description)) }
+                        DropdownMenu(expanded = showNoteTools, onDismissRequest = { showNoteTools = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.notebook_auto_export)) }, onClick = { showNoteTools = false; showAutomaticExport = true })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.photo_highlight)) }, onClick = { showNoteTools = false; showPhotoHighlight = true })
+                        }
+                    }
                     IconButton(onClick = { kindlePicker.launch(arrayOf("text/plain")) }) {
                         Icon(
                             imageVector = Icons.Outlined.FileOpen,
@@ -1103,6 +1118,7 @@ private fun AnnotationCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    ReviewQuestionAction(annotation)
                     IconButton(onClick = onShare) {
                         Icon(
                             imageVector = Icons.Outlined.Share,

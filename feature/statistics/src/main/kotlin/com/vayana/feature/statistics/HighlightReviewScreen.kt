@@ -120,6 +120,7 @@ private fun HighlightReviewCard(
 ) {
     var sharing by remember(item.annotation.id) { mutableStateOf(false) }
     val annotation = item.annotation
+    var revealed by remember(item.annotation.id) { mutableStateOf(annotation.reviewQuestion.isNullOrBlank()) }
 
     Column(
         modifier = Modifier
@@ -151,8 +152,10 @@ private fun HighlightReviewCard(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text(text = annotation.selectedText, style = MaterialTheme.typography.headlineSmall)
-                annotation.readerNote?.takeIf { it.isNotBlank() }?.let { note ->
+                annotation.reviewQuestion?.let { question -> Text(question, style = MaterialTheme.typography.headlineSmall) }
+                if (revealed) Text(text = annotation.selectedText, style = MaterialTheme.typography.headlineSmall)
+                else Button(onClick = { revealed = true }) { Text(stringResource(R.string.flashcard_reveal)) }
+                annotation.readerNote?.takeIf { revealed && it.isNotBlank() }?.let { note ->
                     Text(text = note, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(
@@ -186,7 +189,7 @@ private fun HighlightReviewCard(
                 }
             }
         }
-        if (scheduled) {
+        if (scheduled && revealed) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

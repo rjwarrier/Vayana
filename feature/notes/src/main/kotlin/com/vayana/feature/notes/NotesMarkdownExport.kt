@@ -5,14 +5,18 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import com.vayana.core.common.HighlightTags
+import com.vayana.core.common.passageLink
 import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.Book
 import java.io.File
+import java.io.FilterOutputStream
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** A portable notebook; notes retain their Markdown and hashtags. */
@@ -37,10 +41,12 @@ fun highlightsMarkdown(book: Book, annotations: List<Annotation>): String = buil
             appendLine()
         }
         entries.forEach { annotation ->
+            annotation.reviewQuestion?.takeIf(String::isNotBlank)?.let { appendLine("**$it**"); appendLine() }
             if (annotation.selectedText.isNotBlank()) {
                 appendLine("> ${annotation.selectedText.replace("\r\n", "\n").replace("\n", "\n> ")}")
                 appendLine()
             }
+            if (annotation.syncId.isNotBlank()) { appendLine("[↗](${passageLink(book.syncId, annotation.syncId)})"); appendLine() }
             annotation.readerNote?.takeIf(String::isNotBlank)?.let {
                 appendLine(it)
                 appendLine()
@@ -76,9 +82,6 @@ internal fun notebookFileName(book: Book): String {
 /** Shares one ZIP containing one Markdown notebook per selected book. */
 suspend fun Context.shareMarkdownNotebooks(items: List<BookNotesItem>) {
     require(items.isNotEmpty()) { "Select at least one notebook" }
-    val notebooks = withContext(Dispatchers.Default) {
-        items.distinctBy { it.book.id }.map { notebookFileName(it.book) to highlightsMarkdown(it.book, it.annotations) }
-    }
     val fileName = "vayana-notebooks-${UUID.randomUUID()}.zip"
     val uri = withContext(Dispatchers.IO) {
         val directory = File(cacheDir, "shared_files").apply { check(isDirectory || mkdirs()) }
@@ -88,11 +91,7 @@ suspend fun Context.shareMarkdownNotebooks(items: List<BookNotesItem>) {
         val file = File(directory, fileName)
         try {
             ZipOutputStream(file.outputStream().buffered()).use { zip ->
-                notebooks.forEach { (name, markdown) ->
-                    zip.putNextEntry(ZipEntry(name))
-                    zip.write(markdown.toByteArray(Charsets.UTF_8))
-                    zip.closeEntry()
-                }
+                writeMarkdownNotebooks(zip, items)
             }
             FileProvider.getUriForFile(this@shareMarkdownNotebooks, "$packageName.fileprovider", file)
         } catch (failure: Throwable) {
@@ -107,4 +106,22 @@ suspend fun Context.shareMarkdownNotebooks(items: List<BookNotesItem>) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     startActivity(Intent.createChooser(intent, getString(com.vayana.core.resources.R.string.notes_export_markdown_content_description)))
+}
+
+/** Format and release one notebook at a time instead of retaining the whole export. */
+internal suspend fun writeMarkdownNotebooks(zip: ZipOutputStream, items: List<BookNotesItem>) {
+    val seen = HashSet<Long>()
+    for (item in items) {
+        currentCoroutineContext().ensureActive()
+        if (!seen.add(item.book.id)) continue
+        val markdown = withContext(Dispatchers.Default) { highlightsMarkdown(item.book, item.annotations) }
+        zip.putNextEntry(ZipEntry(notebookFileName(item.book)))
+        // Writer avoids a second notebook-sized UTF-8 byte array; don't close the shared ZIP.
+        val entryStream = object : FilterOutputStream(zip) {
+            override fun write(bytes: ByteArray, offset: Int, length: Int) = out.write(bytes, offset, length)
+            override fun close() = flush()
+        }
+        entryStream.writer(Charsets.UTF_8).use { it.write(markdown) }
+        zip.closeEntry()
+    }
 }

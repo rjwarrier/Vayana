@@ -143,6 +143,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                 totalReadingSeconds = book.totalReadingSeconds,
                 readNextAddedAt = book.readNextAddedAt,
                 readNextUpdatedAt = book.readNextUpdatedAt,
+                            readNextPinned = book.readNextPinned,
             )
         }
         val readingSessions = readingSessionRepository.observeAll().first()
@@ -302,6 +303,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     fileHash = state.fileHash,
                     addedAt = state.addedAt,
                     remoteUpdatedAt = state.updatedAt,
+                    pinned = state.pinned,
                 )
             }
             attempt.onSuccess { changed -> if (changed) applied += 1 }

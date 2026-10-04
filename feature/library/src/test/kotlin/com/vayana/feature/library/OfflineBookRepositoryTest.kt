@@ -251,6 +251,30 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun projectedNoteMembershipMatchesFullAnnotationsIncludingWhitespaceAndDeletion() = runBlocking {
+        val notes = com.vayana.core.database.repository.AnnotationRepositoryImpl(database, database.annotationDao(),
+            database.bookDao(), database.bookAliasDao(), database.tombstoneDao())
+        val types = com.vayana.core.database.model.AnnotationType.entries
+        val blanks = listOf<String?>(null, "", " \t\n\u00a0\u2003\u202f\u3000", "personal note")
+        val locators = listOf("quote:1", "goodreads-quote:1", "Quote:1", "epubcfi(/6/2)")
+        for (type in types) for (note in blanks) for (locator in locators) {
+            val book = repository.insertOfflineBook("Case", null, BookFormat.PHYSICAL, null, null)
+            notes.create(book.id, type, "popular", locator, null, null, "quote", note)
+        }
+        val entries = notes.observeAll().first()
+        entries.take(5).forEach { notes.softDelete(it.id) }
+        val expected = notes.observeAll().first().filter {
+            !com.vayana.core.database.model.isCommunityQuoteLocator(it.locator) ||
+                it.type != com.vayana.core.database.model.AnnotationType.UNDERLINE || it.colorKey != "popular"
+        }.filter { it.type != com.vayana.core.database.model.AnnotationType.BOOKMARK || !it.readerNote.isNullOrBlank() }
+            .map { it.bookId }.toSet()
+        assertEquals(expected, notes.observePersonalNotesBookIds().first())
+        val first = entries.last()
+        notes.create(first.bookId, com.vayana.core.database.model.AnnotationType.NOTE, "journal", "cfi", null, null, "", "entry")
+        assertEquals(expected + first.bookId, notes.observePersonalNotesBookIds().first())
+    }
+
+    @Test
     fun journalNotesPersistWithoutSelectedTextAndKeepStableSyncIdentity() = runBlocking {
         val book = repository.insertOfflineBook("Dune", null, BookFormat.PHYSICAL, null, null)
         val notes = com.vayana.core.database.repository.AnnotationRepositoryImpl(database, database.annotationDao(),

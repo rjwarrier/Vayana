@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.vayana.core.designsystem.theme.DarkVariant
 import com.vayana.core.designsystem.theme.DateFormatStyle
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.EinkPalette
 import com.vayana.core.designsystem.theme.MotionSetting
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.resources.R
@@ -93,6 +94,7 @@ data class SettingsSnapshot(
     val onboardingCompleted: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val displayProfile: DisplayProfile = DisplayProfile.STANDARD,
+    val einkPalette: EinkPalette = EinkPalette.MONOCHROME,
     val darkVariant: DarkVariant = DarkVariant.STANDARD,
     val motionSetting: MotionSetting = MotionSetting.FULL,
     val navigationMode: NavigationMode = NavigationMode.FLOATING_BAR,
@@ -226,6 +228,17 @@ object SettingsRegistry {
         options = listOf<ChoiceOption<com.vayana.core.designsystem.theme.DisplayProfile>>(
             ChoiceOption(com.vayana.core.designsystem.theme.DisplayProfile.STANDARD, R.string.settings_display_profile_standard),
             ChoiceOption(com.vayana.core.designsystem.theme.DisplayProfile.E_INK, R.string.settings_display_profile_eink),
+        ),
+    )
+    val EinkPalette = ChoiceSetting(
+        key = "appearance.eink_palette",
+        defaultValue = com.vayana.core.designsystem.theme.EinkPalette.MONOCHROME,
+        titleRes = R.string.settings_eink_palette_title,
+        subtitleRes = R.string.settings_eink_palette_subtitle,
+        group = SettingsGroup.APPEARANCE,
+        options = listOf(
+            ChoiceOption(com.vayana.core.designsystem.theme.EinkPalette.MONOCHROME, R.string.settings_eink_palette_monochrome),
+            ChoiceOption(com.vayana.core.designsystem.theme.EinkPalette.COLOR, R.string.settings_eink_palette_color),
         ),
     )
     val DarkVariant: ChoiceSetting<com.vayana.core.designsystem.theme.DarkVariant> =
@@ -818,11 +831,14 @@ object SettingsRegistry {
     )
 
     /** Also the on-screen order within each [SettingsGroup]. */
+    val TodayCardEnabled = BooleanSetting("library.today_card", true, R.string.today_show, null, SettingsGroup.LIBRARY)
+
     val all: List<Setting<out Any>> = listOf(
         ThemeMode,
         DarkVariant,
         DynamicColor,
         DisplayProfile,
+        EinkPalette,
         EinkAudioFeatures,
         NavigationMode,
         Motion,
@@ -861,6 +877,7 @@ object SettingsRegistry {
         ReaderAutoMarkSelection,
         ReaderKeepAwake,
         ReaderPersonalPace,
+        TodayCardEnabled,
         DailyReadingGoalMinutes,
         ReadingReminderEnabled,
         ReadingReminderHour,
@@ -882,7 +899,12 @@ object SettingsRegistry {
     val ReadingPresets = StringSetting("reader.named_presets", "[]", R.string.tools_presets, null, SettingsGroup.READER_TEXT, maxLength = 262_144)
     val ReadingPlans = StringSetting("goals.finish_by", "{}", R.string.tools_finish_by, null, SettingsGroup.GOALS, maxLength = 262_144)
 
+    val ReadNextCapacity = IntSetting("library.read_next_capacity", 10, R.string.queue_capacity, null, SettingsGroup.LIBRARY, 2..50, 1)
+    val NotebookExportFolder = StringSetting("notes.auto_export_folder", "", R.string.notebook_auto_export, null, SettingsGroup.LIBRARY, maxLength = 4096, exportable = false)
+
     val internal: List<Setting<out Any>> = listOf(
+        ReadNextCapacity,
+        NotebookExportFolder,
         SmartShelves,
         ReadingPresets,
         ReadingPlans,

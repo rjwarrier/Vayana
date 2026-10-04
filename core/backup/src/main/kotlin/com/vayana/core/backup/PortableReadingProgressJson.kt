@@ -29,6 +29,7 @@ data class PortableReadNextState(
     val fileHash: String,
     val addedAt: Long?,
     val updatedAt: Long,
+    val pinned: Boolean = false,
 )
 
 data class PortableCloudBook(
@@ -69,6 +70,10 @@ data class PortableCloudBook(
     val physicalOwnership: PhysicalBookOwnership? = null,
     val borrowReturnAt: Long? = null,
     val gutenbergId: Long? = null,
+    val readNextPinned: Boolean = false,
+    val readingDisposition: String = "ACTIVE",
+    val dispositionReason: String? = null,
+    val dispositionUpdatedAt: Long? = null,
 )
 
 data class PortableReadingProgressPatch(
@@ -81,6 +86,7 @@ data class PortableReadingProgressPatch(
     val totalReadingSeconds: Long,
     val readNextAddedAt: Long? = null,
     val readNextUpdatedAt: Long? = null,
+    val readNextPinned: Boolean = false,
 )
 
 data class PortableReadingProgressPatchResult(
@@ -139,6 +145,7 @@ fun patchPortableReadingProgressOnly(
         if (validReadNextState && localReadNextVersion > remoteReadNextVersion) {
             book.putNullable("readNextAddedAt", patch.readNextAddedAt)
             book.put("readNextUpdatedAt", localReadNextVersion)
+            book.put("readNextPinned", patch.readNextPinned)
             book.put("updatedAt", maxOf(book.optLong("updatedAt", 0L), localReadNextVersion))
             bookPatched = true
         }
@@ -341,6 +348,10 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                     customSideMarginPercent = book.optPositiveIntOrNull("customSideMarginPercent"),
                     readNextAddedAt = book.optPositiveLongOrNull("readNextAddedAt"),
                     readNextUpdatedAt = book.optPositiveLongOrNull("readNextUpdatedAt"),
+                    readNextPinned = book.optBoolean("readNextPinned", false),
+                    readingDisposition = book.optString("readingDisposition", "ACTIVE").takeIf { it in setOf("ACTIVE", "PAUSED", "DNF") } ?: "ACTIVE",
+                    dispositionReason = book.optBoundedString("dispositionReason", 2000),
+                    dispositionUpdatedAt = book.optPositiveLongOrNull("dispositionUpdatedAt"),
                     deletionUpdatedAt = book.optPositiveLongOrNull("deletionUpdatedAt"),
                     goodreadsUrl = book.optGoodreadsUrlOrNull(),
                     goodreadsRating = book.optFiniteFloatOrNull("goodreadsRating", min = 0f, max = 5f),
@@ -386,6 +397,7 @@ fun parsePortableReadingProgressSnapshot(jsonText: String): PortableReadingProgr
                 fileHash = fileHash,
                 addedAt = readNextAddedAt,
                 updatedAt = readNextUpdatedAt,
+                pinned = book.optBoolean("readNextPinned", false),
             )
         }
         val lastLocator = book.optBoundedString("lastLocator", MaxLocatorChars) ?: continue

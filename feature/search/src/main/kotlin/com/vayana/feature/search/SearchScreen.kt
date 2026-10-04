@@ -84,10 +84,13 @@ fun SearchRoute(
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val indexProgress by viewModel.contentIndex.progress.collectAsStateWithLifecycle()
 
     SearchScreen(
         modifier = modifier,
         uiState = uiState,
+        indexProgress = indexProgress,
+        onRetryIndex = viewModel.contentIndex::retry,
         searchText = viewModel.searchText,
         onQueryChange = viewModel::updateQuery,
         onFilterChange = viewModel::updateFilter,
@@ -109,6 +112,8 @@ fun SearchRoute(
 @Composable
 private fun SearchScreen(
     uiState: GlobalSearchUiState,
+    indexProgress: IndexProgress,
+    onRetryIndex: () -> Unit,
     /** What the search box shows; [uiState]'s query lags a frame behind typing. */
     searchText: String,
     onQueryChange: (String) -> Unit,
@@ -186,6 +191,11 @@ private fun SearchScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
                     )
+                    if (indexProgress.running) Text(stringResource(R.string.search_indexing, indexProgress.done, indexProgress.total), style = MaterialTheme.typography.bodySmall)
+                    if (indexProgress.failures > 0 && !indexProgress.running) Row {
+                        Text(stringResource(R.string.search_index_errors, indexProgress.failures))
+                        TextButton(onClick = onRetryIndex) { Text(stringResource(R.string.search_index_retry)) }
+                    }
                     if (uiState.hasQuery && uiState.totalMatches > 0) {
                         SearchFilterChips(uiState = uiState, onFilterChange = onFilterChange)
                     }
@@ -210,6 +220,7 @@ private fun SearchScreen(
                     contentPadding = innerPadding,
                     books = uiState.shownBooks,
                     annotations = uiState.shownAnnotations,
+                    passages = uiState.shownPassages,
                     tokens = uiState.tokens,
                     onOpenBook = onOpenBook,
                     onOpenReader = onOpenReader,
@@ -223,6 +234,7 @@ private fun SearchScreen(
 private fun SearchResultsList(
     books: List<BookSearchResult>,
     annotations: List<AnnotationSearchResult>,
+    passages: List<BookContentResult>,
     tokens: List<String>,
     onOpenBook: (Long) -> Unit,
     onOpenReader: (Long, String?) -> Unit,
@@ -238,6 +250,18 @@ private fun SearchResultsList(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        if (passages.isNotEmpty()) {
+            item { SearchSectionHeader(stringResource(R.string.search_contents)) }
+            items(passages, key = { "passage-${it.id}" }) { result ->
+                SearchResultSurface(onClick = { onOpenReader(result.book.id, result.locator) }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Text(result.book.title, style = MaterialTheme.typography.titleMedium)
+                        Text(result.chapter, style = MaterialTheme.typography.labelMedium)
+                        Text(highlightMatches(result.excerpt, tokens), maxLines = 5, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
         if (books.isNotEmpty()) {
             item { SearchSectionHeader(stringResource(R.string.search_books_header, books.size)) }
             items(books, key = { "book-${it.book.id}" }) { result ->
@@ -501,6 +525,7 @@ private fun SearchFilter.label(state: GlobalSearchUiState): String = when (this)
     SearchFilter.ALL -> stringResource(R.string.search_filter_all, state.totalMatches)
     SearchFilter.BOOKS -> stringResource(R.string.search_filter_books, state.books.size)
     SearchFilter.NOTES -> stringResource(R.string.search_filter_notes, state.annotations.size)
+    SearchFilter.CONTENTS -> stringResource(R.string.search_contents) + " (${state.passages.size})"
 }
 
 /** [text] with the word prefixes that matched the search emphasised. */

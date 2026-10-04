@@ -2,6 +2,15 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 33
+
+Migration 32→33 preserves existing books and annotations, adding default-unpinned Read Next entries,
+Active reading disposition with optional reason/version, and optional highlight review questions.
+Adds `epub_passages` plus its external-content `unicode61` FTS4 table and book index; the book foreign key
+cascades on permanent deletion. The content index is disposable and excluded from portable snapshots.
+Full-sync change triggers now include disposition edits without changing historical migration behavior.
+Queue pins and review questions are carried through portable exports/imports and cloud merges.
+
 ## Version 32
 
 Adds nullable `startPage` and `endPage` to `reading_sessions` for timed physical-book reading.

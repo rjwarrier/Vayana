@@ -59,6 +59,10 @@ data class PortableBook(
     val physicalOwnership: String? = null,
     val borrowReturnAt: Long? = null,
     val gutenbergId: Long? = null,
+    val readNextPinned: Boolean = false,
+    val readingDisposition: String = "ACTIVE",
+    val dispositionReason: String? = null,
+    val dispositionUpdatedAt: Long? = null,
 )
 
 data class PortableAsset(
@@ -81,6 +85,7 @@ data class PortableAnnotation(
     val createdAt: Long,
     val updatedAt: Long,
     val isDeleted: Boolean,
+    val reviewQuestion: String? = null,
 )
 
 data class PortableShelf(

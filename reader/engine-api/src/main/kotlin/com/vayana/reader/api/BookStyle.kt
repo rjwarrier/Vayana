@@ -37,4 +37,7 @@ enum class BookHyphenation { BOOK, ON, OFF }
 data class ReadTheme(
     val backgroundColorArgb: Int,
     val textColorArgb: Int,
+    /** Panel behavior must not be inferred from its page colors. */
+    val eink: Boolean = false,
+    val monochrome: Boolean = false,
 )

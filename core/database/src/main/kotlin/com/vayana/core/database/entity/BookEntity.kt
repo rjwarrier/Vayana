@@ -89,4 +89,8 @@ data class BookEntity(
     @ColumnInfo(defaultValue = "0") val sourceHasCover: Boolean = false,
     /** The owner's extra fields (publisher, shelf location, ...) as JSON, see `HomeLibraryDetails`. */
     val sourceMetadata: String? = null,
+    @ColumnInfo(defaultValue = "0") val readNextPinned: Boolean = false,
+    @ColumnInfo(defaultValue = "'ACTIVE'") val readingDisposition: String = "ACTIVE",
+    val dispositionReason: String? = null,
+    val dispositionUpdatedAt: Long? = null,
 )

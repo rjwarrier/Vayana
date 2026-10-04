@@ -31,6 +31,7 @@ import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.designsystem.tokens.Palette
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.isMonochrome
 import com.vayana.core.designsystem.theme.ThemeMode
 import com.vayana.core.filesystem.StorageRoots
 import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
@@ -1929,7 +1930,7 @@ private val SettingsSnapshot.selectedImportedFont
 private val SettingsSnapshot.readerFontFamilyCss: String
     get() = if (selectedImportedFont != null) "'VayanaImportedReaderFont', serif" else readerFontFamily.cssFamily
 
-private fun SettingsSnapshot.toBookStyle(pdfRotationDegrees: Int = 0): BookStyle = BookStyle(
+internal fun SettingsSnapshot.toBookStyle(pdfRotationDegrees: Int = 0): BookStyle = BookStyle(
     fontSizePercent = readerFontSizePercent,
     lineHeight = readerLineHeight,
     fontFamily = readerFontFamilyCss,
@@ -1962,9 +1963,9 @@ private val ReaderFontFamily.cssFamily: String
         ReaderFontFamily.MONO -> "monospace"
     }
 
-private val SettingsSnapshot.readTheme: ReadTheme
+internal val SettingsSnapshot.readTheme: ReadTheme
     get() = when {
-        displayProfile == DisplayProfile.E_INK -> Palette.EinkBackground.toReadTheme(Palette.EinkForeground)
+        displayProfile.isMonochrome(einkPalette) -> Palette.EinkBackground.toReadTheme(Palette.EinkForeground)
         readerTheme == ReaderTheme.LIGHT -> Palette.ReaderLightBackground.toReadTheme(Palette.ReaderLightText)
         readerTheme == ReaderTheme.PAPER -> Palette.ReaderPaperBackground.toReadTheme(Palette.ReaderPaperText)
         readerTheme == ReaderTheme.SEPIA -> Palette.ReaderSepiaBackground.toReadTheme(Palette.ReaderSepiaText)
@@ -1975,7 +1976,10 @@ private val SettingsSnapshot.readTheme: ReadTheme
         readerTheme == ReaderTheme.OLED -> Palette.ReaderOledBackground.toReadTheme(Palette.ReaderOledText)
         themeMode == ThemeMode.DARK -> Palette.ReaderDarkBackground.toReadTheme(Palette.ReaderDarkText)
         else -> Palette.ReaderPaperBackground.toReadTheme(Palette.ReaderPaperText)
-    }
+    }.copy(
+        eink = displayProfile == DisplayProfile.E_INK,
+        monochrome = displayProfile.isMonochrome(einkPalette),
+    )
 
 private fun androidx.compose.ui.graphics.Color.toReadTheme(textColor: androidx.compose.ui.graphics.Color): ReadTheme =
     ReadTheme(backgroundColorArgb = toArgb(), textColorArgb = textColor.toArgb())

@@ -935,6 +935,25 @@ async function goToHref(href) {
         } catch (_) {}
     }
 
+    if (href.startsWith('text:search:')) {
+        try {
+            const payload = href.slice('text:search:'.length)
+            const delimiter = payload.indexOf(':')
+            if (delimiter < 0) return
+            const chapter = decodeURIComponent(payload.slice(0, delimiter))
+            const text = decodeURIComponent(payload.slice(delimiter + 1))
+            if (!chapter || !text || text.length > 1800) return
+            const resolved = view.book.resolveHref(chapter)
+            const index = resolved?.index
+            const section = Number.isInteger(index) ? view.book.sections[index] : null
+            const doc = await section?.createDocument?.()
+            const range = doc ? findTextRangeInDoc(doc, text) : null
+            if (range) { range.collapse(true); await view.goTo(view.getCFI(index, range)) }
+            else if (resolved) await view.goTo(chapter)
+        } catch (error) { post('log', { step: 'contentsNavigation', message: String(error) }) }
+        return
+    }
+
     // Try finding matching annotation from activeAnnotationsList
     const ann = activeAnnotationsList.find(a =>
         a.value === href ||

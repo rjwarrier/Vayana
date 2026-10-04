@@ -127,6 +127,10 @@ data class Book(
     val syncUuid: String? = null,
     val source: String? = null,
     val sourceMetadata: String? = null,
+    val readNextPinned: Boolean = false,
+    val readingDisposition: String = "ACTIVE",
+    val dispositionReason: String? = null,
+    val dispositionUpdatedAt: Long? = null,
 ) {
     /** Mirrored from Home Library: its catalog fields are read-only here. */
     val isHomeLibrary: Boolean get() = source == BookSource.HOME_LIBRARY

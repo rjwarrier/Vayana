@@ -65,8 +65,6 @@ private val BundledSerifFaces = listOf(
 )
 private const val IMPORTED_FONT_FAMILY = "VayanaImportedReaderFont"
 private const val ReaderOpenTimeoutMillis = 60_000L
-private const val EinkBackgroundArgb = -0x1
-private const val EinkForegroundArgb = -0x1000000
 
 /** Width of the outline added to every letter for bolder text: enough to thicken a hairline serif, not to blur a letter. */
 internal const val BoldTextStrokePx = "0.4px"
@@ -349,11 +347,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
     override suspend fun applyStyle(style: BookStyle, theme: ReadTheme) {
         val margin = style.sideMarginPercent.coerceIn(0, 24)
         val lineHeight = style.lineHeight.coerceIn(1.2f, 4.0f)
-        val isEinkTheme = theme.backgroundColorArgb == EinkBackgroundArgb && theme.textColorArgb == EinkForegroundArgb
         // GPU-composited (hardware) layers hand the frame to the display pipeline as a diff/blend,
         // which is what most E-Ink drivers ghost on; a software layer forces a plain full-bitmap
         // draw that the OEM's E-Ink refresh logic handles far more cleanly.
-        webView.setLayerType(if (isEinkTheme) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
+        webView.setLayerType(if (theme.eink) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
         val css = buildString {
             // Bundled default serif; loaded lazily by the WebView, so unused faces cost nothing.
             for ((file, weight, fontStyle) in BundledSerifFaces) {
@@ -409,22 +406,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             }
             textAlignCss(style.textAlign)?.let(::append)
             hyphenationCss(style.hyphenation)?.let(::append)
-            if (isEinkTheme) {
-                append("*,*::before,*::after{")
-                append("animation:none !important;")
-                append("transition:none !important;")
-                append("text-shadow:none !important;")
-                append("box-shadow:none !important;")
-                append("filter:none !important;")
-                append("}")
-                append("a{")
-                append("color:${theme.textColorArgb.toCssColor()} !important;")
-                append("text-decoration:underline !important;")
-                append("}")
-                append("img,svg,video,canvas{")
-                append("filter:grayscale(1) contrast(1.15) !important;")
-                append("}")
-            }
+            append(einkStyleCss(theme))
         }
         // One trip across the bridge for the whole style.
         webView.evaluateJavascript(
@@ -432,7 +414,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 "window.VayanaReader.setBionicReading(${style.bionicReading});" +
                 "window.VayanaReader.setPageTurnAnimation(${style.pageTurnAnimation});" +
                 // Highlights live in an overlay outside the book's document, so the CSS above cannot reach them.
-                "window.VayanaReader.setInkMarks($isEinkTheme);" +
+                "window.VayanaReader.setInkMarks(${theme.eink && theme.monochrome});" +
                 // PDF pages are drawn, not styled: pdf.js repaints them in the theme's colours instead.
                 "window.VayanaReader.setPageColors(" +
                 "${JSONObject.quote(theme.backgroundColorArgb.toCssColor())}, " +
@@ -757,7 +739,7 @@ private fun pdfLayoutJson(style: BookStyle): String = JSONObject()
     .put("rotationDegrees", style.pdfRotationDegrees)
     .toString()
 
-private fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
+internal fun Int.toCssColor(): String = "#%06X".format(this and 0xFFFFFF)
 
 private fun File.readerFontMimeType(): String =
     when (extension.lowercase()) {

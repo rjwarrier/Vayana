@@ -1265,6 +1265,7 @@ internal fun Setting<out Any>.asAny(): Setting<Any> = this as Setting<Any>
 private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (setting) {
     SettingsRegistry.ThemeMode -> themeMode
     SettingsRegistry.DisplayProfile -> displayProfile
+    SettingsRegistry.EinkPalette -> einkPalette
     SettingsRegistry.EinkAudioFeatures -> einkAudioFeaturesEnabled
     SettingsRegistry.DarkVariant -> darkVariant
     SettingsRegistry.Motion -> motionSetting
@@ -1331,7 +1332,8 @@ private fun List<Setting<out Any>>.filterByQuery(query: String, resources: Resou
 }
 
 private fun Setting<out Any>.isVisibleFor(settings: SettingsSnapshot): Boolean =
-    this != SettingsRegistry.EinkAudioFeatures || settings.displayProfile == DisplayProfile.E_INK
+    (this != SettingsRegistry.EinkAudioFeatures && this != SettingsRegistry.EinkPalette) ||
+        settings.displayProfile == DisplayProfile.E_INK
 
 private fun Setting<out Any>.searchTokens(resources: Resources): String {
     // Title, subtitle and keywords are resources, so settings search works in the reader's language.

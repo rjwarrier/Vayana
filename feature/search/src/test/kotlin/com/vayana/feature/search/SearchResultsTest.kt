@@ -9,6 +9,35 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SearchResultsTest {
+    @Test fun chunkOverlapPreservesBoundaryPhrases() {
+        val text = (1..3000).joinToString(" ") { "word$it" }
+        val chunks = chunkPassage(text)
+        assertEquals(true, chunks.size > 1 && chunks.all { it.length <= 1800 })
+        val boundary = chunks.first().substringAfterLast(" ")
+        assertEquals(true, chunks[1].contains(boundary))
+        assertEquals(true, chunks.last().endsWith("word3000"))
+    }
+    @Test fun lazyChunksPreserveWholeTextAndBoundaryOverlap() {
+        val text = (1..3000).joinToString(" ") { "word$it" }
+        val chunks = passageChunks(text).toList()
+        val reconstructed = StringBuilder(chunks.first())
+        for (chunk in chunks.drop(1)) {
+            val overlap = (1..240).last { length -> reconstructed.endsWith(chunk.take(length)) }
+            reconstructed.append(chunk.drop(overlap))
+        }
+        assertEquals(text, reconstructed.toString())
+    }
+
+    @Test fun contentsFilterShowsOnlyPassages() {
+        val source = book(1, "Book")
+        val passage = BookContentResult(1, source, "Chapter", "river", "text:search:a:river")
+        val state = GlobalSearchUiState(query = "river", passages = listOf(passage), filter = SearchFilter.CONTENTS)
+        assertEquals(listOf(passage), state.shownPassages)
+        assertEquals(true, state.hasMatches)
+        assertEquals(emptyList(), state.copy(filter = SearchFilter.NOTES).shownPassages)
+        assertEquals(false, state.copy(filter = SearchFilter.NOTES).hasMatches)
+    }
+
 
     @Test
     fun keepsDatabaseOrderAndLabelsEveryMatchedField() {

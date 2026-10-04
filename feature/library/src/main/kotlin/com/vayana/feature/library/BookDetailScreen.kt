@@ -735,6 +735,7 @@ private fun BookDetailScreen(
                             .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
+                        BookDispositionControl(book)
                         // Cover on the left, identity (title, author, series, Goodreads) beside it; cover editing
                         // lives in its own dialog so the top of the screen stays compact.
                         Row(
@@ -1803,6 +1804,7 @@ internal fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.GOODREADS_COVER_FAILED -> stringResource(R.string.library_goodreads_cover_failed)
     BookDetailMessage.GOODREADS_QUOTES_FAILED -> stringResource(R.string.library_goodreads_quotes_failed)
     BookDetailMessage.READING_STATS_RESET -> stringResource(R.string.library_reading_stats_reset)
+    BookDetailMessage.QUEUE_FULL -> stringResource(R.string.queue_full)
     BookDetailMessage.READING_STATS_RESET_FAILED -> stringResource(R.string.library_reading_stats_reset_failed)
     BookDetailMessage.GOODREADS_FAILED -> stringResource(R.string.library_goodreads_apply_failed)
 }

@@ -9,6 +9,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface HighlightReviewDao {
+    @Query("SELECT COUNT(*) FROM annotations a JOIN books b ON b.id = a.bookId LEFT JOIN highlight_reviews h ON h.annotationSyncId = a.syncId WHERE a.isDeleted = 0 AND b.isDeleted = 0 AND length(trim(a.selectedText, :whitespace)) > 0 AND instr(a.locator, 'quote:') != 1 AND instr(a.locator, 'goodreads-quote:') != 1 AND (h.dueAt <= :now OR h.annotationSyncId IS NULL)")
+    fun observeDueCount(now: Long, whitespace: String): Flow<Int>
+
+    @Query("DELETE FROM highlight_reviews WHERE annotationSyncId = :syncId")
+    suspend fun reset(syncId: String)
+
     @Query("SELECT * FROM highlight_reviews")
     fun observeAll(): Flow<List<HighlightReviewEntity>>
 

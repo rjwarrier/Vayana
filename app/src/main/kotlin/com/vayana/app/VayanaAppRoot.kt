@@ -56,6 +56,7 @@ fun VayanaAppRoot() {
     VayanaTheme(
         themeMode = settings.themeMode,
         displayProfile = settings.displayProfile,
+        einkPalette = settings.einkPalette,
         darkVariant = settings.darkVariant,
         motionSetting = settings.motionSetting,
         dynamicColor = settings.dynamicColor,
@@ -88,15 +89,22 @@ fun VayanaAppRoot() {
         // The home-screen widget's book, straight into the reader - and read aloud, from its play button.
         val openBookRequest by settingsViewModel.openBookRequest.collectAsStateWithLifecycle()
         LaunchedEffect(openBookRequest) {
-            val request = openBookRequest ?: return@LaunchedEffect
+            val pending = openBookRequest ?: return@LaunchedEffect
+            val request = settingsViewModel.resolveOpenBookRequest(pending)
+            if (request == null) { settingsViewModel.consumeOpenBookRequest(pending); return@LaunchedEffect }
+            if (request.offline) {
+                navController.navigate(com.vayana.app.navigation.BookDetailRoute(request.bookId)) { launchSingleTop = true }
+                settingsViewModel.consumeOpenBookRequest(pending)
+                return@LaunchedEffect
+            }
             val top = navController.currentBackStackEntry
             val alreadyOpen = top?.destination?.hasRoute(ReaderRoute::class) == true && top.toRoute<ReaderRoute>().bookId == request.bookId
-            if (alreadyOpen) {
+            if (alreadyOpen && request.locator == null) {
                 if (request.readAloud) settingsViewModel.requestReadAloud(request.bookId)
             } else {
-                navController.navigate(ReaderRoute(request.bookId, readAloud = request.readAloud)) { launchSingleTop = true }
+                navController.navigate(ReaderRoute(request.bookId, targetLocator = request.locator, readAloud = request.readAloud)) { launchSingleTop = true }
             }
-            settingsViewModel.consumeOpenBookRequest(request)
+            settingsViewModel.consumeOpenBookRequest(pending)
         }
         // A launcher shortcut's screen, over the library it belongs to.
         val shortcutRequest by settingsViewModel.shortcutRequest.collectAsStateWithLifecycle()

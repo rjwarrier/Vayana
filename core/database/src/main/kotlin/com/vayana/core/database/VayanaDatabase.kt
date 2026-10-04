@@ -29,7 +29,7 @@ import com.vayana.core.database.dao.PendingCloudDeletionDao
 import com.vayana.core.database.entity.PendingCloudDeletionEntity
 
 /** Bumping this is a real Room migration + a docs/DATABASE_CHANGELOG.md entry, from day one (docs/PRODUCT_SPEC.md §2). */
-const val DATABASE_VERSION = 32
+const val DATABASE_VERSION = 33
 
 @Database(
     entities = [
@@ -38,6 +38,8 @@ const val DATABASE_VERSION = 32
         BookAliasEntity::class, TombstoneEntity::class, BookFtsEntity::class, AnnotationFtsEntity::class,
         PendingCloudDeletionEntity::class, HighlightReviewEntity::class,
         FullSyncStateEntity::class,
+        com.vayana.core.database.entity.EpubPassageEntity::class,
+        com.vayana.core.database.entity.EpubPassageFtsEntity::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -53,5 +55,6 @@ abstract class VayanaDatabase : RoomDatabase() {
     abstract fun tombstoneDao(): TombstoneDao
     abstract fun pendingCloudDeletionDao(): PendingCloudDeletionDao
     abstract fun highlightReviewDao(): HighlightReviewDao
+    abstract fun epubPassageDao(): com.vayana.core.database.dao.EpubPassageDao
     abstract fun fullSyncStateDao(): FullSyncStateDao
 }

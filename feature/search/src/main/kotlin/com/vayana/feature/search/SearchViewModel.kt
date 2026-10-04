@@ -36,6 +36,7 @@ data class GlobalSearchUiState(
     val query: String = "",
     val books: List<BookSearchResult> = emptyList(),
     val annotations: List<AnnotationSearchResult> = emptyList(),
+    val passages: List<BookContentResult> = emptyList(),
     /** The results shown are for an older query; the debounced search for [query] hasn't landed yet. */
     val isSearching: Boolean = false,
     val filter: SearchFilter = SearchFilter.ALL,
@@ -44,13 +45,16 @@ data class GlobalSearchUiState(
     val recentSearches: List<String> = emptyList(),
 ) {
     val hasQuery: Boolean get() = query.isNotBlank()
-    val totalMatches: Int get() = books.size + annotations.size
-    val shownBooks: List<BookSearchResult> get() = if (filter == SearchFilter.NOTES) emptyList() else books
-    val shownAnnotations: List<AnnotationSearchResult> get() = if (filter == SearchFilter.BOOKS) emptyList() else annotations
-    val hasMatches: Boolean get() = shownBooks.isNotEmpty() || shownAnnotations.isNotEmpty()
+    val totalMatches: Int get() = books.size + annotations.size + passages.size
+    val shownBooks: List<BookSearchResult> get() = if (filter != SearchFilter.ALL && filter != SearchFilter.BOOKS) emptyList() else books
+    val shownAnnotations: List<AnnotationSearchResult> get() = if (filter != SearchFilter.ALL && filter != SearchFilter.NOTES) emptyList() else annotations
+    val shownPassages: List<BookContentResult> get() = if (filter == SearchFilter.ALL || filter == SearchFilter.CONTENTS) passages else emptyList()
+    val hasMatches: Boolean get() = shownBooks.isNotEmpty() || shownAnnotations.isNotEmpty() || shownPassages.isNotEmpty()
 }
 
-enum class SearchFilter { ALL, BOOKS, NOTES }
+enum class SearchFilter { ALL, BOOKS, NOTES, CONTENTS }
+
+data class BookContentResult(val id: Long, val book: Book, val chapter: String, val excerpt: String, val locator: String)
 
 data class BookSearchResult(
     val book: Book,
@@ -79,6 +83,7 @@ internal data class SearchResults(
     val tokens: List<String> = emptyList(),
     val books: List<BookSearchResult> = emptyList(),
     val annotations: List<AnnotationSearchResult> = emptyList(),
+    val passages: List<BookContentResult> = emptyList(),
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -89,7 +94,10 @@ class SearchViewModel @Inject constructor(
     resolvedBooks: ResolvedBooks,
     private val settingsRepository: SettingsRepository,
     dispatchers: DispatcherProvider,
+    private val passages: com.vayana.core.database.dao.EpubPassageDao,
+    val contentIndex: EpubContentIndex,
 ) : ViewModel() {
+    init { contentIndex.start() }
     private val query = MutableStateFlow("")
     private val filter = MutableStateFlow(SearchFilter.ALL)
 
@@ -106,7 +114,16 @@ class SearchViewModel @Inject constructor(
                     bookRepository.observeSearchIds(text, MaxBookResults),
                     annotationRepository.observeSearch(text, MaxAnnotationResults),
                     resolvedBooks.all,
-                ) { bookIds, annotations, books -> searchResults(text, bookIds, annotations, books) }
+                    passages.search(requireNotNull(com.vayana.core.database.search.ftsPrefixMatch(searchTokens(text))), 60),
+                ) { bookIds, annotations, books, content ->
+                    val byId = books.associateBy { it.id }
+                    searchResults(text, bookIds, annotations, books).copy(passages = content.mapNotNull { passage ->
+                        val book = byId[passage.bookId] ?: return@mapNotNull null
+                        val excerpt = passageExcerpt(passage.text, searchTokens(text))
+                        BookContentResult(passage.id, book, passage.chapterTitle, excerpt,
+                            "text:search:${android.net.Uri.encode(passage.chapterHref)}:${android.net.Uri.encode(excerpt)}")
+                    })
+                }
             }
         }
         .flowOn(dispatchers.default)
@@ -121,6 +138,7 @@ class SearchViewModel @Inject constructor(
             query = query,
             books = results.books,
             annotations = results.annotations,
+            passages = results.passages,
             isSearching = query.trim() != results.query,
             filter = filter,
             tokens = results.tokens,
@@ -202,3 +220,10 @@ private const val SearchDebounceMillis = 150L
 private const val MaxRecentSearches = 8
 private const val MaxBookResults = 30
 private const val MaxAnnotationResults = 80
+
+internal fun passageExcerpt(text: String, tokens: List<String>): String {
+    val firstMatch = com.vayana.core.database.search.wordPrefixMatchRanges(text, tokens).firstOrNull()?.first ?: 0
+    val roughStart = (firstMatch - 60).coerceAtLeast(0)
+    val start = if (roughStart == 0) 0 else text.indexOf(' ', roughStart).takeIf { it in roughStart..firstMatch }?.plus(1) ?: roughStart
+    return text.substring(start, minOf(text.length, start + 300)).trim()
+}

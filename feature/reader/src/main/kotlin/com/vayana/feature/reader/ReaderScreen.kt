@@ -171,6 +171,8 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.core.datastore.settings.TapZoneMode
 import com.vayana.core.designsystem.theme.DisplayProfile
+import com.vayana.core.designsystem.theme.LocalEinkPalette
+import com.vayana.core.designsystem.theme.isMonochrome
 import com.vayana.core.designsystem.theme.PageKeyDirection
 import com.vayana.core.designsystem.theme.pageKeyDirection
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
@@ -1717,7 +1719,7 @@ private fun ReaderSyncStatusDot(syncStatus: ReaderSyncStatus, modifier: Modifier
     )
     val ink = MaterialTheme.colorScheme.onSurface
     val color = when {
-        isEink -> ink
+        LocalDisplayProfile.current.isMonochrome(LocalEinkPalette.current) -> ink
         syncStatus is ReaderSyncStatus.Syncing -> Palette.SyncActive
         syncStatus is ReaderSyncStatus.Synced -> Palette.SyncSettled
         else -> Palette.SyncWarning
@@ -3266,7 +3268,7 @@ private fun ReaderTheme.swatchColor(): Color = when (this) {
 
 @Composable
 private fun SettingsSnapshot.readerBackgroundColor(): Color = when {
-    displayProfile == DisplayProfile.E_INK -> Palette.EinkBackground
+    displayProfile.isMonochrome(einkPalette) -> Palette.EinkBackground
     readerTheme == ReaderTheme.LIGHT -> Palette.ReaderLightBackground
     readerTheme == ReaderTheme.PAPER -> Palette.ReaderPaperBackground
     readerTheme == ReaderTheme.SEPIA -> Palette.ReaderSepiaBackground

@@ -8,6 +8,20 @@ import kotlin.test.assertTrue
 import org.json.JSONObject
 
 class PortableReadingProgressJsonTest {
+    @Test fun dispositionPinsAndReviewQuestionsRemainPortable() {
+        val json = """{"books":[{"syncId":"book","title":"Paper","format":"PHYSICAL","fileHash":"hash","updatedAt":300,"readNextAddedAt":100,"readNextUpdatedAt":200,"readNextPinned":true,"readingDisposition":"DNF","dispositionReason":"Stopped","dispositionUpdatedAt":250}],"annotations":[{"syncId":"note","bookSyncId":"book","type":"HIGHLIGHT","colorKey":"yellow","locator":"page:1","selectedText":"Answer","createdAt":100,"updatedAt":200,"reviewQuestion":"Question?"}]}"""
+        val book = parsePortableCloudBooks(json).single()
+        assertEquals("DNF", book.readingDisposition)
+        assertEquals("Stopped", book.dispositionReason)
+        assertEquals(250L, book.dispositionUpdatedAt)
+        assertTrue(book.readNextPinned)
+        assertTrue(parsePortableReadingProgressSnapshot(json).readNextStates.single().pinned)
+        assertEquals("Question?", parsePortableAnnotations(json).single().reviewQuestion)
+        val legacy = json.replace(",\"readingDisposition\":\"DNF\"", "").replace(",\"readNextPinned\":true", "")
+        assertEquals("ACTIVE", parsePortableCloudBooks(legacy).single().readingDisposition)
+        assertEquals(false, parsePortableReadingProgressSnapshot(legacy).readNextStates.single().pinned)
+    }
+
     @Test
     fun physicalSessionPagesRoundTripAndOlderLogsRemainValid() {
         val log = PortableReadingSession("physical", "book", 1000, 61000, 60, 10, 15)

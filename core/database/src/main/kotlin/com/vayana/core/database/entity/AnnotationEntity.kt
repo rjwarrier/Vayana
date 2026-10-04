@@ -38,4 +38,5 @@ data class AnnotationEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val isDeleted: Boolean = false,
+    val reviewQuestion: String? = null,
 )

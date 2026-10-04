@@ -49,6 +49,7 @@ private val VayanaShapes = Shapes(
 fun VayanaTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     displayProfile: DisplayProfile = LocalDisplayProfile.current,
+    einkPalette: EinkPalette = LocalEinkPalette.current,
     darkVariant: DarkVariant = LocalDarkVariant.current,
     motionSetting: MotionSetting = LocalMotionSetting.current,
     dynamicColor: Boolean = LocalDynamicColor.current,
@@ -60,19 +61,21 @@ fun VayanaTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    // Wallpaper colors would undo the E-Ink profile's monochrome chrome, so that profile always wins.
-    val colorScheme = if (dynamicColor && displayProfile != DisplayProfile.E_INK && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    // Wallpaper palettes must not override the contrast-tuned E-Ink palettes.
+    val useDynamicColor = dynamicColor && displayProfile != DisplayProfile.E_INK
+    val colorScheme = if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         ColorSchemes.dynamic(LocalContext.current, isDark, darkVariant)
     } else {
-        ColorSchemes.forProfile(displayProfile, isDark, darkVariant)
+        ColorSchemes.forProfile(displayProfile, isDark, darkVariant, einkPalette)
     }
     val motionScheme = motionSchemeFor(displayProfile, motionSetting)
 
     CompositionLocalProvider(
         LocalDisplayProfile provides displayProfile,
+        LocalEinkPalette provides einkPalette,
         LocalDarkVariant provides darkVariant,
         LocalMotionSetting provides motionSetting,
-        LocalDynamicColor provides dynamicColor,
+        LocalDynamicColor provides useDynamicColor,
         LocalDateFormatStyle provides dateFormatStyle,
         // Ripple fade and stretch/glow overscroll both animate a repaint - deadly for E-Ink ghosting.
         LocalIndication provides if (displayProfile == DisplayProfile.E_INK) NoIndication else LocalIndication.current,
