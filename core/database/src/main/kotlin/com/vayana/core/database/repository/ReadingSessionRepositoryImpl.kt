@@ -27,6 +27,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     override fun observeSince(since: Long): Flow<List<ReadingSession>> =
         readingSessionDao.observeSince(since).map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeSecondsSince(since: Long): Flow<Long> = readingSessionDao.observeSecondsSince(since)
+
     override fun observeForBook(bookId: Long): Flow<List<ReadingSession>> =
         readingSessionDao.observeForBook(bookId).map { entities -> entities.map { it.toDomain() } }
 

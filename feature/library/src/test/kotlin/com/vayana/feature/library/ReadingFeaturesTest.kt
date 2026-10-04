@@ -10,6 +10,7 @@ import com.vayana.core.common.passageLink
 import com.vayana.core.common.parsePassageLink
 import com.vayana.core.common.PassageLink
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 import org.junit.runner.RunWith
@@ -28,6 +29,50 @@ class ReadingFeaturesTest {
     }
     @AfterTest fun close() { db.close() }
 
+    @Test fun todayAggregateKeepsStartTimeBoundaryAndReflectsRecordedAndDeletedSessions() = runBlocking {
+        val book = books.insertOfflineBook("Paper", null, BookFormat.PHYSICAL, null, null)
+        val sessions = com.vayana.core.database.repository.ReadingSessionRepositoryImpl(
+            db, db.readingSessionDao(), db.bookDao(), db.bookAliasDao(), db.tombstoneDao())
+        assertEquals(0L, sessions.observeSecondsSince(1000).first())
+        sessions.record(book.id, 999, 5000, 200)
+        sessions.record(book.id, 1000, 5000, 90)
+        sessions.record(book.id, 2000, 5000, 30)
+        assertEquals(120L, sessions.observeSecondsSince(1000).first())
+        assertEquals(30L, sessions.observeSecondsSince(1001).first())
+        assertEquals(sessions.observeSince(1000).first().sumOf { it.durationSeconds }, sessions.observeSecondsSince(1000).first())
+        sessions.deleteBySyncId(sessions.observeSince(1000).first().first().syncId)
+        assertEquals(30L, sessions.observeSecondsSince(1000).first())
+    }
+
+    @Test fun readingDaysIgnoreMinuteTicksAndRefreshAtLocalMidnightAndZoneChanges() = runBlocking {
+        val zone = java.time.ZoneId.of("Asia/Kolkata")
+        val date = java.time.LocalDate.of(2026, 10, 4)
+        val midnight = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val days = kotlinx.coroutines.flow.flowOf(midnight, midnight + 60_000, midnight + 86_400_000)
+            .readingDays { zone }.toList()
+        assertEquals(listOf(date, date.plusDays(1)), days.map { it.date })
+        assertEquals(listOf(midnight, midnight + 86_400_000), days.map { it.start })
+        val zones = listOf(java.time.ZoneId.of("UTC"), java.time.ZoneId.of("Asia/Kolkata")).iterator()
+        val changed = kotlinx.coroutines.flow.flowOf(midnight + 43_200_000, midnight + 43_200_000)
+            .readingDays { zones.next() }.toList()
+        assertEquals(2, changed.size)
+        assertNotEquals(changed[0].start, changed[1].start)
+    }
+
+    @Test fun dashboardPreservesCurrentReadingAndOnlyTheFirstThreeActivePlans() = runBlocking {
+        val paper = books.insertOfflineBook("Paper", null, BookFormat.PHYSICAL, null, null)
+        val current = paper.copy(id=10, syncId="current", format=BookFormat.EPUB, filePath="book.epub", lastReadAt=900, readingPercent=.5f)
+        val paused = current.copy(id=11, syncId="paused", readingDisposition="PAUSED", lastReadAt=1000)
+        val finished = current.copy(id=12, syncId="finished", finishedReadingAt=1100)
+        val active = (1..4).map { paper.copy(id=it.toLong(), syncId="plan-$it") }
+        val date = java.time.LocalDate.of(2026, 10, 4)
+        val library = listOf(paused, finished) + active + current
+        val state = todayLibraryState(library, library.associate { it.syncId to date.plusDays(4) }, 20, date)
+        assertEquals(current, state.current)
+        assertEquals(20, state.goal)
+        assertEquals(listOf(1L, 2L, 3L), state.plans.map { it.first.id })
+    }
+
     @Test fun queueCapacityReorderingAndPinsSurviveReload() = runBlocking {
         val first = books.insertOfflineBook("First", null, BookFormat.PHYSICAL, null, null)
         val second = books.insertOfflineBook("Second", null, BookFormat.PHYSICAL, null, null)
@@ -36,7 +81,9 @@ class ReadingFeaturesTest {
         books.setReadNext(second.id, true, 2)
         assertFailsWith<ReadNextQueueFullException> { books.setReadNext(third.id, true, 2) }
         assertEquals(2, orderedReadNext(books.observeAll().first()).size)
+        val previousVersion = db.bookDao().latestReadNextUpdate()
         books.reorderReadNext(listOf(second.id, first.id))
+        assertTrue(db.bookDao().latestReadNextUpdate() > previousVersion)
         assertEquals(listOf(second.id, first.id), orderedReadNext(books.observeAll().first()).map { it.id })
         books.pinReadNext(first.id, true)
         assertEquals(first.id, orderedReadNext(books.observeAll().first()).first().id)
@@ -119,6 +166,18 @@ class ReadingFeaturesTest {
             assertEquals("First chapter", chapters.first().title)
             assertTrue(chapters.first().text.contains("Café & river."))
             assertFalse(chapters.first().text.contains("Hidden"))
+            var checkpoints = 0
+            assertFailsWith<kotlinx.coroutines.CancellationException> {
+                com.vayana.format.epub.EpubTextExtractor.extract(file) {
+                    checkpoints++
+                    if (checkpoints == 3) throw kotlinx.coroutines.CancellationException("Stop indexing")
+                }
+            }
+            assertEquals(3, checkpoints)
+            // The cancellation must release the ZIP immediately, including on Windows.
+            val moved = java.io.File(file.parentFile, file.name + ".closed")
+            assertTrue(file.renameTo(moved))
+            assertTrue(moved.renameTo(file))
         } finally { file.delete() }
     }
 

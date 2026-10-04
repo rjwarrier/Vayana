@@ -28,6 +28,9 @@ interface ReadingSessionRepository {
     /** Sessions (this device's and synced ones) started at or after [since], epoch millis. */
     fun observeSince(since: Long): Flow<List<ReadingSession>>
 
+    /** Aggregate without loading or mapping the session rows. Same start-time boundary as [observeSince]. */
+    fun observeSecondsSince(since: Long): Flow<Long>
+
     /** Records a finished session. Callers should drop sessions that never really started (0s). */
     suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long? = null)
 

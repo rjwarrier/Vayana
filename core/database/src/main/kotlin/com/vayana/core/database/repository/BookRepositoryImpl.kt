@@ -599,7 +599,7 @@ class BookRepositoryImpl @Inject constructor(
         database.withTransaction {
             val queued = bookDao.getReadNextQueueIdsNewestFirst().toSet()
             require(ids.distinct().size == ids.size && ids.all { it in queued })
-            val now = maxOf(System.currentTimeMillis(), queued.maxOfOrNull { (bookDao.getById(it)?.readNextUpdatedAt ?: 0L) + 1 } ?: 0L)
+            val now = maxOf(System.currentTimeMillis(), bookDao.latestReadNextUpdate() + 1)
             val order = ids + (queued - ids.toSet()).sorted()
             order.forEachIndexed { index, id -> bookDao.reorderReadNext(id, now - order.size + index, now) }
         }

@@ -48,19 +48,17 @@ class ReadingDashboardViewModel @Inject constructor(
     val queue = resolved.all.map { orderedReadNext(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val clock = flow { while (true) { emit(System.currentTimeMillis()); delay(60_000) } }
-    internal val today = clock.flatMapLatest { now ->
-        val date = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
-        val start = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val library = combine(resolved.all, tools.plans, settings.snapshot) { all, plans, preferences ->
-            Triple(all, plans, preferences.dailyReadingGoalMinutes)
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(), replay = 1)
+    private val reviewCounts = clock.flatMapLatest { now ->
+        combine(highlights.observeDueCount(now), words.observeDueCount(now)) { h, w -> h to w }
+    }
+    internal val today = clock.readingDays().flatMapLatest { day ->
+        val library = combine(resolved.all, tools.plans,
+            settings.snapshot.map { it.dailyReadingGoalMinutes }.distinctUntilChanged()) { all, plans, goal ->
+            todayLibraryState(all, plans, goal, day.date)
         }
-        val activity = combine(sessions.observeSince(start), highlights.observeDueCount(now), words.observeDueCount(now)) { logs, h, w ->
-            Triple((logs.sumOf { it.durationSeconds } / 60).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), h, w)
-        }
-        combine(library, activity) { (all, plans, goal), (minutes, h, w) ->
-            val active = all.filter { it.readingDisposition == "ACTIVE" && it.finishedReadingAt == null && it.readingPercent < 1f }
-            TodayState(minutes, goal, w, h, active.filter { it.hasLocalReadableSource() && it.hasStartedReading() }.maxByOrNull { it.lastReadAt ?: 0L },
-                active.asSequence().mapNotNull { book -> plans[book.syncId]?.let { book to finishByPlan(book, it, date) } }.take(3).toList())
+        combine(library, sessions.observeSecondsSince(day.start), reviewCounts) { state, seconds, (h, w) ->
+            state.copy(minutes = (seconds / 60).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), words = w, highlights = h)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TodayState())
     private val _error = MutableStateFlow(false)
@@ -81,6 +79,27 @@ class ReadingDashboardViewModel @Inject constructor(
     fun pin(book: Book) = mutate { books.pinReadNext(book.id, !book.readNextPinned) }
     fun remove(id: Long) = mutate { books.setReadNext(id, false) }
     suspend fun disposition(id: Long, status: String, reason: String?) { books.updateDisposition(id, status, reason) }
+}
+
+internal data class ReadingDay(val date: LocalDate, val start: Long)
+
+/** Minute ticks refresh due reviews; session/library subscriptions only change at local midnight or a zone change. */
+internal fun Flow<Long>.readingDays(zone: () -> ZoneId = { ZoneId.systemDefault() }): Flow<ReadingDay> = map { now ->
+    val currentZone = zone()
+    val date = Instant.ofEpochMilli(now).atZone(currentZone).toLocalDate()
+    ReadingDay(date, date.atStartOfDay(currentZone).toInstant().toEpochMilli())
+}.distinctUntilChanged()
+
+internal fun todayLibraryState(all: List<Book>, plans: Map<String, LocalDate>, goal: Int, date: LocalDate): TodayState {
+    var current: Book? = null
+    val dailyPlans = ArrayList<Pair<Book, FinishByPlan>>(3)
+    for (book in all) {
+        if (book.readingDisposition != "ACTIVE" || book.finishedReadingAt != null || !(book.readingPercent < 1f)) continue
+        if (book.hasLocalReadableSource() && book.hasStartedReading() &&
+            (current == null || (book.lastReadAt ?: 0L) > (current.lastReadAt ?: 0L))) current = book
+        if (dailyPlans.size < 3) plans[book.syncId]?.let { dailyPlans += book to finishByPlan(book, it, date) }
+    }
+    return TodayState(goal = goal, current = current, plans = dailyPlans)
 }
 
 internal fun orderedReadNext(books: List<Book>): List<Book> = books.filter { it.readNextAddedAt != null }

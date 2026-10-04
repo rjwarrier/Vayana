@@ -57,7 +57,8 @@ class EpubContentIndex @Inject constructor(
                         pending.forEachIndexed { index, (id, hash, path) ->
                             currentCoroutineContext().ensureActive()
                             val result = runCatchingCancellable {
-                                val chapters = EpubTextExtractor.extract(File(path))
+                                val context = currentCoroutineContext()
+                                val chapters = EpubTextExtractor.extract(File(path)) { context.ensureActive() }
                                 val passages = chapters.asSequence().flatMap { chapter -> passageChunks(chapter.text).map { text ->
                                     EpubPassageEntity(bookId = id, fileHash = hash, chapterHref = chapter.href, chapterTitle = chapter.title, text = text)
                                 } }

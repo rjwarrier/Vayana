@@ -231,6 +231,9 @@ interface BookDao {
     @Query("SELECT id FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0 ORDER BY readNextPinned DESC, readNextAddedAt DESC")
     suspend fun getReadNextQueueIdsNewestFirst(): List<Long>
 
+    @Query("SELECT COALESCE(MAX(readNextUpdatedAt), 0) FROM books WHERE readNextAddedAt IS NOT NULL AND isDeleted = 0")
+    suspend fun latestReadNextUpdate(): Long
+
 
     @Query("UPDATE books SET readNextAddedAt = :position, readNextUpdatedAt = :now, updatedAt = MAX(updatedAt, :now) WHERE id = :id AND readNextAddedAt IS NOT NULL AND isDeleted = 0")
     suspend fun reorderReadNext(id: Long, position: Long, now: Long)

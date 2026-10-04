@@ -33,7 +33,9 @@ annotation records. These tools do not require another database schema change.
 
 - **Today card:** At the top of the main Library, see today's saved session minutes versus the daily goal,
   due vocabulary/highlight counts and Continue reading. Expand for up to three finish-by plans and review
-  shortcuts. Hide the card there and restore it in Settings → Library.
+  shortcuts. Hide the card there and restore it in Settings → Library. Session minutes use a SQL aggregate;
+  minute ticks refresh due-review counts without resubscribing to sessions or the library. Local midnight or a
+  timezone change recalculates the day boundary and finish-by plans.
 - **Paused / Did not finish:** Book details → Reading status. Save an optional reason. Dates, progress,
   time and sessions remain intact. Paused/DNF books leave Currently Reading and suggestions; Library filters
   and smart-shelf status rules can find them. Opening a book resumes Active status. These fields sync in full
@@ -73,7 +75,8 @@ excluded. PDF and physical-book contents are not indexed; their personal highlig
 The index is excluded from snapshots and backups, and rebuilds locally. Cached book identities are checked
 in one database query; passage generation/insertion uses batches of at most 100 inside a transaction, so a
 failed generation or insert preserves the previous index without retaining every passage in memory. EPUB extraction is bounded to
-4 MiB per entry, 32 MiB of chapter text per book and 3,000 spine entries.
+4 MiB per entry, 32 MiB of chapter text per book and 3,000 spine entries. Cancellation is checked between
+ZIP reads, XML steps and chapters, so a canceled indexing run does not finish decoding the whole book.
 
 ## Onboarding
 
