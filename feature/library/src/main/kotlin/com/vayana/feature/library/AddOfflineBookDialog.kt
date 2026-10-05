@@ -356,6 +356,7 @@ internal fun OfflinePageFields(
     onCurrentPageChange: (String) -> Unit,
     currentPageTooHigh: Boolean,
     enabled: Boolean = true,
+    showTotalPages: Boolean = true,
 ) {
     val colors = expressiveTextFieldColors()
     val digits = { text: String -> text.filter(Char::isDigit).take(MaxPageDigits) }
@@ -375,9 +376,12 @@ internal fun OfflinePageFields(
             },
             shape = RoundedCornerShape(Radii.medium),
             colors = colors,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = if (showTotalPages) ImeAction.Next else ImeAction.Done,
+            ),
         )
-        OutlinedTextField(
+        if (showTotalPages) OutlinedTextField(
             value = totalPages,
             enabled = enabled,
             onValueChange = { onTotalPagesChange(digits(it)) },

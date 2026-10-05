@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import androidx.compose.animation.animateColorAsState
+import com.vayana.core.designsystem.theme.vayanaTween
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1488,6 +1490,10 @@ private fun LibraryListRow(
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val selectionColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = vayanaTween(), label = "LibraryRowSelection",
+    )
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -1499,7 +1505,7 @@ private fun LibraryListRow(
                 onClick = onClick,
             ),
         shape = RoundedCornerShape(Radii.medium),
-        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = selectionColor,
         border = if (selected) BorderStroke(Strokes.emphasis, MaterialTheme.colorScheme.primary) else null,
         tonalElevation = Elevations.none,
     ) {
@@ -1812,13 +1818,17 @@ private fun BookCoverCell(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val selectionColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+        animationSpec = vayanaTween(), label = "LibraryCoverSelection",
+    )
     // Only a selected cell is a rounded tile; otherwise the cell is not clipped, so neither the cover nor the
     // title's last line loses its corners.
     val cellShape = if (selected) RoundedCornerShape(Radii.medium) else RectangleShape
     Column(
         modifier = modifier
             .background(
-                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                color = selectionColor,
                 shape = cellShape,
             )
             .then(

@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +37,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.designsystem.theme.vayanaPressScale
+import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
+import com.vayana.core.designsystem.theme.vayanaTween
+import com.vayana.core.designsystem.theme.vayanaContentTransform
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
@@ -109,15 +114,15 @@ internal fun PhysicalReadingHomeShelf(
             val progress = if (currentPage != null && totalPages != null) {
                 currentPage.toFloat().div(totalPages).coerceIn(0f, 1f)
             } else null
-            val accentColor = when (active?.phase) {
+            val accentColor by animateColorAsState(targetValue = when (active?.phase) {
                 PhysicalTimerPhase.RUNNING -> MaterialTheme.colorScheme.primary
                 PhysicalTimerPhase.PAUSED -> MaterialTheme.colorScheme.secondary
                 PhysicalTimerPhase.STOPPED -> MaterialTheme.colorScheme.tertiary
                 null -> MaterialTheme.colorScheme.primary
-            }
+            }, animationSpec = vayanaTween(), label = "PhysicalTimerAccent")
             val interaction = remember(book.id) { MutableInteractionSource() }
             Surface(onClick = { onBookClick(book) }, interactionSource = interaction,
-                modifier = Modifier.fillMaxWidth().vayanaPressScale(interaction),
+                modifier = Modifier.fillMaxWidth().vayanaPressScale(interaction).vayanaAnimateContentSize(),
                 shape = RoundedCornerShape(Radii.extraLargeIncreased),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.padding(Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -133,7 +138,7 @@ internal fun PhysicalReadingHomeShelf(
                                 style = MaterialTheme.typography.bodySmall)
                         }
                         progress?.let {
-                            LinearProgressIndicator(
+                            VayanaLinearProgressIndicator(
                                 progress = { it },
                                 modifier = Modifier.fillMaxWidth(),
                                 color = accentColor,
@@ -236,34 +241,44 @@ private fun PhysicalHomeTimerControls(
         containerColor = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        when (timer?.phase) {
-            null -> FilledTonalIconButton(onClick = onPlay, enabled = enabled) {
+    val transition = vayanaContentTransform<PhysicalTimerPhase?>()
+    AnimatedContent(
+        targetState = timer?.phase,
+        modifier = Modifier.vayanaAnimateContentSize(),
+        transitionSpec = { transition().using(null) },
+        label = "PhysicalHomeTimerControls",
+    ) { phase ->
+      // Outgoing controls remain visible during exit, but must not perform stale actions.
+      val controlsEnabled = enabled && phase == timer?.phase
+      Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        when (phase) {
+            null -> FilledTonalIconButton(onClick = onPlay, enabled = controlsEnabled) {
                 Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.physical_timer_start))
             }
             PhysicalTimerPhase.RUNNING -> {
-                FilledTonalIconButton(onClick = onPause, enabled = enabled) {
+                FilledTonalIconButton(onClick = onPause, enabled = controlsEnabled) {
                     Icon(Icons.Outlined.Pause, contentDescription = stringResource(R.string.physical_timer_pause))
                 }
-                FilledTonalIconButton(onClick = onStop, enabled = enabled, colors = stopColors) {
+                FilledTonalIconButton(onClick = onStop, enabled = controlsEnabled, colors = stopColors) {
                     Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_stop))
                 }
             }
             PhysicalTimerPhase.PAUSED -> {
-                FilledTonalIconButton(onClick = onPlay, enabled = enabled) {
+                FilledTonalIconButton(onClick = onPlay, enabled = controlsEnabled) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.physical_timer_resume))
                 }
-                FilledTonalIconButton(onClick = onStop, enabled = enabled, colors = stopColors) {
+                FilledTonalIconButton(onClick = onStop, enabled = controlsEnabled, colors = stopColors) {
                     Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_stop))
                 }
             }
             PhysicalTimerPhase.STOPPED -> FilledTonalIconButton(
                 onClick = onStop,
-                enabled = enabled,
+                enabled = controlsEnabled,
                 colors = stopColors,
             ) {
                 Icon(Icons.Outlined.Stop, contentDescription = stringResource(R.string.physical_timer_finish_log))
             }
         }
+      }
     }
 }

@@ -90,8 +90,13 @@ fun VayanaLinearWavyProgressIndicator(
     progress: () -> Float,
     modifier: Modifier = Modifier,
 ) {
-    val clampedProgress = { progress().coerceIn(0f, 1f) }
-    if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress().coerceIn(0f, 1f),
+        animationSpec = vayanaTween(durationMillis = Durations.medium),
+        label = "VayanaWavyProgress",
+    )
+    val clampedProgress = { animatedProgress }
+    if (LocalDisplayProfile.current == DisplayProfile.E_INK || LocalMotionSetting.current != MotionSetting.FULL) {
         LinearWavyProgressIndicator(
             progress = clampedProgress,
             modifier = modifier,

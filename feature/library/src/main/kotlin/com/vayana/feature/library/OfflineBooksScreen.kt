@@ -45,6 +45,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
+import com.vayana.core.designsystem.theme.vayanaSpring
+import com.vayana.core.designsystem.theme.vayanaTween
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -233,6 +236,8 @@ private fun OfflineBooksScreen(
                 }
                 val bottomPadding = innerPadding.calculateBottomPadding() + Sizes.fab + Spacing.xl +
                     LocalFloatingNavigationInset.current
+                val itemFade = vayanaTween<Float>()
+                val itemPlacement = vayanaSpring<IntOffset>()
                 when (viewMode) {
                     LibraryViewMode.LIST -> PagedLazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -252,7 +257,8 @@ private fun OfflineBooksScreen(
                             item(key = "no-matches") { Text(stringResource(R.string.home_library_browse_empty)) }
                         }
                         items(shownBooks, key = { it.id }) { book ->
-                            OfflineBookRow(book = book, onClick = { onBookClick(book.id) })
+                            OfflineBookRow(book = book, onClick = { onBookClick(book.id) },
+                                modifier = Modifier.animateItem(fadeInSpec = itemFade, placementSpec = itemPlacement, fadeOutSpec = itemFade))
                         }
                     }
                     LibraryViewMode.THUMBNAILS -> PagedLazyVerticalGrid(
@@ -279,7 +285,8 @@ private fun OfflineBooksScreen(
                             }
                         }
                         gridItems(shownBooks, key = { it.id }) { book ->
-                            OfflineBookCover(book = book, onClick = { onBookClick(book.id) })
+                            OfflineBookCover(book = book, onClick = { onBookClick(book.id) },
+                                modifier = Modifier.animateItem(fadeInSpec = itemFade, placementSpec = itemPlacement, fadeOutSpec = itemFade))
                         }
                     }
                 }
@@ -316,9 +323,9 @@ private fun Book.isBorrowed(): Boolean =
 
 /** A cover with its title and author underneath, for the thumbnail view. */
 @Composable
-private fun OfflineBookCover(book: Book, onClick: () -> Unit) {
+private fun OfflineBookCover(book: Book, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val displayTitle = remember(book.title, book.source, book.sourceMetadata) { book.homeLibraryDisplayTitle }
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
+    Column(modifier = modifier.clickable(onClick = onClick)) {
         BookCover(book = book, modifier = Modifier.fillMaxWidth())
         Text(
             text = displayTitle,
@@ -354,10 +361,10 @@ private fun HomeLibraryNotConnectedNote() {
 }
 
 @Composable
-private fun OfflineBookRow(book: Book, onClick: () -> Unit) {
+private fun OfflineBookRow(book: Book, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val displayTitle = remember(book.title, book.source, book.sourceMetadata) { book.homeLibraryDisplayTitle }
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radii.largeIncreased))
             .clickable(onClick = onClick),

@@ -674,7 +674,7 @@
     <string name="physical_timer_stopped">Stopped · finish logging this session</string>
     <string name="physical_timer_finish_log">Log session</string>
     <string name="physical_timer_log_title">Where did you stop?</string>
-    <string name="physical_timer_log_hint">Enter your current page to save reading time and update your progress. Total pages is optional.</string>
+    <string name="physical_timer_log_hint">Enter your current page to save reading time and update your progress.</string>
     <string name="physical_timer_start_hint">Confirm your starting page so your reading pace is accurate. Total pages is optional.</string>
     <string name="physical_timer_discard">Discard</string>
     <string name="physical_timer_discard_active">Discard active timer</string>

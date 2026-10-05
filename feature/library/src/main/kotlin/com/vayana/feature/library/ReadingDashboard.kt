@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,11 +26,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.repository.*
 import com.vayana.core.datastore.settings.*
 import com.vayana.core.designsystem.tokens.*
 import com.vayana.core.designsystem.theme.VayanaLinearWavyProgressIndicator
+import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
+import com.vayana.core.designsystem.theme.vayanaTween
 import com.vayana.core.filesystem.ResolvedBooks
 import com.vayana.core.resources.R
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,12 +57,14 @@ class ReadingDashboardViewModel @Inject constructor(
     highlights: HighlightReviewRepository,
     words: VocabularyCardRepository,
     private val books: BookRepository,
+    dispatchers: DispatcherProvider,
 ) : ViewModel() {
     val enabled = settings.observe(SettingsRegistry.TodayCardEnabled)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val capacity = settings.observe(SettingsRegistry.ReadNextCapacity)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10)
     val queue = resolved.all.map { orderedReadNext(it) }
+        .flowOn(dispatchers.default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val clock = flow { while (true) { emit(System.currentTimeMillis()); delay(60_000) } }
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(), replay = 1)
@@ -69,7 +75,7 @@ class ReadingDashboardViewModel @Inject constructor(
         val library = combine(resolved.all, tools.plans,
             settings.snapshot.map { it.dailyReadingGoalMinutes }.distinctUntilChanged()) { all, plans, goal ->
             todayLibraryState(all, plans, goal, day.date)
-        }
+        }.flowOn(dispatchers.default)
         combine(library, sessions.observeSecondsSince(day.start), reviewCounts) { state, seconds, (h, w) ->
             state.copy(minutes = (seconds / 60).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), words = w, highlights = h)
         }
@@ -130,6 +136,16 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
     val goalProgress = if (hasGoal) {
         (state.minutes.toFloat() / state.goal).coerceIn(0f, 1f)
     } else 0f
+    val goalBadgeColor by animateColorAsState(
+        targetValue = if (goalReached) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.secondaryContainer,
+        animationSpec = vayanaTween(), label = "TodayGoalBadge",
+    )
+    val goalBadgeContentColor by animateColorAsState(
+        targetValue = if (goalReached) MaterialTheme.colorScheme.onPrimaryContainer
+            else MaterialTheme.colorScheme.onSecondaryContainer,
+        animationSpec = vayanaTween(), label = "TodayGoalBadgeContent",
+    )
     // Keep the large dashboard surface calm even after the goal is reached. Achievement
     // color belongs on the status and progress accents rather than flooding the whole card.
     val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -138,11 +154,14 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
         shape = RoundedCornerShape(Radii.extraLarge),
         color = containerColor,
         contentColor = contentColor,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().vayanaAnimateContentSize(),
     ) {
-        Column(Modifier.padding(Paddings.card), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        Column(
+            Modifier.padding(horizontal = Paddings.card, vertical = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Column(Modifier.weight(1f)) {
                     Text(
                         if (hasGoal) stringResource(R.string.today_title_with_goal, state.goal)
                         else stringResource(R.string.today_title),
@@ -150,7 +169,7 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
                     )
                     Text(
                         stringResource(R.string.today_minutes_read, state.minutes),
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = if (goalReached) MaterialTheme.colorScheme.primary else contentColor,
                     )
@@ -158,10 +177,9 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
                 if (hasGoal) {
                     Surface(
                         shape = RoundedCornerShape(Radii.full),
-                        color = if (goalReached) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = if (goalReached) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.vayanaAnimateContentSize(),
+                        color = goalBadgeColor,
+                        contentColor = goalBadgeContentColor,
                     ) {
                         Row(
                             Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
@@ -182,6 +200,16 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
                         Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.today_options))
                     }
                     DropdownMenu(expanded = optionsExpanded, onDismissRequest = { optionsExpanded = false }) {
+                        if (state.highlights > 0) {
+                            DropdownMenuItem(
+                                text = { Text(pluralStringResource(R.plurals.today_highlights_due, state.highlights, state.highlights)) },
+                                leadingIcon = { Icon(Icons.Outlined.FormatQuote, contentDescription = null) },
+                                onClick = {
+                                    optionsExpanded = false
+                                    onHighlights()
+                                },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.today_hide)) },
                             onClick = {
@@ -213,20 +241,13 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
                     )
                 }
             }
-            if (state.words > 0 || state.highlights > 0) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    if (state.words > 0) AssistChip(
-                        onClick = onWords,
-                        label = { Text(pluralStringResource(R.plurals.today_words_due, state.words, state.words)) },
-                        leadingIcon = { Icon(Icons.Outlined.Spellcheck, contentDescription = null) },
-                    )
-                    if (state.highlights > 0) AssistChip(
-                        onClick = onHighlights,
-                        label = { Text(pluralStringResource(R.plurals.today_highlights_due, state.highlights, state.highlights)) },
-                        leadingIcon = { Icon(Icons.Outlined.FormatQuote, contentDescription = null) },
-                    )
-                }
-            } else if (state.current == null) {
+            if (state.words > 0) {
+                AssistChip(
+                    onClick = onWords,
+                    label = { Text(pluralStringResource(R.plurals.today_words_due, state.words, state.words)) },
+                    leadingIcon = { Icon(Icons.Outlined.Spellcheck, contentDescription = null) },
+                )
+            } else if (state.current == null && state.highlights == 0) {
                 Text(stringResource(R.string.today_caught_up), style = MaterialTheme.typography.bodyMedium)
             }
             state.plans.forEach { (book, plan) ->

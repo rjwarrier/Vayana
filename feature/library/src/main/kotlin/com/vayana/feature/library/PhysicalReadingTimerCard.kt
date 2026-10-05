@@ -1,6 +1,8 @@
 package com.vayana.feature.library
 
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,7 +14,6 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +46,10 @@ import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
+import com.vayana.core.designsystem.theme.vayanaContentTransform
+import com.vayana.core.designsystem.theme.vayanaFadeIn
+import com.vayana.core.designsystem.theme.vayanaFadeOut
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -87,19 +92,26 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
     }
     BookDetailSection(icon = Icons.Outlined.Timer, title = stringResource(R.string.physical_timer_title)) {
         PhysicalTimerClock(timer, Modifier.align(Alignment.CenterHorizontally))
-        Text(stringResource(when (timer?.phase) {
+        val statusTransition = vayanaContentTransform<PhysicalTimerPhase?>()
+        AnimatedContent(
+            targetState = timer?.phase,
+            transitionSpec = { statusTransition().using(null) },
+            label = "PhysicalTimerStatus",
+        ) { phase ->
+          Text(stringResource(when (phase) {
             PhysicalTimerPhase.RUNNING -> R.string.physical_timer_running
             PhysicalTimerPhase.PAUSED -> R.string.physical_timer_paused
             PhysicalTimerPhase.STOPPED -> R.string.physical_timer_stopped
             null -> R.string.physical_timer_ready
-        }), style = MaterialTheme.typography.bodyMedium)
+          }), style = MaterialTheme.typography.bodyMedium)
+        }
         if (active != null && timer == null) {
             Text(stringResource(R.string.physical_timer_other_book, active!!.bookTitle))
             TextButton(onClick = { perform { controller.discard() } }, enabled = !busy) {
                 Text(stringResource(R.string.physical_timer_discard_active))
             }
         } else if (busy) {
-            CircularProgressIndicator()
+            VayanaCircularProgressIndicator()
         } else {
             val buttons = when (timer?.phase) {
                 null -> listOf(ConnectedButton(stringResource(R.string.physical_timer_start), Icons.Outlined.PlayArrow, { showStart = true }))
@@ -115,7 +127,9 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
             }
             VayanaConnectedButtonGroup(buttons, iconAboveLabel = true)
         }
-        if (failed) Text(stringResource(R.string.physical_timer_failed), color = MaterialTheme.colorScheme.error)
+        AnimatedVisibility(visible = failed, enter = vayanaFadeIn(), exit = vayanaFadeOut()) {
+            Text(stringResource(R.string.physical_timer_failed), color = MaterialTheme.colorScheme.error)
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -226,7 +240,8 @@ internal fun PhysicalTimerPageDialog(book: Book, page: Int, starting: Boolean, b
             supportingText = stringResource(if (starting) R.string.physical_timer_start_hint else R.string.physical_timer_log_hint))
         OfflinePageFields(totalPages = totalText, currentPage = pageText,
             onTotalPagesChange = { totalText = it }, onCurrentPageChange = { pageText = it },
-            currentPageTooHigh = current != null && total != null && current > total, enabled = !busy)
+            currentPageTooHigh = current != null && total != null && current > total,
+            enabled = !busy, showTotalPages = starting)
         if (startPageTooHigh) Text(stringResource(R.string.physical_timer_start_page_too_high, page),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         if (failed) Text(stringResource(R.string.physical_timer_failed), color = MaterialTheme.colorScheme.error)
