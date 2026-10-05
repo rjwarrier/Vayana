@@ -8,6 +8,19 @@ import kotlin.test.assertTrue
 import org.json.JSONObject
 
 class PortableReadingProgressJsonTest {
+    @Test fun activeIntervalsAndCoveredIdentityMarkersSurviveBackupAndProgressSync() {
+        val logs = listOf(
+            PortableReadingSession("paused", "book", 1000, 61000, 20, 10, 20, "1000:11000,51000:61000"),
+            PortableReadingSession("covered", "book", 1000, 61000, 0, 10, 20, ""),
+            PortableReadingSession("legacy", "book", 1000, 61000, 60, 10, 20))
+        val snapshot = PortableSnapshot(formatVersion = 1, exportedAt = 62000, deviceLabel = "Phone",
+            books = emptyList(), annotations = emptyList(), shelves = emptyList(), shelfMemberships = emptyList(),
+            readingSessions = logs, vocabularyCards = emptyList(), wordLookupCounters = emptyList(), settings = emptyMap())
+        assertEquals(logs, parsePortableReadingSessions(snapshot.toJsonString()))
+        val patched = patchPortableReadingProgressOnly("{}", emptyList(), 62000, readingSessions = logs)
+        assertEquals(logs, parsePortableReadingSessions(patched.jsonText))
+    }
+
     @Test fun dispositionPinsAndReviewQuestionsRemainPortable() {
         val json = """{"books":[{"syncId":"book","title":"Paper","format":"PHYSICAL","fileHash":"hash","updatedAt":300,"readNextAddedAt":100,"readNextUpdatedAt":200,"readNextPinned":true,"readingDisposition":"DNF","dispositionReason":"Stopped","dispositionUpdatedAt":250}],"annotations":[{"syncId":"note","bookSyncId":"book","type":"HIGHLIGHT","colorKey":"yellow","locator":"page:1","selectedText":"Answer","createdAt":100,"updatedAt":200,"reviewQuestion":"Question?"}]}"""
         val book = parsePortableCloudBooks(json).single()

@@ -32,4 +32,5 @@ data class ReadingSessionEntity(
     val durationSeconds: Long,
     val startPage: Int? = null,
     val endPage: Int? = null,
+    val activeIntervals: String? = null,
 )

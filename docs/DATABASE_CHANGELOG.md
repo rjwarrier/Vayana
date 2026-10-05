@@ -2,6 +2,12 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 34
+
+Migration 33→34 adds nullable `activeIntervals` to reading sessions. Existing rows, timestamps,
+page checkpoints, and totals remain unchanged. New timers capture active spans independently
+of pauses; legacy null spans require review if an overlap cannot be proved safely.
+
 ## Version 33
 
 Migration 32→33 preserves existing books and annotations, adding default-unpinned Read Next entries,

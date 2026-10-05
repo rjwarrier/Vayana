@@ -45,6 +45,10 @@ class PhysicalTimerMigrationTest {
             assertEquals(60L, log.durationSeconds)
             assertNull(log.startPage)
             assertNull(log.endPage)
+            assertNull(log.activeIntervals)
+            assertEquals(1000L, log.startedAt)
+            assertEquals(61000L, log.endedAt)
+            assertEquals(60L, db.bookDao().findBySyncId("book")!!.totalReadingSeconds)
         } finally { db.close(); context.deleteDatabase(name) }
     }
 }

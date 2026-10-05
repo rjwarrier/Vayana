@@ -69,9 +69,15 @@ class ReadingSessionRepositoryImpl @Inject constructor(
 
     override suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult {
         if (record.syncId.isBlank() || record.bookSyncId.isBlank()) return ReadingSessionMergeResult.SKIPPED
-        if (record.startedAt <= 0L || record.endedAt < record.startedAt || record.durationSeconds <= 0L) {
+        if (record.startedAt <= 0L || record.endedAt < record.startedAt || (record.durationSeconds < 0L || (record.durationSeconds == 0L && record.activeIntervals != ""))) {
             return ReadingSessionMergeResult.SKIPPED
         }
+        if (record.activeIntervals != null && !runCatching {
+            val intervals = com.vayana.core.common.ReadingIntervals.decode(record.activeIntervals)
+            intervals.all { it.start >= record.startedAt && it.end <= record.endedAt } &&
+                (if (intervals.isEmpty()) record.durationSeconds == 0L || record.durationSeconds == 1L
+                else (com.vayana.core.common.ReadingIntervals.millis(intervals) / 1000).coerceAtLeast(1) == record.durationSeconds)
+        }.getOrDefault(false)) return ReadingSessionMergeResult.SKIPPED
         return database.withTransaction {
             // Cleared by a reading-stats reset: the cloud copy mustn't bring it back.
             if (tombstoneDao.findBySyncId(record.syncId) != null) return@withTransaction ReadingSessionMergeResult.SKIPPED
@@ -85,6 +91,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                     durationSeconds = record.durationSeconds,
                     startPage = record.startPage?.takeIf { it >= 0 },
                     endPage = record.endPage?.takeIf { it >= 0 },
+                    activeIntervals = record.activeIntervals,
                 ),
             )
             if (insertedId == -1L) ReadingSessionMergeResult.SKIPPED else ReadingSessionMergeResult.CREATED
@@ -101,4 +108,5 @@ private fun ReadingSessionEntity.toDomain(): ReadingSession = ReadingSession(
     durationSeconds = durationSeconds,
     startPage = startPage,
     endPage = endPage,
+    activeIntervals = activeIntervals,
 )

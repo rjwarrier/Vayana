@@ -13,6 +13,7 @@ tasks.withType<Test>().configureEach {
 }
 
 dependencies {
+    implementation(project(":core:wear"))
     implementation(project(":core:backup"))
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))

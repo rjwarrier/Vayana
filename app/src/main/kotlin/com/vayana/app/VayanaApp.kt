@@ -22,6 +22,8 @@ import kotlinx.coroutines.launch
 @HiltAndroidApp
 class VayanaApp : Application() {
 
+    @Inject lateinit var phoneWearSync: com.vayana.app.wear.PhoneWearSync
+
     @Inject lateinit var crashReporter: CrashReporter
     @Inject lateinit var storageMaintenance: StorageMaintenance
     @Inject lateinit var reminderScheduler: ReminderScheduler
@@ -40,6 +42,7 @@ class VayanaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        phoneWearSync.start()
         crashReporter.install()
         reminderScheduler.start()
         continueReadingWidgetUpdater.start()

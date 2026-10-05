@@ -53,3 +53,6 @@ include(":format:convert")
 include(":dictionary:api")
 include(":dictionary:stardict")
 include(":dictionary:online")
+
+include(":core:wear")
+include(":wear")

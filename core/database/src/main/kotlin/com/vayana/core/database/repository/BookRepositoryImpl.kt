@@ -277,15 +277,20 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun recordPhysicalReadingSession(id: Long, syncId: String, startedAt: Long, endedAt: Long,
-        durationSeconds: Long, startPage: Int, endPage: Int, pageCount: Int?, updateProgress: Boolean) {
+        durationSeconds: Long, startPage: Int, endPage: Int, pageCount: Int?, updateProgress: Boolean, activeIntervals: String?) {
         require(syncId.isNotBlank() && startedAt > 0 && endedAt >= startedAt && durationSeconds > 0)
         require(startPage >= 0 && endPage >= 0 && (pageCount == null || (pageCount > 0 && endPage <= pageCount)))
+        activeIntervals?.let { encoded ->
+            val spans = com.vayana.core.common.ReadingIntervals.decode(encoded)
+            require(spans.all { it.start >= startedAt && it.end <= endedAt })
+            require((com.vayana.core.common.ReadingIntervals.millis(spans) / 1000).coerceAtLeast(1) == durationSeconds)
+        }
         database.withTransaction {
             val book = requireNotNull(bookDao.getById(id)) { "Book no longer exists" }
             require(!book.isDeleted && book.format == BookFormat.PHYSICAL.name) { "Book is no longer physical" }
             val inserted = readingSessionDao.insertIgnore(com.vayana.core.database.entity.ReadingSessionEntity(
                 syncId = syncId, bookId = id, startedAt = startedAt, endedAt = endedAt,
-                durationSeconds = durationSeconds, startPage = startPage, endPage = endPage,
+                durationSeconds = durationSeconds, startPage = startPage, endPage = endPage, activeIntervals = activeIntervals,
             ))
             if (inserted == -1L) return@withTransaction
             val total = pageCount ?: book.pageEstimate

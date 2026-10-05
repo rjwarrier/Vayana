@@ -4,7 +4,8 @@ import com.vayana.core.database.model.ReadingSession
 import kotlin.math.ceil
 import kotlin.math.abs
 
-enum class PhysicalTimerPhase { RUNNING, PAUSED, STOPPED }
+typealias PhysicalTimerPhase = com.vayana.core.wear.PhysicalTimerPhase
+typealias PhysicalTimerSession = com.vayana.core.wear.PhysicalTimerSession
 
 internal data class PhysicalSessionRecorded(val pagesRead: Int, val minutesRead: Int)
 
@@ -18,34 +19,6 @@ internal fun validPhysicalTimerPages(startPage: Int?, endPage: Int?, totalText: 
     if (startPage == null || endPage == null || startPage < 0 || endPage < 0) return false
     val total = if (totalText.isBlank()) knownTotal ?: return true else totalText.toIntOrNull() ?: return false
     return total > 0 && startPage <= total && endPage <= total
-}
-
-/** Monotonic time measures reading; wall-clock time is used only to date the saved log. */
-data class PhysicalTimerSession(
-    val bookId: Long,
-    val bookTitle: String,
-    val syncId: String,
-    val startedAt: Long,
-    val startPage: Int,
-    val accumulatedMillis: Long = 0,
-    val runningSince: Long,
-    val bootCount: Int,
-    val phase: PhysicalTimerPhase = PhysicalTimerPhase.RUNNING,
-    val endedAt: Long = 0,
-    val pageCount: Int? = null,
-) {
-    fun elapsedMillis(now: Long): Long = accumulatedMillis +
-        if (phase == PhysicalTimerPhase.RUNNING) (now - runningSince).coerceAtLeast(0) else 0
-
-    fun pause(now: Long): PhysicalTimerSession = if (phase != PhysicalTimerPhase.RUNNING) this
-        else copy(accumulatedMillis = elapsedMillis(now), phase = PhysicalTimerPhase.PAUSED)
-
-    fun resume(now: Long): PhysicalTimerSession = if (phase != PhysicalTimerPhase.PAUSED) this
-        else copy(runningSince = now, phase = PhysicalTimerPhase.RUNNING)
-
-    fun stop(now: Long, wallTime: Long): PhysicalTimerSession = if (phase == PhysicalTimerPhase.STOPPED) this
-        else copy(accumulatedMillis = elapsedMillis(now), phase = PhysicalTimerPhase.STOPPED,
-            endedAt = wallTime.coerceAtLeast(startedAt + elapsedMillis(now)))
 }
 
 internal data class PhysicalReadingPace(val pagesPerHour: Double?, val remainingSeconds: Long?,

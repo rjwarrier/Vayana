@@ -13,6 +13,7 @@
 - [Product and engineering specification](PRODUCT_SPEC.md)
 - [Database changelog](DATABASE_CHANGELOG.md)
 - [GitHub sync design](GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
+- [Wear OS companion setup and sync design](WEAR_OS.md)
 - [Baseline profile](BASELINE_PROFILE.md)
 - [UI design audit](UI_DESIGN_AUDIT.md)
 

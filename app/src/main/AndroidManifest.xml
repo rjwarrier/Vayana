@@ -29,6 +29,17 @@
         android:theme="@style/Theme.Vayana">
 
         <!-- Styles every Vayana widget; launched by the home screen when adding or editing one. -->
+        <service android:name=".wear.PhoneWearListenerService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/vayana/wear/v1/" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/vayana_watch" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name=".widget.WidgetConfigureActivity"
             android:exported="true"

@@ -35,9 +35,14 @@ class PhysicalReadingTimerController @Inject constructor(
             json.getLong("startedAt"), json.getInt("startPage"), json.getLong("accumulatedMillis"),
             json.getLong("runningSince"), json.getInt("bootCount"),
             PhysicalTimerPhase.valueOf(json.getString("phase")), json.optLong("endedAt"),
-            json.optInt("pageCount").takeIf { it > 0 })
-            .let { if (it.bootCount != bootCount && it.phase == PhysicalTimerPhase.RUNNING)
-                it.copy(phase = PhysicalTimerPhase.PAUSED) else it }
+            json.optInt("pageCount").takeIf { it > 0 },
+            activeIntervals = json.optString("intervals").takeUnless { json.isNull("intervals") || !json.has("intervals") },
+            anchorWall = json.optLong("anchorWall", json.getLong("startedAt")),
+            anchorMono = json.optLong("anchorMono", json.getLong("runningSince")), clockChanged = json.optBoolean("clockChanged"))
+            .let { stored ->
+                // Keep the old boot marker until recovery is durably committed by restore/resume.
+                stored.recoverBoot(bootCount, SystemClock.elapsedRealtime(), System.currentTimeMillis()).copy(bootCount = stored.bootCount)
+            }
     }.getOrNull()
 
     private suspend fun persist(next: PhysicalTimerSession?) {
@@ -47,7 +52,8 @@ class PhysicalReadingTimerController @Inject constructor(
                 .put("syncId", it.syncId).put("startedAt", it.startedAt).put("startPage", it.startPage)
                 .put("accumulatedMillis", it.accumulatedMillis).put("runningSince", it.runningSince)
                 .put("bootCount", it.bootCount).put("phase", it.phase.name).put("endedAt", it.endedAt)
-                .put("pageCount", it.pageCount).toString() }
+                .put("pageCount", it.pageCount).put("intervals", it.activeIntervals)
+                .put("anchorWall", it.anchorWall).put("anchorMono", it.anchorMono).put("clockChanged", it.clockChanged).toString() }
             check(preferences.edit().putString("session", value).commit()) { "Could not save timer" }
             mutableSession.value = next
         }
@@ -58,7 +64,7 @@ class PhysicalReadingTimerController @Inject constructor(
         require(startPage >= 0 && (pageCount == null || (pageCount > 0 && startPage <= pageCount)))
         withContext(Dispatchers.IO) { books.markPhysicalBookReading(bookId) }
         persist(PhysicalTimerSession(bookId, title, "session-${UUID.randomUUID()}", System.currentTimeMillis(),
-            startPage, runningSince = SystemClock.elapsedRealtime(), bootCount = bootCount, pageCount = pageCount))
+            startPage, runningSince = SystemClock.elapsedRealtime(), bootCount = bootCount, pageCount = pageCount, activeIntervals = ""))
     }
 
     /** Persists the safe paused state produced when monotonic time was reset by a reboot. */
@@ -66,11 +72,7 @@ class PhysicalReadingTimerController @Inject constructor(
         val timer = mutableSession.value ?: return@withLock
         if (timer.bootCount == bootCount) return@withLock
         persist(
-            timer.copy(
-                phase = if (timer.phase == PhysicalTimerPhase.RUNNING) PhysicalTimerPhase.PAUSED else timer.phase,
-                bootCount = bootCount,
-                runningSince = SystemClock.elapsedRealtime(),
-            ),
+            timer.recoverBoot(bootCount, SystemClock.elapsedRealtime(), System.currentTimeMillis()),
         )
     }
 
@@ -93,7 +95,7 @@ class PhysicalReadingTimerController @Inject constructor(
         check(timer.phase == PhysicalTimerPhase.STOPPED)
         withContext(Dispatchers.IO) {
             books.recordPhysicalReadingSession(timer.bookId, timer.syncId, timer.startedAt, timer.endedAt,
-                (timer.accumulatedMillis / 1000).coerceAtLeast(1), timer.startPage, endPage, pageCount)
+                (timer.accumulatedMillis / 1000).coerceAtLeast(1), timer.startPage, endPage, pageCount, activeIntervals = timer.activeIntervals)
         }
         persist(null)
     }

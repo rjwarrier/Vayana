@@ -57,7 +57,8 @@ fun parsePortableReadingSessions(jsonText: String): List<PortableReadingSession>
             val bookSyncId = obj.optSnapshotBoundedString("bookSyncId", MaxSnapshotSyncIdChars) ?: continue
             val startedAt = obj.optLong("startedAt", 0L).takeIf { it > 0L } ?: continue
             val endedAt = obj.optLong("endedAt", 0L).takeIf { it >= startedAt } ?: continue
-            val durationSeconds = obj.optLong("durationSeconds", 0L).takeIf { it > 0L } ?: continue
+            val intervals = if (obj.has("activeIntervals") && !obj.isNull("activeIntervals")) obj.optString("activeIntervals").takeIf { it.length <= 60_000 } else null
+            val durationSeconds = obj.optLong("durationSeconds", 0L).takeIf { it > 0L || (it == 0L && intervals == "") } ?: continue
             add(
                 PortableReadingSession(
                     syncId = syncId,
@@ -65,6 +66,7 @@ fun parsePortableReadingSessions(jsonText: String): List<PortableReadingSession>
                     startedAt = startedAt,
                     endedAt = endedAt,
                     durationSeconds = durationSeconds,
+                    activeIntervals = intervals,
                     startPage = if (obj.has("startPage") && !obj.isNull("startPage")) obj.optInt("startPage", -1).takeIf { it >= 0 } else null,
                     endPage = if (obj.has("endPage") && !obj.isNull("endPage")) obj.optInt("endPage", -1).takeIf { it >= 0 } else null,
                 ),
@@ -528,6 +530,7 @@ private fun PortableReadingSession.toJson(): JSONObject =
         .put("durationSeconds", durationSeconds)
         .put("startPage", startPage)
         .put("endPage", endPage)
+        .put("activeIntervals", activeIntervals)
 
 private fun PortableVocabularyCard.toJson(): JSONObject =
     JSONObject()

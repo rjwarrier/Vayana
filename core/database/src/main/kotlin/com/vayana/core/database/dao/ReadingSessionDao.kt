@@ -10,6 +10,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ReadingSessionDao {
+    @Query("SELECT * FROM reading_sessions WHERE syncId = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): ReadingSessionEntity?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM reading_sessions WHERE durationSeconds > 0 AND startedAt < :endedAt AND endedAt > :startedAt)")
+    suspend fun hasOverlap(startedAt: Long, endedAt: Long): Boolean
+
+    @Query("SELECT * FROM reading_sessions WHERE startedAt < :endedAt AND endedAt > :startedAt AND durationSeconds > 0")
+    suspend fun overlapping(startedAt: Long, endedAt: Long): List<ReadingSessionEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(session: ReadingSessionEntity): Long
 
@@ -30,10 +39,10 @@ interface ReadingSessionDao {
     fun observeForBook(bookId: Long): Flow<List<ReadingSessionEntity>>
 
     @Query("SELECT COUNT(*) AS sessionCount, COALESCE(SUM(durationSeconds), 0) AS totalSeconds " +
-        "FROM reading_sessions WHERE bookId = :bookId AND startPage IS NOT NULL AND endPage IS NOT NULL")
+        "FROM reading_sessions WHERE bookId = :bookId AND durationSeconds > 0 AND startPage IS NOT NULL AND endPage IS NOT NULL")
     fun observePhysicalSummary(bookId: Long): Flow<PhysicalReadingSessionSummary>
 
-    @Query("SELECT * FROM reading_sessions WHERE bookId = :bookId AND startPage IS NOT NULL AND endPage IS NOT NULL " +
+    @Query("SELECT * FROM reading_sessions WHERE bookId = :bookId AND durationSeconds > 0 AND startPage IS NOT NULL AND endPage IS NOT NULL " +
         "AND (:forwardOnly = 0 OR (durationSeconds > 0 AND startPage >= 0 AND endPage > startPage)) " +
         "ORDER BY startedAt DESC, id DESC LIMIT :limit")
     fun observeRecentPhysicalSessions(bookId: Long, limit: Int, forwardOnly: Boolean): Flow<List<ReadingSessionEntity>>

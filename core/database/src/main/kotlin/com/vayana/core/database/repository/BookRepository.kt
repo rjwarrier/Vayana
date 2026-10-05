@@ -209,7 +209,7 @@ interface BookRepository {
 
     /** Atomically logs time, page checkpoints and progress. Retrying a session ID never counts it twice. */
     suspend fun recordPhysicalReadingSession(id: Long, syncId: String, startedAt: Long, endedAt: Long,
-        durationSeconds: Long, startPage: Int, endPage: Int, pageCount: Int?, updateProgress: Boolean = true)
+        durationSeconds: Long, startPage: Int, endPage: Int, pageCount: Int?, updateProgress: Boolean = true, activeIntervals: String? = null)
 
     suspend fun updateCover(id: Long, coverPath: String?)
 

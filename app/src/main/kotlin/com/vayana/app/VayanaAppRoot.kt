@@ -1,6 +1,7 @@
 package com.vayana.app
 
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,19 +148,23 @@ fun VayanaAppRoot() {
                             showSettings = showSettingsInRail,
                         )
                     }
-                    VayanaNavHost(
-                        navController = navController,
-                        startDestination = startDestination,
-                        modifier = if (navigationPresentation == NavigationPresentation.Rail) {
-                            Modifier.fillMaxSize().safeDrawingPadding()
-                        } else {
-                            Modifier.fillMaxSize()
-                        },
-                    )
+                    Column(Modifier.weight(1f)) {
+                        if (showNavigation) com.vayana.app.wear.WatchConnectionIndicator()
+                        VayanaNavHost(
+                            navController = navController,
+                            startDestination = startDestination,
+                            modifier = if (navigationPresentation == NavigationPresentation.Rail) {
+                                Modifier.fillMaxSize().safeDrawingPadding()
+                            } else {
+                                Modifier.fillMaxSize()
+                            },
+                        )
+                    }
                 }
             }
         } else {
             Scaffold(
+                topBar = { if (showNavigation) com.vayana.app.wear.WatchConnectionIndicator() },
                 bottomBar = {
                     if (navigationPresentation == NavigationPresentation.BottomBar) {
                         VayanaBottomBar(
