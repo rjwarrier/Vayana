@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="today_watch_connected">Watch connected</string>
+    <string name="today_watch_disconnected">Watch disconnected</string>
     <string name="app_name">vayana</string>
     <string name="app_tagline">read, undisturbed.</string>
     <string name="about_version">v%1$s  ·  Build %2$s</string>
@@ -687,6 +689,9 @@
     <string name="physical_manual_minutes">Minutes</string>
     <string name="physical_manual_start_page">Starting page</string>
     <string name="physical_manual_update_progress">Update current page</string>
+    <string name="physical_manual_progress_updated">Saving will set your current page to %1$d.</string>
+    <string name="physical_manual_progress_kept">Log only: your current page will stay at %1$d.</string>
+    <string name="physical_manual_progress_needs_total">Enter total pages to update your book’s current page.</string>
     <string name="physical_manual_invalid">Use a positive duration, valid page numbers, and a session that has already ended. Minutes must be 0–59.</string>
     <string name="physical_timer_other_book">A timer is active for %1$s. Return to that book to pause, stop or log it.</string>
     <string name="physical_timer_failed">Couldn\'t save the timer or session. Please try again.</string>
@@ -717,6 +722,10 @@
     <string name="physical_timer_log_button">Reading log (%1$d)</string>
     <string name="physical_timer_history_pages">Pages %1$d → %2$d</string>
     <string name="physical_timer_edit_pages">Edit pages</string>
+    <string name="physical_timer_delete_session">Delete this session?</string>
+    <string name="physical_timer_delete_session_body">This removes %1$s from your reading time and updates session statistics. Your current page and reading dates stay the same. This cannot be undone.</string>
+    <string name="physical_timer_delete_session_failed">Could not delete the session. Please try again.</string>
+    <string name="physical_timer_history_empty">No reading sessions logged.</string>
     <string name="physical_timer_edit_pages_hint">Only this log’s page range will change. Its date, reading time, and current book progress stay the same.</string>
     <string name="physical_timer_end_page">Ending page</string>
     <string name="physical_timer_edit_pages_invalid">Enter zero or a positive page number.</string>

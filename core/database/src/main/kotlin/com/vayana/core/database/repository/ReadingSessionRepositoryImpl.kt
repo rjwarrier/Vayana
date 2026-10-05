@@ -65,6 +65,23 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         return readingSessionDao.updatePages(syncId, startPage, endPage) == 1
     }
 
+    override suspend fun deletePhysicalSession(bookId: Long, syncId: String): Boolean = database.withTransaction {
+        require(syncId.isNotBlank())
+        val session = readingSessionDao.findBySyncId(syncId) ?: return@withTransaction false
+        require(session.bookId == bookId) { "Session belongs to another book" }
+        val book = bookDao.getById(bookId) ?: return@withTransaction false
+        require(book.format == "PHYSICAL") { "Book is no longer physical" }
+        val now = System.currentTimeMillis()
+        tombstoneDao.upsert(com.vayana.core.database.entity.TombstoneEntity(
+            syncId = syncId, entityType = TombstoneEntityType.READING_SESSION.value, deletedAt = now))
+        readingSessionDao.deleteBySyncId(syncId)
+        bookDao.update(book.copy(
+            totalReadingSeconds = (book.totalReadingSeconds - session.durationSeconds.coerceAtLeast(0)).coerceAtLeast(0),
+            updatedAt = maxOf(book.updatedAt, now),
+        ))
+        true
+    }
+
     override suspend fun deleteBySyncId(syncId: String): Int = readingSessionDao.deleteBySyncId(syncId)
 
     override suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult {

@@ -3,6 +3,7 @@ package com.vayana.feature.library
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,11 +14,14 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Spellcheck
+import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
@@ -36,6 +40,8 @@ import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.theme.vayanaTween
 import com.vayana.core.filesystem.ResolvedBooks
 import com.vayana.core.resources.R
+import com.vayana.core.wear.WearSyncRules
+import com.vayana.core.wear.companionConnection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import java.time.LocalDate
@@ -130,6 +136,9 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
     val enabled by viewModel.enabled.collectAsStateWithLifecycle()
     if (!enabled) return
     val state by viewModel.today.collectAsStateWithLifecycle()
+    val context = LocalContext.current.applicationContext
+    val watchConnection = remember(context) { companionConnection(context, WearSyncRules.WATCH) }
+    val watchConnected by watchConnection.collectAsStateWithLifecycle(initialValue = false)
     var optionsExpanded by remember { mutableStateOf(false) }
     val hasGoal = state.goal > 0
     val goalReached = hasGoal && state.minutes >= state.goal
@@ -174,24 +183,46 @@ internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighli
                         color = if (goalReached) MaterialTheme.colorScheme.primary else contentColor,
                     )
                 }
-                if (hasGoal) {
-                    Surface(
-                        shape = RoundedCornerShape(Radii.full),
-                        modifier = Modifier.vayanaAnimateContentSize(),
-                        color = goalBadgeColor,
-                        contentColor = goalBadgeContentColor,
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                            verticalAlignment = Alignment.CenterVertically,
+                Row(
+                    modifier = Modifier.height(IntrinsicSize.Min).heightIn(min = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (watchConnected) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true),
                         ) {
-                            if (goalReached) Icon(Icons.Outlined.CheckCircle, contentDescription = null)
-                            Text(
-                                if (goalReached) stringResource(R.string.today_goal_reached)
-                                else stringResource(R.string.today_goal_remaining, (state.goal - state.minutes).coerceAtLeast(0)),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Outlined.Watch,
+                                    contentDescription = stringResource(R.string.today_watch_connected),
+                                    modifier = Modifier.size(Sizes.iconSmall),
+                                )
+                            }
+                        }
+                    }
+                    if (hasGoal) {
+                        Surface(
+                            shape = RoundedCornerShape(Radii.full),
+                            modifier = Modifier.vayanaAnimateContentSize(),
+                            color = goalBadgeColor,
+                            contentColor = goalBadgeContentColor,
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (goalReached) Icon(Icons.Outlined.CheckCircle, contentDescription = null)
+                                Text(
+                                    if (goalReached) stringResource(R.string.today_goal_reached)
+                                    else stringResource(R.string.today_goal_remaining, (state.goal - state.minutes).coerceAtLeast(0)),
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
                         }
                     }
                 }

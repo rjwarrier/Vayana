@@ -149,7 +149,6 @@ fun VayanaAppRoot() {
                         )
                     }
                     Column(Modifier.weight(1f)) {
-                        if (showNavigation) com.vayana.app.wear.WatchConnectionIndicator()
                         VayanaNavHost(
                             navController = navController,
                             startDestination = startDestination,
@@ -164,7 +163,6 @@ fun VayanaAppRoot() {
             }
         } else {
             Scaffold(
-                topBar = { if (showNavigation) com.vayana.app.wear.WatchConnectionIndicator() },
                 bottomBar = {
                     if (navigationPresentation == NavigationPresentation.BottomBar) {
                         VayanaBottomBar(

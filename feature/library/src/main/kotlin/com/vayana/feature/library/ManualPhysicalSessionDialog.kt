@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,7 +13,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
@@ -64,6 +66,7 @@ internal fun ManualPhysicalSessionDialog(book: Book, currentPage: Int, busy: Boo
     var endPage by rememberSaveable(book.id) { mutableStateOf(currentPage.toString()) }
     var total by rememberSaveable(book.id) { mutableStateOf(book.pageCount?.toString().orEmpty()) }
     var updateProgress by rememberSaveable(book.id) { mutableStateOf(dateMillis == today) }
+    var progressChoiceExplicit by rememberSaveable(book.id) { mutableStateOf(false) }
     val syncId = rememberSaveable(book.id) { "session-${UUID.randomUUID()}" }
     var showDate by rememberSaveable { mutableStateOf(false) }
     var showTime by rememberSaveable { mutableStateOf(false) }
@@ -115,8 +118,22 @@ internal fun ManualPhysicalSessionDialog(book: Book, currentPage: Int, busy: Boo
         OfflinePageFields(totalPages = total, currentPage = endPage, onTotalPagesChange = { total = it },
             onCurrentPageChange = { endPage = it }, currentPageTooHigh =
                 endPage.toIntOrNull()?.let { end -> effectiveTotal.toIntOrNull()?.let { end > it } } == true, enabled = !busy)
-        FilterChip(selected = updateProgress, onClick = { if (!busy) updateProgress = !updateProgress },
-            enabled = !busy, label = { Text(stringResource(R.string.physical_manual_update_progress)) })
+        Row(
+            Modifier.fillMaxWidth().toggleable(value = updateProgress, enabled = !busy, role = Role.Switch,
+                onValueChange = { updateProgress = it; progressChoiceExplicit = true }),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(stringResource(R.string.physical_manual_update_progress), modifier = Modifier.weight(1f))
+            Switch(checked = updateProgress, onCheckedChange = null, enabled = !busy)
+        }
+        val progressPreview = when {
+            !updateProgress -> stringResource(R.string.physical_manual_progress_kept, currentPage)
+            effectiveTotal.toIntOrNull() == null -> stringResource(R.string.physical_manual_progress_needs_total)
+            resolved != null -> stringResource(R.string.physical_manual_progress_updated, resolved!!.endPage)
+            else -> null
+        }
+        progressPreview?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         if (resolved == null) Text(stringResource(R.string.physical_manual_invalid),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         if (failed) Text(stringResource(R.string.physical_timer_failed), color = MaterialTheme.colorScheme.error)
@@ -139,7 +156,11 @@ internal fun ManualPhysicalSessionDialog(book: Book, currentPage: Int, busy: Boo
         })
         DatePickerDialog(onDismissRequest = { showDate = false }, confirmButton = {
             TextButton(onClick = {
-                state.selectedDateMillis?.let { dateMillis = it; updateProgress = it == today }
+                // Changing the date must not silently override the reader's explicit progress choice.
+                state.selectedDateMillis?.let {
+                    dateMillis = it
+                    if (!progressChoiceExplicit) updateProgress = it == today
+                }
                 showDate = false
             }, enabled = state.selectedDateMillis != null) { Text(stringResource(R.string.library_reading_date_save)) }
         }, dismissButton = { TextButton(onClick = { showDate = false }) { Text(stringResource(R.string.library_edit_metadata_cancel)) } }) {

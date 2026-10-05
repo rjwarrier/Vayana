@@ -14,9 +14,16 @@ data class WatchState(
     val recoveredAfterReboot: Boolean = false,
     val phoneConnected: Boolean = false,
     val syncFailed: Boolean = false,
+    val timerRevision: Long = 0,
+    val remoteTimer: SharedTimerSnapshot? = null,
+    val remoteAnchor: Long = 0,
+    val remoteBoot: Int = 0,
+    val timerCommands: List<SharedTimerCommand> = emptyList(),
+    val processedCommands: Map<String, String> = emptyMap(),
+    val timerMessage: String? = null,
 ) {
     fun start(book: WearBook, page: Int, id: String, wall: Long, monotonic: Long, boot: Int): WatchState {
-        check(active == null)
+        check(active == null && remoteTimer?.book == null)
         require(page >= 0 && (book.total == null || page <= book.total))
         return copy(active = WatchActive(book, PhysicalTimerSession(0, book.title, id, wall, page,
             runningSince = monotonic, bootCount = boot, pageCount = book.total, activeIntervals = ""), page), recoveredAfterReboot = false)
@@ -50,7 +57,11 @@ data class WatchState(
         // Keep receipts durably, including across a crash between acknowledgement and transport cleanup.
         return copy(entries = next)
     }
-    fun json(): String = JSONObject().put("books", JSONArray().also { a -> books.forEach { a.put(it.json()) } })
+    fun json(): String = JSONObject()
+        .put("timerRevision", timerRevision).put("remoteTimer", remoteTimer?.json())
+        .put("remoteAnchor", remoteAnchor).put("remoteBoot", remoteBoot)
+        .put("timerCommands", JSONArray(timerCommands.map { it.json() }))
+        .put("processedCommands", JSONObject(processedCommands)).put("timerMessage", timerMessage).put("books", JSONArray().also { a -> books.forEach { a.put(it.json()) } })
         .put("recovered", recoveredAfterReboot)
         .put("phoneConnected", phoneConnected).put("syncFailed", syncFailed)
         .put("entries", JSONArray().also { a -> entries.forEach { a.put(JSONObject()
@@ -79,7 +90,12 @@ data class WatchState(
                 (0 until entries.length()).map { i -> entries.getJSONObject(i).let {
                     WatchEntry(WearSession.parse(it.getJSONObject("session")),
                         it.optString("receipt").takeIf { value -> value in WearSyncRules.receipts })
-                } }, j.optBoolean("recovered"), j.optBoolean("phoneConnected"), j.optBoolean("syncFailed"))
+                } }, j.optBoolean("recovered"), j.optBoolean("phoneConnected"), j.optBoolean("syncFailed"),
+                j.optLong("timerRevision"), j.optString("remoteTimer").takeUnless { j.isNull("remoteTimer") || !j.has("remoteTimer") }?.let(SharedTimerSnapshot::parse),
+                j.optLong("remoteAnchor"), j.optInt("remoteBoot"), j.optJSONArray("timerCommands")?.let { commands ->
+                    (0 until commands.length()).map { SharedTimerCommand.parse(commands.getString(it)) } } ?: emptyList(),
+                j.optJSONObject("processedCommands")?.let { receipts -> receipts.keys().asSequence().associateWith { receipts.getString(it) } } ?: emptyMap(),
+                j.optString("timerMessage").takeUnless { j.isNull("timerMessage") || !j.has("timerMessage") })
         }
     }
 }

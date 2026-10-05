@@ -272,6 +272,24 @@ class OfflineBookRepositoryTest {
     }
 
     @Test
+    fun manualSessionUpdatesMirroredPhysicalBookFrom128To132() = runBlocking {
+        val book = repository.insertOfflineBook("Mirrored paper", null, BookFormat.PHYSICAL, null, null, 194, 128)
+        val original = database.bookDao().getById(book.id)!!
+        database.bookDao().update(original.copy(source = "home_library", syncUuid = "manual-test-mirror"))
+        repository.recordPhysicalReadingSession(book.id, "manual-mirrored", 1791211260000, 1791211500000,
+            240, 128, 132, 194, updateProgress = true)
+        val saved = repository.getById(book.id)!!
+        assertEquals(132, (saved.readingPercent * saved.pageCount!!).toInt())
+        val log = database.readingSessionDao().findBySyncId("manual-mirrored")!!
+        assertEquals(128, log.startPage)
+        assertEquals(132, log.endPage)
+        assertEquals(240L, saved.totalReadingSeconds)
+        repository.recordPhysicalReadingSession(book.id, "manual-mirrored", 1791211260000, 1791211500000,
+            240, 128, 132, 194, updateProgress = true)
+        assertEquals(240L, repository.getById(book.id)!!.totalReadingSeconds)
+    }
+
+    @Test
     fun projectedNoteMembershipMatchesFullAnnotationsIncludingWhitespaceAndDeletion() = runBlocking {
         val notes = com.vayana.core.database.repository.AnnotationRepositoryImpl(database, database.annotationDao(),
             database.bookDao(), database.bookAliasDao(), database.tombstoneDao())
@@ -623,4 +641,63 @@ class OfflineBookRepositoryTest {
         physicalOwnership = physicalOwnership,
         borrowReturnAt = borrowReturnAt,
     )
+
+    @Test
+    fun sharedPhoneOwnerCommandsSaveExactlyOnceAndRejectStaleActions() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        context.getSharedPreferences("physical_reading_timer", 0).edit().clear().commit()
+        val book = repository.insertOfflineBook("Shared", null, BookFormat.PHYSICAL, null, null)
+        val timer = PhysicalReadingTimerController(context, repository)
+        timer.start(book.id, book.title, 10, 100)
+        val snapshot = timer.ownSnapshot()
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(10))
+        val pause = com.vayana.core.wear.SharedTimerCommand("cmd-12345678-1234-1234-1234-123456789abc", "phone",
+            snapshot.sessionId!!, snapshot.revision, "pause")
+        assertEquals("applied", timer.applyCompanionCommand(pause))
+        assertEquals(PhysicalTimerPhase.PAUSED, timer.session.value!!.phase)
+        val pausedRevision = timer.ownSnapshot().revision
+        assertEquals("applied", timer.applyCompanionCommand(pause))
+        assertEquals(pausedRevision, timer.ownSnapshot().revision)
+        val stale = pause.copy(id = "cmd-22345678-1234-1234-1234-123456789abc", action = "discard")
+        assertEquals("stale", timer.applyCompanionCommand(stale))
+        assertTrue(timer.session.value != null)
+        val finish = pause.copy(id = "cmd-32345678-1234-1234-1234-123456789abc", revision = pausedRevision, action = "finish", page = 20)
+        assertEquals("applied", timer.applyCompanionCommand(finish))
+        assertNull(timer.session.value)
+        assertEquals("applied", PhysicalReadingTimerController(context, repository).applyCompanionCommand(finish))
+        assertEquals(1, database.readingSessionDao().getAllForSync().size)
+        assertEquals(10L, repository.getById(book.id)!!.totalReadingSeconds)
+    }
+
+    @Test
+    fun watchOwnerMirrorQueuesOfflineControlsAndNeverWritesASecondReadingLog() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val preferences = context.getSharedPreferences("physical_reading_timer", 0)
+        preferences.edit().clear().commit()
+        val book = repository.insertOfflineBook("Watch owned", null, BookFormat.PHYSICAL, null, null)
+        val now = System.currentTimeMillis()
+        val snapshot = com.vayana.core.wear.SharedTimerSnapshot("watch", 5, now,
+            com.vayana.core.wear.WearBook(book.syncId, book.title, 10, 100, book.updatedAt),
+            "wear-12345678-1234-1234-1234-123456789abc", now - 60000, 10, 10, 60000,
+            PhysicalTimerPhase.RUNNING)
+        val timer = PhysicalReadingTimerController(context, repository)
+        timer.receiveRemote(snapshot, book.id)
+        assertTrue(timer.isRemote)
+        assertNull(timer.localSession())
+        timer.pause()
+        val pending = timer.pendingCommand()!!
+        assertEquals("pause", pending.action)
+        assertEquals(PhysicalTimerPhase.RUNNING, timer.session.value!!.phase)
+        val restored = PhysicalReadingTimerController(context, repository)
+        assertEquals(pending, restored.pendingCommand())
+        restored.acknowledgeRemote(pending, pending.receipt("applied", 6))
+        assertTrue(restored.hasPendingCommand)
+        restored.receiveRemote(snapshot.copy(revision = 6, phase = PhysicalTimerPhase.PAUSED), book.id)
+        restored.acknowledgeRemote(pending, pending.receipt("applied", 6))
+        assertTrue(!restored.hasPendingCommand)
+        assertEquals(PhysicalTimerPhase.PAUSED, restored.session.value!!.phase)
+        assertTrue(database.readingSessionDao().getAllForSync().isEmpty())
+        assertEquals(0L, repository.getById(book.id)!!.totalReadingSeconds)
+        assertNull(preferences.getString("session", null))
+    }
 }

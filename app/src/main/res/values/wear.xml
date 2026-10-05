@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="watch_connected">Watch connected</string>
     <string-array name="android_wear_capabilities" tools:ignore="UnusedResources">
         <item>vayana_phone</item>
     </string-array>

@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
     val controller = viewModel.physicalReadingTimer
     val active by controller.session.collectAsStateWithLifecycle()
+    val companionStatus by controller.companionStatus.collectAsStateWithLifecycle()
     val pageLogs by remember(book.id) { viewModel.observeRecentPhysicalSessions(book.id, 3) }
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val paceSessions by remember(book.id) { viewModel.observeRecentPhysicalSessions(book.id, 5, forwardOnly = true) }
@@ -105,12 +106,13 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
             null -> R.string.physical_timer_ready
           }), style = MaterialTheme.typography.bodyMedium)
         }
+        if (companionStatus.isNotEmpty()) Text(companionStatus, style = MaterialTheme.typography.bodySmall)
         if (active != null && timer == null) {
             Text(stringResource(R.string.physical_timer_other_book, active!!.bookTitle))
             TextButton(onClick = { perform { controller.discard() } }, enabled = !busy) {
                 Text(stringResource(R.string.physical_timer_discard_active))
             }
-        } else if (busy) {
+        } else if (busy || controller.hasPendingCommand) {
             VayanaCircularProgressIndicator()
         } else {
             val buttons = when (timer?.phase) {
@@ -174,6 +176,7 @@ internal fun PhysicalReadingTimerCard(book: Book, viewModel: LibraryViewModel) {
                     pageCount = book.pageCount,
                 )
             },
+            onDeleteSession = { session -> viewModel.deletePhysicalReadingSession(book.id, session.syncId) },
             onDismiss = { showHistory = false },
         )
     }

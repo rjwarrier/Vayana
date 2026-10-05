@@ -12,8 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -59,6 +61,7 @@ internal fun PhysicalSessionHistoryDialog(
     summary: PhysicalReadingSessionSummary,
     pace: PhysicalReadingPace,
     onUpdatePages: suspend (ReadingSession, Int, Int) -> Unit,
+    onDeleteSession: suspend (ReadingSession) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -66,6 +69,7 @@ internal fun PhysicalSessionHistoryDialog(
     val formatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale) }
     val zone = ZoneId.systemDefault()
     var editingSession by remember { mutableStateOf<ReadingSession?>(null) }
+    var deletingSession by remember { mutableStateOf<ReadingSession?>(null) }
     ExpressiveDialogSurface(onDismissRequest = onDismiss) {
         ExpressiveDialogHeader(Icons.Outlined.History, stringResource(R.string.physical_timer_reading_log),
             supportingText = book.homeLibraryDisplayTitle)
@@ -114,6 +118,7 @@ internal fun PhysicalSessionHistoryDialog(
             }
         }
         Text(stringResource(R.string.physical_timer_history), style = MaterialTheme.typography.titleMedium)
+        if (sessions.isEmpty()) Text(stringResource(R.string.physical_timer_history_empty))
         LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             items(sessions, key = { it.syncId }) { log ->
@@ -131,15 +136,16 @@ internal fun PhysicalSessionHistoryDialog(
                             Text(stringResource(R.string.physical_timer_history_pages, log.startPage!!, log.endPage!!),
                                 style = MaterialTheme.typography.bodyMedium)
                         }
-                        OutlinedButton(
-                            onClick = { editingSession = log },
-                            shape = Radii.buttonShape,
-                        ) {
-                            Icon(Icons.Outlined.Edit, contentDescription = null)
-                            Text(
-                                stringResource(R.string.physical_timer_edit_pages),
-                                modifier = Modifier.padding(start = Spacing.xs),
-                            )
+                        Column(horizontalAlignment = Alignment.End) {
+                            OutlinedButton(onClick = { editingSession = log }, shape = Radii.buttonShape) {
+                                Icon(Icons.Outlined.Edit, contentDescription = null)
+                                Text(stringResource(R.string.physical_timer_edit_pages), modifier = Modifier.padding(start = Spacing.xs))
+                            }
+                            TextButton(onClick = { deletingSession = log }) {
+                                Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Text(stringResource(R.string.library_delete_confirm), color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(start = Spacing.xs))
+                            }
                         }
                     }
                 }
@@ -154,6 +160,44 @@ internal fun PhysicalSessionHistoryDialog(
             onDismiss = { editingSession = null },
             onSave = { startPage, endPage -> onUpdatePages(session, startPage, endPage) },
         )
+    }
+    deletingSession?.let { session ->
+        PhysicalSessionDeleteDialog(session, formatter.format(Instant.ofEpochMilli(session.startedAt).atZone(zone)),
+            onDismiss = { deletingSession = null }, onDelete = { onDeleteSession(session) })
+    }
+
+}
+
+@Composable
+private fun PhysicalSessionDeleteDialog(session: ReadingSession, dateLabel: String,
+    onDismiss: () -> Unit, onDelete: suspend () -> Unit) {
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    ExpressiveDialogSurface(onDismissRequest = { if (!busy) onDismiss() }) {
+        ExpressiveDialogHeader(Icons.Outlined.Delete, stringResource(R.string.physical_timer_delete_session),
+            supportingText = dateLabel)
+        Text(stringResource(R.string.physical_timer_history_pages, session.startPage!!, session.endPage!!))
+        Text(stringResource(R.string.physical_timer_delete_session_body, formatTimerClock(session.durationSeconds)))
+        if (failed) Text(stringResource(R.string.physical_timer_delete_session_failed), color = MaterialTheme.colorScheme.error)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
+            FilledTonalButton(onClick = onDismiss, enabled = !busy, shape = Radii.buttonShape) {
+                Text(stringResource(R.string.library_edit_metadata_cancel))
+            }
+            Button(onClick = {
+                scope.launch {
+                    busy = true; failed = false
+                    try { onDelete(); onDismiss() }
+                    catch (cancel: CancellationException) { throw cancel }
+                    catch (_: Exception) { failed = true }
+                    finally { busy = false }
+                }
+            }, enabled = !busy, shape = Radii.buttonShape,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError)) {
+                Text(stringResource(R.string.library_delete_confirm))
+            }
+        }
     }
 }
 

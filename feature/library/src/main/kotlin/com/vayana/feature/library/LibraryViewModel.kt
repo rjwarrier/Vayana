@@ -2321,6 +2321,11 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    internal suspend fun deletePhysicalReadingSession(bookId: Long, syncId: String) = withContext(dispatchers.io) {
+        readingSessionRepository.deletePhysicalSession(bookId, syncId)
+        Unit
+    }
+
     internal suspend fun markPhysicalBookReading(bookId: Long) = withContext(dispatchers.io) {
         bookRepository.markPhysicalBookReading(bookId)
     }

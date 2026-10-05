@@ -60,6 +60,8 @@ data class WearSession(
 object WearProtocol {
     const val ROOT = "/vayana/wear/v1/"
     const val CATALOG = ROOT + "catalog"
+    const val COVER = ROOT + "cover/"
+    const val DAILY = ROOT + "daily"
     const val SESSION = ROOT + "session/"
     const val ACK = ROOT + "ack/"
     const val REQUEST = ROOT + "request"

@@ -14,9 +14,12 @@ object WearSyncRules {
         } }.getOrNull()
     }
     fun phoneEvent(path: String?, changed: Boolean): Boolean =
-        (path?.startsWith(WearProtocol.SESSION) == true) || (changed && path == WearProtocol.REQUEST)
+        (path?.startsWith(WearProtocol.SESSION) == true) || (changed && (path == WearProtocol.REQUEST ||
+            path == SharedTimerSnapshot.statePath("watch") || path?.startsWith(SharedTimerSnapshot.ROOT + "command/phone/") == true ||
+            path?.startsWith(SharedTimerSnapshot.ROOT + "receipt/watch/") == true))
     fun watchEvent(path: String?, changed: Boolean): Boolean = changed &&
-        (path == WearProtocol.CATALOG || path?.startsWith(WearProtocol.ACK) == true)
+        (path == SharedTimerSnapshot.statePath("phone") || path?.startsWith(SharedTimerSnapshot.ROOT + "command/watch/") == true ||
+            path?.startsWith(SharedTimerSnapshot.ROOT + "receipt/phone/") == true || path == WearProtocol.CATALOG || path == WearProtocol.DAILY || path?.startsWith(WearProtocol.ACK) == true || path?.startsWith(WearProtocol.COVER) == true)
     fun acknowledged(current: String?, incoming: String): String = when {
         incoming !in receipts -> current ?: ""
         current in delivered -> current!!
