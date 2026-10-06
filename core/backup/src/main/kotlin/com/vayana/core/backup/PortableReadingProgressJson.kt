@@ -92,6 +92,7 @@ data class PortableReadingProgressPatch(
 data class PortableReadingProgressPatchResult(
     val jsonText: String,
     val patched: Int,
+    /** New sessions plus advanced/enriched checkpoints; kept for wire/caller compatibility. */
     val sessionsAdded: Int = 0,
     val wordLookupCountersMerged: Int = 0,
     val tombstonesMerged: Int = 0,
@@ -168,7 +169,7 @@ fun patchPortableReadingProgressOnly(
         if (bookPatched) patched += 1
     }
 
-    val sessionsAdded = root.appendMissingReadingSessions(readingSessions)
+    val sessionsAdded = root.mergeReadingSessions(readingSessions)
     val wordLookupCountersMerged = root.mergeWordLookupCounters(wordLookupCounters)
     val tombstonesMerged = root.mergeTombstones(tombstones)
     val changed = patched > 0 || sessionsAdded > 0 || wordLookupCountersMerged > 0 || tombstonesMerged > 0
@@ -262,7 +263,7 @@ private fun JSONObject.mergeWordLookupCounters(wordLookupCounters: List<Portable
 
 private fun wordLookupCounterKey(word: String, writerOrigin: String): String = "$word\u0000$writerOrigin"
 
-private fun JSONObject.appendMissingReadingSessions(readingSessions: List<PortableReadingSession>): Int {
+private fun JSONObject.mergeReadingSessions(readingSessions: List<PortableReadingSession>): Int {
     if (readingSessions.isEmpty()) return 0
     // Deliberately not gated on the session's book already being present in this document's "books" array:
     // progress-only sync never uploads book/asset metadata (that's a full sync's job), so a session for a
@@ -271,21 +272,41 @@ private fun JSONObject.appendMissingReadingSessions(readingSessions: List<Portab
     // self-healing no-op) until a future sync catches it up on the book.
     val sessions = optJSONArray("readingSessions") ?: JSONArray().also { put("readingSessions", it) }
     require(sessions.length() <= MaxPortableProgressReadingSessions) { "Portable snapshot has too many reading sessions" }
-    val existingSessionSyncIds = buildSet {
+    val existingSessionIndices = buildMap {
         for (index in 0 until sessions.length()) {
             val sessionSyncId = sessions.optJSONObject(index)?.optBoundedString("syncId", MaxSyncIdChars) ?: continue
-            add(sessionSyncId)
+            put(sessionSyncId, index)
         }
-    }.toMutableSet()
+    }.toMutableMap()
     var added = 0
     readingSessions.forEach { session ->
-        if (sessions.length() >= MaxPortableProgressReadingSessions) return@forEach
         if (session.syncId.isBlank() || session.syncId.length > MaxSyncIdChars) return@forEach
         if (session.bookSyncId.isBlank() || session.bookSyncId.length > MaxSyncIdChars) return@forEach
-        if (session.syncId in existingSessionSyncIds) return@forEach
         if (session.startedAt <= 0L || session.endedAt < session.startedAt || (session.durationSeconds < 0L || (session.durationSeconds == 0L && session.activeIntervals != ""))) return@forEach
-        sessions.put(
-            JSONObject()
+        val index = existingSessionIndices[session.syncId]
+        val existing = index?.let { sessions.getJSONObject(it) }
+        if (existing != null) {
+            if (existing.optLong("startedAt") != session.startedAt ||
+                existing.optLong("durationSeconds") > session.durationSeconds ||
+                existing.optLong("endedAt") > session.endedAt) return@forEach
+            if (existing.optLong("durationSeconds") == session.durationSeconds) {
+                // Upgrade old snapshots with matching information, without rewriting time or
+                // physical-page edits from another device when neither checkpoint advanced.
+                var enriched = false
+                if (existing.isNull("bookFileHash") && !session.bookFileHash.isNullOrBlank()) {
+                    existing.put("bookFileHash", session.bookFileHash)
+                    enriched = true
+                }
+                if (existing.isNull("activeIntervals") && session.activeIntervals != null) {
+                    existing.put("activeIntervals", session.activeIntervals)
+                    enriched = true
+                }
+                if (enriched) added += 1
+                return@forEach
+            }
+        }
+        if (index == null && sessions.length() >= MaxPortableProgressReadingSessions) return@forEach
+        val incoming = JSONObject()
                 .put("syncId", session.syncId)
                 .put("bookSyncId", session.bookSyncId)
                 .put("startedAt", session.startedAt)
@@ -293,12 +314,30 @@ private fun JSONObject.appendMissingReadingSessions(readingSessions: List<Portab
                 .put("durationSeconds", session.durationSeconds)
                 .put("startPage", session.startPage)
                 .put("endPage", session.endPage)
-                .put("activeIntervals", session.activeIntervals),
-        )
-        existingSessionSyncIds += session.syncId
+                .put("activeIntervals", session.activeIntervals)
+                .put("bookFileHash", session.bookFileHash)
+        val destination = index ?: sessions.length()
+        sessions.put(destination, incoming)
+        existingSessionIndices[session.syncId] = destination
         added += 1
     }
     return added
+}
+
+/** Identity matching needs neither a locator nor downloadable file metadata. */
+fun parsePortableBookFileHashes(jsonText: String): Map<String, String> {
+    require(jsonText.length <= MaxPortableProgressJsonChars) { "Portable snapshot is too large" }
+    val books = JSONObject(jsonText).optJSONArray("books") ?: return emptyMap()
+    require(books.length() <= MaxPortableProgressBooks) { "Portable snapshot has too many books" }
+    return buildMap {
+        for (index in 0 until books.length()) {
+            val book = books.optJSONObject(index) ?: continue
+            if (book.optBoolean("isDeleted", false)) continue
+            val syncId = book.optBoundedString("syncId", MaxSyncIdChars) ?: continue
+            val hash = book.optBoundedString("fileHash", MaxFileHashChars) ?: continue
+            put(syncId, hash)
+        }
+    }
 }
 
 fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {

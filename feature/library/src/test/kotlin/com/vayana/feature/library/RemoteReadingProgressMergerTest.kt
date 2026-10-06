@@ -17,6 +17,7 @@ class RemoteReadingProgressMergerTest {
     private val appliedReadNextSyncIds = mutableListOf<String>()
     private var tombstoneMerges = 0
     private val tombstoneScopes = mutableListOf<TombstoneMergeScope>()
+    private var sessionMerges = 0
 
     /** Any BookRepository call other than applySyncedReadingProgress fails the test. */
     private val bookRepository = Proxy.newProxyInstance(
@@ -47,6 +48,13 @@ class RemoteReadingProgressMergerTest {
             tombstoneMerges += 1
             GenericSyncMergeSummary(appliedDeletes = 1)
         },
+        mergeSessions = { _, booksJson ->
+            assertEquals(1, tombstoneMerges)
+            assertTrue(appliedSyncIds.isNotEmpty())
+            assertTrue(booksJson.contains("fresh"))
+            sessionMerges += 1
+            GenericSyncMergeSummary(created = 1)
+        },
     )
 
     @Test
@@ -66,6 +74,7 @@ class RemoteReadingProgressMergerTest {
         assertEquals("sha-1", summary.remoteSnapshotSha)
         assertEquals("Tablet", summary.remoteDeviceLabel)
         assertEquals(25L, summary.remoteSyncedAt)
+        assertEquals(0, sessionMerges)
     }
 
     @Test
@@ -73,6 +82,7 @@ class RemoteReadingProgressMergerTest {
         merger.merge(document(), tombstones = TombstoneMergeScope.ALL)
 
         assertEquals(1, tombstoneMerges)
+        assertEquals(1, sessionMerges)
         assertTrue(repositoryCalls.all { it == "applySyncedReadingProgress" })
     }
 
@@ -99,6 +109,7 @@ class RemoteReadingProgressMergerTest {
             bookRepository = bookRepository,
             localDeviceLabel = { "Phone" },
             mergeTombstones = { _, _ -> GenericSyncMergeSummary(failed = true, failureMessage = UiText.Raw("bad tombstones")) },
+            mergeSessions = { _, _ -> error("Sessions must not run after failed deletions") },
         )
 
         val summary = failing.merge(document(), tombstones = TombstoneMergeScope.ALL)
@@ -106,6 +117,25 @@ class RemoteReadingProgressMergerTest {
         assertTrue(summary.failed)
         assertEquals(UiText.Raw("bad tombstones"), summary.failureMessage)
         assertTrue(repositoryCalls.isEmpty())
+    }
+
+    @Test
+    fun silentReadingProgressPullIncludesSessionsAfterTheirTombstones() = runBlocking {
+        val summary = merger.merge(document(), TombstoneMergeScope.READING_PROGRESS)
+        assertEquals(listOf(TombstoneMergeScope.READING_PROGRESS), tombstoneScopes)
+        assertEquals(1, sessionMerges)
+        assertEquals(2, summary.applied)
+        assertTrue(!summary.failed)
+    }
+
+    @Test
+    fun failedSessionImportIsReportedSoTheSnapshotCanBeRetried() = runBlocking {
+        val failing = RemoteReadingProgressMerger(bookRepository, { "Phone" },
+            { _, _ -> GenericSyncMergeSummary() },
+            { _, _ -> GenericSyncMergeSummary(failed = true, failureMessage = UiText.Raw("bad history")) })
+        val summary = failing.merge(document(), TombstoneMergeScope.READING_PROGRESS)
+        assertTrue(summary.failed)
+        assertEquals(UiText.Raw("bad history"), summary.failureMessage)
     }
 
     private fun document() = RemotePortableSnapshotDocument(

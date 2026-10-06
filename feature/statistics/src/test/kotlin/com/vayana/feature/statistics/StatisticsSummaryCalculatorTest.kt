@@ -13,6 +13,28 @@ import kotlin.test.assertSame
 
 class StatisticsSummaryCalculatorTest {
     @Test
+    fun syncedCheckpointsUpdateHeatmapTotalsAndYearReviewTogether() {
+        val calculator = StatisticsSummaryCalculator()
+        val today = LocalDate.of(2026, 10, 6)
+        val zone = ZoneId.of("Asia/Kolkata")
+        val start = today.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val digital = ReadingSession(1, "device-a", 1, start, start + 600_000, 600)
+        val physical = ReadingSession(2, "device-b", 2, start + 900_000, start + 2_100_000, 1200, 10, 20)
+        fun summary(sessions: List<ReadingSession>) = calculator.calculate(emptyList(), emptyList(), emptyList(),
+            sessions, emptyList(), 20, 12, .95f, DayOfWeek.MONDAY, zone, today)
+        val initial = summary(listOf(digital, physical))
+        assertEquals(1800L, initial.totalReadingSeconds)
+        assertEquals(30, initial.todayReadingMinutes)
+        assertEquals(30, initial.dailyReadingMinutes.single { it.date == today }.minutes)
+        assertEquals(1800L, initial.yearReview?.readingSeconds)
+        val later = summary(listOf(digital.copy(endedAt = start + 900_000, durationSeconds = 900), physical))
+        assertEquals(2100L, later.totalReadingSeconds)
+        assertEquals(35, later.dailyReadingMinutes.single { it.date == today }.minutes)
+        assertEquals(2100L, later.yearReview?.readingSeconds)
+        assertEquals(2, later.sessionCount)
+    }
+
+    @Test
     fun vocabularyAndAnnotationUpdatesPreserveReadingWorkAndYearReviewSemantics() {
         val calculator = StatisticsSummaryCalculator()
         val today = LocalDate.of(2026, 10, 3)

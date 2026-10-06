@@ -3,6 +3,8 @@ package com.vayana.feature.reader
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 
 class ReadingTimeTrackerTest {
     private val tracker = ReadingTimeTracker(
@@ -44,7 +46,10 @@ class ReadingTimeTrackerTest {
     fun pauseDoesNotCountBackgroundTime() {
         tracker.interact(0L)
         assertEquals(10L, tracker.pause(10_000L).addedSeconds)
-        assertEquals(ReadingTimeUpdate(activeSessionSeconds = 10L), tracker.pause(30_000L))
+        val paused = tracker.pause(30_000L)
+        assertEquals(0L, paused.addedSeconds)
+        assertEquals(10L, paused.activeSessionSeconds)
+        assertEquals(10L, paused.checkpoint?.durationSeconds)
         assertEquals(CompletedReadingSession(0L, 10_000L, 10L), tracker.flush(80_001L).session)
         tracker.interact(700_000L)
         assertEquals(10L, tracker.finish(710_000L).addedSeconds)
@@ -73,5 +78,33 @@ class ReadingTimeTrackerTest {
         assertEquals(ReadingTimeUpdate(), tracker.flush(10_000L))
         assertEquals(ReadingTimeUpdate(), tracker.pause(20_000L))
         assertEquals(ReadingTimeUpdate(), tracker.finish(30_000L))
+    }
+
+    @Test
+    fun activeAndPausedReadingHaveDurableCumulativeCheckpointsBeforeCompletion() {
+        tracker.interact(1_000L)
+        val first = assertNotNull(tracker.flush(61_000L).checkpoint)
+        assertEquals(60L, first.durationSeconds)
+        val paused = tracker.pause(121_000L)
+        assertNull(paused.session)
+        assertEquals(first.syncId, paused.checkpoint?.syncId)
+        assertEquals(120L, paused.checkpoint?.durationSeconds)
+        // No subsequent callback is necessary to save the time before leaving the app.
+        tracker.interact(151_000L)
+        val completed = tracker.finish(181_000L)
+        assertEquals(first.syncId, completed.checkpoint?.syncId)
+        assertEquals(150L, completed.checkpoint?.durationSeconds)
+        assertEquals(150L, completed.session?.durationSeconds)
+    }
+
+    @Test
+    fun aNewSessionHasANewIdentityAndOldCheckpointsRemainImmutable() {
+        tracker.interact(1_000L)
+        val first = assertNotNull(tracker.finish(61_000L).checkpoint)
+        tracker.interact(62_000L)
+        val second = assertNotNull(tracker.flush(122_000L).checkpoint)
+        assertNotEquals(first.syncId, second.syncId)
+        assertEquals(60L, first.durationSeconds)
+        assertEquals(60L, second.durationSeconds)
     }
 }

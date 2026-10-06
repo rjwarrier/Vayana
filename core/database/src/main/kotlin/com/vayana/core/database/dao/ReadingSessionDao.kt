@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.vayana.core.database.entity.ReadingSessionEntity
 import com.vayana.core.database.model.PhysicalReadingSessionSummary
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,12 @@ interface ReadingSessionDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnore(session: ReadingSessionEntity): Long
+
+    @Update
+    suspend fun update(session: ReadingSessionEntity)
+
+    @Query("SELECT COALESCE(SUM(durationSeconds), 0) FROM reading_sessions WHERE bookId = :bookId")
+    suspend fun totalSecondsForBook(bookId: Long): Long
 
     @Query("SELECT * FROM reading_sessions ORDER BY startedAt DESC")
     fun observeAll(): Flow<List<ReadingSessionEntity>>

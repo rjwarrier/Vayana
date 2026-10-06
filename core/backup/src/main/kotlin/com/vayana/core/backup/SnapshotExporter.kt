@@ -45,6 +45,7 @@ class SnapshotExporter @Inject constructor(
     suspend fun export(): PortableSnapshot = withContext(dispatchers.io) {
         val books = bookDao.getAllForSync()
         val bookSyncIdsByLocalId = books.associate { it.id to it.syncId }
+        val bookFileHashesByLocalId = books.associate { it.id to it.fileHash }
         val shelves = shelfDao.getAllForSync()
         val shelfSyncIdsByLocalId = shelves.associate { it.id to it.syncId }
         val allSettings = settingsRepository.exportToMap()
@@ -65,7 +66,7 @@ class SnapshotExporter @Inject constructor(
                 .mapNotNull { it.toPortable(bookSyncIdsByLocalId, shelfSyncIdsByLocalId) }
                 .sortedWith(compareBy({ it.bookSyncId }, { it.shelfSyncId })),
             readingSessions = readingSessionDao.getAllForSync()
-                .mapNotNull { it.toPortable(bookSyncIdsByLocalId) }
+                .mapNotNull { it.toPortable(bookSyncIdsByLocalId, bookFileHashesByLocalId) }
                 .sortedBy { it.syncId },
             vocabularyCards = vocabularyCardDao.getAllForSync()
                 .map { it.toPortable(bookSyncIdsByLocalId) }
@@ -170,11 +171,12 @@ class SnapshotExporter @Inject constructor(
         )
     }
 
-    private fun ReadingSessionEntity.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableReadingSession? {
+    private fun ReadingSessionEntity.toPortable(bookSyncIdsByLocalId: Map<Long, String>, bookFileHashesByLocalId: Map<Long, String>): PortableReadingSession? {
         val bookSyncId = bookSyncIdsByLocalId[bookId] ?: return null
         return PortableReadingSession(
             syncId = syncId,
             bookSyncId = bookSyncId,
+            bookFileHash = bookFileHashesByLocalId[bookId],
             startedAt = startedAt,
             endedAt = endedAt,
             durationSeconds = durationSeconds,

@@ -1,5 +1,7 @@
 package com.vayana.feature.reader
 
+import java.util.UUID
+
 /** One reading session; elapsed time advances only after reader input and stops at idle/pause. */
 internal class ReadingTimeTracker(
     private val idleTimeoutMillis: Long,
@@ -10,6 +12,7 @@ internal class ReadingTimeTracker(
     private var lastInteractionAt = 0L
     private var activeMillis = 0L
     private var suspendedAt: Long? = null
+    private var syncId = ""
 
     val elapsedSeconds: Long
         get() = activeMillis / 1000L
@@ -23,6 +26,7 @@ internal class ReadingTimeTracker(
     private fun start(now: Long) {
         if (startedAt != null) return
         startedAt = now
+        syncId = "session-${UUID.randomUUID()}"
         accountedUntil = now
         lastInteractionAt = now
         activeMillis = 0L
@@ -50,7 +54,8 @@ internal class ReadingTimeTracker(
 
     fun flush(now: Long): ReadingTimeUpdate {
         suspendedAt?.let { suspended ->
-            return if (now - suspended > continuationGraceMillis) complete(suspended) else ReadingTimeUpdate(activeSessionSeconds = elapsedSeconds)
+            return if (now - suspended > continuationGraceMillis) complete(suspended) else ReadingTimeUpdate(
+                activeSessionSeconds = elapsedSeconds, checkpoint = checkpoint(suspended))
         }
         val start = startedAt ?: return ReadingTimeUpdate()
         val deadline = lastInteractionAt + idleTimeoutMillis
@@ -58,8 +63,9 @@ internal class ReadingTimeTracker(
         val seconds = ((end - accountedUntil) / 1000L).coerceAtLeast(0L)
         accountedUntil += seconds * 1000L
         activeMillis += seconds * 1000L
+        val saved = checkpoint(end)
         val session = if (now >= deadline) complete(deadline).session else null
-        return ReadingTimeUpdate(seconds, session, elapsedSeconds)
+        return ReadingTimeUpdate(seconds, session, elapsedSeconds, saved)
     }
 
     fun pause(now: Long): ReadingTimeUpdate {
@@ -77,6 +83,7 @@ internal class ReadingTimeTracker(
     private fun complete(endedAt: Long): ReadingTimeUpdate {
         val start = startedAt ?: return ReadingTimeUpdate()
         val seconds = elapsedSeconds
+        val saved = checkpoint(endedAt)
         startedAt = null
         accountedUntil = 0L
         lastInteractionAt = 0L
@@ -85,7 +92,13 @@ internal class ReadingTimeTracker(
         return ReadingTimeUpdate(
             session = if (seconds > 0L) CompletedReadingSession(start, endedAt, seconds) else null,
             activeSessionSeconds = 0L,
+            checkpoint = saved,
         )
+    }
+
+    private fun checkpoint(endedAt: Long): ReadingTimeCheckpoint? {
+        val start = startedAt ?: return null
+        return if (elapsedSeconds > 0) ReadingTimeCheckpoint(syncId, start, endedAt, elapsedSeconds) else null
     }
 }
 
@@ -94,6 +107,7 @@ private operator fun ReadingTimeUpdate.plus(other: ReadingTimeUpdate): ReadingTi
         addedSeconds = addedSeconds + other.addedSeconds,
         session = other.session ?: session,
         activeSessionSeconds = other.activeSessionSeconds,
+        checkpoint = other.checkpoint ?: checkpoint,
     )
 
 internal data class CompletedReadingSession(
@@ -106,6 +120,15 @@ internal data class ReadingTimeUpdate(
     val addedSeconds: Long = 0L,
     val session: CompletedReadingSession? = null,
     val activeSessionSeconds: Long = 0L,
+    val checkpoint: ReadingTimeCheckpoint? = null,
+)
+
+/** Cumulative, durable progress for a single session; retries keep the same identity. */
+internal data class ReadingTimeCheckpoint(
+    val syncId: String,
+    val startedAt: Long,
+    val endedAt: Long,
+    val durationSeconds: Long,
 )
 
 internal object ReadingSessionContinuationStore {

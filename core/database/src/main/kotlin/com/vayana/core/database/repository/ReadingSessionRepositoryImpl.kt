@@ -54,6 +54,32 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun recordCheckpoint(bookId: Long, syncId: String, startedAt: Long, endedAt: Long, durationSeconds: Long) {
+        require(syncId.isNotBlank() && startedAt > 0 && endedAt >= startedAt && durationSeconds > 0)
+        database.withTransaction {
+            val book = bookDao.getById(bookId)?.takeUnless { it.isDeleted } ?: return@withTransaction
+            if (tombstoneDao.findBySyncId(syncId) != null) return@withTransaction
+            val resetAt = tombstoneDao.findBySyncId(readingProgressResetTombstoneId(book.syncId))?.deletedAt
+            if (resetAt != null && startedAt <= resetAt) return@withTransaction
+            val existing = readingSessionDao.findBySyncId(syncId)
+            if (existing != null) {
+                require(existing.bookId == bookId && existing.startedAt == startedAt)
+                if (durationSeconds <= existing.durationSeconds || endedAt < existing.endedAt) return@withTransaction
+                readingSessionDao.update(existing.copy(endedAt = endedAt, durationSeconds = durationSeconds))
+            } else {
+                readingSessionDao.insert(ReadingSessionEntity(syncId = syncId, bookId = bookId,
+                    startedAt = startedAt, endedAt = endedAt, durationSeconds = durationSeconds))
+            }
+            val addedSeconds = durationSeconds - (existing?.durationSeconds ?: 0L)
+            bookDao.update(book.copy(
+                totalReadingSeconds = maxOf(book.totalReadingSeconds + addedSeconds, readingSessionDao.totalSecondsForBook(bookId)),
+                startedReadingAt = book.startedReadingAt ?: startedAt,
+                lastReadAt = maxOf(book.lastReadAt ?: 0L, endedAt),
+                updatedAt = maxOf(book.updatedAt, endedAt),
+            ))
+        }
+    }
+
     override suspend fun updatePages(
         syncId: String,
         startPage: Int,
@@ -82,7 +108,15 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         true
     }
 
-    override suspend fun deleteBySyncId(syncId: String): Int = readingSessionDao.deleteBySyncId(syncId)
+    override suspend fun deleteBySyncId(syncId: String): Int = database.withTransaction {
+        val session = readingSessionDao.findBySyncId(syncId) ?: return@withTransaction 0
+        val deleted = readingSessionDao.deleteBySyncId(syncId)
+        if (deleted > 0) bookDao.getById(session.bookId)?.let { book ->
+            bookDao.update(book.copy(totalReadingSeconds =
+                (book.totalReadingSeconds - session.durationSeconds.coerceAtLeast(0)).coerceAtLeast(0)))
+        }
+        deleted
+    }
 
     override suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult {
         if (record.syncId.isBlank() || record.bookSyncId.isBlank()) return ReadingSessionMergeResult.SKIPPED
@@ -98,20 +132,45 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         return database.withTransaction {
             // Cleared by a reading-stats reset: the cloud copy mustn't bring it back.
             if (tombstoneDao.findBySyncId(record.syncId) != null) return@withTransaction ReadingSessionMergeResult.SKIPPED
-            val book = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao) ?: return@withTransaction ReadingSessionMergeResult.SKIPPED
-            val insertedId = readingSessionDao.insertIgnore(
-                ReadingSessionEntity(
-                    syncId = record.syncId,
-                    bookId = book.id,
-                    startedAt = record.startedAt,
-                    endedAt = record.endedAt,
-                    durationSeconds = record.durationSeconds,
-                    startPage = record.startPage?.takeIf { it >= 0 },
-                    endPage = record.endPage?.takeIf { it >= 0 },
-                    activeIntervals = record.activeIntervals,
-                ),
+            val book = bookDao.findActiveBySyncIdOrAlias(record.bookSyncId, bookAliasDao)
+                ?: record.bookFileHash?.takeIf { it.isNotBlank() }?.let { bookDao.findByHash(it) }
+                ?: return@withTransaction ReadingSessionMergeResult.SKIPPED
+            val resetAt = tombstoneDao.findBySyncId(readingProgressResetTombstoneId(book.syncId))?.deletedAt
+            if (resetAt != null && record.startedAt <= resetAt) return@withTransaction ReadingSessionMergeResult.SKIPPED
+            val existing = readingSessionDao.findBySyncId(record.syncId)
+            val incoming = ReadingSessionEntity(
+                syncId = record.syncId,
+                bookId = book.id,
+                startedAt = record.startedAt,
+                endedAt = record.endedAt,
+                durationSeconds = record.durationSeconds,
+                startPage = record.startPage?.takeIf { it >= 0 },
+                endPage = record.endPage?.takeIf { it >= 0 },
+                activeIntervals = record.activeIntervals,
             )
-            if (insertedId == -1L) ReadingSessionMergeResult.SKIPPED else ReadingSessionMergeResult.CREATED
+            val result = when {
+                existing == null -> {
+                    readingSessionDao.insert(incoming)
+                    ReadingSessionMergeResult.CREATED
+                }
+                existing.bookId == book.id && existing.startedAt == record.startedAt &&
+                    record.durationSeconds > existing.durationSeconds && record.endedAt >= existing.endedAt -> {
+                    readingSessionDao.update(incoming.copy(id = existing.id))
+                    ReadingSessionMergeResult.UPDATED
+                }
+                existing.bookId == book.id && existing.startedAt == record.startedAt &&
+                    existing.durationSeconds == record.durationSeconds && existing.endedAt == record.endedAt &&
+                    existing.activeIntervals == null && record.activeIntervals != null -> {
+                    readingSessionDao.update(existing.copy(activeIntervals = record.activeIntervals))
+                    ReadingSessionMergeResult.UPDATED
+                }
+                else -> ReadingSessionMergeResult.SKIPPED
+            }
+            // A max of per-device book totals loses independent offline reading. The merged session
+            // ledger is additive; retain a larger legacy total when old history has no session rows.
+            val total = maxOf(book.totalReadingSeconds, readingSessionDao.totalSecondsForBook(book.id))
+            if (total != book.totalReadingSeconds) bookDao.update(book.copy(totalReadingSeconds = total))
+            result
         }
     }
 }

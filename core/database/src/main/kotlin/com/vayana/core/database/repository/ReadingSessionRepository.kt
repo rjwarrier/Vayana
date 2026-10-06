@@ -13,10 +13,12 @@ data class CloudReadingSessionRecord(
     val startPage: Int? = null,
     val endPage: Int? = null,
     val activeIntervals: String? = null,
+    val bookFileHash: String? = null,
 )
 
 enum class ReadingSessionMergeResult {
     CREATED,
+    UPDATED,
     SKIPPED,
 }
 
@@ -34,6 +36,9 @@ interface ReadingSessionRepository {
 
     /** Records a finished session. Callers should drop sessions that never really started (0s). */
     suspend fun record(bookId: Long, startedAt: Long, endedAt: Long, durationSeconds: Long? = null)
+
+    /** Saves cumulative active time atomically with the book total; older retries cannot reduce it. */
+    suspend fun recordCheckpoint(bookId: Long, syncId: String, startedAt: Long, endedAt: Long, durationSeconds: Long)
 
     /** Changes only a physical session's page range, preserving its time and duration. */
     suspend fun updatePages(syncId: String, startPage: Int, endPage: Int, pageCount: Int?): Boolean

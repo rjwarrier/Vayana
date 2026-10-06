@@ -1542,9 +1542,10 @@ class ReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             ReadingSessionContinuationStore.drainExpired(System.currentTimeMillis()).forEach { (expiredBookId, update) ->
-                update.session?.let { session ->
-                    readingSessionRepository.record(
+                update.checkpoint?.let { session ->
+                    readingSessionRepository.recordCheckpoint(
                         bookId = expiredBookId,
+                        syncId = session.syncId,
                         startedAt = session.startedAt,
                         endedAt = session.endedAt,
                         durationSeconds = session.durationSeconds,
@@ -1681,6 +1682,8 @@ class ReaderViewModel @Inject constructor(
                 autoProgressSyncResumeGeneration = null
                 _syncStatus.value = ReaderSyncStatus.Syncing
                 val result = try {
+                    // Publish the latest durable session, not just a newer per-book total.
+                    persistReadingTimeNow(readingTimeTracker.flush(System.currentTimeMillis()))
                     readingProgressOnlySyncer.syncReadingProgress(force = forceThisRun)
                 } catch (throwable: Throwable) {
                     val released = resumeGenerationThisRun?.let(resumeProgressSyncGate::onSyncFinished) == true
@@ -1750,18 +1753,18 @@ class ReaderViewModel @Inject constructor(
     }
 
     private fun persistReadingTime(update: ReadingTimeUpdate) {
-        if (update.addedSeconds == 0L && update.session == null) return
-        viewModelScope.launch {
+        if (update.checkpoint == null) return
+        // A pause can be immediately followed by ViewModel disposal. The captured checkpoint
+        // must outlive that ViewModel, including the final seconds before leaving the reader.
+        applicationScope.launch {
             persistReadingTimeNow(update)
         }
     }
 
     private suspend fun persistReadingTimeNow(update: ReadingTimeUpdate) {
-        if (update.addedSeconds == 0L && update.session == null) return
-        if (update.addedSeconds > 0L) bookRepository.addReadingTime(bookId, update.addedSeconds)
         _activeReadingSessionSeconds.value = update.activeSessionSeconds
-        update.session?.let { session ->
-            readingSessionRepository.record(bookId, session.startedAt, session.endedAt, session.durationSeconds)
+        update.checkpoint?.let { session ->
+            readingSessionRepository.recordCheckpoint(bookId, session.syncId, session.startedAt, session.endedAt, session.durationSeconds)
         }
     }
 
@@ -1773,7 +1776,7 @@ class ReaderViewModel @Inject constructor(
         // process-lifetime applicationScope instead so this final flush actually reaches the database.
         val finalUpdate = readingTimeTracker.pause(System.currentTimeMillis())
         ReadingSessionContinuationStore.put(bookId, readingTimeTracker)
-        if (finalUpdate.addedSeconds != 0L || finalUpdate.session != null) {
+        if (finalUpdate.checkpoint != null) {
             applicationScope.launch { persistReadingTimeNow(finalUpdate) }
         }
         flushPendingLocatorWrite()

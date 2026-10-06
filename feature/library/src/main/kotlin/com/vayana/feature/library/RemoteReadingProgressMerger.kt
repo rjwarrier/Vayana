@@ -16,20 +16,28 @@ internal enum class TombstoneMergeScope {
 
     /** Only whole-book deletions: the silent launch check, which otherwise only moves reading positions. */
     BOOK_DELETIONS,
+
+    /** Reading history and its resets/deletions, plus whole-book deletions, on a silent check. */
+    READING_PROGRESS,
 }
 
 /**
- * Applies a pulled remote snapshot's reading positions and deletion tombstones (those in the given
- * [TombstoneMergeScope]) to the local library. The only library write it makes itself is
- * [BookRepository.applySyncedReadingProgress]; tombstones go through [mergeTombstones].
+ * Applies relevant deletions before reading positions and session history, so removed history
+ * cannot be restored by the same snapshot.
  */
 internal class RemoteReadingProgressMerger(
     private val bookRepository: BookRepository,
     private val localDeviceLabel: suspend () -> String,
     private val mergeTombstones: suspend (tombstonesJson: String, scope: TombstoneMergeScope) -> GenericSyncMergeSummary,
+    private val mergeSessions: suspend (sessionsJson: String, booksJson: String) -> GenericSyncMergeSummary,
 ) {
     suspend fun merge(document: RemotePortableSnapshotDocument, tombstones: TombstoneMergeScope): ReadingProgressMergeSummary {
-        document.prefetch(listOf(RemotePortableSnapshotSlice.Tombstones, RemotePortableSnapshotSlice.Books))
+        val includeSessions = tombstones != TombstoneMergeScope.BOOK_DELETIONS
+        document.prefetch(buildList {
+            add(RemotePortableSnapshotSlice.Tombstones)
+            add(RemotePortableSnapshotSlice.Books)
+            if (includeSessions) add(RemotePortableSnapshotSlice.ReadingSessions)
+        })
         val tombstoneMerge = mergeTombstones(document.jsonFor(RemotePortableSnapshotSlice.Tombstones), tombstones)
         if (tombstoneMerge.failed) {
             return ReadingProgressMergeSummary(
@@ -41,8 +49,15 @@ internal class RemoteReadingProgressMerger(
             )
         }
         val progressMerge = mergeProgress(document.jsonFor(RemotePortableSnapshotSlice.Books))
+        val sessionMerge = if (includeSessions) mergeSessions(
+            document.jsonFor(RemotePortableSnapshotSlice.ReadingSessions),
+            document.jsonFor(RemotePortableSnapshotSlice.Books),
+        ) else GenericSyncMergeSummary()
         return progressMerge.copy(
-            skipped = progressMerge.skipped + tombstoneMerge.skipped,
+            applied = progressMerge.applied + sessionMerge.created + sessionMerge.updated,
+            skipped = progressMerge.skipped + tombstoneMerge.skipped + sessionMerge.skipped,
+            failed = progressMerge.failed || sessionMerge.failed,
+            failureMessage = progressMerge.failureMessage ?: sessionMerge.failureMessage,
             remoteSnapshot = document,
             remoteSnapshotSha = document.sha,
         )

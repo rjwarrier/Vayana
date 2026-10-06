@@ -30,6 +30,7 @@ import com.vayana.core.backup.parsePortableAnnotations
 import com.vayana.core.backup.parsePortableBookAliases
 import com.vayana.core.backup.parsePortableCloudBooks
 import com.vayana.core.backup.parsePortableReadingSessions
+import com.vayana.core.backup.parsePortableBookFileHashes
 import com.vayana.core.backup.parsePortableShelfMemberships
 import com.vayana.core.backup.parsePortableShelves
 import com.vayana.core.backup.parsePortableTombstones
@@ -620,6 +621,11 @@ class LibraryViewModel @Inject constructor(
         bookRepository = bookRepository,
         localDeviceLabel = { settingsRepository.snapshot.first().deviceLabelForSync() },
         mergeTombstones = { tombstonesJson, scope -> mergeCloudTombstones(tombstonesJson, scope) },
+        mergeSessions = { sessionsJson, booksJson ->
+            val result = mergeCloudReadingSessions(sessionsJson, parsePortableBookFileHashes(booksJson))
+            GenericSyncMergeSummary(created = result.created, skipped = result.skipped,
+                failed = result.failed, failureMessage = result.failureMessage)
+        },
     )
 
     private val launchReadingProgressPull = LaunchReadingProgressPull(
@@ -1345,9 +1351,9 @@ class LibraryViewModel @Inject constructor(
                 bookId = launchReadingProgressBookId,
                 syncTarget = syncConfig.launchReadingProgressSyncTarget(),
             ) { skipRemoteSnapshotSha ->
-                // Silent launch check moves reading positions and applies books deleted on other devices; other deletions
-                // (notes, shelves, words) wait for a user-started sync.
-                pullReadingProgress(store, skipRemoteSnapshotSha, tombstones = TombstoneMergeScope.BOOK_DELETIONS)
+                // Reading history, its resets/deletions, and book deletions accompany positions.
+                // Notes, shelves, and vocabulary still wait for a user-started sync.
+                pullReadingProgress(store, skipRemoteSnapshotSha, tombstones = TombstoneMergeScope.READING_PROGRESS)
             }
             if (result.pullFailed) {
                 finishSyncProgress(
@@ -1800,6 +1806,7 @@ class LibraryViewModel @Inject constructor(
             val deletedBookTitles = mutableListOf<String>()
             for (remote in parsePortableTombstones(snapshotJson)) {
                 if (scope == TombstoneMergeScope.BOOK_DELETIONS && !isBookDeletion(remote.entityType)) continue
+                if (scope == TombstoneMergeScope.READING_PROGRESS && !isSyncedWithReadingProgress(remote.entityType)) continue
                 if (remote.syncId.isBlank() || remote.entityType.isBlank() || remote.deletedAt <= 0L) {
                     skipped += 1
                     continue
@@ -1867,13 +1874,14 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    private suspend fun mergeCloudReadingSessions(snapshotJson: String): ReadingSessionMergeSummary =
+    private suspend fun mergeCloudReadingSessions(snapshotJson: String, bookFileHashes: Map<String, String> = emptyMap()): ReadingSessionMergeSummary =
         runCatchingCancellable {
             var created = 0
             var skipped = 0
             for (remote in parsePortableReadingSessions(snapshotJson)) {
-                when (readingSessionRepository.mergeCloudSession(remote.toRecord())) {
-                    ReadingSessionMergeResult.CREATED -> created += 1
+                val record = remote.toRecord().copy(bookFileHash = remote.bookFileHash ?: bookFileHashes[remote.bookSyncId])
+                when (readingSessionRepository.mergeCloudSession(record)) {
+                    ReadingSessionMergeResult.CREATED, ReadingSessionMergeResult.UPDATED -> created += 1
                     ReadingSessionMergeResult.SKIPPED -> skipped += 1
                 }
             }
@@ -2042,6 +2050,7 @@ class LibraryViewModel @Inject constructor(
             val attempt = runCatchingCancellable {
                 val localBooks = bookRepository.observeAll().first().filterNot { it.isHomeLibrary }
                 val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
+                val bookFileHashesByLocalId = localBooks.associate { it.id to it.fileHash }
                 val progressTombstones = tombstoneDao.getAll()
                     .filter { isSyncedWithReadingProgress(it.entityType) }
                     .map { it.toPortable() }
@@ -2063,7 +2072,7 @@ class LibraryViewModel @Inject constructor(
                     },
                     exportedAt = System.currentTimeMillis(),
                     readingSessions = readingSessionRepository.observeAll().first()
-                        .mapNotNull { it.toPortable(bookSyncIdsByLocalId) },
+                        .mapNotNull { it.toPortable(bookSyncIdsByLocalId, bookFileHashesByLocalId) },
                     wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() },
                     tombstones = progressTombstones,
                 )
@@ -2889,16 +2898,18 @@ private val GutenbergFileName = Regex("pg(\\d+)(?:-images)?\\.epub", RegexOption
 
 
 
-private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableReadingSession? {
+private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>, bookFileHashesByLocalId: Map<Long, String>): PortableReadingSession? {
     val bookSyncId = bookSyncIdsByLocalId[bookId] ?: return null
     return PortableReadingSession(
         syncId = syncId,
         bookSyncId = bookSyncId,
+        bookFileHash = bookFileHashesByLocalId[bookId],
         startedAt = startedAt,
         endedAt = endedAt,
         durationSeconds = durationSeconds,
         startPage = startPage,
         endPage = endPage,
+        activeIntervals = activeIntervals,
     )
 }
 
@@ -2906,11 +2917,13 @@ private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord =
     CloudReadingSessionRecord(
         syncId = syncId,
         bookSyncId = bookSyncId,
+        bookFileHash = bookFileHash,
         startedAt = startedAt,
         endedAt = endedAt,
         durationSeconds = durationSeconds,
         startPage = startPage,
         endPage = endPage,
+        activeIntervals = activeIntervals,
     )
 
 private fun PortableWordLookupCounter.toRecord(): CloudWordLookupCounter = CloudWordLookupCounter(

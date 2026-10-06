@@ -6,6 +6,7 @@ import com.vayana.core.backup.PortableReadNextState
 import com.vayana.core.backup.PortableTombstone
 import com.vayana.core.backup.parsePortableWordLookupCounters
 import com.vayana.core.backup.parsePortableReadingSessions
+import com.vayana.core.backup.parsePortableBookFileHashes
 import com.vayana.core.backup.parsePortableTombstones
 import com.vayana.core.backup.PortableWordLookupCounter
 import com.vayana.core.backup.PortableReadingSession
@@ -132,6 +133,7 @@ class ReadingProgressOnlySyncer @Inject constructor(
             }
         val localBooks = bookRepository.observeAll().first().filterNot { it.isHomeLibrary }
         val bookSyncIdsByLocalId = localBooks.associate { it.id to it.syncId }
+        val bookFileHashesByLocalId = localBooks.associate { it.id to it.fileHash }
         val patches = localBooks.map { book ->
             PortableReadingProgressPatch(
                 fileHash = book.fileHash,
@@ -147,12 +149,12 @@ class ReadingProgressOnlySyncer @Inject constructor(
             )
         }
         val readingSessions = readingSessionRepository.observeAll().first()
-            .mapNotNull { it.toPortable(bookSyncIdsByLocalId) }
+            .mapNotNull { it.toPortable(bookSyncIdsByLocalId, bookFileHashesByLocalId) }
         val wordLookupCounters = wordLookupStatRepository.getAllForSync().map { it.toPortable() }
         val tombstones = tombstoneDao.getAll()
             .filter { tombstone -> isSyncedWithReadingProgress(tombstone.entityType) }
             .map { it.toPortable() }
-        val localFingerprint = listOf(patches, readingSessions, wordLookupCounters, tombstones).hashCode()
+        val localFingerprint = listOf(bookSyncIdsByLocalId, bookFileHashesByLocalId, patches, readingSessions, wordLookupCounters, tombstones).hashCode()
 
         var lastFailure: Throwable? = null
         repeat(MaxProgressOnlySyncAttempts) {
@@ -174,7 +176,10 @@ class ReadingProgressOnlySyncer @Inject constructor(
 
             // Remote content is unchanged since the last time we fully processed it: whatever we
             // would apply locally, we already applied. Skip parsing and merging every book again.
-            val remoteAlreadyApplied = remoteSnapshot.sha == lastAppliedRemoteSha.get()
+            // Local imports can make previously unresolvable remote sessions match. Revisit an
+            // unchanged remote snapshot whenever local state changed, or on an explicit retry.
+            val remoteAlreadyApplied = !force && remoteSnapshot.sha == lastAppliedRemoteSha.get() &&
+                localFingerprint == lastSettledLocalFingerprint.get()
             // Neither side moved since a run that had nothing to push: patching would only re-derive "no changes"
             // (and download slices to do it), so stop here.
             if (remoteAlreadyApplied && localFingerprint == lastSettledLocalFingerprint.get()) {
@@ -204,7 +209,15 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     syncedAt = parsedBooks.exportedAt,
                 )
                 pulled += pullRemoteReadNext(parsedBooks.readNextStates)
-                pulled += pullRemoteReadingSessions(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions))
+                val sessionPull = runCatchingCancellable {
+                    pullRemoteReadingSessions(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.ReadingSessions),
+                        parsePortableBookFileHashes(booksJson))
+                }.getOrElse { throwable ->
+                    // Never mark this snapshot applied when its reading history failed to import.
+                    return@withContext ReadingProgressSyncResult(ReadingProgressSyncStatus.FAILED,
+                        pulled = pulled, failureMessage = throwable.syncFailureMessage())
+                }
+                pulled += sessionPull
                 pulled += pullRemoteWordLookupCounters(remoteSnapshot.jsonFor(RemotePortableSnapshotSlice.WordLookupCounters))
             }
 
@@ -318,27 +331,11 @@ class ReadingProgressOnlySyncer @Inject constructor(
         return applied
     }
 
-    private suspend fun pullRemoteReadingSessions(jsonText: String): Int {
+    private suspend fun pullRemoteReadingSessions(jsonText: String, bookFileHashes: Map<String, String>): Int {
         var merged = 0
-        val sessions = runCatchingCancellable { parsePortableReadingSessions(jsonText) }
-            .getOrElse { throwable ->
-                diagnosticsLogStore.record(
-                    category = DiagnosticCategory.SYNC,
-                    source = "ReadingProgressOnlySyncer.pullRemoteReadingSessions",
-                    message = "Failed to parse remote reading sessions: ${throwable.message}",
-                )
-                return 0
-            }
-        for (session in sessions) {
-            val attempt = runCatchingCancellable { readingSessionRepository.mergeCloudSession(session.toRecord()) }
-            attempt.onSuccess { result -> if (result == ReadingSessionMergeResult.CREATED) merged += 1 }
-            attempt.onFailure { throwable ->
-                diagnosticsLogStore.record(
-                    category = DiagnosticCategory.SYNC,
-                    source = "ReadingProgressOnlySyncer.pullRemoteReadingSessions",
-                    message = "Failed to apply remote reading session: ${throwable.message}",
-                )
-            }
+        for (session in parsePortableReadingSessions(jsonText)) {
+            val record = session.toRecord().copy(bookFileHash = session.bookFileHash ?: bookFileHashes[session.bookSyncId])
+            if (readingSessionRepository.mergeCloudSession(record) != ReadingSessionMergeResult.SKIPPED) merged += 1
         }
         return merged
     }
@@ -421,11 +418,12 @@ class ReadingProgressOnlySyncer @Inject constructor(
     }
 }
 
-private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): PortableReadingSession? {
+private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>, bookFileHashesByLocalId: Map<Long, String>): PortableReadingSession? {
     val bookSyncId = bookSyncIdsByLocalId[bookId] ?: return null
     return PortableReadingSession(
         syncId = syncId,
         bookSyncId = bookSyncId,
+        bookFileHash = bookFileHashesByLocalId[bookId],
         startedAt = startedAt,
         endedAt = endedAt,
         durationSeconds = durationSeconds,
@@ -438,6 +436,7 @@ private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>): 
 private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord = CloudReadingSessionRecord(
     syncId = syncId,
     bookSyncId = bookSyncId,
+    bookFileHash = bookFileHash,
     startedAt = startedAt,
     endedAt = endedAt,
     durationSeconds = durationSeconds,

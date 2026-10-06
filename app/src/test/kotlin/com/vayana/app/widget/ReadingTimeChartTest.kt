@@ -73,6 +73,19 @@ class ReadingTimeChartTest {
     }
 
     @Test
+    fun `digital and physical sessions from different devices share the same daily total`() {
+        val zone = ZoneId.of("Asia/Kolkata")
+        val start = today.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val digital = ReadingSession(1, "device-a", 1, start, start + 600_000, 600)
+        val physical = ReadingSession(2, "device-b", 2, start + 900_000, start + 2_100_000, 1200, 10, 20)
+        val week = readingWeek(listOf(digital, physical), today, zone)
+        assertEquals(30, week.todayMinutes)
+        assertEquals(0, week.averageMinutes)
+        val updated = readingWeek(listOf(digital.copy(endedAt = start + 900_000, durationSeconds = 900), physical), today, zone)
+        assertEquals(35, updated.todayMinutes)
+    }
+
+    @Test
     fun `layout sheds header parts as the widget shrinks`() {
         val large = ReadingWidgetLayout.forSize(440, 220)
         assertTrue(large.showAverageWords && large.showAverage)

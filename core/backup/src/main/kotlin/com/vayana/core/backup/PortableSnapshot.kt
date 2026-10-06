@@ -110,6 +110,7 @@ data class PortableReadingSession(
     val startPage: Int? = null,
     val endPage: Int? = null,
     val activeIntervals: String? = null,
+    val bookFileHash: String? = null,
 )
 
 data class PortableVocabularyCard(
