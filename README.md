@@ -36,9 +36,9 @@
   </p>
 </div>
 
-**Languages:** English · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+**Languages:** English · [Español](README.es.md) · [Português (Brasil)](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-**User guides:** [English](docs/USER_GUIDE.md) · [Español](docs/USER_GUIDE.es.md) · [Português (Brasil)](docs/USER_GUIDE.pt.md)
+**User guides:** [English](docs/USER_GUIDE.md) · [Español](docs/USER_GUIDE.es.md) · [Português (Brasil)](docs/USER_GUIDE.pt.md) · [Français](docs/USER_GUIDE.fr.md) · [Deutsch](docs/USER_GUIDE.de.md)
 
 ## Why Vayana?
 

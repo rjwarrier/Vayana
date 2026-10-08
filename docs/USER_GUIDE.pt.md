@@ -2,7 +2,7 @@
 
 # Guia do usuário do Vayana
 
-[English](USER_GUIDE.md) · [Español](USER_GUIDE.es.md) · **Português (Brasil)** · [README em português](../README.pt.md)
+[English](USER_GUIDE.md) · [Español](USER_GUIDE.es.md) · **Português (Brasil)** · [Français](USER_GUIDE.fr.md) · [Deutsch](USER_GUIDE.de.md) · [README em português](../README.pt.md)
 
 Este guia descreve os recursos disponíveis no Vayana 0.87 e explica os procedimentos mais comuns de leitura, biblioteca, backup, sincronização e suporte. O Vayana é um leitor Android de EPUB e PDF com prioridade ao armazenamento local. Ele também registra livros físicos, emprestados, audiolivros e outros livros sem exigir um arquivo digital.
 

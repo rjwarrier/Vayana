@@ -29,7 +29,7 @@
   <p><a href="https://www.buymeacoffee.com/ranjithj"><img alt="Invítame a un café" src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=ranjithj&button_colour=FFDD00&font_colour=000000&font_family=Bree&outline_colour=000000&coffee_colour=ffffff" height="44"></a></p>
 </div>
 
-[English](README.md) · **Español** · [Português (Brasil)](README.pt.md)
+[English](README.md) · **Español** · [Português (Brasil)](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
 <a id="why-vayana"></a>
 
