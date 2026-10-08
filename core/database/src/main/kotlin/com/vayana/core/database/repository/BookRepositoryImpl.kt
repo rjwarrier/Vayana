@@ -357,6 +357,7 @@ class BookRepositoryImpl @Inject constructor(
     ): Book {
         require(format.isOffline) { "Offline books must be PHYSICAL, AUDIOBOOK or OTHER_EBOOK" }
         val pages = if (format.tracksPages) OfflinePages.of(pageCount, currentPage) else OfflinePages(null, null)
+        val completedAt = finishedAt ?: System.currentTimeMillis().takeIf { pages.percent == 1f }
         val entity = newLocalBookEntity(
             title = title,
             author = author,
@@ -365,10 +366,10 @@ class BookRepositoryImpl @Inject constructor(
             // Unique per entry: two paper copies of the same title are still separate reads.
             fileHash = "${format.name.lowercase()}:${UUID.randomUUID()}",
         ).copy(
-            readingPercent = if (finishedAt != null) 1f else pages.percent ?: 0f,
+            readingPercent = if (completedAt != null) 1f else pages.percent ?: 0f,
             pageEstimate = pages.total,
             startedReadingAt = startedAt,
-            finishedReadingAt = finishedAt,
+            finishedReadingAt = completedAt,
             physicalOwnership = physicalOwnership.name.takeIf { format == BookFormat.PHYSICAL },
             borrowReturnAt = normalizeBorrowReturnAt(borrowReturnAt)
                 .takeIf { format == BookFormat.PHYSICAL && physicalOwnership == PhysicalBookOwnership.BORROWED },

@@ -365,6 +365,8 @@ Lokal verfügbare EPUB-Inhalte werden für schnelle Suche indexiert. PDF-Seitent
 
 ## Statistiken und Ziele
 
+**Reading records** zeigt Bücher mit gespeicherter Leseaktivität, auch gedruckte Bücher, die noch gelesen werden. Jeder Eintrag enthält Cover, Titel, Autor, gespeicherte Start- und Abschlussdaten sowie die gesamte erfasste Lesezeit. Tippe auf einen Eintrag, um die Buchdetails zu öffnen; **View all reading records** zeigt bei mehr als drei Büchern die vollständige Liste. Unbekannte Daten erscheinen als **Not recorded**. Die Zeit stammt aus gespeicherten Sitzungen; ein Abschlussdatum allein schätzt keine Lesezeit.
+
 Vayana erfasst Lesesitzungen und zeigt:
 
 - Tägliche und gesamte Lesezeit

@@ -29,6 +29,39 @@ class ReadingFeaturesTest {
     }
     @AfterTest fun close() { db.close() }
 
+    @Test fun physicalCompletionKeepsCoverDetailsDatesAndTimeInSavedBook() = runBlocking {
+        val book = books.insertOfflineBook("Paper", "Author", BookFormat.PHYSICAL,
+            startedAt = 1000L, finishedAt = null, pageCount = 100, currentPage = 50)
+        books.updateCover(book.id, "covers/paper.jpg")
+        repeat(2) { books.recordPhysicalReadingSession(book.id, "paper-session", 2000, 62000,
+            60, 50, 100, 100, true, null) }
+        val saved = books.observeAll().first().single()
+        assertEquals("Paper", saved.title)
+        assertEquals("Author", saved.author)
+        assertEquals("covers/paper.jpg", saved.coverPath)
+        assertEquals(1000L, saved.startedReadingAt)
+        assertEquals(62000L, saved.finishedReadingAt)
+        assertEquals(60L, saved.totalReadingSeconds)
+        assertEquals(1f, saved.readingPercent)
+        assertEquals(1, db.readingSessionDao().observeAll().first().size)
+    }
+
+    @Test fun physicalBookAddedAtFinalPagePersistsCompletionDate() = runBlocking {
+        val before = System.currentTimeMillis()
+        val added = books.insertOfflineBook("Finished paper", null, BookFormat.PHYSICAL,
+            startedAt = null, finishedAt = null, pageCount = 200, currentPage = 200)
+        val saved = books.observeAll().first().single { it.id == added.id }
+        assertEquals(1f, saved.readingPercent)
+        assertNotNull(saved.finishedReadingAt)
+        assertTrue(saved.finishedReadingAt!! in before..System.currentTimeMillis())
+        val partial = books.insertOfflineBook("Unfinished paper", null, BookFormat.PHYSICAL,
+            startedAt = null, finishedAt = null, pageCount = 200, currentPage = 50)
+        assertNull(partial.finishedReadingAt)
+        val dated = books.insertOfflineBook("Previously finished paper", null, BookFormat.PHYSICAL,
+            startedAt = null, finishedAt = 1000L, pageCount = 200, currentPage = 200)
+        assertEquals(1000L, dated.finishedReadingAt)
+    }
+
     @Test fun todayAggregateKeepsStartTimeBoundaryAndReflectsRecordedAndDeletedSessions() = runBlocking {
         val book = books.insertOfflineBook("Paper", null, BookFormat.PHYSICAL, null, null)
         val sessions = com.vayana.core.database.repository.ReadingSessionRepositoryImpl(

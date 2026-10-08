@@ -168,6 +168,7 @@ fun VayanaNavHost(
         }
         composable<TopLevelRoute.Statistics> {
             StatisticsRoute(
+                onOpenBook = { bookId -> navController.navigate(BookDetailRoute(bookId)) },
                 onReviewVocabulary = { navController.navigate(VocabularyReviewRoute) },
                 onOpenLearnWords = { navController.navigate(LearnWordsRoute) },
                 onReviewHighlights = { navController.navigate(HighlightReviewRoute) },

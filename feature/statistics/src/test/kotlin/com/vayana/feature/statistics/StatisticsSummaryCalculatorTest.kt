@@ -4,6 +4,9 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.model.VocabularyCard
+import com.vayana.core.database.model.Book
+import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.BookFileAvailability
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -12,6 +15,24 @@ import kotlin.test.assertEquals
 import kotlin.test.assertSame
 
 class StatisticsSummaryCalculatorTest {
+    @Test fun physicalReadingRecordsKeepDetailsDatesAndTimeWithoutRequiringCompletion() {
+        val paper = Book(id = 1, syncId = "paper", title = "Paper book", author = "Author",
+            series = null, seriesNumber = null, description = "Details", coverPath = "/covers/paper.jpg",
+            filePath = "", fileAvailability = BookFileAvailability.LOCAL, format = BookFormat.PHYSICAL,
+            fileHash = "paper", readingPercent = .5f, rating = 0f, createdAt = 1, updatedAt = 2,
+            lastReadAt = 2000, lastLocator = null, startedReadingAt = 1000, totalReadingSeconds = 600)
+        val finished = paper.copy(id = 2, syncId = "finished", readingPercent = 1f, finishedReadingAt = 3000)
+        val unread = paper.copy(id = 3, syncId = "unread", readingPercent = 0f,
+            startedReadingAt = null, lastReadAt = null, totalReadingSeconds = 0)
+        val calculator = StatisticsSummaryCalculator()
+        fun calculate(books: List<Book>) = calculator.calculate(books, emptyList(), emptyList(), emptyList(),
+            emptyList(), 20, 12, .95f, DayOfWeek.MONDAY)
+        val summary = calculate(listOf(paper, unread, finished))
+        assertEquals(listOf(finished, paper), summary.readingRecords)
+        assertEquals(1, summary.finishedBooks)
+        val corrected = paper.copy(coverPath = "/covers/new.jpg", totalReadingSeconds = 1200)
+        assertEquals(corrected, calculate(listOf(corrected)).readingRecords.single())
+    }
     @Test
     fun syncedCheckpointsUpdateHeatmapTotalsAndYearReviewTogether() {
         val calculator = StatisticsSummaryCalculator()

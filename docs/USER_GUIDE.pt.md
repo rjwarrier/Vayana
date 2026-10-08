@@ -365,6 +365,8 @@ O conteúdo EPUB disponível localmente é indexado para buscas rápidas. O text
 
 ## Estatísticas e metas
 
+**Reading records** mostra os livros com atividade salva, incluindo livros físicos em andamento. Cada entrada inclui capa, título, autor, datas registradas de início e término e tempo de leitura acumulado. Toque em uma entrada para abrir os detalhes do livro; **View all reading records** mostra a lista completa quando há mais de três livros. Datas desconhecidas aparecem como **Not recorded**. O tempo vem de sessões salvas; informar uma data de término não estima o tempo de leitura.
+
 O Vayana registra sessões de leitura e apresenta:
 
 - Tempo de leitura diário e total

@@ -185,9 +185,12 @@ internal fun watchBooks(books: List<Book>): List<WearBook> = books.filter { it.f
     it.finishedReadingAt == null && it.readingPercent < 1f && it.readingDisposition == "ACTIVE" &&
     (it.startedReadingAt != null || it.readingPercent > 0f || it.lastReadAt != null || it.totalReadingSeconds > 0) }
     .sortedByDescending { it.lastReadAt ?: it.createdAt }.take(50)
-    .map { WearBook(it.syncId, it.title.take(200),
-        it.pageCount?.let { count -> (it.readingPercent * count).roundToInt().coerceIn(0, count) } ?: 0,
-        it.pageCount, it.updatedAt) }
+    .map {
+        val total = it.pageCount?.takeIf { count -> count > 0 }
+        WearBook(it.syncId, it.title.take(200),
+            total?.let { count -> (it.readingPercent * count).roundToInt().coerceIn(0, count) } ?: 0,
+            total, it.updatedAt)
+    }
 
 private fun hasPlayServices(context: Context) = com.google.android.gms.common.GoogleApiAvailability.getInstance()
     .isGooglePlayServicesAvailable(context) == com.google.android.gms.common.ConnectionResult.SUCCESS

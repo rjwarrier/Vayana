@@ -34,9 +34,11 @@ object ReadingIntervals {
             var cursor = interval.start
             val result = mutableListOf<ReadingInterval>()
             for (block in blockers) {
-                if (block.end <= cursor || block.start >= interval.end) continue
+                if (block.start >= interval.end) break
+                if (block.end <= cursor) continue
                 if (block.start > cursor) result += ReadingInterval(cursor, block.start)
                 cursor = maxOf(cursor, block.end).coerceAtMost(interval.end)
+                if (cursor == interval.end) break
             }
             if (cursor < interval.end) result += ReadingInterval(cursor, interval.end)
             result

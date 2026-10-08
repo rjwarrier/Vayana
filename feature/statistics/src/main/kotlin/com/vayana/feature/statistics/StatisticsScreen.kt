@@ -79,6 +79,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun StatisticsRoute(
+    onOpenBook: (Long) -> Unit,
     onReviewVocabulary: () -> Unit,
     onOpenLearnWords: () -> Unit,
     onReviewHighlights: () -> Unit,
@@ -94,6 +95,7 @@ fun StatisticsRoute(
     LaunchedEffect(viewModel) { viewModel.refreshHighlightDue() }
 
     StatisticsScreen(
+        onOpenBook = onOpenBook,
         modifier = modifier,
         summary = summary,
         vocabularyCardCount = vocabularyCardCount,
@@ -109,6 +111,7 @@ fun StatisticsRoute(
 
 @Composable
 private fun StatisticsScreen(
+    onOpenBook: (Long) -> Unit,
     modifier: Modifier = Modifier,
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
@@ -134,6 +137,7 @@ private fun StatisticsScreen(
             StatisticsEmptyState(contentPadding = innerPadding)
         } else {
             StatisticsDashboard(
+                onOpenBook = onOpenBook,
                 contentPadding = innerPadding,
                 summary = summary,
                 vocabularyCardCount = vocabularyCardCount,
@@ -151,6 +155,7 @@ private fun StatisticsScreen(
 
 @Composable
 private fun StatisticsDashboard(
+    onOpenBook: (Long) -> Unit,
     contentPadding: PaddingValues,
     summary: StatisticsSummary,
     vocabularyCardCount: Int,
@@ -177,6 +182,9 @@ private fun StatisticsDashboard(
         verticalItemSpacing = Spacing.md,
     ) {
         item { StatisticsOverviewCard(summary) }
+        if (summary.readingRecords.isNotEmpty()) {
+            item { ReadingRecordsCard(summary.readingRecords, onOpenBook) }
+        }
         item {
             ReadingActivityCard(
                 dailyMinutes = summary.dailyReadingMinutes,

@@ -14,6 +14,17 @@ class YearInBooksTest {
     private val today = LocalDate.of(2026, 9, 22)
 
     @Test
+    fun physicalFinishesCountTowardYearlyGoalAlongsideDigitalBooks() {
+        val physical = book(1, finished = today, progress = 1f).copy(format = BookFormat.PHYSICAL)
+        val digital = book(2, finished = today, progress = 1f)
+        val unfinished = book(3, progress = .5f).copy(format = BookFormat.PHYSICAL)
+        val year = listOf(physical, digital, unfinished).yearInBooks(today, zone, yearlyGoal = 12)
+        assertEquals(2, year.finishedCount)
+        assertEquals(2, year.monthlyFinishes[8])
+        assertEquals(10, year.goalPace?.booksRemaining)
+    }
+
+    @Test
     fun countsRecordedFinishesByMonthAndShowsGoalPace() {
         val books = listOf(
             book(1, finished = LocalDate.of(2026, 1, 1)),

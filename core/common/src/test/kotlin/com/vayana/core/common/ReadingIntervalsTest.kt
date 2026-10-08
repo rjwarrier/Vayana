@@ -1,6 +1,18 @@
 package com.vayana.core.common
 import kotlin.test.*
 class ReadingIntervalsTest {
+    @Test fun subtractMatchesCoverageForUnorderedOverlappingRanges() {
+        val random = kotlin.random.Random(42)
+        repeat(200) {
+            val source = List(8) { val start = random.nextLong(1, 80); ReadingInterval(start, start + random.nextLong(1, 20)) }
+            val covered = List(12) { val start = random.nextLong(1, 100); ReadingInterval(start, start + random.nextLong(1, 20)) }
+            val expected = source.flatMap { interval ->
+                (interval.start until interval.end).filter { time -> covered.none { time >= it.start && time < it.end } }
+            }
+            val actual = ReadingIntervals.subtract(source, covered).flatMap { it.start until it.end }
+            assertEquals(expected, actual)
+        }
+    }
     @Test fun subtractHandlesSeveralPauseGapsAndNestedCoverage() {
         val source = ReadingIntervals.decode("1000:11000,21000:61000")
         val result = ReadingIntervals.subtract(source, ReadingIntervals.decode("2000:5000,7000:25000,30000:40000"))

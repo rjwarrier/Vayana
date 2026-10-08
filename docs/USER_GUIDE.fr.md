@@ -365,6 +365,8 @@ Le contenu EPUB disponible localement est indexé pour une recherche rapide. Le 
 
 ## Statistiques et objectifs
 
+**Reading records** affiche les livres avec une activité enregistrée, y compris les livres papier en cours. Chaque entrée comprend couverture, titre, auteur, dates de début et de fin enregistrées et durée de lecture cumulée. Touchez une entrée pour ouvrir les détails du livre ; **View all reading records** affiche la liste complète au-delà de trois livres. Les dates inconnues sont indiquées par **Not recorded**. La durée provient des séances enregistrées ; saisir une date de fin ne permet pas d’estimer le temps de lecture.
+
 Vayana enregistre les séances de lecture et présente :
 
 - Temps de lecture quotidien et total

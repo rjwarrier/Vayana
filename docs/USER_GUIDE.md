@@ -315,6 +315,13 @@ Locally available EPUB content is indexed for fast search. PDF page text and phy
 
 ## Statistics and goals
 
+**Reading records** lists books with saved reading activity, including physical books
+that are still in progress. Each entry shows its cover, title, author, recorded start
+and finish dates, and accumulated reading time. Tap an entry to open Book details;
+use **View all reading records** when more than three books are available. Missing
+dates appear as **Not recorded**. Recorded time comes from saved sessions; entering
+a finish date does not estimate time spent reading.
+
 Vayana records reading sessions and presents:
 
 - Daily and total reading time

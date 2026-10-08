@@ -93,6 +93,7 @@ data class VocabularyGrowth(
 )
 
 data class StatisticsSummary(
+    val readingRecords: List<Book> = emptyList(),
     val totalBooks: Int = 0,
     val readingBooks: Int = 0,
     val finishedBooks: Int = 0,
@@ -365,6 +366,9 @@ private fun List<Book>.readingSummary(
     val recentWeekMinutes = (0 until 7).sumOf { daysAgo -> ((secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L) / 60L).toInt() }
     val yearInBooks = yearInBooks(today, zone, yearlyGoalBooks)
     return StatisticsSummary(
+        readingRecords = filter { it.startedReadingAt != null || it.finishedReadingAt != null ||
+            it.readingPercent > 0f || it.totalReadingSeconds > 0L || it.lastReadAt != null }
+            .sortedByDescending { it.finishedReadingAt ?: it.lastReadAt ?: it.startedReadingAt ?: it.updatedAt },
         totalBooks = size,
         readingBooks = count { it.readingPercent > 0f && it.readingPercent < finishedThreshold },
         finishedBooks = count { it.readingPercent >= finishedThreshold },

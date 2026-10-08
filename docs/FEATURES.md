@@ -40,6 +40,12 @@ annotation records. These tools do not require another database schema change.
 
 ## Today, reading status and capture
 
+- **Reading records in Stats:** Saved book metadata supplies cover, title, author,
+  start/finish dates and accumulated reading time. Physical books in progress and
+  completed books are included. The preview shows three records; the full list is
+  lazy-loaded. Every record opens Book details. Unknown dates remain explicit rather
+  than inferred. No duplicate statistics database or metadata copy is created.
+
 - **Today card:** At the top of the main Library, see today's saved session minutes versus the daily goal,
   due vocabulary/highlight counts and Continue reading. Expand for up to three finish-by plans and review
   shortcuts. Hide the card there and restore it in Settings → Library. Session minutes use a SQL aggregate;

@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="statistics_reading_records">Reading records</string>
+    <string name="statistics_reading_records_all">View all reading records</string>
+    <string name="statistics_record_dates">Started: %1$s · Finished: %2$s</string>
+    <string name="statistics_record_missing_date">Not recorded</string>
+    <string name="statistics_record_seconds">Recorded reading time: %1$d seconds</string>
+    <string name="statistics_record_time">Recorded reading time: %1$s</string>
     <string name="today_watch_connected">Watch connected</string>
     <string name="today_watch_disconnected">Watch disconnected</string>
     <string name="app_name">vayana</string>

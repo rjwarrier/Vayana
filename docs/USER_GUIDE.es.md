@@ -365,6 +365,8 @@ El contenido EPUB disponible localmente se indexa para buscar con rapidez. El te
 
 ## Estadísticas y objetivos
 
+**Reading records** muestra los libros con actividad guardada, incluidos los libros físicos en curso. Cada entrada incluye portada, título, autor, fechas de inicio y finalización registradas y tiempo de lectura acumulado. Toca una entrada para abrir los detalles del libro; **View all reading records** muestra la lista completa cuando hay más de tres libros. Las fechas desconocidas aparecen como **Not recorded**. El tiempo procede de sesiones guardadas; indicar una fecha de finalización no estima el tiempo de lectura.
+
 Vayana registra sesiones de lectura y presenta:
 
 - Tiempo de lectura diario y total

@@ -7,6 +7,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class WatchBooksTest {
+    @Test fun invalidPageCountsAreUnknownAndDoNotBlockOtherBooks() {
+        val reading = book().copy(startedReadingAt = 10, readingPercent = .25f)
+        val result = watchBooks(listOf(reading.copy(pageCount = -20),
+            reading.copy(id = 2, syncId = "book-2", pageCount = 0),
+            reading.copy(id = 3, syncId = "book-3")))
+        assertEquals(listOf(null, null, 200), result.map { it.total })
+        assertEquals(listOf(0, 0, 50), result.map { it.page })
+    }
     private fun book(id: Long = 1) = Book(
         id = id, syncId = "book-$id", title = "Book $id", author = null, series = null,
         seriesNumber = null, description = null, coverPath = null, filePath = "",
