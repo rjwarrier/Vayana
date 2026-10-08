@@ -140,6 +140,7 @@ class StatisticsViewModel @Inject constructor(
     vocabularyCardRepository: VocabularyCardRepository,
     highlightReviewRepository: HighlightReviewRepository,
     storageRoots: StorageRoots,
+    resolvedBooks: com.vayana.core.filesystem.ResolvedBooks,
     @ApplicationContext context: Context,
 ) : ViewModel() {
     /** One live query shared by the summary and the library size, instead of two. */
@@ -162,7 +163,7 @@ class StatisticsViewModel @Inject constructor(
         .distinctUntilChanged()
 
     private val coreInputs = combine(
-        books,
+        resolvedBooks.all,
         annotations,
         wordLookupStatRepository.observeTop(TopLookedUpWordsLimit),
         readingSessionRepository.observeAll(),
