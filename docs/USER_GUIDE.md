@@ -2,6 +2,8 @@
 
 This guide describes the features available in Vayana 0.87 and explains the most common reading, library, backup, sync, and support workflows. Vayana is a local-first Android reader for EPUB and PDF books. It also tracks physical, borrowed, audiobook, and other offline books without requiring a digital file.
 
+> **Current source:** The [Wear OS companion](WEAR_OS.md) and [recent sync fixes](releases/UNRELEASED.md) described below require current builds. The published v0.87 release currently contains only the phone APK.
+
 > Screenshots in this guide were captured from a development device using public-domain Project Gutenberg books. Screen layout can vary with display size, Android version, theme, language, and E-Ink settings.
 
 ## Contents
@@ -18,6 +20,7 @@ This guide describes the features available in Vayana 0.87 and explains the most
 - [Read aloud](#read-aloud)
 - [Search](#search)
 - [Statistics and goals](#statistics-and-goals)
+- [Wear OS companion](#wear-os-companion)
 - [Widgets and app shortcuts](#widgets-and-app-shortcuts)
 - [Backup and restore](#backup-and-restore)
 - [GitHub sync](#github-sync)
@@ -326,6 +329,22 @@ Statistics are based on activity recorded by Vayana. Sessions synced from anothe
   <img src="assets/user-guide/05-statistics.png" alt="Statistics screen with reading activity, goals, and storage" width="360"><br>
   <sub>Reading activity, goals, library totals, and storage use.</sub>
 </p>
+
+## Wear OS companion
+
+The companion tracks physical-book reading on Wear OS 3+ with Google Play services and a paired Android phone. Set it up with matching current phone and watch builds using the [Wear OS guide](WEAR_OS.md#install-and-build).
+
+1. Add a physical book on the phone and mark it as currently reading.
+2. Open Vayana on the watch and choose **Sync with phone** to cache your books.
+3. Select a book, check the starting page, and tap **Start timer**. Watch-owned timers, pauses and page edits work offline.
+4. Tap **Stop**, enter your ending page, then **Save**. Cancel leaves a watch-owned timer paused.
+5. Reconnect to send saved sessions to the phone's history and statistics. Pending sessions stay on the watch until acknowledged.
+
+A timer running on the phone can also appear on the watch, where you can pause, resume, stop and update its page. Remote actions wait for the owning device to acknowledge them; an offline timer display is not confirmation that a command was applied. The phone also supports controls for a watch-owned timer.
+
+Use **Reading goals** for a daily target or session reminder, and **Vibration** for haptics. The companion includes an ambient display, a reading tile and a watch-face complication. For page conflicts, overlap review, reboot recovery and connection indicators, see the [complete companion guide](WEAR_OS.md).
+
+The watch does not open ebook files. Its companion connection uses Google's Data Layer, independently of optional GitHub sync.
 
 ## Widgets and app shortcuts
 

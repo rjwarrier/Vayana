@@ -5,6 +5,15 @@ reading one file. Keep this in step with the code when any of them changes.
 
 ---
 
+## Wear OS and reading-time sync
+
+- **Physical reading companion:** `wear/` caches up to 50 eligible currently-reading physical books and persists watch-owned timers, page edits, queued sessions and receipts locally. `core/wear/` owns the shared timer and protocol models. See [Wear OS behavior and verification](WEAR_OS.md).
+- **Shared controls:** Timer ownership stays on the device that started it. The other device sends commands tied to a session and revision; stale commands cannot silently modify a newer timer. Remote controls require acknowledgement, while local watch timers remain usable offline.
+- **Import safety:** Phone imports deduplicate stable session IDs. Known same-book active-interval overlaps contribute only uncovered time; ambiguous or conflicting sessions remain available for review. A newer phone page is preserved unless the user explicitly resolves the conflict.
+- **Cross-device reading time:** Reading-progress sync transports session checkpoints as well as positions. Stable session identity lets later checkpoints extend a session without repeatedly adding its previous duration. Deleted sessions and reset history use tombstones.
+- **Clock rollback:** Reader checkpoint end times are clamped to their start. Invalid or conflicting checkpoints are ignored rather than crashing the reader.
+- **Watch sync scheduling:** Physical-session changes trigger watch synchronization; unrelated ebook reading checkpoints no longer enqueue a full watch sync on every tick.
+
 ## Reading tools
 
 - **Smart shelves:** Library overflow → Smart shelves, or the button in Shelves. Save combined search,

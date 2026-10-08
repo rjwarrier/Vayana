@@ -42,6 +42,12 @@ Most reading apps stop at displaying a book. Vayana treats reading as a connecte
 
 Vayana does this without requiring a Vayana account or putting ads in the reading experience. Your library is local by default. Optional online features—such as [Goodreads enrichment](docs/USER_GUIDE.md#book-details-and-reading-status) and [self-managed GitHub sync](docs/USER_GUIDE.md#github-sync)—remain under your control.
 
+## Latest source updates
+
+The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely. See [changes since v0.87](docs/releases/UNRELEASED.md).
+
+The published **v0.87** release currently contains the phone APK only. Build both current phone and watch apps for the companion features; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
+
 ## Highlights in 0.87
 
 - Read [**EPUB**](docs/USER_GUIDE.md#reading-epub-books) and [**PDF**](docs/USER_GUIDE.md#reading-pdf-books) books, including PDF outlines, text selection, annotations, dictionary lookup, zoom and per-book display controls.
@@ -203,6 +209,11 @@ On Windows:
 
 The debug APK is written under `app/build/outputs/apk/debug/`.
 
+To build the companion too, run `./gradlew :app:assembleDebug :wear:assembleDebug`
+(or `.\gradlew.bat :app:assembleDebug :wear:assembleDebug` on Windows).
+Install `wear/build/outputs/apk/debug/wear-debug.apk` on the watch. Both apps must
+use the same signing certificate; see [installation and verification](docs/WEAR_OS.md#install-and-build).
+
 ### Release signing
 
 Release credentials stay outside Git. Point the build at a local Java-properties file using `VAYANA_KEYSTORE_PROPERTIES` as a Gradle property or environment variable:
@@ -225,7 +236,9 @@ Without an external path, the build looks for an ignored `keystore.properties` f
 ## Project structure
 
 ```text
-app/                    Application shell and navigation
+app/                    Phone application shell and navigation
+wear/                   Wear OS physical-reading companion
+core/wear/              Shared timer, session and Data Layer protocol
 core/                   Database, settings, files, backup, sync, diagnostics, Home Library integration and design system
 feature/                Library, reader, discovery, notes, reminders, search, statistics, settings and onboarding
 reader/engine-api/      Reader engine contract
@@ -245,6 +258,8 @@ The app uses Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, WorkMan
 - [User guide and detailed feature help](docs/USER_GUIDE.md)
 - [Documentation index](docs/README.md)
 - [Feature behavior and invariants](docs/FEATURES.md)
+- [Wear OS companion setup and use](docs/WEAR_OS.md)
+- [Changes since v0.87](docs/releases/UNRELEASED.md)
 - [GitHub sync setup](docs/GITHUB_SYNC_SETUP.md)
 - [Architecture and implementation decisions](docs/DECISIONS.md)
 - [Database changelog](docs/DATABASE_CHANGELOG.md)

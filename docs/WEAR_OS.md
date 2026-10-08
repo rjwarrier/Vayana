@@ -6,19 +6,21 @@ Install it alongside the updated Android phone app. Both packages must use
 shared Android debug key. Release builds use the phone's
 `VAYANA_KEYSTORE_PROPERTIES` / root `keystore.properties` configuration.
 
+> **Availability:** This guide describes the current source. The published v0.87 release currently has only a phone APK; build and install both current apps as described below. The watch app tracks physical reading and does not render EPUB/PDF files.
+
 ## Use
 
 1. Open Vayana on the paired Android phone and add a physical book.
-2. Open Vayana on the watch and tap **Sync**. The watch caches the 50 most recently
+2. Open Vayana on the watch and tap **Sync with phone**. The watch caches the 50 most recently
    read, currently-reading physical books (started date, progress, reading time, or a reading occasion; finished and inactive books are excluded). Initial setup requires the phone.
 3. Choose a book, confirm the starting page, then start reading. Pause/resume and
-   **Current page** work without the phone or internet.
-4. **Stop & save** pauses the timer and asks for the final page. Cancel leaves the
+   the **Page** control work without the phone or internet.
+4. **Stop** pauses the timer and asks for the final page. Cancel leaves the
    timer paused so it can be resumed. Save commits the session to the watch.
 5. Sessions show **Pending** until the phone acknowledges a database commit.
    Reconnecting automatically transfers queued Data Layer items. Workers retry
    failures, with a periodic fallback; Android may defer background execution.
-   **Sync** also requests a refresh and retry.
+   **Sync with phone** also requests a refresh and retry.
 
 Phone/watch capability changes now wake synchronization when the companion becomes
 reachable. Fresh events replace backed-off work and every watch pass requests the
@@ -27,9 +29,34 @@ The watch distinguishes **Phone connected**, **Offline · saved on watch**, and 
 retrying sync failure. Connectivity means the companion app is reachable through
 the Data Layer (including remote routes); it does not guarantee Bluetooth proximity.
 
-The watch owns its timer. This version does not remotely operate or transfer an
-already-running phone timer. Stop a phone timer before starting on the watch.
-Sessions subsequently appear in the existing physical-book history and statistics.
+### Shared phone/watch timer controls
+
+The device that starts a timer remains its owner. The companion displays that
+timer and can request pause, resume, stop, page changes and completion. A phone-owned
+timer appears on the watch with a **phone** label. Remote **Stop** leaves it ready
+to save; choose **Save** and confirm the ending page to finish logging it.
+
+Remote actions are queued until the owner acknowledges them. While the watch is
+waiting for a phone acknowledgement, its timer buttons are disabled. A mirrored
+elapsed time does not prove that the owner is reachable or a command has succeeded.
+Session identity and revision checks reject stale actions. Timer ownership does
+not transfer between devices, and a locally active timer takes precedence over
+a remote display. If separate timers exist, the watch shows a warning.
+
+Watch-owned timers continue offline. Saved sessions subsequently appear in the
+phone's existing physical-book history and statistics.
+
+### Goals, display and quick access
+
+- **Reading goals** offers a daily target and an optional session reminder. Allow
+  notifications when requested to receive the reminder; background scheduling can
+  delay delivery.
+- **Vibration** controls watch haptics. The page editor supports rotary input.
+- Ambient mode shows a compact clock and reading status, omitting timer seconds.
+- Add the Vayana reading tile or watch-face complication using the watch's normal
+  tile/complication picker. A compatible watch face is required for complications.
+- Today's total combines phone progress with local watch sessions without counting
+  acknowledged sessions twice.
 
 ## Durability and conflicts
 
@@ -49,9 +76,10 @@ Sessions subsequently appear in the existing physical-book history and statistic
   own protocol writes to avoid sync feedback loops.
 - A changed phone page/page count or newer phone reading keeps phone progress;
   the watch's duration and page checkpoints remain in phone history for review.
-- Overlapping sessions (including a running phone timer) are retained on the watch
-  instead of double-counted. Review/correct the conflicting phone history, then Sync.
-  The overlap check is conservative: session spans include pauses.
+- Known same-book overlaps import only uncovered active intervals; pauses do not
+  count as reading. Different-book overlaps, older sessions with uncertain pause
+  placement and clock conflicts remain on the watch for review. A running phone
+  timer can also defer an import.
 - Deleted/non-physical books and reset history are never silently recreated.
   Rejected records remain visible and stored on the watch. Restore a deleted book
   to retry it. A history-reset rejection requires manually recording any desired
@@ -66,7 +94,14 @@ Protocol paths are versioned under `/vayana/wear/v1/`; book IDs are stable sync 
 never database row IDs. Catalog titles are bounded and catalog size is limited to
 stay below the Data Layer item size limit.
 
-## Build and verification
+## Install and build
+
+Use Wear OS 3+ (API 30+) with Google Play services and a paired Android phone.
+Build both APKs from the same checkout. Install each APK on its intended device;
+the phone and watch must have matching package IDs and signing certificates.
+A release phone app and a differently signed debug watch app cannot communicate.
+
+Follow the [root build requirements](../README.md#requirements), then run:
 
 ```powershell
 .\gradlew.bat :wear:assembleDebug :app:assembleDebug
@@ -75,7 +110,11 @@ stay below the Data Layer item size limit.
 
 Install `wear/build/outputs/apk/debug/wear-debug.apk` on the watch and
 `app/build/outputs/apk/debug/app-debug.apk` on the phone (do not install the watch
-APK over the phone app). Release artifacts need a separate Wear OS Play track.
+APK over the phone app). For release builds, run `:app:assembleRelease :wear:assembleRelease` with the same
+`VAYANA_KEYSTORE_PROPERTIES` configuration. The watch release build checks that
+signing is configured. Google Play distribution would require a separate Wear OS track.
+
+### Verification
 
 Before distribution, verify on a paired watch/phone: cache books; disconnect;
 record two sessions with pauses and page edits; reopen the watch app; reconnect;
