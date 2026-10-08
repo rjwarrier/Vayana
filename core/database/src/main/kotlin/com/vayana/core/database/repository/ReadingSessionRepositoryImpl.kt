@@ -55,7 +55,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun recordCheckpoint(bookId: Long, syncId: String, startedAt: Long, endedAt: Long, durationSeconds: Long) {
-        require(syncId.isNotBlank() && startedAt > 0 && endedAt >= startedAt && durationSeconds > 0)
+        // Called from fire-and-forget app-scope launches: invalid input is dropped, never thrown.
+        if (syncId.isBlank() || startedAt <= 0 || endedAt < startedAt || durationSeconds <= 0) return
         database.withTransaction {
             val book = bookDao.getById(bookId)?.takeUnless { it.isDeleted } ?: return@withTransaction
             if (tombstoneDao.findBySyncId(syncId) != null) return@withTransaction
@@ -63,7 +64,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             if (resetAt != null && startedAt <= resetAt) return@withTransaction
             val existing = readingSessionDao.findBySyncId(syncId)
             if (existing != null) {
-                require(existing.bookId == bookId && existing.startedAt == startedAt)
+                if (existing.bookId != bookId || existing.startedAt != startedAt) return@withTransaction
                 if (durationSeconds <= existing.durationSeconds || endedAt < existing.endedAt) return@withTransaction
                 readingSessionDao.update(existing.copy(endedAt = endedAt, durationSeconds = durationSeconds))
             } else {

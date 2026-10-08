@@ -98,7 +98,8 @@ internal class ReadingTimeTracker(
 
     private fun checkpoint(endedAt: Long): ReadingTimeCheckpoint? {
         val start = startedAt ?: return null
-        return if (elapsedSeconds > 0) ReadingTimeCheckpoint(syncId, start, endedAt, elapsedSeconds) else null
+        // Wall clock can move backward mid-session; a checkpoint must never end before it starts.
+        return if (elapsedSeconds > 0) ReadingTimeCheckpoint(syncId, start, maxOf(endedAt, start), elapsedSeconds) else null
     }
 }
 

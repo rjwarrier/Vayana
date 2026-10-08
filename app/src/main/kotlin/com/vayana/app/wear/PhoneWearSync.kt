@@ -24,6 +24,7 @@ import javax.inject.Singleton
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -55,7 +56,13 @@ class PhoneWearSync @Inject constructor(
         WorkManager.getInstance(context).enqueueUniquePeriodicWork("wear-periodic", ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<PhoneWearWorker>(15, TimeUnit.MINUTES).build())
         scope.launch { books.observeAll().map(::watchBooks).distinctUntilChanged().collect { enqueue(context) } }
-        scope.launch { sessions.observeAll().collect { enqueue(context) } }
+        // Digital reading checkpoints rewrite session rows every few seconds; the watch only shows physical sessions.
+        scope.launch {
+            combine(books.observeAll(), sessions.observeAll()) { allBooks, all ->
+                val physicalIds = allBooks.filter { it.format == BookFormat.PHYSICAL }.map { it.id }.toSet()
+                all.filter { it.bookId in physicalIds }
+            }.distinctUntilChanged().collect { enqueue(context) }
+        }
         scope.launch { timer.session.collect { enqueue(context) } }
         scope.launch { timer.companionStatus.collect { enqueue(context) } }
     }

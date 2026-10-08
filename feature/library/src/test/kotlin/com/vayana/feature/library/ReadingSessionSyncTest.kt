@@ -40,6 +40,16 @@ class ReadingSessionSyncTest {
         assertEquals(180L, books.getById(book.id)!!.totalReadingSeconds)
     }
 
+    @Test fun invalidOrConflictingCheckpointsAreDroppedWithoutThrowing() = runBlocking {
+        val book = books.insertOfflineBook("Book", null, BookFormat.PHYSICAL, null, null)
+        sessions.recordCheckpoint(book.id, "backward", 61000, 1000, 60)
+        sessions.recordCheckpoint(book.id, "active", 1000, 61000, 60)
+        sessions.recordCheckpoint(book.id, "active", 2000, 181000, 180)
+        assertNull(db.readingSessionDao().findBySyncId("backward"))
+        assertEquals(60L, db.readingSessionDao().findBySyncId("active")!!.durationSeconds)
+        assertEquals(60L, books.getById(book.id)!!.totalReadingSeconds)
+    }
+
     @Test fun independentDeviceSessionsAddEvenWhenBookAggregateWasAlreadyPulled() = runBlocking {
         val book = books.insertOfflineBook("Book", null, BookFormat.PHYSICAL, null, null)
         sessions.recordCheckpoint(book.id, "device-a", 1000, 601000, 600)

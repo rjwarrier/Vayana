@@ -107,4 +107,14 @@ class ReadingTimeTrackerTest {
         assertEquals(60L, first.durationSeconds)
         assertEquals(60L, second.durationSeconds)
     }
+
+    @Test
+    fun clockMovedBackwardNeverProducesACheckpointEndingBeforeItStarts() {
+        tracker.interact(1_000_000L)
+        tracker.flush(1_030_000L)
+        val checkpoint = assertNotNull(tracker.flush(500_000L).checkpoint)
+        assertEquals(1_000_000L, checkpoint.startedAt)
+        assertEquals(1_000_000L, checkpoint.endedAt)
+        assertEquals(30L, checkpoint.durationSeconds)
+    }
 }
