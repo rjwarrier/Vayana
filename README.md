@@ -36,6 +36,10 @@
   </p>
 </div>
 
+**Languages:** English · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+
+**User guides:** [English](docs/USER_GUIDE.md) · [Español](docs/USER_GUIDE.es.md) · [Português (Brasil)](docs/USER_GUIDE.pt.md)
+
 ## Why Vayana?
 
 Most reading apps stop at displaying a book. Vayana treats reading as a connected practice: organize what you want to read, stay immersed in the text, keep meaningful passages, learn unfamiliar words, revisit what mattered, and carry your progress safely between devices.

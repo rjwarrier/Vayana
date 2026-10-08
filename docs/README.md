@@ -2,6 +2,7 @@
 
 ## For readers
 
+- **Translated user guides:** [Español](USER_GUIDE.es.md) · [Português (Brasil)](USER_GUIDE.pt.md)
 - [User guide](USER_GUIDE.md) — detailed help for installing, adding books, reading, notes, dictionaries, statistics, backup, sync, E-Ink, Diagnostics, privacy, and troubleshooting.
 - [Wear OS companion](WEAR_OS.md) — installation, offline reading, shared timer controls, goals and sync troubleshooting.
 - [Changes since v0.87](releases/UNRELEASED.md) — current source changes, separate from published APKs.
