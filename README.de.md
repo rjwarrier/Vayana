@@ -13,14 +13,14 @@
   <p>
     <a href="https://github.com/rjwarrier/Vayana/releases/latest"><strong>Neueste Version herunterladen</strong></a> ·
     <a href="https://ranjithj.in/vayana/"><strong>Vayana-Website</strong></a> ·
-    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.87">Versionshinweise</a> ·
+    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.90">Versionshinweise</a> ·
     <a href="docs/USER_GUIDE.de.md">Benutzerhandbuch</a> ·
     <a href="docs/FEATURES.md">Funktionsdokumentation</a> ·
     <a href="docs/GITHUB_SYNC_SETUP.md">GitHub-Synchronisierung einrichten</a>
   </p>
 
   <p>
-    <img alt="Version v0.87" src="https://img.shields.io/badge/release-v0.87-00695c?style=flat-square">
+    <img alt="Version v0.90" src="https://img.shields.io/badge/release-v0.90-00695c?style=flat-square">
     <img alt="Android 8.0 und neuer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
@@ -43,9 +43,9 @@ Vayana verlangt dafür weder ein Vayana-Konto noch zeigt es Werbung beim Lesen. 
 
 ## Neueste Änderungen im Quellcode
 
-Der aktuelle Quellcode enthält eine [Wear-OS-Begleit-App](docs/WEAR_OS.md) für gedruckte Bücher: Offline-Lesezeitmesser, Seitenverfolgung, gemeinsame Steuerung auf Smartphone und Uhr, Leseziele, eine Kachel und eine Zifferblatt-Komplikation. Neuere Synchronisierungskorrekturen bewahren die Lesezeit geräteübergreifend und behandeln rückwärts verstellte Uhren sicher. Siehe [Änderungen seit v0.87](docs/releases/UNRELEASED.md).
+Der aktuelle Quellcode enthält eine [Wear-OS-Begleit-App](docs/WEAR_OS.md) für gedruckte Bücher: Offline-Lesezeitmesser, Seitenverfolgung, gemeinsame Steuerung auf Smartphone und Uhr, Leseziele, eine Kachel und eine Zifferblatt-Komplikation. Neuere Synchronisierungskorrekturen bewahren die Lesezeit geräteübergreifend und behandeln rückwärts verstellte Uhren sicher. Siehe [Änderungen seit v0.87](docs/releases/v0.90.md).
 
-Die veröffentlichte Version **v0.87** enthält derzeit nur die Smartphone-APK. Erstelle die aktuellen Smartphone- und Uhr-Apps, um die Begleitfunktionen zu nutzen; siehe [Wear-OS-Einrichtung](docs/WEAR_OS.md#install-and-build). Die Uhr-App erfasst Lesesitzungen für gedruckte Bücher; sie zeigt keine EPUB- oder PDF-Bücher an.
+Version **v0.90** enthält signierte APKs für Smartphone und Wear OS. Installiere `Vayana-v0.90.apk` auf dem Smartphone und `Vayana-WearOS-v0.90.apk` auf der Uhr; siehe [Wear-OS-Einrichtung](docs/WEAR_OS.md#install-and-build). Die Uhr erfasst Lesesitzungen für gedruckte Bücher; sie zeigt keine EPUB- oder PDF-Bücher an.
 
 <a id="highlights-in-087"></a>
 
@@ -180,16 +180,16 @@ Vayana unterstützt **Android 8.0 (API 26) und neuer**.
 Eine Einführung in die erste Nutzung findest du im [Schnellstart](docs/USER_GUIDE.de.md#quick-start).
 
 1. Öffne die [neueste GitHub-Veröffentlichung](https://github.com/rjwarrier/Vayana/releases/latest).
-2. Lade `Vayana-v0.87.apk` herunter.
+2. Lade `Vayana-v0.90.apk` herunter.
 3. Erlaube bei Nachfrage die Installation aus deinem Browser oder Dateimanager und öffne die APK.
 
 Android kann warnen, dass die App nicht aus Google Play stammt. Die Versionsdateien enthalten eine `.sha256`-Datei, mit der sich der Download vor der Installation prüfen lässt.
 
-Für v0.87:
+Für v0.90:
 
 ```text
 APK-SHA-256
-783642D1B39F7941CE0C0A97EACB31CFE3163D50504051012F6E84D5EADEA909
+3932D83BEE5B2BB36B4C27C7EA24B7F22BAAC47EFB63D3B2A3187C6A964BD57E
 
 SHA-256 des Signaturzertifikats
 53:2C:F4:07:D5:F0:D1:21:58:8A:5C:F1:6E:61:12:C8:F1:BB:3B:7E:D9:CF:F1:39:80:6A:7B:63:C6:43:96:C7
@@ -288,12 +288,12 @@ Die App verwendet Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, Wo
 - [Dokumentationsübersicht](docs/README.md)
 - [Funktionsverhalten und Invarianten](docs/FEATURES.md)
 - [Einrichtung und Nutzung der Wear-OS-Begleit-App](docs/WEAR_OS.md)
-- [Änderungen seit v0.87](docs/releases/UNRELEASED.md)
+- [Änderungen seit v0.87](docs/releases/v0.90.md)
 - [GitHub-Synchronisierung einrichten](docs/GITHUB_SYNC_SETUP.md)
 - [Architektur- und Implementierungsentscheidungen](docs/DECISIONS.md)
 - [Datenbank-Änderungsverlauf](docs/DATABASE_CHANGELOG.md)
 - [Entwurf der GitHub-Synchronisierung](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
-- [Versionshinweise v0.87](https://github.com/rjwarrier/Vayana/releases/tag/v0.87)
+- [Versionshinweise v0.90](https://github.com/rjwarrier/Vayana/releases/tag/v0.90)
 - [Versionshinweise v0.85](docs/releases/v0.85.md)
 
 <a id="feedback"></a>

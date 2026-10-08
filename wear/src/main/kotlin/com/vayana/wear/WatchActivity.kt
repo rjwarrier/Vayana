@@ -333,7 +333,7 @@ class WatchActivity : androidx.activity.ComponentActivity(), SharedPreferences.O
                 } }
             }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(4) })
             controls.addView(Button(this).apply {
-                text = "Stop"; styleButton(this, primary = false)
+                text = getString(R.string.watch_stop); styleButton(this, primary = false)
                 isEnabled = !stopped && state.timerCommands.isEmpty()
                 setPadding(dp(4), dp(6), dp(4), dp(6))
                 setOnClickListener { action {
@@ -403,7 +403,7 @@ class WatchActivity : androidx.activity.ComponentActivity(), SharedPreferences.O
                 button("Sync with phone", width = 150) { WatchSync.enqueue(this, requestBooks = true); Toast.makeText(this, "Sync requested", Toast.LENGTH_SHORT).show() }
 
                 content.addView(Switch(this).apply {
-                    text = "Vibration"; textSize = 13f; setTextColor(muted); minHeight = dp(48)
+                    text = getString(R.string.watch_vibration); textSize = 13f; setTextColor(muted); minHeight = dp(48)
                     isChecked = getSharedPreferences("watch-settings", MODE_PRIVATE).getBoolean("haptics", true)
                     thumbTintList = ColorStateList.valueOf(accent)
                     setOnCheckedChangeListener { _, checked ->
@@ -508,7 +508,7 @@ class WatchActivity : androidx.activity.ComponentActivity(), SharedPreferences.O
             setPadding(dp(8), 0, dp(8), 0)
             filters = arrayOf(android.text.InputFilter.LengthFilter(10))
             setText(String.format(java.util.Locale.ROOT, "%d", initial))
-            contentDescription = "Current page"; setSelectAllOnFocus(true)
+            contentDescription = getString(R.string.watch_current_page); setSelectAllOnFocus(true)
             setOnEditorActionListener { _, action, _ ->
                 if (action == EditorInfo.IME_ACTION_DONE) {
                     (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(windowToken, 0)
@@ -545,12 +545,12 @@ class WatchActivity : androidx.activity.ComponentActivity(), SharedPreferences.O
         layout.addView(steps, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         val actions = LinearLayout(this).apply { gravity = Gravity.CENTER }
         actions.addView(Button(this).apply {
-            text = "Cancel"; styleButton(this, primary = false)
+            text = getString(android.R.string.cancel); styleButton(this, primary = false)
             setPadding(dp(4), dp(6), dp(4), dp(6))
             setOnClickListener { dialog.dismiss() }
         }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(4) })
         actions.addView(Button(this).apply {
-            text = "Save"; styleButton(this, primary = true)
+            text = getString(R.string.watch_save); styleButton(this, primary = true)
             setPadding(dp(4), dp(6), dp(4), dp(6))
             setOnClickListener {
                 val page = input.text.toString().toIntOrNull()
@@ -656,7 +656,9 @@ class WatchActivity : androidx.activity.ComponentActivity(), SharedPreferences.O
             background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), shape(surface), null)
             isFocusable = true
             setOnClickListener { selected = book; selectedStartPage = null; render() }
-            contentDescription = "${book.title}, page ${book.page}" + (book.total?.let { " of $it" } ?: "")
+            contentDescription = book.total?.let {
+                getString(R.string.watch_book_page_total, book.title, book.page, it)
+            } ?: getString(R.string.watch_book_page, book.title, book.page)
         }
         val cover = WatchCoverCache(this).bitmap(book.id)
         val coverView = if (cover != null) ImageView(this).apply {

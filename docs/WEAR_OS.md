@@ -6,7 +6,7 @@ Install it alongside the updated Android phone app. Both packages must use
 shared Android debug key. Release builds use the phone's
 `VAYANA_KEYSTORE_PROPERTIES` / root `keystore.properties` configuration.
 
-> **Availability:** This guide describes the current source. The published v0.87 release currently has only a phone APK; build and install both current apps as described below. The watch app tracks physical reading and does not render EPUB/PDF files.
+> **Availability:** [Release v0.90](https://github.com/rjwarrier/Vayana/releases/tag/v0.90) includes `Vayana-v0.90.apk` for the phone and `Vayana-WearOS-v0.90.apk` for the watch. Install each APK on its intended device. Both are signed with the same release certificate, with minification and resource shrinking disabled. The watch app tracks physical reading and does not render EPUB/PDF files.
 
 ## Use
 
@@ -97,11 +97,11 @@ stay below the Data Layer item size limit.
 ## Install and build
 
 Use Wear OS 3+ (API 30+) with Google Play services and a paired Android phone.
-Build both APKs from the same checkout. Install each APK on its intended device;
+Download both APKs from [release v0.90](https://github.com/rjwarrier/Vayana/releases/tag/v0.90), or build both from the same checkout. Install each APK on its intended device;
 the phone and watch must have matching package IDs and signing certificates.
 A release phone app and a differently signed debug watch app cannot communicate.
 
-Follow the [root build requirements](../README.md#requirements), then run:
+To build from source, follow the [root build requirements](../README.md#requirements), then run:
 
 ```powershell
 .\gradlew.bat :wear:assembleDebug :app:assembleDebug

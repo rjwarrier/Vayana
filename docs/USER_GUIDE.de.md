@@ -4,9 +4,9 @@
 
 [English](USER_GUIDE.md) · [Español](USER_GUIDE.es.md) · [Português (Brasil)](USER_GUIDE.pt.md) · [Français](USER_GUIDE.fr.md) · **Deutsch** · [README auf Deutsch](../README.de.md)
 
-Dieses Handbuch beschreibt die Funktionen von Vayana 0.87 und erklärt die häufigsten Abläufe für Lesen, Bibliothek, Sicherung, Synchronisierung und Support. Vayana ist ein Android-Reader für EPUB- und PDF-Bücher mit bevorzugter lokaler Speicherung. Die App erfasst außerdem gedruckte und ausgeliehene Bücher, Hörbücher und weitere Bücher ohne digitale Datei.
+Dieses Handbuch beschreibt die Funktionen von Vayana 0.90 und erklärt die häufigsten Abläufe für Lesen, Bibliothek, Sicherung, Synchronisierung und Support. Vayana ist ein Android-Reader für EPUB- und PDF-Bücher mit bevorzugter lokaler Speicherung. Die App erfasst außerdem gedruckte und ausgeliehene Bücher, Hörbücher und weitere Bücher ohne digitale Datei.
 
-> **Aktueller Quellcode:** Die hier beschriebene [Wear-OS-Begleit-App](WEAR_OS.md) und die [neueren Synchronisierungskorrekturen](releases/UNRELEASED.md) benötigen aktuelle Builds. Die veröffentlichte Version v0.87 enthält derzeit nur die Smartphone-APK.
+> **Version 0.90:** Lade beide signierten APKs von der [Versionsseite](https://github.com/rjwarrier/Vayana/releases/tag/v0.90) für die [Wear-OS-Begleit-App](WEAR_OS.md) herunter. Die [Versionshinweise](releases/v0.90.md) beschreiben Änderungen seit v0.87.
 
 > Die Bildschirmfotos in diesem Handbuch wurden auf einem Entwicklungsgerät mit gemeinfreien Büchern von Project Gutenberg aufgenommen. Das Layout kann je nach Bildschirmgröße, Android-Version, Thema, Sprache und E-Ink-Einstellungen abweichen.
 
@@ -513,7 +513,7 @@ Die Einstellungen sind gruppiert und durchsuchbar:
 - **Sicherung und Wiederherstellung:** manuelle und geplante Sicherungen
 - **Hilfe und Über:** integrierte Hilfe, Diagnose, Version, Quellcode, Versionslink, Teilen und Entwicklerlinks
 
-Vayanas Oberflächensprache kann unabhängig von der Buchsprache gewählt werden. Version 0.87 enthält Englisch, Spanisch, Portugiesisch, Russisch, Deutsch, Französisch, Italienisch, Malayalam und Tamil. Suche in den Einstellungen nach **Sprache**, um die App-Sprache zu ändern; Bücher behalten ihre eigenen Sprachmetadaten.
+Vayanas Oberflächensprache kann unabhängig von der Buchsprache gewählt werden. Version 0.90 enthält Englisch, Spanisch, Portugiesisch, Russisch, Deutsch, Französisch, Italienisch, Malayalam und Tamil. Suche in den Einstellungen nach **Sprache**, um die App-Sprache zu ändern; Bücher behalten ihre eigenen Sprachmetadaten.
 
 <p align="center">
   <img src="assets/user-guide/11-settings.png" alt="Durchsuchbare Einstellungskategorien" width="360"><br>
@@ -679,4 +679,4 @@ Diagnoseprotokolle bleiben auf dem Gerät, bis du sie ausdrücklich kopierst, te
 - [GitHub-Synchronisierung einrichten](GITHUB_SYNC_SETUP.md)
 - [Architektur- und Implementierungsentscheidungen](DECISIONS.md)
 - [Datenbank-Änderungsverlauf](DATABASE_CHANGELOG.md)
-- [Vayana-Version 0.87](https://github.com/rjwarrier/Vayana/releases/tag/v0.87)
+- [Vayana-Version 0.90](https://github.com/rjwarrier/Vayana/releases/tag/v0.90)

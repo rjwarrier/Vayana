@@ -13,8 +13,8 @@ android {
         // Data Layer requires the phone package identity and signing key.
         applicationId = "com.vayana.app"
         minSdk = 30
-        versionCode = 1000002
-        versionName = "0.87"
+        versionCode = 3
+        versionName = "0.90"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -27,7 +27,11 @@ android {
         }
     }
     buildTypes {
-        release { if (signingFile.exists()) signingConfig = signingConfigs.getByName("release") }
+        release {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            if (signingFile.exists()) signingConfig = signingConfigs.getByName("release")
+        }
     }
 }
 val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {

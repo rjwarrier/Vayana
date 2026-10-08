@@ -13,14 +13,14 @@
   <p>
     <a href="https://github.com/rjwarrier/Vayana/releases/latest"><strong>Télécharger la dernière version</strong></a> ·
     <a href="https://ranjithj.in/vayana/"><strong>Site de Vayana</strong></a> ·
-    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.87">Notes de version</a> ·
+    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.90">Notes de version</a> ·
     <a href="docs/USER_GUIDE.fr.md">Guide d’utilisation</a> ·
     <a href="docs/FEATURES.md">Documentation des fonctionnalités</a> ·
     <a href="docs/GITHUB_SYNC_SETUP.md">Configurer la synchronisation GitHub</a>
   </p>
 
   <p>
-    <img alt="Version v0.87" src="https://img.shields.io/badge/release-v0.87-00695c?style=flat-square">
+    <img alt="Version v0.90" src="https://img.shields.io/badge/release-v0.90-00695c?style=flat-square">
     <img alt="Android 8.0 ou version ultérieure" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
@@ -43,9 +43,9 @@ Vayana le fait sans imposer de compte Vayana ni afficher de publicités pendant 
 
 ## Dernières évolutions du code source
 
-Le code actuel comprend une [application compagnon Wear OS](docs/WEAR_OS.md) pour la lecture de livres papier : chronomètres hors ligne, suivi des pages, commandes partagées entre téléphone et montre, objectifs de lecture, une tuile et une complication de cadran. Les corrections récentes de synchronisation préservent le temps de lecture entre appareils et gèrent les retours en arrière de l’horloge en toute sécurité. Consultez les [changements depuis la v0.87](docs/releases/UNRELEASED.md).
+Le code actuel comprend une [application compagnon Wear OS](docs/WEAR_OS.md) pour la lecture de livres papier : chronomètres hors ligne, suivi des pages, commandes partagées entre téléphone et montre, objectifs de lecture, une tuile et une complication de cadran. Les corrections récentes de synchronisation préservent le temps de lecture entre appareils et gèrent les retours en arrière de l’horloge en toute sécurité. Consultez les [changements depuis la v0.87](docs/releases/v0.90.md).
 
-La version publiée **v0.87** contient actuellement uniquement l’APK pour téléphone. Compilez les applications actuelles pour téléphone et montre afin d’utiliser les fonctionnalités du compagnon ; consultez la [configuration Wear OS](docs/WEAR_OS.md#install-and-build). L’application de la montre enregistre les séances de lecture de livres papier ; elle n’affiche pas de livres EPUB ou PDF.
+La version **v0.90** comprend des APK signés pour téléphone et Wear OS. Installez `Vayana-v0.90.apk` sur le téléphone et `Vayana-WearOS-v0.90.apk` sur la montre ; consultez la [configuration Wear OS](docs/WEAR_OS.md#install-and-build). La montre enregistre les séances de lecture de livres papier ; elle n’affiche pas de livres EPUB ou PDF.
 
 <a id="highlights-in-087"></a>
 
@@ -180,16 +180,16 @@ Vayana prend en charge **Android 8.0 (API 26) et les versions ultérieures**.
 Pour découvrir la première utilisation, consultez le [guide de démarrage rapide](docs/USER_GUIDE.fr.md#quick-start).
 
 1. Ouvrez la [dernière version sur GitHub](https://github.com/rjwarrier/Vayana/releases/latest).
-2. Téléchargez `Vayana-v0.87.apk`.
+2. Téléchargez `Vayana-v0.90.apk`.
 3. Autorisez l’installation depuis votre navigateur ou gestionnaire de fichiers si Android le demande, puis ouvrez l’APK.
 
 Android peut signaler que l’application provient de l’extérieur de Google Play. Les fichiers de la version comprennent un fichier `.sha256` pour vérifier le téléchargement avant l’installation.
 
-Pour la v0.87 :
+Pour la v0.90 :
 
 ```text
 SHA-256 de l’APK
-783642D1B39F7941CE0C0A97EACB31CFE3163D50504051012F6E84D5EADEA909
+3932D83BEE5B2BB36B4C27C7EA24B7F22BAAC47EFB63D3B2A3187C6A964BD57E
 
 SHA-256 du certificat de publication
 53:2C:F4:07:D5:F0:D1:21:58:8A:5C:F1:6E:61:12:C8:F1:BB:3B:7E:D9:CF:F1:39:80:6A:7B:63:C6:43:96:C7
@@ -288,12 +288,12 @@ L’application utilise Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hi
 - [Index de la documentation](docs/README.md)
 - [Comportement des fonctionnalités et invariants](docs/FEATURES.md)
 - [Configuration et utilisation du compagnon Wear OS](docs/WEAR_OS.md)
-- [Changements depuis la v0.87](docs/releases/UNRELEASED.md)
+- [Changements depuis la v0.87](docs/releases/v0.90.md)
 - [Configuration de la synchronisation GitHub](docs/GITHUB_SYNC_SETUP.md)
 - [Décisions d’architecture et d’implémentation](docs/DECISIONS.md)
 - [Historique des modifications de la base de données](docs/DATABASE_CHANGELOG.md)
 - [Conception de la synchronisation GitHub](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
-- [Notes de version v0.87](https://github.com/rjwarrier/Vayana/releases/tag/v0.87)
+- [Notes de version v0.90](https://github.com/rjwarrier/Vayana/releases/tag/v0.90)
 - [Notes de version v0.85](docs/releases/v0.85.md)
 
 <a id="feedback"></a>

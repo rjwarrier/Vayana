@@ -15,7 +15,7 @@
     ·
     <a href="https://ranjithj.in/vayana/"><strong>Vayana website</strong></a>
     ·
-    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.87">Release notes</a>
+    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.90">Release notes</a>
     ·
     <a href="docs/USER_GUIDE.md">User guide</a>
     ·
@@ -25,7 +25,7 @@
   </p>
 
   <p>
-    <img alt="Release v0.87" src="https://img.shields.io/badge/release-v0.87-00695c?style=flat-square">
+    <img alt="Release v0.90" src="https://img.shields.io/badge/release-v0.90-00695c?style=flat-square">
     <img alt="Android 8.0 and newer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
@@ -48,9 +48,9 @@ Vayana does this without requiring a Vayana account or putting ads in the readin
 
 ## Latest source updates
 
-The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely. See [changes since v0.87](docs/releases/UNRELEASED.md).
+The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely. See [changes since v0.87](docs/releases/v0.90.md).
 
-The published **v0.87** release currently contains the phone APK only. Build both current phone and watch apps for the companion features; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
+Release **v0.90** includes signed phone and Wear OS APKs. Install `Vayana-v0.90.apk` on the phone and `Vayana-WearOS-v0.90.apk` on the watch; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
 
 ## Highlights in 0.87
 
@@ -167,16 +167,16 @@ Vayana supports **Android 8.0 (API 26) and newer**.
 For a first-run walkthrough, see the [Quick start guide](docs/USER_GUIDE.md#quick-start).
 
 1. Open the [latest GitHub release](https://github.com/rjwarrier/Vayana/releases/latest).
-2. Download `Vayana-v0.87.apk`.
+2. Download `Vayana-v0.90.apk`.
 3. Allow installation from your browser or file manager if Android asks, then open the APK.
 
 Android may warn that the app came from outside Google Play. Release assets include a `.sha256` file so the download can be checked before installation.
 
-For v0.87:
+For v0.90:
 
 ```text
 APK SHA-256
-783642D1B39F7941CE0C0A97EACB31CFE3163D50504051012F6E84D5EADEA909
+3932D83BEE5B2BB36B4C27C7EA24B7F22BAAC47EFB63D3B2A3187C6A964BD57E
 
 Release certificate SHA-256
 53:2C:F4:07:D5:F0:D1:21:58:8A:5C:F1:6E:61:12:C8:F1:BB:3B:7E:D9:CF:F1:39:80:6A:7B:63:C6:43:96:C7
@@ -263,12 +263,12 @@ The app uses Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, WorkMan
 - [Documentation index](docs/README.md)
 - [Feature behavior and invariants](docs/FEATURES.md)
 - [Wear OS companion setup and use](docs/WEAR_OS.md)
-- [Changes since v0.87](docs/releases/UNRELEASED.md)
+- [Changes since v0.87](docs/releases/v0.90.md)
 - [GitHub sync setup](docs/GITHUB_SYNC_SETUP.md)
 - [Architecture and implementation decisions](docs/DECISIONS.md)
 - [Database changelog](docs/DATABASE_CHANGELOG.md)
 - [GitHub sync design](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
-- [v0.87 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.87)
+- [v0.90 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.90)
 - [v0.85 release notes](docs/releases/v0.85.md)
 
 ## Feedback
