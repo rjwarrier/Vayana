@@ -668,6 +668,13 @@ class ReaderViewModel @Inject constructor(
 
     fun goToProgress(fraction: Float) = dispatch(NavTarget.ToFraction(fraction.coerceIn(0f, 1f)))
 
+    fun goToPage(pageNumber: Int) {
+        val total = (_uiState.value as? ReaderUiState.Loaded)?.currentLocator?.totalPages ?: return
+        if (pageNumber !in 1..total) return
+        pushReturnLocator()
+        dispatch(NavTarget.ToPage(pageNumber - 1))
+    }
+
     fun goToPdfPage(pageIndex: Int) {
         pushReturnLocator()
         dispatch(NavTarget.ToPage(pageIndex))

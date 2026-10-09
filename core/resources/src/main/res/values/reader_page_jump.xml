@@ -1,0 +1,6 @@
+<resources>
+    <string name="reader_go_to_page_title">Go to page</string>
+    <string name="reader_go_to_page_label">Page number</string>
+    <string name="reader_go_to_page_range">Enter a page from 1 to %1$d</string>
+    <string name="reader_go_to_page_cancel">Cancel</string>
+</resources>

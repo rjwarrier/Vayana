@@ -66,6 +66,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -148,6 +149,8 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -336,6 +339,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onTapNext = viewModel::nextPage,
                 onOpenTocEntry = viewModel::openTocEntry,
                 onProgressChange = viewModel::goToProgress,
+                onGoToPage = viewModel::goToPage,
                 onAnnotationClick = viewModel::openAnnotation,
                 onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
                 onCreateHighlight = viewModel::createHighlight,
@@ -458,6 +462,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onTapNext = viewModel::nextPage,
         onOpenTocEntry = viewModel::openTocEntry,
         onProgressChange = viewModel::goToProgress,
+        onGoToPage = viewModel::goToPage,
         onAnnotationClick = viewModel::openAnnotation,
         onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
         onCreateHighlight = viewModel::createHighlight,
@@ -792,6 +797,7 @@ private fun ReaderScreen(
     onTapNext: () -> Unit,
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
+    onGoToPage: (Int) -> Unit,
     onAnnotationClick: (Annotation) -> Unit,
     onReturnToPreviousPosition: () -> Unit,
     onCreateHighlight: (String) -> Unit,
@@ -1300,6 +1306,7 @@ private fun ReaderScreen(
                 modifier = Modifier.align(Alignment.BottomStart),
                 locator = uiState.currentLocator,
                 footerGap = settings.readerFooterGapDp.dp,
+                onGoToPage = onGoToPage,
             )
             ReaderBookProgressFooter(
                 modifier = Modifier.align(Alignment.BottomEnd),
@@ -1806,11 +1813,20 @@ private fun ReaderPageNumberFooter(
     modifier: Modifier = Modifier,
     locator: Locator?,
     footerGap: Dp = Spacing.sm,
+    onGoToPage: (Int) -> Unit,
 ) {
     val currentPage = locator?.currentPage
     val totalPages = locator?.totalPages
     if (currentPage == null || totalPages == null) return
+    var showPageDialog by remember { mutableStateOf(false) }
+    if (showPageDialog) {
+        GoToPageDialog(totalPages = totalPages, onDismiss = { showPageDialog = false }, onGo = {
+            showPageDialog = false
+            onGoToPage(it)
+        })
+    }
     Surface(
+        onClick = { showPageDialog = true },
         modifier = modifier
             .navigationBarsPadding()
             .windowInsetsPadding(readerHudHorizontalInsets)
@@ -1825,6 +1841,36 @@ private fun ReaderPageNumberFooter(
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
         )
     }
+}
+
+@Composable
+private fun GoToPageDialog(totalPages: Int, onDismiss: () -> Unit, onGo: (Int) -> Unit) {
+    var input by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    val page = input.toIntOrNull()?.takeIf { it in 1..totalPages }
+    val submit = { page?.let(onGo); Unit }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.reader_go_to_page_title)) },
+        text = {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { value -> if (value.all { it in '0'..'9' } && value.length <= 10) input = value },
+                label = { Text(stringResource(R.string.reader_go_to_page_label)) },
+                supportingText = { Text(stringResource(R.string.reader_go_to_page_range, totalPages)) },
+                isError = input.isNotEmpty() && page == null,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { submit() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = submit, enabled = page != null) { Text(stringResource(R.string.reader_pdf_page_jump_action)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.reader_go_to_page_cancel)) } },
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

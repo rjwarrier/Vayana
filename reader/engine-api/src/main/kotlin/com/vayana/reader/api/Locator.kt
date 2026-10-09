@@ -68,7 +68,7 @@ sealed interface NavTarget {
     data class ToLocator(val locator: Locator) : NavTarget
     data class ToHref(val href: String) : NavTarget
     data class ToFraction(val fraction: Float) : NavTarget
-    /** Zero-based page index for a fixed-layout book. */
+    /** Zero-based page index; reflowable books use the current layout's page estimate. */
     data class ToPage(val pageIndex: Int) : NavTarget
     data object NextPage : NavTarget
     data object PreviousPage : NavTarget

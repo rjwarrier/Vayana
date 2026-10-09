@@ -94,10 +94,12 @@ function bookPageStats(sectionIndex) {
     const { prefixPages, tocPages, revision } = pageEstimateCache
     const pagesBefore = Math.round(prefixPages[sectionIndex])
     const pagesAfter = Math.round(prefixPages[sectionByteSizes.length] - prefixPages[sectionIndex + 1])
+    const totalPages = pagesBefore + pagesInSection + pagesAfter
+    pageEstimateCache.totalPages = totalPages
 
     return {
         currentPage: pagesBefore + pageInSection,
-        totalPages: pagesBefore + pagesInSection + pagesAfter,
+        totalPages,
         tocPages,
         tocRevision: revision,
     }
@@ -884,10 +886,32 @@ function goToFraction(fraction) {
     view?.goToFraction(fraction)
 }
 
-function goToPage(pageIndex) {
-    if (!fixedLayout || !Number.isInteger(pageIndex)) return
-    const total = view?.book?.sections?.length ?? 0
-    if (pageIndex >= 0 && pageIndex < total) view.goTo(pageIndex)
+async function goToPage(pageIndex) {
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || !view) return
+    if (fixedLayout) {
+        const total = view.book?.sections?.length ?? 0
+        if (pageIndex < total) await view.goTo(pageIndex)
+        return
+    }
+    const prefix = pageEstimateCache?.prefixPages
+    if (!prefix || pageIndex >= pageEstimateCache.totalPages) return
+    let index = prefix.findIndex((end, i) => i > 0 && Math.round(end) > pageIndex) - 1
+    // Independently rounded chapter prefixes can differ by one from the displayed
+    // total. Its final page still belongs to the last non-empty chapter.
+    if (index < 0) {
+        for (let i = prefix.length - 2; i >= 0; i--) {
+            if (prefix[i + 1] > prefix[i]) { index = i; break }
+        }
+    }
+    if (index < 0) return
+    await view.goTo(index)
+    // Loading a chapter measures its real page count. Resolve the local page using
+    // that updated estimate and the paginator's two reserved margin columns.
+    bookPageStats(index)
+    const pages = Math.max(1, view.renderer.pages - 2)
+    const localPage = Math.min(pages - 1, Math.max(0,
+        pageIndex - Math.round(pageEstimateCache.prefixPages[index])))
+    await view.renderer.scrollToAnchor(pages > 1 ? localPage / (pages - 1) : 0)
 }
 
 function providePdfPassword(password) {
