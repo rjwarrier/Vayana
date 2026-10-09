@@ -1282,7 +1282,7 @@ private fun ReaderScreen(
         val headerGap = settings.readerHeaderGapDp.dp.let { gap ->
             if (isLandscape) gap.coerceAtMost(readerLandscapeHeaderMaxGap) else gap
         }
-        if (settings.readerShowHeaders) {
+        if (settings.readerShowHeaders && !chromeVisible) {
             ReaderClockHeader(
                 modifier = Modifier.align(Alignment.TopCenter),
                 isEink = isEink,
@@ -1297,7 +1297,7 @@ private fun ReaderScreen(
             )
         }
 
-        if (uiState is ReaderUiState.Loaded && settings.readerShowHeaders) {
+        if (uiState is ReaderUiState.Loaded && settings.readerShowHeaders && !chromeVisible) {
             ReaderTimeLeftHeader(
                 modifier = Modifier.align(Alignment.TopEnd),
                 locator = uiState.currentLocator,
