@@ -29,10 +29,10 @@ object GutenbergCleanup {
                     val mime = zip.getEntry("mimetype") ?: error("Missing EPUB mimetype")
                     val ordered = listOf(mime) + entries.filter { it.name != "mimetype" }
                     var expanded = 0L
+                    val chunk = ByteArray(8192)
                     for (entry in ordered) {
                         val bytes = zip.getInputStream(entry).use { input ->
                             val buffer = ByteArrayOutputStream()
-                            val chunk = ByteArray(8192)
                             while (true) {
                                 val count = input.read(chunk)
                                 if (count < 0) break
@@ -42,7 +42,7 @@ object GutenbergCleanup {
                             }
                             buffer.toByteArray()
                         }
-                        val content = if (entry.name.substringAfterLast('.').lowercase() in setOf("xhtml", "html", "htm")) {
+                        val content = if (entry.name.substringAfterLast('.').lowercase() in ChapterExtensions) {
                             cleanChapter(bytes).also { removed += it.second }.first
                         } else bytes
                         val target = ZipEntry(entry.name)
@@ -69,7 +69,7 @@ object GutenbergCleanup {
         // Internal entity declarations are unnecessary for this operation and can expand exponentially.
         val text = bytes.toString(Charsets.UTF_8)
         if (!text.contains("pg-header") && !text.contains("pg-footer") && !text.contains("img_images_") &&
-            !text.any { it in "\u00ad\u200b\ufeff\u00a0" } && !TextArtifactEntity.containsMatchIn(text)) return bytes to 0
+            !text.hasTextArtifacts() && !TextArtifactEntity.containsMatchIn(text)) return bytes to 0
         require(!text.contains("<!ENTITY", ignoreCase = true)) { "Unsupported EPUB entity declaration" }
         val builder = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
@@ -83,15 +83,11 @@ object GutenbergCleanup {
             while (child != null) {
                 val next = child.nextSibling
                 val element = child as? Element
-                val boilerplate = element != null && element.localName in setOf("div", "section") &&
-                    element.getAttribute("id") in setOf("pg-header", "pg-footer")
+                val boilerplate = element != null && element.localName in BoilerplateTags &&
+                    element.getAttribute("id") in BoilerplateIds
                 // Gutenberg's no-images editions replace illustrations with filename-like labels.
                 // Remove an entire otherwise-empty figure, but retain real images and captions.
-                val emptyIllustration = element?.isFigure() == true && element.childNodes.let { children ->
-                    (0 until children.length).map { children.item(it) }.filterNot {
-                        it.nodeType == Node.TEXT_NODE && it.textContent.isBlank()
-                    }.singleOrNull()?.let { it is Element && it.isImagePlaceholder() } == true
-                }
+                val emptyIllustration = element?.isEmptyIllustration() == true
                 if (boilerplate || emptyIllustration || element?.isImagePlaceholder() == true) {
                     parent.removeChild(child)
                     removed++
@@ -116,7 +112,21 @@ object GutenbergCleanup {
     }
 
     private fun Element.isFigure(): Boolean = localName == "div" &&
-        getAttribute("class").split(Regex("\\s+")).contains("fig")
+        FigureClass.containsMatchIn(getAttribute("class"))
+
+    private fun Element.isEmptyIllustration(): Boolean {
+        if (!isFigure()) return false
+        var placeholder: Element? = null
+        var child = firstChild
+        while (child != null) {
+            if (!(child.nodeType == Node.TEXT_NODE && child.textContent.isBlank())) {
+                if (placeholder != null || child !is Element || !child.isImagePlaceholder()) return false
+                placeholder = child
+            }
+            child = child.nextSibling
+        }
+        return placeholder != null
+    }
 
     private fun Element.isImagePlaceholder(): Boolean = localName == "span" &&
         (parentNode as? Element)?.isFigure() == true &&
@@ -128,17 +138,26 @@ object GutenbergCleanup {
     private val ImagePlaceholderText = Regex("\\d{3,}[A-Za-z]{1,3}")
 
     private fun Element.protectsTextFormatting(): Boolean =
-        localName in setOf("pre", "code", "kbd", "samp", "table", "svg", "math", "script", "style", "textarea") ||
+        localName in ProtectedTextTags ||
             getAttributeNS("http://www.w3.org/XML/1998/namespace", "space") == "preserve" ||
             getAttribute("style").isNotBlank() ||
             (localName == "p" && getAttribute("class").isNotBlank()) ||
             ProtectedTextClass.containsMatchIn(getAttribute("class"))
 
     private fun cleanProseText(text: String): String {
+        if (!text.hasTextArtifacts()) return text
         var cleaned = SoftHyphenBreak.replace(text, "")
         cleaned = InsideWordArtifacts.replace(cleaned, "")
         return RepeatedNonbreakingSpace.replace(cleaned, " ")
     }
+
+    private fun String.hasTextArtifacts(): Boolean = any { it in "\u00ad\u200b\ufeff\u00a0" }
+
+    private val ChapterExtensions = setOf("xhtml", "html", "htm")
+    private val BoilerplateTags = setOf("div", "section")
+    private val BoilerplateIds = setOf("pg-header", "pg-footer")
+    private val ProtectedTextTags = setOf("pre", "code", "kbd", "samp", "table", "svg", "math", "script", "style", "textarea")
+    private val FigureClass = Regex("(?:^|\\s)fig(?:\\s|$)")
 
     private val SoftHyphenBreak = Regex("(?<=[A-Za-z])\u00ad[ \\t\\r\\n]*(?=[A-Za-z])")
     private val InsideWordArtifacts = Regex("(?<=[A-Za-z])[\u00ad\u200b\ufeff]+(?=[A-Za-z])")
