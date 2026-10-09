@@ -675,6 +675,14 @@ class ReaderViewModel @Inject constructor(
         dispatch(NavTarget.ToPage(pageNumber - 1))
     }
 
+    fun preparePageJump(onPrepared: () -> Unit) {
+        viewModelScope.launch {
+            boundEngine?.preparePageJump()
+            onPrepared()
+        }
+    }
+    fun cancelPageJump() { viewModelScope.launch { boundEngine?.cancelPageJump() } }
+
     fun goToPdfPage(pageIndex: Int) {
         pushReturnLocator()
         dispatch(NavTarget.ToPage(pageIndex))

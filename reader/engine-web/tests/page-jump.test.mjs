@@ -9,7 +9,9 @@ const source = bridge.slice(start >= 0 ? start : bridge.indexOf('function goToPa
 function fixture(fixedLayout = false) {
     const navigated = [], anchors = []
     let currentIndex = -1
-    const context = vm.createContext({ fixedLayout,
+    const context = vm.createContext({ fixedLayout, pageJumpSnapshot: null,
+        window: { innerWidth: 500, innerHeight: 1000 }, bytesPerPage: new Map([[0, 100]]),
+        lastSentTocRevision: 0, requestAnimationFrame: callback => callback(),
         pageEstimateCache: { prefixPages: [0, 10, 30], totalPages: 30 },
         bookPageStats: () => ({ totalPages: 30 }),
         view: { book: { sections: [{}, {}] },
@@ -69,4 +71,37 @@ test('EPUB correction is bounded if estimates keep changing', async () => {
     await f.context.goToPage(20)
     assert.ok(f.navigated.length <= 3)
     assert.equal(f.anchors.length, 1)
+})
+
+test('page dialog restores full-height estimates before resolving a page number', async () => {
+    const f = fixture()
+    f.context.preparePageJump()
+    f.context.window.innerHeight = 600
+    f.context.pageEstimateCache = { prefixPages: [0, 20, 60], totalPages: 60 }
+    f.context.bytesPerPage.set(0, 50)
+    f.context.requestAnimationFrame = callback => { f.context.window.innerHeight = 1000; callback() }
+    await f.context.goToPage(10)
+    assert.deepEqual(f.navigated, [1])
+    assert.deepEqual(f.anchors, [0])
+    assert.equal(f.context.bytesPerPage.get(0), 100)
+})
+
+test('cancelling the dialog restores its original position and page estimates', async () => {
+    const f = fixture()
+    f.context.view.lastLocation = { cfi: 'epubcfi(saved)' }
+    f.context.preparePageJump()
+    f.context.pageEstimateCache = { prefixPages: [0, 20, 60], totalPages: 60 }
+    await f.context.cancelPageJump()
+    assert.deepEqual(f.navigated, ['epubcfi(saved)'])
+    assert.equal(f.context.pageEstimateCache.totalPages, 30)
+})
+
+test('cancel keeps the original rendered page instead of rounding its passage CFI', async () => {
+    const f = fixture()
+    f.context.view.renderer.page = 8
+    f.context.preparePageJump()
+    f.context.view.renderer.page = 12
+    await f.context.cancelPageJump()
+    assert.deepEqual(f.navigated, [])
+    assert.deepEqual(f.anchors, [7 / 19])
 })

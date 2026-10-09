@@ -331,6 +331,16 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             }
     }
 
+    override suspend fun preparePageJump() {
+        val prepared = CompletableDeferred<Unit>()
+        webView.evaluateJavascript("window.VayanaReader.preparePageJump()") { prepared.complete(Unit) }
+        withTimeoutOrNull(1_000) { prepared.await() }
+    }
+
+    override suspend fun cancelPageJump() {
+        webView.evaluateJavascript("window.VayanaReader.cancelPageJump()", null)
+    }
+
     override suspend fun goTo(target: NavTarget) {
         val js = when (target) {
             is NavTarget.NextPage -> "window.VayanaReader.next()"

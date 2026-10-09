@@ -41,6 +41,7 @@ let sectionByteSizes = null
 const bytesPerPage = new Map()
 let pageEstimateCache = null
 let pageEstimateRevision = 0
+let pageJumpSnapshot = null
 let lastSentTocRevision = -1
 
 function resetPageEstimate() {
@@ -61,7 +62,7 @@ function bookPageStats(sectionIndex) {
     }
     // paginator reserves one blank column at each end for the header/footer margins.
     const pagesInSection = Math.max(1, pages - 2)
-    const pageInSection = Math.min(pagesInSection, Math.max(1, page - 1))
+    const pageInSection = Math.min(pagesInSection, Math.max(1, page))
 
     const sectionSize = sectionByteSizes[sectionIndex] || 0
     if (sectionSize > 0) {
@@ -904,6 +905,7 @@ function goToFraction(fraction) {
 
 async function goToPage(pageIndex) {
     if (!Number.isInteger(pageIndex) || pageIndex < 0 || !view) return
+    await restorePageJumpLayout()
     if (fixedLayout) {
         const total = view.book?.sections?.length ?? 0
         if (pageIndex < total) await view.goTo(pageIndex)
@@ -930,6 +932,48 @@ async function goToPage(pageIndex) {
     const localPage = Math.min(pages - 1, Math.max(0,
         pageIndex - Math.round(pageEstimateCache.prefixPages[index])))
     await view.renderer.scrollToAnchor(pages > 1 ? localPage / (pages - 1) : 0)
+}
+
+function preparePageJump() {
+    pageJumpSnapshot = {
+        width: window.innerWidth, height: window.innerHeight,
+        densities: new Map(bytesPerPage), estimate: pageEstimateCache,
+        cfi: view?.lastLocation?.cfi,
+        section: view?.renderer?.getContents?.()[0]?.index, page: view?.renderer?.page,
+    }
+}
+
+async function restorePageJumpLayout() {
+    const snapshot = pageJumpSnapshot
+    if (!snapshot) return null
+    pageJumpSnapshot = null
+    const matches = () => window.innerWidth === snapshot.width && window.innerHeight === snapshot.height
+    const deadline = Date.now() + 1500
+    while (!matches() && Date.now() < deadline) await new Promise(requestAnimationFrame)
+    // ResizeObserver repaginates after a frame. Let it finish before using page counts.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    if (matches()) {
+        bytesPerPage.clear()
+        for (const [index, density] of snapshot.densities) bytesPerPage.set(index, density)
+        pageEstimateCache = snapshot.estimate
+        lastSentTocRevision = -1
+    } else {
+        resetPageEstimate()
+        const index = view?.renderer?.getContents?.()[0]?.index
+        if (Number.isInteger(index)) bookPageStats(index)
+    }
+    return snapshot
+}
+
+async function cancelPageJump() {
+    const snapshot = await restorePageJumpLayout()
+    if (!snapshot) return
+    if (!fixedLayout && Number.isFinite(snapshot.page)
+        && view?.renderer?.getContents?.()[0]?.index === snapshot.section) {
+        const pages = Math.max(1, view.renderer.pages - 2)
+        const localPage = Math.min(pages - 1, Math.max(0, snapshot.page - 1))
+        await view.renderer.scrollToAnchor(pages > 1 ? localPage / (pages - 1) : 0)
+    } else if (snapshot.cfi) await view?.goTo(snapshot.cfi)
 }
 
 function pageSectionIndex(pageIndex) {
@@ -3396,7 +3440,7 @@ async function searchFixedLayout(query, token) {
     if (token === searchToken) post('searchResults', { query, results })
 }
 
-window.VayanaReader = { open, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, goToPage, goToHref, providePdfPassword, pageThumbnail, setReaderControlsGesture, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
+window.VayanaReader = { open, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, preparePageJump, cancelPageJump, goToPage, goToHref, providePdfPassword, pageThumbnail, setReaderControlsGesture, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
 addEventListener('resize', () => {
     applyReaderMargin(readerSideMarginPercent)
     scheduleFixedRefit()

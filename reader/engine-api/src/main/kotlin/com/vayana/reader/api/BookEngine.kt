@@ -16,6 +16,9 @@ interface BookEngine {
     suspend fun open(source: BookSource, resumeLocator: Locator?): Result<OpenBook>
     val location: StateFlow<Locator?>
     suspend fun goTo(target: NavTarget)
+    /** Preserve the page layout before an input keyboard can repaginate the book. */
+    suspend fun preparePageJump() = Unit
+    suspend fun cancelPageJump() = Unit
     suspend fun applyStyle(style: BookStyle, theme: ReadTheme)
     suspend fun renderAnnotations(annotations: List<ReaderAnnotation>)
     suspend fun clearSelection()

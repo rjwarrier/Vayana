@@ -340,6 +340,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onOpenTocEntry = viewModel::openTocEntry,
                 onProgressChange = viewModel::goToProgress,
                 onGoToPage = viewModel::goToPage,
+                onPreparePageJump = viewModel::preparePageJump,
+                onCancelPageJump = viewModel::cancelPageJump,
                 onAnnotationClick = viewModel::openAnnotation,
                 onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
                 onCreateHighlight = viewModel::createHighlight,
@@ -463,6 +465,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onOpenTocEntry = viewModel::openTocEntry,
         onProgressChange = viewModel::goToProgress,
         onGoToPage = viewModel::goToPage,
+        onPreparePageJump = viewModel::preparePageJump,
+        onCancelPageJump = viewModel::cancelPageJump,
         onAnnotationClick = viewModel::openAnnotation,
         onReturnToPreviousPosition = viewModel::returnToPreviousPosition,
         onCreateHighlight = viewModel::createHighlight,
@@ -798,6 +802,8 @@ private fun ReaderScreen(
     onOpenTocEntry: (String) -> Unit,
     onProgressChange: (Float) -> Unit,
     onGoToPage: (Int) -> Unit,
+    onPreparePageJump: (() -> Unit) -> Unit,
+    onCancelPageJump: () -> Unit,
     onAnnotationClick: (Annotation) -> Unit,
     onReturnToPreviousPosition: () -> Unit,
     onCreateHighlight: (String) -> Unit,
@@ -1307,6 +1313,8 @@ private fun ReaderScreen(
                 locator = uiState.currentLocator,
                 footerGap = settings.readerFooterGapDp.dp,
                 onGoToPage = onGoToPage,
+                onPreparePageJump = onPreparePageJump,
+                onCancelPageJump = onCancelPageJump,
             )
             ReaderBookProgressFooter(
                 modifier = Modifier.align(Alignment.BottomEnd),
@@ -1814,19 +1822,28 @@ private fun ReaderPageNumberFooter(
     locator: Locator?,
     footerGap: Dp = Spacing.sm,
     onGoToPage: (Int) -> Unit,
+    onPreparePageJump: (() -> Unit) -> Unit,
+    onCancelPageJump: () -> Unit,
 ) {
     val currentPage = locator?.currentPage
     val totalPages = locator?.totalPages
     if (currentPage == null || totalPages == null) return
     var showPageDialog by remember { mutableStateOf(false) }
+    var dialogTotalPages by remember { mutableStateOf(totalPages) }
     if (showPageDialog) {
-        GoToPageDialog(totalPages = totalPages, onDismiss = { showPageDialog = false }, onGo = {
+        GoToPageDialog(totalPages = dialogTotalPages, onDismiss = {
+            showPageDialog = false
+            onCancelPageJump()
+        }, onGo = {
             showPageDialog = false
             onGoToPage(it)
         })
     }
     Surface(
-        onClick = { showPageDialog = true },
+        onClick = {
+            dialogTotalPages = totalPages
+            onPreparePageJump { showPageDialog = true }
+        },
         modifier = modifier
             .navigationBarsPadding()
             .windowInsetsPadding(readerHudHorizontalInsets)

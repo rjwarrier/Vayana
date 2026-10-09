@@ -105,6 +105,7 @@ test('warm page statistics reuse section totals and the contents map', () => {
     })
     vm.runInContext(bridge.slice(bridge.indexOf('function bookPageStats'), bridge.indexOf('// TOC href -> section index')), context)
     const first = vm.runInContext('bookPageStats(500)', context)
+    assert.equal(first.currentPage, 5002, 'renderer page 2 is the second text page')
     assert.equal(contentsVisits, 1_000)
     context.view.renderer.page = 3
     const second = vm.runInContext('bookPageStats(500)', context)
@@ -146,7 +147,7 @@ test('cached page statistics preserve the original estimates across sampled sect
         const average = knownPages ? knownSize / knownPages : (sizes[sectionIndex] / pagesInSection || 1600)
         const estimate = (from, to) => sizes.slice(from, to).reduce((total, size, offset) =>
             total + (size ? size / (samples.get(from + offset) ?? average) : 0), 0)
-        const expectedCurrent = Math.round(estimate(0, sectionIndex)) + Math.min(pagesInSection, Math.max(1, context.view.renderer.page - 1))
+        const expectedCurrent = Math.round(estimate(0, sectionIndex)) + Math.min(pagesInSection, Math.max(1, context.view.renderer.page))
         const expectedTotal = Math.round(estimate(0, sectionIndex)) + pagesInSection + Math.round(estimate(sectionIndex + 1, sizes.length))
         const actual = vm.runInContext(`bookPageStats(${sectionIndex})`, context)
         assert.equal(actual.currentPage, expectedCurrent)
