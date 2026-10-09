@@ -704,6 +704,18 @@ class BookRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun attachCleanedSource(id: Long, expectedHash: String, filePath: String, fileHash: String): Boolean =
+        database.withTransaction {
+            val book = bookDao.getById(id) ?: return@withTransaction false
+            if (book.isDeleted || book.fileHash != expectedHash) return@withTransaction false
+            if (bookDao.findByHash(fileHash)?.id?.let { it != id } == true) return@withTransaction false
+            bookDao.update(book.copy(filePath = filePath, fileHash = fileHash,
+                fileAvailability = BookFileAvailability.LOCAL.name,
+                fileAssetId = null, fileAssetSha256 = null, fileAssetSizeBytes = null, fileAssetUploadedAt = null,
+                lastLocator = null, wordCount = null, pageEstimate = null, updatedAt = System.currentTimeMillis()))
+            true
+        }
+
     override suspend fun mergeCloudBook(record: CloudBookRecord): CloudBookMergeResult {
         if (record.syncId.isBlank() || record.title.isBlank() || record.fileHash.isBlank()) {
             return CloudBookMergeResult.SKIPPED
@@ -763,6 +775,14 @@ class BookRepositoryImpl @Inject constructor(
                 existing.coverAssetSha256 == record.coverAssetSha256 &&
                 existing.coverAssetSizeBytes == record.coverAssetSizeBytes &&
                 existing.coverAssetUploadedAt == record.coverAssetUploadedAt
+            // Reading and metadata edits also bump updatedAt. Compare the file's own version,
+            // and never restore an old asset onto a locally replaced, not-yet-uploaded source.
+            val validRemoteFile = !record.assetId.isNullOrBlank() && record.assetSha256 == record.fileHash &&
+                (record.assetSizeBytes ?: 0L) > 0L && (record.assetUploadedAt ?: 0L) > 0L
+            val applyRemoteFile = validRemoteFile && !hasSameAsset &&
+                (record.assetUploadedAt ?: 0L) > (existing.fileAssetUploadedAt ?: 0L) &&
+                (record.fileHash == existing.fileHash || !existing.fileAssetId.isNullOrBlank())
+            val sourceChanged = applyRemoteFile && record.fileHash != existing.fileHash
             if (existing.fileAvailability == BookFileAvailability.LOCAL.name ||
                 existing.fileAvailability == BookFileAvailability.UPLOAD_PENDING.name
             ) {
@@ -779,10 +799,17 @@ class BookRepositoryImpl @Inject constructor(
                     description = if (shouldApplyRemoteMetadata) record.description else existing.description,
                     tagsCsv = if (shouldApplyRemoteMetadata) record.tagsCsv.normalizedBookTagsCsv() else existing.tagsCsv,
                     rating = if (shouldApplyRemoteMetadata) record.rating.coerceIn(0f, 5f) else existing.rating,
-                    fileAssetId = if (!hasSameAsset) record.assetId else existing.fileAssetId,
-                    fileAssetSha256 = if (!hasSameAsset) record.assetSha256 else existing.fileAssetSha256,
-                    fileAssetSizeBytes = if (!hasSameAsset) record.assetSizeBytes else existing.fileAssetSizeBytes,
-                    fileAssetUploadedAt = if (!hasSameAsset) record.assetUploadedAt else existing.fileAssetUploadedAt,
+                    fileAssetId = if (applyRemoteFile) record.assetId else existing.fileAssetId,
+                    fileAssetSha256 = if (applyRemoteFile) record.assetSha256 else existing.fileAssetSha256,
+                    fileAssetSizeBytes = if (applyRemoteFile) record.assetSizeBytes else existing.fileAssetSizeBytes,
+                    fileAssetUploadedAt = if (applyRemoteFile) record.assetUploadedAt else existing.fileAssetUploadedAt,
+                    fileHash = if (sourceChanged) record.fileHash else existing.fileHash,
+                    format = if (sourceChanged) record.format.name else base.format,
+                    filePath = if (sourceChanged) "" else existing.filePath,
+                    fileAvailability = if (sourceChanged) BookFileAvailability.CLOUD_ONLY.name else existing.fileAvailability,
+                    lastLocator = if (sourceChanged) null else base.lastLocator,
+                    wordCount = if (sourceChanged) record.wordCount else existing.wordCount,
+                    pageEstimate = if (sourceChanged) record.pageEstimate else base.pageEstimate,
                     coverAssetId = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetId else existing.coverAssetId,
                     coverAssetSha256 = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetSha256 else existing.coverAssetSha256,
                     coverAssetSizeBytes = if (!hasSameCoverAsset && record.hasCoverAsset()) record.coverAssetSizeBytes else existing.coverAssetSizeBytes,
@@ -807,6 +834,8 @@ class BookRepositoryImpl @Inject constructor(
                 return CloudBookMergeResult.SKIPPED
             }
 
+            // A stale device must not roll back a newer file while this device awaits its download.
+            if (record.fileHash != existing.fileHash && !applyRemoteFile) return CloudBookMergeResult.SKIPPED
             val progressResetAt = tombstoneDao.findBySyncId(readingProgressResetTombstoneId(existing.syncId))?.deletedAt
             bookDao.update(
                 record.toCloudOnlyEntity(id = existing.id, coverPath = existing.coverPath)

@@ -1571,7 +1571,7 @@ class ReaderViewModel @Inject constructor(
     fun onPause() {
         readerResumed = false
         paceTracker.reset()
-        persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()))
+        persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()), syncAfterSave = true)
         trackingJob?.cancel()
         trackingJob = null
         flushPendingLocatorWrite()
@@ -1752,12 +1752,15 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    private fun persistReadingTime(update: ReadingTimeUpdate) {
+    private fun persistReadingTime(update: ReadingTimeUpdate, syncAfterSave: Boolean = false) {
         if (update.checkpoint == null) return
         // A pause can be immediately followed by ViewModel disposal. The captured checkpoint
         // must outlive that ViewModel, including the final seconds before leaving the reader.
         applicationScope.launch {
             persistReadingTimeNow(update)
+            if (syncAfterSave) {
+                runCatchingCancellable { readingProgressOnlySyncer.syncReadingProgress(force = true) }
+            }
         }
     }
 
@@ -1777,7 +1780,7 @@ class ReaderViewModel @Inject constructor(
         val finalUpdate = readingTimeTracker.pause(System.currentTimeMillis())
         ReadingSessionContinuationStore.put(bookId, readingTimeTracker)
         if (finalUpdate.checkpoint != null) {
-            applicationScope.launch { persistReadingTimeNow(finalUpdate) }
+            persistReadingTime(finalUpdate, syncAfterSave = true)
         }
         flushPendingLocatorWrite()
         cancelEngineJobs()

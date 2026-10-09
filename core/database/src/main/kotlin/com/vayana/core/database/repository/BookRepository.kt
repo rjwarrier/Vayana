@@ -341,6 +341,9 @@ interface BookRepository {
         assetUploadedAt: Long,
     )
 
+    /** Installs a cleaned copy only if the source has not changed while it was being processed. */
+    suspend fun attachCleanedSource(id: Long, expectedHash: String, filePath: String, fileHash: String): Boolean
+
     suspend fun mergeCloudBook(record: CloudBookRecord): CloudBookMergeResult
 }
 

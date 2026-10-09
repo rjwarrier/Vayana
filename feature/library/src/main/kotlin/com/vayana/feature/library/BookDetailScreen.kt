@@ -232,6 +232,7 @@ fun BookDetailRoute(
         onReplaceSource = { contentResolver, uri ->
             viewModel.replaceSource(bookId, contentResolver, uri)
         },
+        onCleanUp = { viewModel.cleanUpGutenberg(bookId) },
         onReplaceCover = { contentResolver, uri ->
             viewModel.replaceCover(bookId, contentResolver, uri)
         },
@@ -355,6 +356,7 @@ private fun BookDetailScreen(
     onUpdateReadingDates: (startedAt: Long?, finishedAt: Long?) -> Unit,
     onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
+    onCleanUp: () -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCoverFromWeb: (CoverImageRequest) -> Unit,
     onRemoveCover: () -> Unit,
@@ -400,6 +402,7 @@ private fun BookDetailScreen(
         }
     }
     var showResetStatsDialog by remember { mutableStateOf(false) }
+    var showCleanUpDialog by remember { mutableStateOf(false) }
     var showEditCoverDialog by remember { mutableStateOf(false) }
     var showCoverImageSearch by remember { mutableStateOf(false) }
     var coverImageDownloadStarted by remember { mutableStateOf(false) }
@@ -618,6 +621,13 @@ private fun BookDetailScreen(
                                                     onClick = { coroutineScope.launch { context.shareBookFile(book) } },
                                                 ),
                                             )
+                                        }
+                                        if (book.format == BookFormat.EPUB && book.hasLocalReadableSource()) {
+                                            add(VayanaMenuItem(
+                                                label = stringResource(R.string.library_clean_up),
+                                                icon = Icons.Outlined.AutoStories,
+                                                onClick = { showCleanUpDialog = true },
+                                            ))
                                         }
                                         if (!book.format.isOffline) {
                                             add(
@@ -1156,6 +1166,19 @@ private fun BookDetailScreen(
                 },
             )
         }
+    }
+
+    if (showCleanUpDialog && book != null) {
+        ConfirmActionDialog(
+            onDismissRequest = { showCleanUpDialog = false },
+            icon = Icons.Outlined.AutoStories,
+            title = stringResource(R.string.library_clean_up),
+            body = stringResource(R.string.library_clean_up_body),
+            confirmLabel = stringResource(R.string.library_clean_up),
+            dismissLabel = stringResource(R.string.library_edit_metadata_cancel),
+            destructive = false,
+            onConfirm = { showCleanUpDialog = false; onCleanUp() },
+        )
     }
 
     if (showResetStatsDialog && book != null) {
@@ -1826,6 +1849,8 @@ internal fun BookDetailMessage.label(): String = when (this) {
     BookDetailMessage.COVER_REMOVED -> stringResource(R.string.library_cover_removed)
     BookDetailMessage.COVER_FAILED -> stringResource(R.string.library_cover_failed)
     BookDetailMessage.SOURCE_REPLACED -> stringResource(R.string.library_source_replaced)
+    BookDetailMessage.CLEANED -> stringResource(R.string.library_cleaned)
+    BookDetailMessage.NOTHING_TO_CLEAN -> stringResource(R.string.library_nothing_to_clean)
     BookDetailMessage.SOURCE_DUPLICATE -> stringResource(R.string.library_source_duplicate)
     BookDetailMessage.SOURCE_UNSUPPORTED -> stringResource(R.string.library_source_unsupported)
     BookDetailMessage.SOURCE_FAILED -> stringResource(R.string.library_source_failed)

@@ -172,6 +172,8 @@ sealed interface BookDetailMessage {
     data object COVER_REMOVED : BookDetailMessage
     data object COVER_FAILED : BookDetailMessage
     data object SOURCE_REPLACED : BookDetailMessage
+    data object CLEANED : BookDetailMessage
+    data object NOTHING_TO_CLEAN : BookDetailMessage
     data object SOURCE_DUPLICATE : BookDetailMessage
     data object SOURCE_UNSUPPORTED : BookDetailMessage
     data object SOURCE_FAILED : BookDetailMessage
@@ -992,7 +994,36 @@ class LibraryViewModel @Inject constructor(
 
     fun replaceSource(bookId: Long, contentResolver: ContentResolver, uri: Uri) {
         viewModelScope.launch {
-            _bookDetailMessage.value = withContext(dispatchers.io) { replaceSourceInLibrary(bookId, contentResolver, uri) }
+            _bookDetailMessage.value = syncOperationCoordinator.run {
+                withContext(dispatchers.io) { replaceSourceInLibrary(bookId, contentResolver, uri) }
+            }
+        }
+    }
+
+    fun cleanUpGutenberg(bookId: Long) {
+        viewModelScope.launch {
+            _bookDetailMessage.value = syncOperationCoordinator.run {
+                withContext(dispatchers.io) {
+                    val book = bookRepository.getById(bookId) ?: return@withContext BookDetailMessage.SOURCE_FAILED
+                    if (book.format != BookFormat.EPUB || book.fileAvailability != BookFileAvailability.LOCAL) {
+                        return@withContext BookDetailMessage.SOURCE_UNSUPPORTED
+                    }
+                    val destination = File(storageRoots.booksDir, "${java.util.UUID.randomUUID()}.epub")
+                    var installed = false
+                    try {
+                        val removed = com.vayana.format.epub.GutenbergCleanup.clean(storageRoots.resolve(book.filePath), destination)
+                        if (removed == 0) return@withContext BookDetailMessage.NOTHING_TO_CLEAN
+                        installed = bookRepository.attachCleanedSource(bookId, book.fileHash,
+                            storageRoots.relativize(destination), com.vayana.core.common.Hashing.sha256(destination.inputStream()))
+                        if (installed) BookDetailMessage.CLEANED else BookDetailMessage.SOURCE_FAILED
+                    } catch (failure: Exception) {
+                        if (failure is kotlinx.coroutines.CancellationException) throw failure
+                        BookDetailMessage.SOURCE_FAILED
+                    } finally {
+                        if (!installed) destination.delete()
+                    }
+                }
+            }
         }
     }
 

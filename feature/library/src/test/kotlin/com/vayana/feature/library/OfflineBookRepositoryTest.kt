@@ -591,6 +591,51 @@ class OfflineBookRepositoryTest {
         assertEquals(400L, repository.observeAll().first().single().finishedReadingAt)
     }
 
+    @Test
+    fun sourceReplacementSurvivesOldCloudMergeAndNewRevisionInvalidatesDownloadedCopy() = runBlocking {
+        val old = offlineRecord(10, null, BookFormat.EPUB).copy(
+            fileHash = "old", assetId = "asset-old", assetSha256 = "old", assetSizeBytes = 10, assetUploadedAt = 10)
+        repository.mergeCloudBook(old)
+        val id = repository.observeAll().first().single().id
+        repository.attachDownloadedFile(id, "books/old.epub", "old", "asset-old", "old", 10, 10)
+        repository.replaceSource(id, "New", null, null, null, null, null, "books/new.epub", BookFormat.EPUB, "new")
+        repository.mergeCloudBook(old)
+        assertNull(repository.getById(id)!!.fileAssetId)
+        assertEquals("new", repository.getById(id)!!.fileHash)
+
+        repository.markFileAssetUploaded(id, "asset-new", "new", 20, 20)
+        val newer = old.copy(fileHash = "newer", assetId = "asset-newer", assetSha256 = "newer",
+            assetUploadedAt = 30, updatedAt = 30)
+        repository.mergeCloudBook(newer)
+        val received = repository.getById(id)!!
+        assertEquals(BookFileAvailability.CLOUD_ONLY, received.fileAvailability)
+        assertEquals("newer", received.fileHash)
+        assertEquals("asset-newer", received.fileAssetId)
+        repository.mergeCloudBook(old.copy(updatedAt = System.currentTimeMillis() + 1000))
+        assertEquals("newer", repository.getById(id)!!.fileHash)
+        assertEquals("asset-newer", repository.getById(id)!!.fileAssetId)
+        repository.attachDownloadedFile(id, "books/newer.epub", "newer", "asset-newer", "newer", 10, 30)
+        repository.mergeCloudBook(old.copy(updatedAt = System.currentTimeMillis() + 2000))
+        assertEquals("newer", repository.getById(id)!!.fileHash)
+        assertEquals("asset-newer", repository.getById(id)!!.fileAssetId)
+        assertEquals(BookFileAvailability.LOCAL, repository.getById(id)!!.fileAvailability)
+    }
+
+    @Test
+    fun cleanupKeepsReadingHistoryAndRejectsStaleSource() = runBlocking {
+        val book = repository.insertOfflineBook("Book", null, BookFormat.PHYSICAL, 1000, null)
+        repository.replaceSource(book.id, "Book", null, null, null, null, null, "books/a.epub", BookFormat.EPUB, "original")
+        val sessions = com.vayana.core.database.repository.ReadingSessionRepositoryImpl(
+            database, database.readingSessionDao(), database.bookDao(), database.bookAliasDao(), database.tombstoneDao())
+        sessions.recordCheckpoint(book.id, "reading", 1000, 61000, 60)
+        assertTrue(repository.attachCleanedSource(book.id, "original", "books/clean.epub", "clean"))
+        assertEquals(60L, repository.getById(book.id)!!.totalReadingSeconds)
+        assertEquals(1, database.readingSessionDao().getAllForSync().size)
+        assertNull(repository.getById(book.id)!!.fileAssetId)
+        assertTrue(!repository.attachCleanedSource(book.id, "original", "books/stale.epub", "stale"))
+        assertEquals("clean", repository.getById(book.id)!!.fileHash)
+    }
+
     private fun offlineRecord(
         updatedAt: Long,
         finishedAt: Long?,
