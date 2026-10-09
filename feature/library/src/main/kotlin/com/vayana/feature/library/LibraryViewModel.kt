@@ -158,6 +158,8 @@ import com.vayana.core.sync.progress.ReadingProgressOnlySyncer
 /** Result of one import batch, still kept for the final Snackbar summary. */
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
 
+data class BookCleanupProgress(val bookId: Long, val fraction: Float?)
+
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
 private data class QuoteImportResult(val added: Int, val skipped: Int)
@@ -612,6 +614,8 @@ class LibraryViewModel @Inject constructor(
 
     private val _bookDetailMessage = MutableStateFlow<BookDetailMessage?>(null)
     val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
+    private val _cleanupProgress = MutableStateFlow<BookCleanupProgress?>(null)
+    val cleanupProgress: StateFlow<BookCleanupProgress?> = _cleanupProgress
 
     private val _coverImageDownloadInProgress = MutableStateFlow(false)
     val coverImageDownloadInProgress: StateFlow<Boolean> = _coverImageDownloadInProgress
@@ -1001,28 +1005,42 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun cleanUpGutenberg(bookId: Long) {
+        if (!_cleanupProgress.compareAndSet(null, BookCleanupProgress(bookId, null))) return
         viewModelScope.launch {
-            _bookDetailMessage.value = syncOperationCoordinator.run {
-                withContext(dispatchers.io) {
-                    val book = bookRepository.getById(bookId) ?: return@withContext BookDetailMessage.SOURCE_FAILED
-                    if (book.format != BookFormat.EPUB || book.fileAvailability != BookFileAvailability.LOCAL) {
-                        return@withContext BookDetailMessage.SOURCE_UNSUPPORTED
-                    }
-                    val destination = File(storageRoots.booksDir, "${java.util.UUID.randomUUID()}.epub")
-                    var installed = false
-                    try {
-                        val removed = com.vayana.format.epub.GutenbergCleanup.clean(storageRoots.resolve(book.filePath), destination)
-                        if (removed == 0) return@withContext BookDetailMessage.NOTHING_TO_CLEAN
-                        installed = bookRepository.attachCleanedSource(bookId, book.fileHash,
-                            storageRoots.relativize(destination), com.vayana.core.common.Hashing.sha256(destination.inputStream()))
-                        if (installed) BookDetailMessage.CLEANED else BookDetailMessage.SOURCE_FAILED
-                    } catch (failure: Exception) {
-                        if (failure is kotlinx.coroutines.CancellationException) throw failure
-                        BookDetailMessage.SOURCE_FAILED
-                    } finally {
-                        if (!installed) destination.delete()
+            try {
+                _bookDetailMessage.value = syncOperationCoordinator.run {
+                    withContext(dispatchers.io) {
+                        val book = bookRepository.getById(bookId) ?: return@withContext BookDetailMessage.SOURCE_FAILED
+                        if (book.format != BookFormat.EPUB || book.fileAvailability != BookFileAvailability.LOCAL) {
+                            return@withContext BookDetailMessage.SOURCE_UNSUPPORTED
+                        }
+                        val destination = File(storageRoots.booksDir, "${java.util.UUID.randomUUID()}.epub")
+                        var installed = false
+                        try {
+                            val cleanupContext = kotlinx.coroutines.currentCoroutineContext()
+                            val source = storageRoots.resolve(book.filePath)
+                            val removed = com.vayana.format.epub.GutenbergCleanup.clean(source, destination,
+                                onProgress = { completed, total ->
+                                    _cleanupProgress.value = BookCleanupProgress(bookId, completed.toFloat() / total.coerceAtLeast(1))
+                                }, checkCancelled = { cleanupContext.ensureActive() })
+                            if (removed == 0) return@withContext BookDetailMessage.NOTHING_TO_CLEAN
+                            // The original is retained, so only resolve its position when a copy actually changed.
+                            val restoredLocator = com.vayana.format.epub.EpubCleanupPosition.capture(source, book.lastLocator) {
+                                cleanupContext.ensureActive()
+                            }
+                            installed = bookRepository.attachCleanedSource(bookId, book.fileHash,
+                                storageRoots.relativize(destination), com.vayana.core.common.Hashing.sha256(destination.inputStream()), restoredLocator)
+                            if (installed) BookDetailMessage.CLEANED else BookDetailMessage.SOURCE_FAILED
+                        } catch (failure: Exception) {
+                            if (failure is kotlinx.coroutines.CancellationException) throw failure
+                            BookDetailMessage.SOURCE_FAILED
+                        } finally {
+                            if (!installed) destination.delete()
+                        }
                     }
                 }
+            } finally {
+                _cleanupProgress.value = null
             }
         }
     }

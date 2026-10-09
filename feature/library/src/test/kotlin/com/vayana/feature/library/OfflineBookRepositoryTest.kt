@@ -636,6 +636,22 @@ class OfflineBookRepositoryTest {
         assertEquals("clean", repository.getById(book.id)!!.fileHash)
     }
 
+    @Test
+    fun cleanupInstallsRecoveredLocatorWithTheNewSource() = runBlocking {
+        val book = repository.insertOfflineBook("Book", null, BookFormat.PHYSICAL, 1000, null)
+        repository.replaceSource(book.id, "Book", null, null, null, null, null, "books/a.epub", BookFormat.EPUB, "original")
+        repository.updateLocator(book.id, "epubcfi(old)", 0.42f, 0.95f)
+        val recovered = "text:search:chapter.xhtml:Surviving%20passage"
+        assertTrue(repository.attachCleanedSource(book.id, "original", "books/clean.epub", "clean", recovered))
+        val cleaned = repository.getById(book.id)!!
+        assertEquals(recovered, cleaned.lastLocator)
+        assertEquals(0.42f, cleaned.readingPercent)
+        assertNull(database.bookDao().getById(book.id)!!.pageEstimate)
+        assertNull(database.bookDao().getById(book.id)!!.wordCount)
+        assertTrue(!repository.attachCleanedSource(book.id, "original", "books/stale.epub", "stale", "stale locator"))
+        assertEquals(recovered, repository.getById(book.id)!!.lastLocator)
+    }
+
     private fun offlineRecord(
         updatedAt: Long,
         finishedAt: Long?,

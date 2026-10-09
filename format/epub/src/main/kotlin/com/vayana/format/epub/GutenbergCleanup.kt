@@ -3,6 +3,8 @@ package com.vayana.format.epub
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.io.StringReader
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -18,7 +20,13 @@ import org.xml.sax.InputSource
 
 /** Opt-in cleanup of marked Gutenberg sections and unambiguous prose artifacts. */
 object GutenbergCleanup {
-    fun clean(source: File, destination: File): Int {
+    @JvmOverloads
+    fun clean(
+        source: File,
+        destination: File,
+        onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> },
+        checkCancelled: () -> Unit = {},
+    ): Int {
         require(source.canonicalFile != destination.canonicalFile)
         var removed = 0
         try {
@@ -30,31 +38,38 @@ object GutenbergCleanup {
                     val ordered = listOf(mime) + entries.filter { it.name != "mimetype" }
                     var expanded = 0L
                     val chunk = ByteArray(8192)
-                    for (entry in ordered) {
-                        val bytes = zip.getInputStream(entry).use { input ->
-                            val buffer = ByteArrayOutputStream()
-                            while (true) {
-                                val count = input.read(chunk)
-                                if (count < 0) break
-                                expanded += count
-                                require(expanded <= 128L * 1024 * 1024) { "EPUB is too large to clean" }
-                                buffer.write(chunk, 0, count)
-                            }
-                            buffer.toByteArray()
+                    fun transfer(input: InputStream, sink: OutputStream) {
+                        while (true) {
+                            checkCancelled()
+                            val count = input.read(chunk)
+                            if (count < 0) break
+                            expanded += count
+                            require(expanded <= 128L * 1024 * 1024) { "EPUB is too large to clean" }
+                            sink.write(chunk, 0, count)
                         }
-                        val content = if (entry.name.substringAfterLast('.').lowercase() in ChapterExtensions) {
-                            cleanChapter(bytes).also { removed += it.second }.first
-                        } else bytes
+                    }
+                    onProgress(0, ordered.size)
+                    for ((index, entry) in ordered.withIndex()) {
+                        checkCancelled()
+                        val chapter = entry.name.substringAfterLast('.').lowercase() in ChapterExtensions
+                        val content = if (chapter || entry.name == "mimetype") {
+                            val bytes = ByteArrayOutputStream().also { buffer ->
+                                zip.getInputStream(entry).use { transfer(it, buffer) }
+                            }.toByteArray()
+                            if (chapter) cleanChapter(bytes).also { removed += it.second }.first else bytes
+                        } else null
                         val target = ZipEntry(entry.name)
                         if (entry.name == "mimetype") {
-                            require(content.toString(Charsets.UTF_8) == "application/epub+zip")
+                            require(content != null && content.toString(Charsets.UTF_8) == "application/epub+zip")
                             target.method = ZipEntry.STORED
                             target.size = content.size.toLong()
                             target.crc = CRC32().apply { update(content) }.value
                         }
                         output.putNextEntry(target)
-                        output.write(content)
+                        if (content != null) output.write(content)
+                        else zip.getInputStream(entry).use { transfer(it, output) }
                         output.closeEntry()
+                        onProgress(index + 1, ordered.size)
                     }
                 }
             }
@@ -144,7 +159,7 @@ object GutenbergCleanup {
             (localName == "p" && getAttribute("class").isNotBlank()) ||
             ProtectedTextClass.containsMatchIn(getAttribute("class"))
 
-    private fun cleanProseText(text: String): String {
+    internal fun cleanProseText(text: String): String {
         if (!text.hasTextArtifacts()) return text
         var cleaned = SoftHyphenBreak.replace(text, "")
         cleaned = InsideWordArtifacts.replace(cleaned, "")

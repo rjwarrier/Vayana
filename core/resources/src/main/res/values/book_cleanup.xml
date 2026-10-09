@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Clean Up</string>
-    <string name="library_clean_up_body">Remove recognized Project Gutenberg artifacts and fix clear text artifacts in prose: accidental space gaps, invisible characters inside words, and words split at soft hyphens. Poetry, letters, illustrations, and ordinary printed hyphens are preserved. Reading time and notes are kept. The saved reading position is cleared, and note links may shift. The original file is kept on this device. Use Full Sync to share the cleaned copy.</string>
+    <string name="library_clean_up_body">Remove recognized Project Gutenberg artifacts and fix clear text artifacts in prose: accidental space gaps, invisible characters inside words, and words split at soft hyphens. Poetry, letters, illustrations, and ordinary printed hyphens are preserved. Reading time and notes are kept. Your position is restored from nearby passage text when possible; otherwise it is cleared. Note links may shift. The original file is kept on this device. Use Full Sync to share the cleaned copy.</string>
     <string name="library_cleaned">Gutenberg artifacts removed. Use Full Sync to update the cloud copy.</string>
     <string name="library_nothing_to_clean">No recognized Gutenberg artifacts found. Book unchanged.</string>
+    <string name="library_clean_up_preparing">Preparing cleanup…</string>
+    <string name="library_clean_up_processing">Cleaning book…</string>
+    <string name="library_clean_up_finishing">Saving cleaned book…</string>
+    <string name="library_clean_up_percent">%1$d%%</string>
+    <string name="library_clean_up_hide">Hide</string>
 </resources>

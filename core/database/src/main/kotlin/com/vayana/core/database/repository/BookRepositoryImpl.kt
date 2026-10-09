@@ -704,7 +704,7 @@ class BookRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun attachCleanedSource(id: Long, expectedHash: String, filePath: String, fileHash: String): Boolean =
+    override suspend fun attachCleanedSource(id: Long, expectedHash: String, filePath: String, fileHash: String, restoredLocator: String?): Boolean =
         database.withTransaction {
             val book = bookDao.getById(id) ?: return@withTransaction false
             if (book.isDeleted || book.fileHash != expectedHash) return@withTransaction false
@@ -712,7 +712,7 @@ class BookRepositoryImpl @Inject constructor(
             bookDao.update(book.copy(filePath = filePath, fileHash = fileHash,
                 fileAvailability = BookFileAvailability.LOCAL.name,
                 fileAssetId = null, fileAssetSha256 = null, fileAssetSizeBytes = null, fileAssetUploadedAt = null,
-                lastLocator = null, wordCount = null, pageEstimate = null, updatedAt = System.currentTimeMillis()))
+                lastLocator = restoredLocator, wordCount = null, pageEstimate = null, updatedAt = System.currentTimeMillis()))
             true
         }
 

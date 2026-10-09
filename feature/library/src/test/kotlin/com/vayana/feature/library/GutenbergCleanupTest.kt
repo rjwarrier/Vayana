@@ -8,6 +8,57 @@ import java.util.zip.ZipOutputStream
 import kotlin.test.*
 
 class GutenbergCleanupTest {
+    @Test fun streamedResourcesStillEnforceTheExpansionLimit() {
+        val source = File.createTempFile("gutenberg", ".epub")
+        val output = File.createTempFile("cleaned", ".epub")
+        try {
+            ZipOutputStream(source.outputStream()).use { zip ->
+                zip.putNextEntry(ZipEntry("mimetype")); zip.write("application/epub+zip".toByteArray()); zip.closeEntry()
+                zip.putNextEntry(ZipEntry("oversized-resource.bin"))
+                val chunk = ByteArray(1024 * 1024)
+                repeat(129) { zip.write(chunk) }
+                zip.closeEntry()
+            }
+            val original = source.readBytes()
+            assertFailsWith<IllegalArgumentException> { GutenbergCleanup.clean(source, output) }
+            assertContentEquals(original, source.readBytes())
+            assertFalse(output.exists())
+        } finally { source.delete(); output.delete() }
+    }
+    @Test fun reportsProgressAndPreservesLargeResources() {
+        val source = File.createTempFile("gutenberg", ".epub")
+        val output = File.createTempFile("cleaned", ".epub")
+        val resource = ByteArray(2 * 1024 * 1024) { (it % 251).toByte() }
+        try {
+            ZipOutputStream(source.outputStream()).use { zip ->
+                for ((name, bytes) in listOf("mimetype" to "application/epub+zip".toByteArray(),
+                    "chapter.xhtml" to "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><div id=\"pg-header\">License</div><p>Story.</p></body></html>".toByteArray(),
+                    "image.jpg" to resource)) {
+                    zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry()
+                }
+            }
+            val progress = mutableListOf<Pair<Int, Int>>()
+            assertEquals(1, GutenbergCleanup.clean(source, output, onProgress = { done, total -> progress += done to total }))
+            assertEquals(listOf(0 to 3, 1 to 3, 2 to 3, 3 to 3), progress)
+            ZipFile(output).use { zip -> assertContentEquals(resource, zip.getInputStream(zip.getEntry("image.jpg")).readBytes()) }
+        } finally { source.delete(); output.delete() }
+    }
+
+    @Test fun cancelledCleanupDeletesPartialCopyAndKeepsOriginal() {
+        val source = File.createTempFile("gutenberg", ".epub")
+        val output = File.createTempFile("cleaned", ".epub")
+        try {
+            ZipOutputStream(source.outputStream()).use { zip ->
+                zip.putNextEntry(ZipEntry("mimetype")); zip.write("application/epub+zip".toByteArray()); zip.closeEntry()
+            }
+            val original = source.readBytes()
+            assertFailsWith<java.util.concurrent.CancellationException> {
+                GutenbergCleanup.clean(source, output, checkCancelled = { throw java.util.concurrent.CancellationException() })
+            }
+            assertContentEquals(original, source.readBytes())
+            assertFalse(output.exists())
+        } finally { source.delete(); output.delete() }
+    }
     @Test fun fixesProseArtifactsAndPreservesIntentionalFormatting() {
         val source = File.createTempFile("gutenberg", ".epub")
         val output = File.createTempFile("cleaned", ".epub")

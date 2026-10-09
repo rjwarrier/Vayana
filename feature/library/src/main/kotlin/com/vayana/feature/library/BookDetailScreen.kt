@@ -56,6 +56,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -115,6 +116,7 @@ import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.PhysicalBookOwnership
 import com.vayana.core.designsystem.theme.VayanaCircularProgressIndicator
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import com.vayana.core.designsystem.tokens.Elevations
 import com.vayana.core.designsystem.tokens.Paddings
 import com.vayana.core.designsystem.tokens.Palette
@@ -157,6 +159,7 @@ fun BookDetailRoute(
     val yearlyBooksGoal by viewModel.yearlyBooksGoal.collectAsStateWithLifecycle()
     val finishByDates by viewModel.finishByDates.collectAsStateWithLifecycle()
     val detailMessage by viewModel.bookDetailMessage.collectAsStateWithLifecycle()
+    val cleanupProgress by viewModel.cleanupProgress.collectAsStateWithLifecycle()
     val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsStateWithLifecycle()
     val allShelves by viewModel.shelves.collectAsStateWithLifecycle()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsStateWithLifecycle()
@@ -209,6 +212,7 @@ fun BookDetailRoute(
         finishByDate = book?.syncId?.let(finishByDates::get),
         onFinishByChange = { date -> book?.let { viewModel.setFinishBy(it.syncId, date) } },
         detailMessage = detailMessage,
+        cleanupProgress = cleanupProgress,
         coverImageDownloadInProgress = coverImageDownloadInProgress,
         allShelves = allShelves,
         shelvesForBook = shelvesForBook,
@@ -339,6 +343,7 @@ private fun BookDetailScreen(
     libraryBooks: List<Book>,
     yearlyBooksGoal: Int,
     detailMessage: BookDetailMessage?,
+    cleanupProgress: BookCleanupProgress?,
     coverImageDownloadInProgress: Boolean,
     allShelves: List<com.vayana.core.database.model.Shelf>,
     shelvesForBook: List<com.vayana.core.database.model.Shelf>,
@@ -627,6 +632,7 @@ private fun BookDetailScreen(
                                                 label = stringResource(R.string.library_clean_up),
                                                 icon = Icons.Outlined.AutoStories,
                                                 onClick = { showCleanUpDialog = true },
+                                                enabled = cleanupProgress == null,
                                             ))
                                         }
                                         if (!book.format.isOffline) {
@@ -1168,7 +1174,31 @@ private fun BookDetailScreen(
         }
     }
 
-    if (showCleanUpDialog && book != null) {
+    var hideCleanupProgress by remember(cleanupProgress?.bookId) { mutableStateOf(false) }
+    if (cleanupProgress?.bookId == book?.id && cleanupProgress != null && !hideCleanupProgress) {
+        AlertDialog(
+            onDismissRequest = { hideCleanupProgress = true },
+            title = { Text(stringResource(R.string.library_clean_up)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val fraction = cleanupProgress.fraction
+                    Text(stringResource(when {
+                        fraction == null -> R.string.library_clean_up_preparing
+                        fraction >= 1f -> R.string.library_clean_up_finishing
+                        else -> R.string.library_clean_up_processing
+                    }))
+                    if (fraction == null) VayanaLinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    else {
+                        VayanaLinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(R.string.library_clean_up_percent, (fraction * 100).toInt()))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { hideCleanupProgress = true }) { Text(stringResource(R.string.library_clean_up_hide)) } },
+        )
+    }
+
+    if (showCleanUpDialog && book != null && cleanupProgress == null) {
         ConfirmActionDialog(
             onDismissRequest = { showCleanUpDialog = false },
             icon = Icons.Outlined.AutoStories,
