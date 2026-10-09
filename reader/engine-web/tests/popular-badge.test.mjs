@@ -43,3 +43,21 @@ test('a pill never leaves the screen when the margin is too narrow', () => {
     const narrow = context.popularBadgePlacement({ ...page, iframeLeft: 5 - 1200, rectLeft: 1230, rectTop: 100, rectHeight: 20 })
     assert.ok(narrow.x >= 0)
 })
+
+test('badge anchor skips empty and off-page rectangles and follows a visible continuation', () => {
+    const visible = { left: 1230, top: 100, width: 150, height: 20 }
+    const rect = context.visiblePopularBadgeRect([
+        { left: 1100, top: 20, width: 0, height: 20 },
+        { left: 1100, top: 20, width: 50, height: 20 },
+        visible,
+    ], { ...page, viewportHeight: 800 })
+    assert.equal(rect, visible)
+})
+
+test('badges are not anchored to lines outside the visible frame', () => {
+    const rect = context.visiblePopularBadgeRect([
+        { left: 1230, top: -200, width: 50, height: 20 },
+        { left: 1230, top: 900, width: 50, height: 20 },
+    ], { ...page, viewportHeight: 800 })
+    assert.equal(rect, null)
+})

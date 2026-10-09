@@ -507,7 +507,8 @@ async function open(bookUrl, lastLocatorCfi) {
                     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
                     g.classList.add('vayana-dotted-underline')
                     const strokeWidth = 2
-                    for (const { left, bottom, width } of rects) {
+                    for (const { left, bottom, width, height } of rects) {
+                        if (!(width > 0 && height > 0)) continue
                         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
                         line.setAttribute('x1', left)
                         line.setAttribute('y1', bottom - 1)
@@ -640,6 +641,18 @@ function popularBadgePlacement({ rectLeft, rectTop, rectHeight, pageStart, pageS
     }
 }
 
+function visiblePopularBadgeRect(rects, { pageStart, pageSize, iframeLeft, iframeTop, viewportWidth, viewportHeight }) {
+    for (const rect of rects ?? []) {
+        if (!(rect.width > 0 && rect.height > 0) ||
+            rect.left < pageStart || rect.left >= pageStart + pageSize) continue
+        const left = iframeLeft + rect.left
+        const top = iframeTop + rect.top
+        if (left + rect.width <= 0 || left >= viewportWidth || top + rect.height <= 0 || top >= viewportHeight) continue
+        return rect
+    }
+    return null
+}
+
 const popularBadgeLayer = document.createElement('div')
 Object.assign(popularBadgeLayer.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '20' })
 document.body.append(popularBadgeLayer)
@@ -753,7 +766,10 @@ function layoutPopularBadges() {
             try {
                 range = resolved.anchor(content.doc)
             } catch (_) {}
-            const rect = range?.getClientRects?.()[0]
+            const rect = visiblePopularBadgeRect(range?.getClientRects?.(), {
+                pageStart, pageSize, iframeLeft: frameRect.left, iframeTop: frameRect.top,
+                viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
+            })
             if (!rect) continue
             const text = String(count)
             const badgeWidth = Math.max(22, text.length * 7 + 12)
@@ -2236,11 +2252,13 @@ function matchTextAnnotationsForDoc(doc, index) {
             resolvedTextAnnotations.has(ann.value) || pendingTextAnnotations.has(ann.value)) continue
         const textToFind = ann.text
         if (!textToFind || textToFind.length < 5) continue
-        const matchFingerprint = String(textToFind)
+        const matchFingerprint = `${Boolean(ann.popular)}:${textToFind}`
         // A quote already proven absent from this document won't suddenly appear in it -
         // skip re-running the expensive alignment fallback for it on every page turn.
         if (missing.get(ann.value) === matchFingerprint) continue
-        const range = findTextRangeInDoc(doc, textToFind)
+        // Community marks need a unique passage in this edition; approximate matches
+        // are useful for personal imports but can put public counts beside unrelated prose.
+        const range = findTextRangeInDoc(doc, textToFind, { exactOnly: Boolean(ann.popular), unique: Boolean(ann.popular) })
         if (range) {
             missing.delete(ann.value)
             try {
@@ -2260,22 +2278,28 @@ function matchTextAnnotationsForDoc(doc, index) {
     for (const match of matches) {
         const duplicate = accepted.find(existing => rangeOverlapRatio(existing.range, match.range) >= 0.80)
         if (duplicate) {
-            resolvedTextAnnotations.set(match.ann.value, duplicate.cfi)
-            resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
-            scheduleBadgeLayout()
+            duplicate.aliases.push(match.ann)
             continue
         }
+        match.aliases = []
         accepted.push(match)
+    }
+    const rememberResolution = match => {
+        for (const annotation of [match.ann, ...match.aliases]) {
+            resolvedTextAnnotations.set(annotation.value, match.cfi)
+            resolvedTextFingerprints.set(annotation.value, annotationFingerprint(annotation))
+        }
+        popularBadgeIndexDirty = true
+        scheduleBadgeLayout()
+    }
+    for (const match of accepted) {
         if (standardAnnotationFingerprints.has(match.cfi)) {
             // Overlayer keys are CFIs. Do not replace an editable personal highlight with a community underline when
             // both resolve to the identical range; retain the resolution so its community-count badge still renders.
-            resolvedTextAnnotations.set(match.ann.value, match.cfi)
-            resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
-            popularBadgeIndexDirty = true
-            scheduleBadgeLayout()
+            rememberResolution(match)
             continue
         }
-        pendingTextAnnotations.add(match.ann.value)
+        for (const annotation of [match.ann, ...match.aliases]) pendingTextAnnotations.add(annotation.value)
         const add = Promise.resolve(view.addAnnotation({
             value: match.cfi,
             type: match.ann.type || 'underline',
@@ -2291,11 +2315,8 @@ function matchTextAnnotationsForDoc(doc, index) {
                 return
             }
             renderedAnnotations.add(match.cfi)
-            resolvedTextAnnotations.set(match.ann.value, match.cfi)
-            resolvedTextFingerprints.set(match.ann.value, annotationFingerprint(match.ann))
             authoritativeSourceForCfi.set(match.cfi, match.ann.value)
-            popularBadgeIndexDirty = true
-            scheduleBadgeLayout()
+            rememberResolution(match)
         }).catch(error => {
             if (generation !== annotationApplyGeneration) return
             // Leave it unresolved (not marked pending, not cached as a rendered cfi) so a
@@ -2303,7 +2324,9 @@ function matchTextAnnotationsForDoc(doc, index) {
             post('log', { step: 'addQuoteAnnotation', message: String(error) })
             completedMatchingRevision.delete(doc)
         }).finally(() => {
-            if (generation === annotationApplyGeneration) pendingTextAnnotations.delete(match.ann.value)
+            if (generation === annotationApplyGeneration) {
+                for (const annotation of [match.ann, ...match.aliases]) pendingTextAnnotations.delete(annotation.value)
+            }
         })
         pendingQuoteAdds.add(add)
         void add.finally(() => pendingQuoteAdds.delete(add))
@@ -2570,7 +2593,7 @@ function findMultiChunkMatch(cleanDoc, rawText) {
     return null
 }
 
-function findTextRangeInDoc(doc, text) {
+function findTextRangeInDoc(doc, text, { exactOnly = false, unique = false } = {}) {
     if (!doc || !doc.body || !text) return null
     try {
         const cleanTarget = normalizeForMatching(text)
@@ -2583,6 +2606,8 @@ function findTextRangeInDoc(doc, text) {
 
         // Strategy 1: an exact normalized substring is both fastest and safest.
         const exactIndex = cleanDoc.indexOf(cleanTarget)
+        if (unique && exactIndex >= 0 && cleanDoc.indexOf(cleanTarget, exactIndex + 1) >= 0) return null
+        if (exactOnly && exactIndex < 0) return null
         let match = exactIndex >= 0
             ? { matchIdx: exactIndex, matchLen: cleanTarget.length, score: 1 }
             : null

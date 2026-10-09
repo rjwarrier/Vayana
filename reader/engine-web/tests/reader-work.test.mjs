@@ -32,7 +32,7 @@ test('warm community badge layout visits only loaded-section candidates', () => 
                 operations.resolves++
                 return {
                     index: Number(cfi.match(/\d+/)[0]) % 100,
-                    anchor: () => ({ getClientRects: () => [{ left: 40, top: 10, height: 20 }] }),
+                    anchor: () => ({ getClientRects: () => [{ left: 40, top: 10, width: 100, height: 20 }] }),
                 }
             },
         },
@@ -71,7 +71,7 @@ test('community badge CFI resolution automatically retries after a transient ren
                 if (resolveAttempts === 1) return null
                 return {
                     index: 0,
-                    anchor: () => ({ getClientRects: () => [{ left: 40, top: 10, height: 20 }] }),
+                    anchor: () => ({ getClientRects: () => [{ left: 40, top: 10, width: 100, height: 20 }] }),
                 }
             },
         },
@@ -241,7 +241,7 @@ test('a late quote match cannot restore an annotation removed by a newer snapsho
     assert.equal(context.resolvedTextAnnotations.size, 0)
 })
 
-test('editing a previously missing quote retries matching in the loaded document', async () => {
+test('editing a missing quote or its matching mode retries in the loaded document', async () => {
     const doc = {}
     const added = []
     const context = vm.createContext({
@@ -267,7 +267,7 @@ test('editing a previously missing quote retries matching in the loaded document
         resetPopularBadgeResolutionRetries: () => {},
         scheduleBadgeLayout: () => {},
         isTextAnnotationValue: () => true,
-        findTextRangeInDoc: (_, text) => text === 'Edited passage' ? {} : null,
+        findTextRangeInDoc: (_, text, options) => !options?.exactOnly && text === 'Edited passage' ? {} : null,
         rangeOverlapRatio: () => 0,
         highlightCount: () => 1,
         post: () => {},
@@ -279,6 +279,12 @@ test('editing a previously missing quote retries matching in the loaded document
     for (let turn = 0; turn < 30; turn++) await Promise.resolve()
     assert.deepEqual(added, ['epubcfi(/6/4)'])
     assert.equal(context.resolvedTextAnnotations.get('quote:1'), 'epubcfi(/6/4)')
+    context.renderAnnotations([{ value: 'quote:2', text: 'Edited passage', popular: true }])
+    for (let turn = 0; turn < 30; turn++) await Promise.resolve()
+    assert.equal(context.resolvedTextAnnotations.has('quote:2'), false)
+    context.renderAnnotations([{ value: 'quote:2', text: 'Edited passage', popular: false }])
+    for (let turn = 0; turn < 30; turn++) await Promise.resolve()
+    assert.equal(context.resolvedTextAnnotations.get('quote:2'), 'epubcfi(/6/4)')
 })
 
 test('CFI-backed user highlights bypass quote matching and are rendered only once', async () => {
@@ -489,16 +495,18 @@ test('a community quote stays retryable when its overlay is not attached yet', a
         scheduleBadgeLayout: () => {},
         isTextAnnotationValue: () => true,
         findTextRangeInDoc: () => ({}),
-        rangeOverlapRatio: () => 0,
+        rangeOverlapRatio: () => 0.9,
         highlightCount: () => 8,
         post: () => {},
     })
     vm.runInContext(bridge.slice(bridge.indexOf('let activeAnnotationsList'), bridge.indexOf('function highlightCount')), context)
     const quote = { value: 'quote:1', text: 'A community passage', type: 'underline', popular: true }
+    const duplicate = { ...quote, value: 'quote:2' }
 
-    context.renderAnnotations([quote])
+    context.renderAnnotations([quote, duplicate])
     for (let turn = 0; turn < 20; turn++) await Promise.resolve()
     assert.equal(context.resolvedTextAnnotations.has('quote:1'), false)
+    assert.equal(context.resolvedTextAnnotations.has('quote:2'), false, 'a duplicate must not publish a badge before its underline is drawn')
 
     overlayAttached = true
     context.matchTextAnnotationsForDoc(doc, 0)
@@ -506,5 +514,6 @@ test('a community quote stays retryable when its overlay is not attached yet', a
 
     assert.deepEqual(addAttempts, ['epubcfi(/6/8)', 'epubcfi(/6/8)'])
     assert.equal(context.resolvedTextAnnotations.get('quote:1'), 'epubcfi(/6/8)')
+    assert.equal(context.resolvedTextAnnotations.get('quote:2'), 'epubcfi(/6/8)')
     assert.equal(context.renderedAnnotations.has('epubcfi(/6/8)'), true)
 })
