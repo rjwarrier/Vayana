@@ -23,9 +23,8 @@ reading one file. Keep this in step with the code when any of them changes.
 - **Bulk actions:** Library overflow → Select books. Select from the current filtered library, then
   add to a shelf, add comma-separated tags, or download cloud copies. Tags preserve existing values;
   downloads run sequentially and results distinguish completed, failed and skipped books.
-- **Reading presets:** Reader → Style → Reading presets. Save the effective current style under a name.
-  Typography follows the existing per-book custom-style toggle; theme and text options remain global.
-  Imported fonts fall back to the saved built-in family when unavailable on another device.
+- **Reader style:** Reader → Style offers compact left, center, right, and justify alignment icons.
+  The per-book custom-style switch controls typography; theme and text options remain global.
 - **Finish-by plans:** Book details → Finish by. Choose a date to calculate daily pages, measured
   reading minutes, or a progress percentage when no pace is available. Today counts as a reading day.
 - **Reading journal:** Reader → Notes → Reading journal. Entries retain the current position as normal

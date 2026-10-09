@@ -206,7 +206,7 @@ Open **Settings** inside the reader to adjust:
 - Publisher styles and whether Vayana overrides book typography
 - Header/footer content and page progress style
 - Optional bionic reading
-- Saved reading presets and per-book custom styles
+- Per-book custom styles
 
 Theme options can apply broadly while a custom style switch preserves book-specific typography choices.
 

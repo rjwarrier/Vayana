@@ -105,3 +105,32 @@ test('cancel keeps the original rendered page instead of rounding its passage CF
     assert.deepEqual(f.navigated, [])
     assert.deepEqual(f.anchors, [7 / 19])
 })
+
+test('cancel after a permanent viewport change restores the passage rather than the old page', async () => {
+    const f = fixture()
+    f.context.view.lastLocation = { cfi: 'epubcfi(before-rotation)' }
+    f.context.view.renderer.page = 8
+    f.context.preparePageJump()
+    f.context.window.innerWidth = 1000
+    let time = 0
+    f.context.Date = { now: () => time += 1600 }
+    f.context.resetPageEstimate = () => { f.context.pageEstimateCache = null }
+    await f.context.cancelPageJump()
+    assert.deepEqual(f.navigated, ['epubcfi(before-rotation)'])
+    assert.deepEqual(f.anchors, [])
+})
+
+test('page jump waits through an intermediate keyboard resize before restoring estimates', async () => {
+    const f = fixture()
+    f.context.preparePageJump()
+    f.context.window.innerHeight = 600
+    const heights = [1000, 700, 700, 1000, 1000, 1000]
+    f.context.requestAnimationFrame = callback => {
+        f.context.window.innerHeight = heights.shift() ?? 1000
+        callback()
+    }
+    f.context.resetPageEstimate = () => { throw Error('must not measure the intermediate keyboard layout') }
+    await f.context.goToPage(10)
+    assert.equal(f.context.window.innerHeight, 1000)
+    assert.deepEqual(f.anchors, [0])
+})

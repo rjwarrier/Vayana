@@ -24,8 +24,6 @@ import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderHyphenation
 import com.vayana.core.datastore.settings.ReaderTextAlign
 import com.vayana.core.datastore.settings.ReaderTheme
-import com.vayana.core.datastore.settings.ReadingPreset
-import com.vayana.core.datastore.settings.ReadingToolsRepository
 import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.datastore.settings.SettingsSnapshot
@@ -196,7 +194,6 @@ class ReaderViewModel @Inject constructor(
     private val annotationRepository: AnnotationRepository,
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
-    private val readingToolsRepository: ReadingToolsRepository,
     private val dictionaryRepository: DictionaryRepository,
     private val onlineDictionary: OnlineDictionary,
     private val wordLookupStatRepository: WordLookupStatRepository,
@@ -228,9 +225,6 @@ class ReaderViewModel @Inject constructor(
 
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
-
-    val presets: StateFlow<List<ReadingPreset>> = readingToolsRepository.presets
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // How fast this reader reads against the engine's fixed estimate, learned from their own page turns.
     private val paceTracker = ReadingPaceTracker(System::currentTimeMillis)
@@ -668,20 +662,28 @@ class ReaderViewModel @Inject constructor(
 
     fun goToProgress(fraction: Float) = dispatch(NavTarget.ToFraction(fraction.coerceIn(0f, 1f)))
 
+    private var pageJumpLocator: Locator? = null
+
     fun goToPage(pageNumber: Int) {
-        val total = (_uiState.value as? ReaderUiState.Loaded)?.currentLocator?.totalPages ?: return
+        val origin = pageJumpLocator ?: (_uiState.value as? ReaderUiState.Loaded)?.currentLocator
+        val total = origin?.totalPages ?: return
         if (pageNumber !in 1..total) return
-        pushReturnLocator()
+        pushReturnLocator(origin)
+        pageJumpLocator = null
         dispatch(NavTarget.ToPage(pageNumber - 1))
     }
 
     fun preparePageJump(onPrepared: () -> Unit) {
+        pageJumpLocator = (_uiState.value as? ReaderUiState.Loaded)?.currentLocator
         viewModelScope.launch {
             boundEngine?.preparePageJump()
             onPrepared()
         }
     }
-    fun cancelPageJump() { viewModelScope.launch { boundEngine?.cancelPageJump() } }
+    fun cancelPageJump() {
+        pageJumpLocator = null
+        viewModelScope.launch { boundEngine?.cancelPageJump() }
+    }
 
     fun goToPdfPage(pageIndex: Int) {
         pushReturnLocator()
@@ -725,9 +727,8 @@ class ReaderViewModel @Inject constructor(
     }
 
     /** Records the position to return to right before a TOC/search/note jump moves away from it. */
-    private fun pushReturnLocator() {
-        val state = uiState.value as? ReaderUiState.Loaded ?: return
-        val current = state.currentLocator ?: return
+    private fun pushReturnLocator(locator: Locator? = (uiState.value as? ReaderUiState.Loaded)?.currentLocator) {
+        val current = locator ?: return
         _uiState.update { existing ->
             if (existing is ReaderUiState.Loaded) existing.copy(returnLocator = current) else existing
         }
@@ -741,50 +742,6 @@ class ReaderViewModel @Inject constructor(
             if (existing is ReaderUiState.Loaded) existing.copy(returnLocator = null) else existing
         }
         dispatch(NavTarget.ToLocator(target))
-    }
-
-    suspend fun saveReadingPreset(name: String) {
-        readingToolsRepository.savePreset(ReadingPreset.capture(name, effectiveSettings.value))
-    }
-
-    suspend fun deleteReadingPreset(id: String) {
-        readingToolsRepository.deletePreset(id)
-    }
-
-    suspend fun applyReadingPreset(preset: ReadingPreset) {
-        val snapshot = settingsRepository.snapshot.first()
-        val customFontId = preset.customFontId?.takeIf { id -> snapshot.readerImportedFonts.any { it.id == id } }
-        val globalValues = mutableMapOf(
-            SettingsRegistry.ReaderTheme.key to preset.theme.name,
-            SettingsRegistry.ReaderBolderText.key to preset.bolderText.toString(),
-            SettingsRegistry.ReaderTextAlign.key to preset.textAlign.name,
-            SettingsRegistry.ReaderHyphenation.key to preset.hyphenation.name,
-            SettingsRegistry.ReaderPublisherStyles.key to preset.usePublisherStyles.toString(),
-        )
-        val override = _bookStyleOverride.value
-        if (override == null) {
-            globalValues[SettingsRegistry.ReaderFontSize.key] = preset.fontSizePercent.toString()
-            globalValues[SettingsRegistry.ReaderLineHeight.key] = preset.lineHeight.toString()
-            globalValues[SettingsRegistry.ReaderFontFamily.key] = preset.fontFamily.name
-            globalValues[SettingsRegistry.ReaderSideMargin.key] = preset.sideMarginPercent.toString()
-        } else {
-            val updated = override.copy(
-                fontSizePercent = preset.fontSizePercent.coerceIn(SettingsRegistry.ReaderFontSize.range),
-                lineHeight = preset.lineHeight.coerceIn(SettingsRegistry.ReaderLineHeight.range),
-                fontFamily = if (customFontId == null) preset.fontFamily else null,
-                sideMarginPercent = preset.sideMarginPercent.coerceIn(SettingsRegistry.ReaderSideMargin.range),
-            )
-            bookRepository.updateReaderPrefs(
-                id = bookId,
-                fontSizePercent = updated.fontSizePercent,
-                lineHeight = updated.lineHeight,
-                fontFamily = updated.fontFamily?.name,
-                sideMarginPercent = updated.sideMarginPercent,
-            )
-            _bookStyleOverride.value = updated
-        }
-        settingsRepository.importFromMap(globalValues)
-        settingsRepository.updateReaderCustomFontId(customFontId)
     }
 
     suspend fun saveJournalEntry(text: String) {
@@ -848,6 +805,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun updateTextAlign(align: ReaderTextAlign) {
+        if (effectiveSettings.value.readerTextAlign == align) return
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderTextAlign, align) }
     }
 

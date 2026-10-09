@@ -433,6 +433,7 @@ async function open(bookUrl, lastLocatorCfi) {
         fixedLayoutTocPages = null
         resetFixedLayoutState()
         resetPageEstimate()
+        pageJumpSnapshot = null
         view.addEventListener('relocate', e => {
             if (publishedSelectionDocument && !view.renderer.getContents()
                 .some(content => content?.doc === publishedSelectionDocument)) {
@@ -948,10 +949,15 @@ async function restorePageJumpLayout() {
     if (!snapshot) return null
     pageJumpSnapshot = null
     const matches = () => window.innerWidth === snapshot.width && window.innerHeight === snapshot.height
-    const deadline = Date.now() + 1500
-    while (!matches() && Date.now() < deadline) await new Promise(requestAnimationFrame)
-    // ResizeObserver repaginates after a frame. Let it finish before using page counts.
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const deadline = Date.now() + 2000
+    // IME dismissal can briefly reach the original size, then resize again. Only
+    // accept it after ResizeObserver has had two frames at the original size.
+    while (Date.now() < deadline) {
+        if (matches()) {
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+            if (matches()) break
+        } else await new Promise(requestAnimationFrame)
+    }
     if (matches()) {
         bytesPerPage.clear()
         for (const [index, density] of snapshot.densities) bytesPerPage.set(index, density)
@@ -968,7 +974,8 @@ async function restorePageJumpLayout() {
 async function cancelPageJump() {
     const snapshot = await restorePageJumpLayout()
     if (!snapshot) return
-    if (!fixedLayout && Number.isFinite(snapshot.page)
+    if (!fixedLayout && window.innerWidth === snapshot.width && window.innerHeight === snapshot.height
+        && Number.isFinite(snapshot.page)
         && view?.renderer?.getContents?.()[0]?.index === snapshot.section) {
         const pages = Math.max(1, view.renderer.pages - 2)
         const localPage = Math.min(pages - 1, Math.max(0, snapshot.page - 1))

@@ -10,11 +10,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.VayanaTypography
@@ -64,13 +66,17 @@ fun VayanaTheme(
     }
     // Monochrome E-Ink stays black and white; color E-Ink follows Material You.
     val useDynamicColor = dynamicColor && !displayProfile.isMonochrome(einkPalette)
-    val colorScheme = if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val scheme = ColorSchemes.dynamic(LocalContext.current, isDark,
-            if (displayProfile == DisplayProfile.E_INK) DarkVariant.STANDARD else darkVariant)
-        if (displayProfile == DisplayProfile.E_INK) scheme.copy(surfaceTint = Color.Transparent)
-        else scheme
-    } else {
-        ColorSchemes.forProfile(displayProfile, isDark, darkVariant, einkPalette)
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val colorScheme = remember(context, configuration, isDark, useDynamicColor, displayProfile, einkPalette, darkVariant) {
+        if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val scheme = ColorSchemes.dynamic(context, isDark,
+                if (displayProfile == DisplayProfile.E_INK) DarkVariant.STANDARD else darkVariant)
+            if (displayProfile == DisplayProfile.E_INK) scheme.copy(surfaceTint = Color.Transparent)
+            else scheme
+        } else {
+            ColorSchemes.forProfile(displayProfile, isDark, darkVariant, einkPalette)
+        }
     }
     val motionScheme = motionSchemeFor(displayProfile, motionSetting)
 

@@ -2830,12 +2830,13 @@ private fun StylePanel(
         if (showTypography) {
             Text(stringResource(R.string.settings_reader_text_align_title), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                listOf(
+                val alignments = remember { listOf(
                     Triple(ReaderTextAlign.LEFT, Icons.Outlined.FormatAlignLeft, R.string.settings_reader_text_align_left),
                     Triple(ReaderTextAlign.CENTER, Icons.Outlined.FormatAlignCenter, R.string.settings_reader_text_align_center),
                     Triple(ReaderTextAlign.RIGHT, Icons.Outlined.FormatAlignRight, R.string.settings_reader_text_align_right),
                     Triple(ReaderTextAlign.JUSTIFIED, Icons.Outlined.FormatAlignJustify, R.string.settings_reader_text_align_justified),
-                ).forEach { (align, icon, label) ->
+                ) }
+                alignments.forEach { (align, icon, label) ->
                     FilterChip(
                         selected = settings.readerTextAlign == align,
                         onClick = { onTextAlignChange(align) },
