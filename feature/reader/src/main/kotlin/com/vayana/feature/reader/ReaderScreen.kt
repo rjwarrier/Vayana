@@ -220,10 +220,6 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settings by viewModel.effectiveSettings.collectAsStateWithLifecycle()
     val usingCustomStyle by viewModel.usingCustomStyle.collectAsStateWithLifecycle()
-    val readingPresets by viewModel.presets.collectAsStateWithLifecycle()
-    val presetsPanel: @Composable () -> Unit = {
-        ReadingPresetsPanel(readingPresets, viewModel::saveReadingPreset, viewModel::applyReadingPreset, viewModel::deleteReadingPreset)
-    }
     val dictionaryLookup by viewModel.dictionaryLookup.collectAsStateWithLifecycle()
     val readingPositionPrompt by viewModel.readingPositionPrompt.collectAsStateWithLifecycle()
     val recentLookups by viewModel.recentLookups.collectAsStateWithLifecycle()
@@ -313,7 +309,6 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 syncStatus = syncStatus,
                 usingCustomStyle = usingCustomStyle,
                 onUseCustomStyleChange = viewModel::setUseCustomStyle,
-                presetsPanel = presetsPanel,
                 onSaveJournal = viewModel::saveJournalEntry,
                 dictionaryLookup = dictionaryLookup,
                 readingPositionPrompt = readingPositionPrompt,
@@ -438,7 +433,6 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         syncStatus = syncStatus,
         usingCustomStyle = usingCustomStyle,
         onUseCustomStyleChange = viewModel::setUseCustomStyle,
-        presetsPanel = presetsPanel,
         onSaveJournal = viewModel::saveJournalEntry,
         dictionaryLookup = dictionaryLookup,
         readingPositionPrompt = readingPositionPrompt,
@@ -775,7 +769,6 @@ private fun ReaderScreen(
     syncStatus: ReaderSyncStatus,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
-    presetsPanel: @Composable () -> Unit,
     onSaveJournal: suspend (String) -> Unit,
     dictionaryLookup: DictionaryLookupState,
     recentLookups: List<String>,
@@ -1370,7 +1363,6 @@ private fun ReaderScreen(
                 usingCustomStyle = usingCustomStyle,
                 onUseCustomStyleChange = onUseCustomStyleChange,
                 onSaveJournal = onSaveJournal,
-                presetsPanel = presetsPanel,
                 selectedPanel = selectedPanel,
                 onPanelSelected = { selectedPanel = it },
                 onBack = { chromeVisible = false },
@@ -2120,7 +2112,6 @@ private fun ReaderChrome(
     settings: SettingsSnapshot,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
-    presetsPanel: @Composable () -> Unit,
     onSaveJournal: suspend (String) -> Unit,
     selectedPanel: ReaderPanel,
     onPanelSelected: (ReaderPanel) -> Unit,
@@ -2303,7 +2294,6 @@ private fun ReaderChrome(
                         showTypography = !fixedLayout,
                         usingCustomStyle = usingCustomStyle,
                         onUseCustomStyleChange = onUseCustomStyleChange,
-                        presetsPanel = presetsPanel,
                         onFontSizeChange = onFontSizeChange,
                         onLineHeightChange = onLineHeightChange,
                         onFontFamilyChange = onFontFamilyChange,
@@ -2751,7 +2741,6 @@ private fun StylePanel(
     showTypography: Boolean,
     usingCustomStyle: Boolean,
     onUseCustomStyleChange: (Boolean) -> Unit,
-    presetsPanel: @Composable () -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
@@ -2801,7 +2790,6 @@ private fun StylePanel(
             Switch(checked = usingCustomStyle, onCheckedChange = onUseCustomStyleChange)
         }
 
-        presetsPanel()
 
         Text(text = stringResource(R.string.settings_reader_theme_title), style = MaterialTheme.typography.labelLarge)
         Row(
