@@ -8,6 +8,45 @@ import java.util.zip.ZipOutputStream
 import kotlin.test.*
 
 class GutenbergCleanupTest {
+    @Test fun fixesProseArtifactsAndPreservesIntentionalFormatting() {
+        val source = File.createTempFile("gutenberg", ".epub")
+        val output = File.createTempFile("cleaned", ".epub")
+        val twice = File.createTempFile("cleaned-again", ".epub")
+        try {
+            val prose = "A\u00a0\u00a0word: inter\u00ad\n national, in\u200bvisible, un\ufeffbroken, dis\u00adcretionary."
+            val poem = "Line\u00a0\u00a0two inter\u00ad\n national"
+            ZipOutputStream(source.outputStream()).use { zip ->
+                val chapter = """<html xmlns="http://www.w3.org/1999/xhtml"><body>
+                    <p>$prose</p>
+                    <p>self-
+                    confident; A&#160;word; before <em>emphasis</em> after.</p>
+                    <p class="poem">$poem</p>
+                    <div class="poetry"><p>$poem</p></div>
+                    <p class="letter">$poem</p>
+                    <pre>$poem</pre>
+                    <p style="white-space: pre-wrap">$poem</p>
+                    <p><code>$poem</code></p>
+                    <div xml:space="preserve"><p>$poem</p></div>
+                    <p><span style="letter-spacing: 1em">A&#160;&#160;word</span></p>
+                    </body></html>"""
+                mapOf("mimetype" to "application/epub+zip", "chapter.xhtml" to chapter).forEach { (name, text) ->
+                    zip.putNextEntry(ZipEntry(name)); zip.write(text.toByteArray()); zip.closeEntry()
+                }
+            }
+            assertEquals(1, GutenbergCleanup.clean(source, output))
+            ZipFile(output).use { zip ->
+                val chapter = zip.getInputStream(zip.getEntry("chapter.xhtml")).reader().readText()
+                assertTrue(chapter.contains("A word: international, invisible, unbroken, discretionary."))
+                assertTrue(chapter.contains("self-"))
+                assertTrue(chapter.contains("confident; A\u00a0word; before "))
+                assertEquals(7, Regex(Regex.escape(poem)).findAll(chapter.replace("\r\n", "\n")).count())
+                assertTrue(chapter.contains("A\u00a0\u00a0word</span>"))
+                assertTrue(chapter.contains("<em>emphasis</em> after."))
+            }
+            assertEquals(0, GutenbergCleanup.clean(output, twice))
+        } finally { source.delete(); output.delete(); twice.delete() }
+    }
+
     @Test fun removesMissingIllustrationCodesButKeepsImagesCaptionsAndStoryText() {
         val source = File.createTempFile("gutenberg", ".epub")
         val output = File.createTempFile("cleaned", ".epub")

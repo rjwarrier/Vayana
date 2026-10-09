@@ -16,7 +16,7 @@ import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.xml.sax.InputSource
 
-/** Opt-in cleanup of explicitly marked Gutenberg sections; never guesses from story text. */
+/** Opt-in cleanup of marked Gutenberg sections and unambiguous prose artifacts. */
 object GutenbergCleanup {
     fun clean(source: File, destination: File): Int {
         require(source.canonicalFile != destination.canonicalFile)
@@ -68,7 +68,8 @@ object GutenbergCleanup {
     private fun cleanChapter(bytes: ByteArray): Pair<ByteArray, Int> {
         // Internal entity declarations are unnecessary for this operation and can expand exponentially.
         val text = bytes.toString(Charsets.UTF_8)
-        if (!text.contains("pg-header") && !text.contains("pg-footer") && !text.contains("img_images_")) return bytes to 0
+        if (!text.contains("pg-header") && !text.contains("pg-footer") && !text.contains("img_images_") &&
+            !text.any { it in "\u00ad\u200b\ufeff\u00a0" } && !TextArtifactEntity.containsMatchIn(text)) return bytes to 0
         require(!text.contains("<!ENTITY", ignoreCase = true)) { "Unsupported EPUB entity declaration" }
         val builder = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
@@ -77,7 +78,7 @@ object GutenbergCleanup {
         builder.setEntityResolver { _, _ -> InputSource(StringReader("")) }
         val document = builder.parse(ByteArrayInputStream(bytes))
         var removed = 0
-        fun visit(parent: Node) {
+        fun visit(parent: Node, prose: Boolean = false, protected: Boolean = false) {
             var child = parent.firstChild
             while (child != null) {
                 val next = child.nextSibling
@@ -94,7 +95,16 @@ object GutenbergCleanup {
                 if (boilerplate || emptyIllustration || element?.isImagePlaceholder() == true) {
                     parent.removeChild(child)
                     removed++
-                } else visit(child)
+                } else if (element != null) {
+                    val preserve = protected || element.protectsTextFormatting()
+                    visit(child, prose || element.localName == "p", preserve)
+                } else if (child.nodeType == Node.TEXT_NODE && prose && !protected) {
+                    val cleaned = cleanProseText(child.nodeValue)
+                    if (cleaned != child.nodeValue) {
+                        child.nodeValue = cleaned
+                        removed++
+                    }
+                }
                 child = next
             }
         }
@@ -116,4 +126,23 @@ object GutenbergCleanup {
 
     private val ImagePlaceholderId = Regex("img_images_\\d{3,}[A-Za-z]{1,3}\\.(?:jpg|jpeg|png|gif)", RegexOption.IGNORE_CASE)
     private val ImagePlaceholderText = Regex("\\d{3,}[A-Za-z]{1,3}")
+
+    private fun Element.protectsTextFormatting(): Boolean =
+        localName in setOf("pre", "code", "kbd", "samp", "table", "svg", "math", "script", "style", "textarea") ||
+            getAttributeNS("http://www.w3.org/XML/1998/namespace", "space") == "preserve" ||
+            getAttribute("style").isNotBlank() ||
+            (localName == "p" && getAttribute("class").isNotBlank()) ||
+            ProtectedTextClass.containsMatchIn(getAttribute("class"))
+
+    private fun cleanProseText(text: String): String {
+        var cleaned = SoftHyphenBreak.replace(text, "")
+        cleaned = InsideWordArtifacts.replace(cleaned, "")
+        return RepeatedNonbreakingSpace.replace(cleaned, " ")
+    }
+
+    private val SoftHyphenBreak = Regex("(?<=[A-Za-z])\u00ad[ \\t\\r\\n]*(?=[A-Za-z])")
+    private val InsideWordArtifacts = Regex("(?<=[A-Za-z])[\u00ad\u200b\ufeff]+(?=[A-Za-z])")
+    private val RepeatedNonbreakingSpace = Regex("(?<=[A-Za-z])\u00a0{2,}(?=[A-Za-z])")
+    private val ProtectedTextClass = Regex("(?:poem|poetry|verse|stanza|letter|asterism|signature|center|right)", RegexOption.IGNORE_CASE)
+    private val TextArtifactEntity = Regex("&#(?:0*(?:173|160|8203|65279)|x0*(?:ad|a0|200b|feff));", RegexOption.IGNORE_CASE)
 }
