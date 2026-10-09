@@ -13,6 +13,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.platform.LocalContext
 import com.vayana.core.designsystem.tokens.Radii
@@ -61,10 +62,13 @@ fun VayanaTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    // Wallpaper palettes must not override the contrast-tuned E-Ink palettes.
-    val useDynamicColor = dynamicColor && displayProfile != DisplayProfile.E_INK
+    // Monochrome E-Ink stays black and white; color E-Ink follows Material You.
+    val useDynamicColor = dynamicColor && !displayProfile.isMonochrome(einkPalette)
     val colorScheme = if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        ColorSchemes.dynamic(LocalContext.current, isDark, darkVariant)
+        val scheme = ColorSchemes.dynamic(LocalContext.current, isDark,
+            if (displayProfile == DisplayProfile.E_INK) DarkVariant.STANDARD else darkVariant)
+        if (displayProfile == DisplayProfile.E_INK) scheme.copy(surfaceTint = Color.Transparent)
+        else scheme
     } else {
         ColorSchemes.forProfile(displayProfile, isDark, darkVariant, einkPalette)
     }

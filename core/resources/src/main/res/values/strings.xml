@@ -1054,7 +1054,7 @@
     <string name="settings_display_profile_standard">Standard</string>
     <string name="settings_display_profile_eink">E-ink</string>
     <string name="settings_eink_palette_title">E-ink palette</string>
-    <string name="settings_eink_palette_subtitle">Color uses high-contrast accents and neutral surfaces. Wallpaper colors and OLED variants are ignored.</string>
+    <string name="settings_eink_palette_subtitle">Color uses Material 3 colors, including wallpaper colors when enabled. E-ink refresh behavior stays enabled.</string>
     <string name="settings_eink_palette_monochrome">Monochrome</string>
     <string name="settings_eink_palette_color">Color</string>
     <string name="settings_eink_audio_features_title">Audio features</string>
@@ -1178,7 +1178,7 @@
     <string name="settings_reading_auto_sync_pages_title">Sync while reading</string>
     <string name="settings_reading_auto_sync_pages_subtitle">Sync your reading position every N page turns. 0 to turn off.</string>
     <string name="settings_dynamic_color_title">Wallpaper colors</string>
-    <string name="settings_dynamic_color_subtitle">Use colors from your wallpaper on Android 12 and later. Not used with the e-ink profile.</string>
+    <string name="settings_dynamic_color_subtitle">Use colors from your wallpaper on Android 12 and later. Also available in color e-ink mode.</string>
     <string name="settings_date_format_title">Date format</string>
     <string name="settings_date_format_subtitle">How dates are written across the app.</string>
     <string name="settings_date_format_system">Follow language</string>

@@ -14,7 +14,7 @@ class EinkPaletteTest {
     }
 
     @Test
-    fun `color eink uses tuned light and dark palettes instead of OLED surface variants`() {
+    fun `color eink uses Material 3 light and dark palettes instead of OLED surface variants`() {
         for (variant in DarkVariant.entries) {
             assertSame(ColorSchemes.eInkColorLight, ColorSchemes.forProfile(DisplayProfile.E_INK, false, variant, EinkPalette.COLOR))
             assertSame(ColorSchemes.eInkColorDark, ColorSchemes.forProfile(DisplayProfile.E_INK, true, variant, EinkPalette.COLOR))
@@ -23,19 +23,16 @@ class EinkPaletteTest {
     }
 
     @Test
-    fun `color eink text and accents retain contrast across all neutral surface tiers`() {
+    fun `color eink Material 3 text retains contrast across tonal surface tiers`() {
         for (scheme in listOf(ColorSchemes.eInkColorLight, ColorSchemes.eInkColorDark)) {
             val surfaces = listOf(scheme.background, scheme.surface, scheme.surfaceDim, scheme.surfaceBright,
                 scheme.surfaceContainerLowest, scheme.surfaceContainerLow, scheme.surfaceContainer,
                 scheme.surfaceContainerHigh, scheme.surfaceContainerHighest)
             for (surface in surfaces) {
-                assertEquals(surface.red, surface.green)
-                assertEquals(surface.green, surface.blue)
                 assertEquals(1f, surface.alpha)
-                for (text in listOf(scheme.onSurface, scheme.onSurfaceVariant, scheme.primary, scheme.secondary, scheme.tertiary, scheme.error)) {
+                for (text in listOf(scheme.onSurface, scheme.onSurfaceVariant)) {
                     assertTrue(contrast(text, surface) >= 4.5f, "$text on $surface: ${contrast(text, surface)}")
                 }
-                assertTrue(contrast(scheme.outlineVariant, surface) >= 3f)
             }
             val pairs = listOf(scheme.onPrimary to scheme.primary, scheme.onSecondary to scheme.secondary,
                 scheme.onTertiary to scheme.tertiary, scheme.onPrimaryContainer to scheme.primaryContainer,
@@ -43,6 +40,25 @@ class EinkPaletteTest {
                 scheme.onError to scheme.error, scheme.onErrorContainer to scheme.errorContainer)
             pairs.forEach { (text, fill) -> assertTrue(contrast(text, fill) >= 4.5f) }
             assertEquals(0f, scheme.surfaceTint.alpha)
+        }
+    }
+
+    @Test
+    fun `color eink inherits Material 3 accents containers and tonal surfaces`() {
+        for ((actual, material) in listOf(ColorSchemes.eInkColorLight to ColorSchemes.light,
+            ColorSchemes.eInkColorDark to ColorSchemes.dark)) {
+            assertEquals(material.primary, actual.primary)
+            assertEquals(material.secondary, actual.secondary)
+            assertEquals(material.tertiary, actual.tertiary)
+            assertEquals(material.primaryContainer, actual.primaryContainer)
+            assertEquals(material.secondaryContainer, actual.secondaryContainer)
+            assertEquals(material.tertiaryContainer, actual.tertiaryContainer)
+            assertEquals(material.background, actual.background)
+            assertEquals(material.onSurface, actual.onSurface)
+            assertEquals(material.surfaceContainerLow, actual.surfaceContainerLow)
+            assertEquals(material.surfaceContainerHigh, actual.surfaceContainerHigh)
+            assertEquals(material.outline, actual.outline)
+            assertEquals(material.error, actual.error)
         }
     }
 
