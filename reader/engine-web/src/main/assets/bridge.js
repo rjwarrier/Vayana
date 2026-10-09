@@ -986,7 +986,14 @@ async function cancelPageJump() {
 function pageSectionIndex(pageIndex) {
     const prefix = pageEstimateCache?.prefixPages
     if (!prefix) return -1
-    let index = prefix.findIndex((end, i) => i > 0 && Math.round(end) > pageIndex) - 1
+    // Prefixes are ordered even when non-linear sections repeat a boundary.
+    let low = 1, high = prefix.length
+    while (low < high) {
+        const middle = Math.floor((low + high) / 2)
+        if (Math.round(prefix[middle]) > pageIndex) high = middle
+        else low = middle + 1
+    }
+    let index = low < prefix.length ? low - 1 : -1
     // Independently rounded chapter prefixes can differ by one from the displayed
     // total. Its final page still belongs to the last non-empty chapter.
     if (index < 0) {
@@ -1113,8 +1120,11 @@ function applyReaderMargin(percent) {
             : Math.min(contentWidth, 760)
     }
     if (view?.renderer) {
-        view.renderer.setAttribute('max-inline-size', `${maxInlineSizePx}px`)
-        view.renderer.render?.()
+        const value = `${maxInlineSizePx}px`
+        // The paginator's attribute callback renders. A height-only IME resize
+        // is already handled by its ResizeObserver and needs no margin update.
+        if (view.renderer.getAttribute('max-inline-size') !== value)
+            view.renderer.setAttribute('max-inline-size', value)
     }
 }
 

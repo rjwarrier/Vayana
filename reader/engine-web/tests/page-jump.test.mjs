@@ -134,3 +134,22 @@ test('page jump waits through an intermediate keyboard resize before restoring e
     assert.equal(f.context.window.innerHeight, 1000)
     assert.deepEqual(f.anchors, [0])
 })
+
+test('chapter lookup skips zero-page sections at rounded boundaries', () => {
+    const f = fixture()
+    f.context.pageEstimateCache.prefixPages = [0, 0, 10.4, 10.4, 30]
+    assert.equal(f.context.pageSectionIndex(0), 1)
+    assert.equal(f.context.pageSectionIndex(9), 1)
+    assert.equal(f.context.pageSectionIndex(10), 3)
+    assert.equal(f.context.pageSectionIndex(29), 3)
+})
+
+test('chapter lookup reads logarithmically many prefixes in a large book', () => {
+    const f = fixture()
+    let reads = 0
+    f.context.pageEstimateCache.prefixPages = new Proxy(Array.from({ length: 20001 }, (_, i) => i * 10), {
+        get(target, key) { if (/^[0-9]+$/.test(String(key))) reads++; return target[key] },
+    })
+    assert.equal(f.context.pageSectionIndex(190005), 19000)
+    assert.ok(reads <= 20, `prefix reads: ${reads}`)
+})
