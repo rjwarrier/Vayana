@@ -1840,23 +1840,17 @@ private fun ReaderPageNumberFooter(
             onGoToPage(it)
         })
     }
-    Surface(
+    ReaderFooterPill(
+        modifier = modifier.padding(start = Spacing.md),
+        footerGap = footerGap,
         onClick = {
             dialogTotalPages = totalPages
             onPreparePageJump { showPageDialog = true }
         },
-        modifier = modifier
-            .navigationBarsPadding()
-            .windowInsetsPadding(readerHudHorizontalInsets)
-            .padding(start = Spacing.md, bottom = footerGap),
-        color = readerHudSurfaceColor(),
-        shape = MaterialTheme.shapes.extraLarge,
-        tonalElevation = readerHudElevation(),
     ) {
         Text(
             text = stringResource(R.string.reader_progress_page_of, currentPage, totalPages),
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
         )
     }
 }
@@ -1900,20 +1894,14 @@ private fun ReaderBookProgressFooter(
     onLongPress: () -> Unit = {},
 ) {
     val progress = locator?.progression ?: return
-    Surface(
-        modifier = modifier
-            .navigationBarsPadding()
-            .windowInsetsPadding(readerHudHorizontalInsets)
-            .padding(end = Spacing.md, bottom = footerGap)
-            .combinedClickable(onClick = {}, onLongClick = onLongPress),
-        color = readerHudSurfaceColor(),
-        shape = MaterialTheme.shapes.extraLarge,
-        tonalElevation = readerHudElevation(),
+    ReaderFooterPill(
+        modifier = modifier.padding(end = Spacing.md),
+        footerGap = footerGap,
+        onLongPress = onLongPress,
     ) {
         Text(
             text = stringResource(R.string.reader_progress_percent, (progress * 100).roundToInt()),
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
         )
     }
 }
@@ -1924,38 +1912,56 @@ private fun ReaderSettingsFooterButton(
     footerGap: Dp = Spacing.sm,
     onClick: () -> Unit,
 ) {
+    ReaderFooterPill(
+        modifier = modifier,
+        footerGap = footerGap,
+        onClick = onClick,
+        color = if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = ReaderHudStandardAlpha)
+        },
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(stringResource(R.string.reader_footer_open_settings), style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ReaderFooterPill(
+    modifier: Modifier,
+    footerGap: Dp,
+    onClick: () -> Unit = {},
+    onLongPress: (() -> Unit)? = null,
+    color: Color = readerHudSurfaceColor(),
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    content: @Composable () -> Unit,
+) {
     Box(
         modifier = modifier
             .navigationBarsPadding()
+            .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(bottom = footerGap)
             .heightIn(min = 48.dp)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.BottomCenter,
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress),
+        contentAlignment = Alignment.Center,
     ) {
         Surface(
-            color = if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = ReaderHudStandardAlpha)
-            },
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.heightIn(min = 28.dp),
+            color = color,
+            contentColor = contentColor,
             shape = MaterialTheme.shapes.extraLarge,
             tonalElevation = readerHudElevation(),
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Tune,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = stringResource(R.string.reader_footer_open_settings),
-                    style = MaterialTheme.typography.labelMedium,
-                )
+            Box(Modifier.padding(horizontal = Spacing.md), contentAlignment = Alignment.Center) {
+                content()
             }
         }
     }
