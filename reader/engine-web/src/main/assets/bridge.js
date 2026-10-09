@@ -893,8 +893,32 @@ async function goToPage(pageIndex) {
         if (pageIndex < total) await view.goTo(pageIndex)
         return
     }
+    if (!pageEstimateCache || pageIndex >= pageEstimateCache.totalPages) return
+    let index = pageSectionIndex(pageIndex)
+    // Measurements can move the requested page into another chapter. Correct the
+    // estimate at most twice, keeping navigation bounded on inconsistent layouts.
+    for (let attempt = 0; attempt < 3; attempt++) {
+        if (index < 0) return
+        if (!view.renderer.getContents().some(content => content.index === index)) {
+            await view.goTo(index)
+        }
+        // A damaged chapter or a busy renderer may leave the old chapter open.
+        // Never sample it as though the requested chapter had loaded.
+        if (!view.renderer.getContents().some(content => content.index === index)) return
+        bookPageStats(index)
+        const correctedIndex = pageSectionIndex(pageIndex)
+        if (correctedIndex === index || attempt === 2) break
+        index = correctedIndex
+    }
+    const pages = Math.max(1, view.renderer.pages - 2)
+    const localPage = Math.min(pages - 1, Math.max(0,
+        pageIndex - Math.round(pageEstimateCache.prefixPages[index])))
+    await view.renderer.scrollToAnchor(pages > 1 ? localPage / (pages - 1) : 0)
+}
+
+function pageSectionIndex(pageIndex) {
     const prefix = pageEstimateCache?.prefixPages
-    if (!prefix || pageIndex >= pageEstimateCache.totalPages) return
+    if (!prefix) return -1
     let index = prefix.findIndex((end, i) => i > 0 && Math.round(end) > pageIndex) - 1
     // Independently rounded chapter prefixes can differ by one from the displayed
     // total. Its final page still belongs to the last non-empty chapter.
@@ -903,15 +927,7 @@ async function goToPage(pageIndex) {
             if (prefix[i + 1] > prefix[i]) { index = i; break }
         }
     }
-    if (index < 0) return
-    await view.goTo(index)
-    // Loading a chapter measures its real page count. Resolve the local page using
-    // that updated estimate and the paginator's two reserved margin columns.
-    bookPageStats(index)
-    const pages = Math.max(1, view.renderer.pages - 2)
-    const localPage = Math.min(pages - 1, Math.max(0,
-        pageIndex - Math.round(pageEstimateCache.prefixPages[index])))
-    await view.renderer.scrollToAnchor(pages > 1 ? localPage / (pages - 1) : 0)
+    return index
 }
 
 function providePdfPassword(password) {
