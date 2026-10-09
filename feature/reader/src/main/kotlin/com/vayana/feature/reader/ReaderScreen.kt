@@ -168,6 +168,11 @@ import com.vayana.core.database.model.Annotation
 import com.vayana.core.database.model.AnnotationType
 import com.vayana.core.datastore.settings.FloatSetting
 import com.vayana.core.datastore.settings.IntSetting
+import com.vayana.core.datastore.settings.ReaderTextAlign
+import androidx.compose.material.icons.outlined.FormatAlignLeft
+import androidx.compose.material.icons.outlined.FormatAlignCenter
+import androidx.compose.material.icons.outlined.FormatAlignRight
+import androidx.compose.material.icons.outlined.FormatAlignJustify
 import com.vayana.core.datastore.settings.ReaderFontFamily
 import com.vayana.core.datastore.settings.ReaderTheme
 import com.vayana.core.datastore.settings.SettingsRegistry
@@ -361,6 +366,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onFontSizeChange = viewModel::updateFontSize,
                 onLineHeightChange = viewModel::updateLineHeight,
                 onFontFamilyChange = viewModel::updateFontFamily,
+                onTextAlignChange = viewModel::updateTextAlign,
                 onCustomFontChange = viewModel::updateCustomFont,
                 onReaderThemeChange = viewModel::updateReaderTheme,
                 onSideMarginChange = viewModel::updateSideMargin,
@@ -485,6 +491,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onFontSizeChange = viewModel::updateFontSize,
         onLineHeightChange = viewModel::updateLineHeight,
         onFontFamilyChange = viewModel::updateFontFamily,
+        onTextAlignChange = viewModel::updateTextAlign,
         onCustomFontChange = viewModel::updateCustomFont,
         onReaderThemeChange = viewModel::updateReaderTheme,
         onSideMarginChange = viewModel::updateSideMargin,
@@ -814,6 +821,7 @@ private fun ReaderScreen(
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
+    onTextAlignChange: (ReaderTextAlign) -> Unit,
     onCustomFontChange: (String?) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
@@ -1382,6 +1390,7 @@ private fun ReaderScreen(
                 onFontSizeChange = onFontSizeChange,
                 onLineHeightChange = onLineHeightChange,
                 onFontFamilyChange = onFontFamilyChange,
+                onTextAlignChange = onTextAlignChange,
                 onCustomFontChange = onCustomFontChange,
                 onReaderThemeChange = onReaderThemeChange,
                 onSideMarginChange = onSideMarginChange,
@@ -2123,6 +2132,7 @@ private fun ReaderChrome(
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
+    onTextAlignChange: (ReaderTextAlign) -> Unit,
     onCustomFontChange: (String?) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
@@ -2297,6 +2307,7 @@ private fun ReaderChrome(
                         onFontSizeChange = onFontSizeChange,
                         onLineHeightChange = onLineHeightChange,
                         onFontFamilyChange = onFontFamilyChange,
+                        onTextAlignChange = onTextAlignChange,
                         onCustomFontChange = onCustomFontChange,
                         onReaderThemeChange = onReaderThemeChange,
                         onSideMarginChange = onSideMarginChange,
@@ -2744,6 +2755,7 @@ private fun StylePanel(
     onFontSizeChange: (Int) -> Unit,
     onLineHeightChange: (Float) -> Unit,
     onFontFamilyChange: (ReaderFontFamily) -> Unit,
+    onTextAlignChange: (ReaderTextAlign) -> Unit,
     onCustomFontChange: (String?) -> Unit,
     onReaderThemeChange: (ReaderTheme) -> Unit,
     onSideMarginChange: (Int) -> Unit,
@@ -2807,6 +2819,23 @@ private fun StylePanel(
         }
 
         if (showTypography) {
+            Text(stringResource(R.string.settings_reader_text_align_title), style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                listOf(
+                    Triple(ReaderTextAlign.LEFT, Icons.Outlined.FormatAlignLeft, R.string.settings_reader_text_align_left),
+                    Triple(ReaderTextAlign.CENTER, Icons.Outlined.FormatAlignCenter, R.string.settings_reader_text_align_center),
+                    Triple(ReaderTextAlign.RIGHT, Icons.Outlined.FormatAlignRight, R.string.settings_reader_text_align_right),
+                    Triple(ReaderTextAlign.JUSTIFIED, Icons.Outlined.FormatAlignJustify, R.string.settings_reader_text_align_justified),
+                ).forEach { (align, icon, label) ->
+                    FilterChip(
+                        selected = settings.readerTextAlign == align,
+                        onClick = { onTextAlignChange(align) },
+                        label = { Icon(icon, contentDescription = stringResource(label)) },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    )
+                }
+            }
+
             ReaderStyleLabel(
                 title = stringResource(R.string.settings_reader_font_size_title),
                 value = "$pendingFontSize%",

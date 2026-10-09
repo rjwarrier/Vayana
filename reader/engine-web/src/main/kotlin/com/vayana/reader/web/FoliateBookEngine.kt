@@ -80,6 +80,8 @@ internal fun textAlignCss(align: BookTextAlign): String? = when (align) {
     BookTextAlign.BOOK -> null
     BookTextAlign.JUSTIFIED -> "$ParagraphSelector,body li,body blockquote p{text-align:justify !important;}"
     BookTextAlign.LEFT -> "$ParagraphSelector,body li,body blockquote p{text-align:left !important;}"
+    BookTextAlign.CENTER -> "$ParagraphSelector,body li,body blockquote p{text-align:center !important;}"
+    BookTextAlign.RIGHT -> "$ParagraphSelector,body li,body blockquote p{text-align:right !important;}"
 }
 
 internal fun hyphenationCss(hyphenation: BookHyphenation): String? = when (hyphenation) {

@@ -1160,6 +1160,8 @@
     <string name="settings_reader_text_align_book">Book\'s own</string>
     <string name="settings_reader_text_align_justified">Justified</string>
     <string name="settings_reader_text_align_left">Left</string>
+    <string name="settings_reader_text_align_center">Center</string>
+    <string name="settings_reader_text_align_right">Right</string>
     <string name="settings_reader_hyphenation_title">Hyphenation</string>
     <string name="settings_reader_hyphenation_subtitle">Breaks long words at the end of a line. Off keeps every word whole, at the cost of uneven lines.</string>
     <string name="settings_reader_hyphenation_book">Book\'s own</string>

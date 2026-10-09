@@ -29,7 +29,7 @@ data class BookStyle(
 )
 
 /** Paragraph alignment; [BOOK] leaves it to the book's own styles. */
-enum class BookTextAlign { BOOK, JUSTIFIED, LEFT }
+enum class BookTextAlign { BOOK, JUSTIFIED, LEFT, RIGHT, CENTER }
 
 /** Whether words may break with a hyphen at a line end; [BOOK] leaves it to the book's own styles. */
 enum class BookHyphenation { BOOK, ON, OFF }

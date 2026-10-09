@@ -847,6 +847,10 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.updateReaderCustomFontId(fontId) }
     }
 
+    fun updateTextAlign(align: ReaderTextAlign) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderTextAlign, align) }
+    }
+
     fun updateReaderTheme(theme: ReaderTheme) {
         viewModelScope.launch { settingsRepository.update(SettingsRegistry.ReaderTheme, theme) }
     }
@@ -1964,6 +1968,8 @@ internal fun SettingsSnapshot.toBookStyle(pdfRotationDegrees: Int = 0): BookStyl
         ReaderTextAlign.BOOK -> BookTextAlign.BOOK
         ReaderTextAlign.JUSTIFIED -> BookTextAlign.JUSTIFIED
         ReaderTextAlign.LEFT -> BookTextAlign.LEFT
+        ReaderTextAlign.CENTER -> BookTextAlign.CENTER
+        ReaderTextAlign.RIGHT -> BookTextAlign.RIGHT
     },
     hyphenation = when (readerHyphenation) {
         ReaderHyphenation.BOOK -> BookHyphenation.BOOK

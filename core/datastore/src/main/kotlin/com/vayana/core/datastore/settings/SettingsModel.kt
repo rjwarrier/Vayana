@@ -179,7 +179,7 @@ data class SettingsSnapshot(
 enum class ReaderFontFamily { SERIF, SANS, MONO }
 
 /** How paragraphs are aligned; [BOOK] leaves it to the book. */
-enum class ReaderTextAlign { BOOK, JUSTIFIED, LEFT }
+enum class ReaderTextAlign { BOOK, JUSTIFIED, LEFT, RIGHT, CENTER }
 
 /** Whether words break at line ends with a hyphen; [BOOK] leaves it to the book. */
 enum class ReaderHyphenation { BOOK, ON, OFF }
@@ -492,6 +492,8 @@ object SettingsRegistry {
             ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.BOOK, R.string.settings_reader_text_align_book),
             ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.JUSTIFIED, R.string.settings_reader_text_align_justified),
             ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.LEFT, R.string.settings_reader_text_align_left),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.CENTER, R.string.settings_reader_text_align_center),
+            ChoiceOption(com.vayana.core.datastore.settings.ReaderTextAlign.RIGHT, R.string.settings_reader_text_align_right),
         ),
     )
     val ReaderHyphenation: ChoiceSetting<com.vayana.core.datastore.settings.ReaderHyphenation> =
