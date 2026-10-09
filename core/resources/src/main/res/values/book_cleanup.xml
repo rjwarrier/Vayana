@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Clean Up</string>
-    <string name="library_clean_up_body">Remove recognized Project Gutenberg header and footer sections. Reading time and notes are kept. The saved reading position is cleared, and note links may shift. The original file is kept on this device. Use Full Sync to share the cleaned copy.</string>
-    <string name="library_cleaned">Gutenberg sections removed. Use Full Sync to update the cloud copy.</string>
-    <string name="library_nothing_to_clean">No recognized Gutenberg sections found. Book unchanged.</string>
+    <string name="library_clean_up_body">Remove recognized Project Gutenberg headers, footers, and missing-image codes such as 0025m. Reading time, notes, illustrations, and descriptive captions are kept. The saved reading position is cleared, and note links may shift. The original file is kept on this device. Use Full Sync to share the cleaned copy.</string>
+    <string name="library_cleaned">Gutenberg artifacts removed. Use Full Sync to update the cloud copy.</string>
+    <string name="library_nothing_to_clean">No recognized Gutenberg artifacts found. Book unchanged.</string>
 </resources>

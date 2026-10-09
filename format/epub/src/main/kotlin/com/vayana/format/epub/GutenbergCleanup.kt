@@ -68,7 +68,7 @@ object GutenbergCleanup {
     private fun cleanChapter(bytes: ByteArray): Pair<ByteArray, Int> {
         // Internal entity declarations are unnecessary for this operation and can expand exponentially.
         val text = bytes.toString(Charsets.UTF_8)
-        if (!text.contains("pg-header") && !text.contains("pg-footer")) return bytes to 0
+        if (!text.contains("pg-header") && !text.contains("pg-footer") && !text.contains("img_images_")) return bytes to 0
         require(!text.contains("<!ENTITY", ignoreCase = true)) { "Unsupported EPUB entity declaration" }
         val builder = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
@@ -82,8 +82,16 @@ object GutenbergCleanup {
             while (child != null) {
                 val next = child.nextSibling
                 val element = child as? Element
-                if (element != null && element.localName in setOf("div", "section") &&
-                    element.getAttribute("id") in setOf("pg-header", "pg-footer")) {
+                val boilerplate = element != null && element.localName in setOf("div", "section") &&
+                    element.getAttribute("id") in setOf("pg-header", "pg-footer")
+                // Gutenberg's no-images editions replace illustrations with filename-like labels.
+                // Remove an entire otherwise-empty figure, but retain real images and captions.
+                val emptyIllustration = element?.isFigure() == true && element.childNodes.let { children ->
+                    (0 until children.length).map { children.item(it) }.filterNot {
+                        it.nodeType == Node.TEXT_NODE && it.textContent.isBlank()
+                    }.singleOrNull()?.let { it is Element && it.isImagePlaceholder() } == true
+                }
+                if (boilerplate || emptyIllustration || element?.isImagePlaceholder() == true) {
                     parent.removeChild(child)
                     removed++
                 } else visit(child)
@@ -96,4 +104,16 @@ object GutenbergCleanup {
         TransformerFactory.newInstance().newTransformer().transform(DOMSource(document), StreamResult(output))
         return output.toByteArray() to removed
     }
+
+    private fun Element.isFigure(): Boolean = localName == "div" &&
+        getAttribute("class").split(Regex("\\s+")).contains("fig")
+
+    private fun Element.isImagePlaceholder(): Boolean = localName == "span" &&
+        (parentNode as? Element)?.isFigure() == true &&
+        ImagePlaceholderId.matches(getAttribute("id")) &&
+        (0 until childNodes.length).all { childNodes.item(it).nodeType == Node.TEXT_NODE } &&
+        ImagePlaceholderText.matches(textContent.trim())
+
+    private val ImagePlaceholderId = Regex("img_images_\\d{3,}[A-Za-z]{1,3}\\.(?:jpg|jpeg|png|gif)", RegexOption.IGNORE_CASE)
+    private val ImagePlaceholderText = Regex("\\d{3,}[A-Za-z]{1,3}")
 }
