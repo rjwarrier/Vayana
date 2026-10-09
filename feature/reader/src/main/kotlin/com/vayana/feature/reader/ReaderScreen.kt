@@ -1841,8 +1841,9 @@ private fun ReaderPageNumberFooter(
         })
     }
     ReaderFooterPill(
-        modifier = modifier.padding(start = Spacing.md),
+        modifier = modifier,
         footerGap = footerGap,
+        horizontalTouchPadding = Spacing.md,
         onClick = {
             dialogTotalPages = totalPages
             onPreparePageJump { showPageDialog = true }
@@ -1938,6 +1939,7 @@ private fun ReaderSettingsFooterButton(
 private fun ReaderFooterPill(
     modifier: Modifier,
     footerGap: Dp,
+    horizontalTouchPadding: Dp = 0.dp,
     onClick: () -> Unit = {},
     onLongPress: (() -> Unit)? = null,
     color: Color = readerHudSurfaceColor(),
@@ -1950,7 +1952,8 @@ private fun ReaderFooterPill(
             .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(bottom = footerGap)
             .heightIn(min = 48.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress),
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(horizontal = horizontalTouchPadding),
         contentAlignment = Alignment.Center,
     ) {
         Surface(
