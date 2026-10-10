@@ -189,6 +189,16 @@ test('squared units and trigonometric functions are mathematical bases, not pros
     assert.equal(sentences[0].text, 'Read 5 cm squared and sin squared x.')
 })
 
+test('mixed Unicode, HTML and MathML powers keep their order and later highlight offsets', () => {
+    const { context, sentences } = setup('<p>Read x². Then y<sup>3</sup>. Finally <math><msup><mi>z</mi><mn>4</mn></msup></math> ends.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['Read x squared.', 'Then y cubed.', 'Finally z to the power of four ends.'])
+    context.sentenceId = sentences[2].id
+    const start = sentences[2].text.indexOf('four')
+    assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${start}, ${start + 4}).toString()`, context), '4')
+    const ends = sentences[2].text.indexOf('ends')
+    assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${ends}, ${ends + 4}).toString()`, context), 'ends')
+})
+
 test('linked powers survive while semantic and prose footnotes remain silent', () => {
     const { sentences } = setup('<p>Read x<sup><a href="#equation">2</a></sup>. Sentence<sup>2</sup> continues. Sentence² continues. Read x<sup><a role="doc-noteref" href="#note">3</a></sup>.</p>')
     assert.deepEqual(Array.from(sentences, s => s.text), ['Read x squared.', 'Sentence continues.', 'Sentence continues.', 'Read x.'])

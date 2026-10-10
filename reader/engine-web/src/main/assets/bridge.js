@@ -1846,7 +1846,7 @@ function speechSentencesFor(doc, index, fromRange) {
         }
         const parent = node.parentElement
         if (!node.data || parent?.closest('script, style, rt, [hidden], [aria-hidden="true"], [role="doc-noteref"], [epub\\:type~="noteref"]')) continue
-        if (parent?.closest('a') && isSpeechNoteReference(parent.closest('a'), text)) continue
+        if (parent?.closest('a') && isSpeechNoteReference(parent.closest('a'), text.slice(-32))) continue
         if (parent?.closest('[role="doc-pageheader"], [role="doc-pagefooter"]')) continue
         if (fixedLayout && Array.from(ignoredMargins).some(span => span.contains(node))) continue
         // Separate blocks so a paragraph without closing punctuation doesn't run into the next one.
@@ -1878,7 +1878,8 @@ function speechSentencesFor(doc, index, fromRange) {
     }
     const exponents = []
     for (const [element, span] of superscripts) {
-        const prefix = text.slice(0, span.start)
+        // Classification only needs the preceding variable, unit or prose word, not the entire chapter prefix.
+        const prefix = text.slice(Math.max(0, span.start - 32), span.start)
         const value = text.slice(span.start, span.end)
         if (!speechMathBase(prefix, element)) {
             if (/\p{L}$/u.test(prefix) && /^\d{1,3}$/u.test(value)) exponents.push({ ...span, text: '' })
@@ -1897,8 +1898,10 @@ function speechSentencesFor(doc, index, fromRange) {
     for (const match of text.matchAll(/(?<=[\p{L}\p{N})\]])(?:[⁺⁻]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+|[ⁿⁱ])/gu)) {
         const end = match.index + match[0].length
         if (exponents.some(span => match.index < span.end && end > span.start)) continue
-        exponents.push({ start: match.index, end, text: speechMathBase(text.slice(0, match.index)) ? speechExponentText(match[0]) : '' })
+        const prefix = text.slice(Math.max(0, match.index - 32), match.index)
+        exponents.push({ start: match.index, end, text: speechMathBase(prefix) ? speechExponentText(match[0]) : '' })
     }
+    exponents.sort((a, b) => a.start - b.start)
     const pointAt = offset => {
         let low = 0
         let high = pieces.length - 1
@@ -1914,6 +1917,7 @@ function speechSentencesFor(doc, index, fromRange) {
     let previousStart = -1
     let boundaryIndex = 0
     const omitted = new Set()
+    let exponentIndex = 0
     let prepared = speechTextWithoutAbbreviationStops(text)
     // ICU treats a line separator as a sentence ending, even inside unpunctuated prose. EPUB source
     // wrapping and single <br> elements must not create extra TTS utterances. Preserve blank lines and
@@ -1936,7 +1940,13 @@ function speechSentencesFor(doc, index, fromRange) {
         const start = segmentStart + segment.length - segment.trimStart().length
         const endPoint = pointAt(segmentStart + segment.trimEnd().length)
         if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
-        const normalized = normalizeSpeechSegment(text.slice(segmentStart, segmentStart + segment.length), segment, omitted, segmentStart, exponents)
+        // Sentences and math spans are ordered. Advance once through the chapter rather than scanning
+        // every exponent for every sentence; offsets still refer to the unchanged source text.
+        while (exponentIndex < exponents.length && exponents[exponentIndex].end <= segmentStart) exponentIndex++
+        let exponentEnd = exponentIndex
+        while (exponentEnd < exponents.length && exponents[exponentEnd].start < segmentStart + segment.length) exponentEnd++
+        const normalized = normalizeSpeechSegment(text.slice(segmentStart, segmentStart + segment.length), segment,
+            omitted, segmentStart, exponents.slice(exponentIndex, exponentEnd))
         const sentenceText = normalized.text
         const range = doc.createRange()
         range.setStart(...pointAt(start))
