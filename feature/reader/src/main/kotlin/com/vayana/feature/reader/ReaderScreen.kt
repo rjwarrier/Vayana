@@ -2212,8 +2212,8 @@ private fun ReaderChrome(
                         shape = CircleShape,
                     ),
             )
-            Box(modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                         contentDescription = null,
@@ -2225,10 +2225,10 @@ private fun ReaderChrome(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = Sizes.touchTarget),
+                        .weight(1f)
+                        .padding(horizontal = Spacing.sm),
                 )
-                Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                Row {
                     if ((uiState as? ReaderUiState.Loaded)?.returnLocator != null) {
                         IconButton(onClick = onReturnToPreviousPosition) {
                             Icon(
