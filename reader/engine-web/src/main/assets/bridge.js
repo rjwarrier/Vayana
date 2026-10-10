@@ -1690,13 +1690,20 @@ function speechTextWithoutAbbreviationStops(text) {
 
 // Android TTS reports UTF-16 offsets into the whitespace-normalized text it receives. Keep a boundary map back to
 // the EPUB's original text so every timed range can become an exact DOM Range even across collapsed whitespace.
-function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set(), sourceOffset = 0) {
+function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set(), sourceOffset = 0, exponents = []) {
     let text = ''
     const sourceStarts = []
     const sourceEnds = []
     // Speak familiar prose abbreviations as words. Each expanded character maps to the original abbreviation,
     // while all later words keep their own exact source offsets.
     const expansions = new Map()
+    for (const exponent of exponents) {
+        if (exponent.start >= sourceOffset && exponent.end <= sourceOffset + segment.length) {
+            expansions.set(exponent.start - sourceOffset, {
+                end: exponent.end - sourceOffset, text: exponent.text,
+            })
+        }
+    }
     const words = { 'e.g.': 'for example', 'i.e.': 'that is', 'etc.': 'et cetera', 'vs.': 'versus' }
     for (const match of segment.matchAll(/(?<![\p{L}\p{N}_])(?:e\.g\.|i\.e\.|etc\.|vs\.)(?![\p{L}\p{N}_])/giu)) {
         const end = match.index + match[0].length
@@ -1740,6 +1747,21 @@ function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set()
     }
 }
 
+// Expand only numeric powers attached to a base. Footnote links have already been excluded by the walker.
+// Keep source spans intact: every spoken character of "squared" still points to the original exponent.
+function speechExponentText(value) {
+    const digits = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+    const number = value.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/gu, digit => String(digits.indexOf(digit)))
+        .replace(/[⁻−]/gu, '-').replace(/⁺/gu, '+')
+    if (!/^[+-]?\d+$/u.test(number)) return null
+    if (number === '2') return ' squared'
+    if (number === '3') return ' cubed'
+    const unsigned = number.replace(/^[+-]/u, '')
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+    const sign = number.startsWith('-') ? 'minus ' : number.startsWith('+') ? 'plus ' : ''
+    return ' to the power of ' + sign + (words[unsigned] ?? unsigned)
+}
+
 // The chapter's sentences in reading order, from the first one not before [fromRange] (the page on screen).
 function speechSentencesFor(doc, index, fromRange) {
     speech.index = index
@@ -1750,6 +1772,7 @@ function speechSentencesFor(doc, index, fromRange) {
     const ignoredMargins = fixedLayout ? repeatedPdfSpeechMargins(root, index) : new Set()
     const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
     const pieces = []
+    const superscripts = new Map()
     const boundaries = []
     let text = ''
     let lastBlock = null
@@ -1784,7 +1807,24 @@ function speechSentencesFor(doc, index, fromRange) {
         }
         lastBlock = block
         pieces.push({ node, start: text.length })
+        const sup = parent?.closest('sup')
+        if (sup) {
+            const span = superscripts.get(sup) ?? { start: text.length, end: text.length }
+            span.end = text.length + node.data.length
+            superscripts.set(sup, span)
+        }
         text += node.data
+    }
+    const exponents = []
+    for (const span of superscripts.values()) {
+        if (!/[\p{L}\p{N})\]]$/u.test(text.slice(Math.max(0, span.start - 2), span.start))) continue
+        const spoken = speechExponentText(text.slice(span.start, span.end))
+        if (spoken) exponents.push({ ...span, text: spoken })
+    }
+    for (const match of text.matchAll(/(?<=[\p{L}\p{N})\]])[⁺⁻]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+/gu)) {
+        const end = match.index + match[0].length
+        if (exponents.some(span => match.index < span.end && end > span.start)) continue
+        exponents.push({ start: match.index, end, text: speechExponentText(match[0]) })
     }
     const pointAt = offset => {
         let low = 0
@@ -1823,7 +1863,7 @@ function speechSentencesFor(doc, index, fromRange) {
         const start = segmentStart + segment.length - segment.trimStart().length
         const endPoint = pointAt(segmentStart + segment.trimEnd().length)
         if (fromRange && fromRange.comparePoint(...endPoint) < 0) continue
-        const normalized = normalizeSpeechSegment(text.slice(segmentStart, segmentStart + segment.length), segment, omitted, segmentStart)
+        const normalized = normalizeSpeechSegment(text.slice(segmentStart, segmentStart + segment.length), segment, omitted, segmentStart, exponents)
         const sentenceText = normalized.text
         const range = doc.createRange()
         range.setStart(...pointAt(start))

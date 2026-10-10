@@ -132,7 +132,36 @@ test('soft line separators join prose while blank lines and explicit paragraphs 
 
 test('marked footnote references are skipped but mathematical superscripts remain', () => {
     const { sentences } = setup('<p>Hello<sup><a href="#n">1</a></sup> world. Read x<sup>2</sup>.</p><p>Yes<a role="doc-noteref" href="#n">2</a>.</p>')
-    assert.deepEqual(Array.from(sentences, s => s.text), ['Hello world.', 'Read x2.', 'Yes.'])
+    assert.deepEqual(Array.from(sentences, s => s.text), ['Hello world.', 'Read x squared.', 'Yes.'])
+})
+
+test('HTML and Unicode numeric exponents preserve their mathematical meaning', () => {
+    const { sentences } = setup('<p>Read x<sup>2</sup>, y<sup>3</sup>, z<sup>4</sup> and a<sup>12</sup>.</p><p>Read x², y³, z⁴ and a⁻².</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), [
+        'Read x squared, y cubed, z to the power of four and a to the power of 12.',
+        'Read x squared, y cubed, z to the power of four and a to the power of minus two.',
+    ])
+})
+
+test('expanded exponents and following words highlight their original source without changing the book', () => {
+    for (const exponent of ['<sup><em>2</em></sup>', '²', '<sup>12</sup>', '⁻²']) {
+        const before = `<p>Read x${exponent} then continue.</p>`
+        const { context, sentences, document } = setup(before)
+        const sentence = sentences[0]
+        context.sentenceId = sentence.id
+        const start = sentence.text.indexOf(exponent.includes('12') || exponent === '⁻²' ? 'to the power' : 'squared')
+        const end = sentence.text.indexOf(' then')
+        assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${start}, ${end}).toString()`, context),
+            exponent === '²' ? '²' : exponent === '⁻²' ? '⁻²' : exponent.includes('12') ? '12' : '2')
+        const word = sentence.text.indexOf('continue')
+        assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${word}, ${word + 8}).toString()`, context), 'continue')
+        assert.equal(document.body.innerHTML, before)
+    }
+})
+
+test('ordinary digits, symbolic superscripts and standalone superscripts are not rewritten as powers', () => {
+    const { sentences } = setup('<p>Read x2, x<sup>n</sup> and H<sub>2</sub>O.</p><p><sup>2</sup> is a label.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['Read x2, xn and H2O.', '2 is a label.'])
 })
 
 test('PDF wraps join words, retain compound hyphens and map the original printed text', () => {
