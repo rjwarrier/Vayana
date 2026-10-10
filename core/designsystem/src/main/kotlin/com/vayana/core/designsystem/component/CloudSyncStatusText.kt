@@ -2,13 +2,12 @@ package com.vayana.core.designsystem.component
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.vayana.core.resources.R
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.vayana.core.designsystem.theme.asAppDateTime
 import java.util.concurrent.TimeUnit
 
 /** The device a synced snapshot came from, or a generic label when it didn't say. */
@@ -39,12 +38,7 @@ fun cloudSyncStatusText(syncedAt: Long?, deviceLabel: String?): String {
             device,
         )
         CloudSyncTimePresentation.OnAnotherDay -> {
-            val locale = LocalLocale.current.platformLocale
-            // The pattern is a resource so each language can order the day, month and time its own way.
-            val pattern = stringResource(R.string.sync_status_date_time_pattern)
-            val dateTime = Instant.ofEpochMilli(syncedAt)
-                .atZone(ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern(pattern, locale))
+            val dateTime = syncedAt.asAppDateTime()
             stringResource(R.string.sync_status_on_date, dateTime, device)
         }
     }

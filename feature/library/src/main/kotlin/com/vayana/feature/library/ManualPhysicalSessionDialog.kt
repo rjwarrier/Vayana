@@ -46,8 +46,7 @@ import com.vayana.core.resources.R
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import com.vayana.core.designsystem.theme.asAppDate
 import java.util.UUID
 import kotlinx.coroutines.delay
 
@@ -90,10 +89,7 @@ internal fun ManualPhysicalSessionDialog(book: Book, currentPage: Int, busy: Boo
         }
     }
     val locale = LocalLocale.current.platformLocale
-    val dateLabel = remember(dateMillis, locale) {
-        Instant.ofEpochMilli(dateMillis).atZone(ZoneOffset.UTC).toLocalDate()
-            .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
-    }
+    val dateLabel = Instant.ofEpochMilli(dateMillis).atZone(ZoneOffset.UTC).toLocalDate().asAppDate()
     val timeLabel = remember(startHour, startMinute, locale) {
         String.format(locale, "%02d:%02d", startHour, startMinute)
     }

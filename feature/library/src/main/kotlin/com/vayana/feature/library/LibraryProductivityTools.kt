@@ -21,6 +21,7 @@ import com.vayana.core.datastore.settings.SmartShelf
 import com.vayana.core.datastore.settings.SmartShelfStatus
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.asAppDate
 import com.vayana.core.resources.R
 import java.time.Instant
 import java.time.LocalDate
@@ -216,7 +217,7 @@ internal fun FinishByCard(
                 Text(stringResource(R.string.tools_finish_by), style = MaterialTheme.typography.titleMedium)
             }
             target?.let { date ->
-                Text(stringResource(R.string.tools_plan_date, date.toString()))
+                Text(stringResource(R.string.tools_plan_date, date.asAppDate()))
                 val plan = finishByPlan(book, date)
                 Text(when (plan.unit) {
                     PlanUnit.PAGES -> stringResource(R.string.tools_plan_pages, plan.amount, plan.days)

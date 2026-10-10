@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -51,9 +52,9 @@ import com.vayana.core.designsystem.sharecard.ShareCardChoiceRow
 import com.vayana.core.designsystem.sharecard.ShareCardOptionChip
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
+import com.vayana.core.designsystem.theme.asAppDate
 import com.vayana.core.resources.R
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.text.NumberFormat
 import kotlinx.coroutines.Dispatchers
@@ -110,11 +111,11 @@ internal fun LibraryStatsShareDialog(books: List<Book>, onDismiss: () -> Unit) {
         percentRead = stringResource(R.string.library_stats_share_percent_read, snapshot.readPercent),
         readLegend = stringResource(R.string.library_stats_share_read_legend),
         footer = stringResource(R.string.library_stats_share_footer),
-        datePattern = stringResource(R.string.library_stats_share_date_pattern),
+        dateLabel = date.asAppDate().uppercase(LocalLocale.current.platformLocale),
     )
     val bitmap by produceState<Bitmap?>(null, snapshot, format, palette, date, copy, spineStyle, fonts) {
         value = withContext(Dispatchers.Default) {
-            renderLibraryStatsCard(context, snapshot, format, palette, date, copy, spineStyle, fonts)
+            renderLibraryStatsCard(context, snapshot, format, palette, copy, spineStyle, fonts)
         }
     }
     // Compose's ImageBitmap and recorded draw commands share this bitmap. Let GC release it
@@ -229,8 +230,8 @@ internal data class LibraryStatsShareCopy(
     val percentRead: String,
     val readLegend: String,
     val footer: String,
-    /** `DateTimeFormatter` pattern for the card's date, so each language orders it its own way. */
-    val datePattern: String,
+    /** Formatted on the UI thread using the global date preference and current locale. */
+    val dateLabel: String,
 )
 
 internal data class LibraryShareFonts(val serif: Typeface, val sans: Typeface)
@@ -254,7 +255,6 @@ internal fun renderLibraryStatsCard(
     snapshot: LibraryStatsSnapshot,
     format: LibraryShareFormat,
     colors: LibrarySharePalette,
-    date: LocalDate,
     copy: LibraryStatsShareCopy,
     spineStyle: LibrarySpineStyle,
     fonts: LibraryShareFonts,
@@ -275,8 +275,7 @@ internal fun renderLibraryStatsCard(
         paint.textAlign = if (right) Paint.Align.RIGHT else Paint.Align.LEFT
         canvas.drawText(value, x, y, paint)
     }
-    val shortDate = date.format(DateTimeFormatter.ofPattern(copy.datePattern, Locale.getDefault()))
-        .uppercase(Locale.getDefault())
+    val shortDate = copy.dateLabel
     runCatching { ContextCompat.getDrawable(context, R.drawable.ic_vayana_mark) }.getOrNull()?.mutate()?.let { glyph ->
         glyph.setTint(colors.ink)
         glyph.setBounds(27, 24, 72, 69)

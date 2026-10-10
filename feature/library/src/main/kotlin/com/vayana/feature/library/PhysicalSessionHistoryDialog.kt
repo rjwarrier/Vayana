@@ -47,10 +47,7 @@ import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import com.vayana.core.designsystem.theme.asAppDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -66,8 +63,6 @@ internal fun PhysicalSessionHistoryDialog(
 ) {
     val context = LocalContext.current
     val locale = LocalLocale.current.platformLocale
-    val formatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale) }
-    val zone = ZoneId.systemDefault()
     var editingSession by remember { mutableStateOf<ReadingSession?>(null) }
     var deletingSession by remember { mutableStateOf<ReadingSession?>(null) }
     ExpressiveDialogSurface(onDismissRequest = onDismiss) {
@@ -129,7 +124,7 @@ internal fun PhysicalSessionHistoryDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            Text(remember(log.startedAt, zone, formatter) { formatter.format(Instant.ofEpochMilli(log.startedAt).atZone(zone)) },
+                            Text(log.startedAt.asAppDateTime(),
                                 style = MaterialTheme.typography.labelLarge)
                             Text(formatTimerClock(log.durationSeconds), style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary)
@@ -162,7 +157,7 @@ internal fun PhysicalSessionHistoryDialog(
         )
     }
     deletingSession?.let { session ->
-        PhysicalSessionDeleteDialog(session, formatter.format(Instant.ofEpochMilli(session.startedAt).atZone(zone)),
+        PhysicalSessionDeleteDialog(session, session.startedAt.asAppDateTime(),
             onDismiss = { deletingSession = null }, onDelete = { onDeleteSession(session) })
     }
 

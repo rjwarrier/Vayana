@@ -82,6 +82,8 @@ import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticEvent
 import com.vayana.core.diagnostics.DiagnosticsEnvironment
 import com.vayana.core.resources.R
+import com.vayana.core.designsystem.theme.asAppDate
+import androidx.compose.ui.platform.LocalLocale
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
@@ -530,7 +532,13 @@ private suspend fun Context.shareDiagnosticsReport(report: String) {
     }
 }
 
-private fun Long.formatDiagnosticTimestamp(): String =
-    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(this))
+@Composable
+private fun Long.formatDiagnosticTimestamp(): String {
+    val locale = LocalLocale.current.platformLocale
+    val time = remember(this, locale) {
+        DateFormat.getTimeInstance(DateFormat.MEDIUM, locale).format(Date(this))
+    }
+    return "${asAppDate()} $time"
+}
 
 private const val DiagnosticsReportFileName = "vayana-diagnostics.txt"

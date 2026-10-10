@@ -1181,7 +1181,7 @@
     <string name="settings_dynamic_color_subtitle">Use colors from your wallpaper on Android 12 and later. Also available in color e-ink mode.</string>
     <string name="settings_date_format_title">Date format</string>
     <string name="settings_date_format_subtitle">How dates are written across the app.</string>
-    <string name="settings_date_format_system">Follow language</string>
+    <string name="settings_date_format_system">Follow device locale</string>
     <string name="settings_date_format_day_first">Day first (4 Jul 2026)</string>
     <string name="settings_date_format_month_first">Month first (Jul 4, 2026)</string>
     <string name="settings_date_format_iso">ISO (2026-07-04)</string>

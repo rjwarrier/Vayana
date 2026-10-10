@@ -3,6 +3,7 @@ package com.vayana.core.designsystem.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalLocale
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -18,31 +19,30 @@ val LocalDateFormatStyle = staticCompositionLocalOf { DateFormatStyle.SYSTEM }
 /** Whether the color scheme comes from the wallpaper (Material You). */
 val LocalDynamicColor = staticCompositionLocalOf { false }
 
-fun DateFormatStyle.format(date: LocalDate): String = formatter().format(date)
+fun DateFormatStyle.format(date: LocalDate, locale: Locale = Locale.getDefault()): String = formatter(locale).format(date)
 
-fun DateFormatStyle.format(epochMillis: Long): String = format(epochMillis.toLocalDateTime().toLocalDate())
+fun DateFormatStyle.format(epochMillis: Long, locale: Locale = Locale.getDefault()): String = format(epochMillis.toLocalDateTime().toLocalDate(), locale)
 
 /** The date in this style followed by the device's short time. */
-fun DateFormatStyle.formatWithTime(epochMillis: Long): String {
+fun DateFormatStyle.formatWithTime(epochMillis: Long, locale: Locale = Locale.getDefault()): String {
     val dateTime = epochMillis.toLocalDateTime()
-    val locale = Locale.getDefault()
     val time = timeFormatterCache.getOrPut(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
         .format(dateTime)
-    return "${format(dateTime.toLocalDate())} $time"
+    return "${format(dateTime.toLocalDate(), locale)} $time"
 }
 
 /** This moment as a date in the app's [LocalDateFormatStyle]. */
 @Composable
 @ReadOnlyComposable
-fun Long.asAppDate(): String = LocalDateFormatStyle.current.format(this)
+fun Long.asAppDate(): String = LocalDateFormatStyle.current.format(this, LocalLocale.current.platformLocale)
 
 @Composable
 @ReadOnlyComposable
-fun Long.asAppDateTime(): String = LocalDateFormatStyle.current.formatWithTime(this)
+fun Long.asAppDateTime(): String = LocalDateFormatStyle.current.formatWithTime(this, LocalLocale.current.platformLocale)
 
 @Composable
 @ReadOnlyComposable
-fun LocalDate.asAppDate(): String = LocalDateFormatStyle.current.format(this)
+fun LocalDate.asAppDate(): String = LocalDateFormatStyle.current.format(this, LocalLocale.current.platformLocale)
 
 private fun Long.toLocalDateTime() = Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault())
 
@@ -50,8 +50,7 @@ private fun Long.toLocalDateTime() = Instant.ofEpochMilli(this).atZone(ZoneId.sy
  * Formatters are immutable and thread-safe but costly to build (patterns are parsed), and dates are formatted in list
  * rows on every recomposition, so each style keeps one per locale.
  */
-private fun DateFormatStyle.formatter(): DateTimeFormatter {
-    val locale = Locale.getDefault()
+private fun DateFormatStyle.formatter(locale: Locale): DateTimeFormatter {
     return formatterCache.getOrPut(this to locale) {
         when (this) {
             DateFormatStyle.SYSTEM -> DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
