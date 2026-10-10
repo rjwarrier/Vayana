@@ -1720,6 +1720,11 @@ function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set()
                 sourceEnds.push(expansion.end)
             }
             index = expansion.end
+            if (expansion.text && /[\p{L}\p{N}]/u.test(segment[index] ?? '')) {
+                text += ' '
+                sourceStarts.push(index - 1)
+                sourceEnds.push(index)
+            }
         } else if (/\s/u.test(prepared[index])) {
             let end = index + 1
             while (end < segment.length && /\s/u.test(prepared[end])) end++
@@ -1747,19 +1752,67 @@ function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set()
     }
 }
 
-// Expand only numeric powers attached to a base. Footnote links have already been excluded by the walker.
+// Expand powers attached to a mathematical base. Footnote links have already been excluded by the walker.
 // Keep source spans intact: every spoken character of "squared" still points to the original exponent.
-function speechExponentText(value) {
+function speechMathNumber(value) {
     const digits = '⁰¹²³⁴⁵⁶⁷⁸⁹'
     const number = value.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/gu, digit => String(digits.indexOf(digit)))
-        .replace(/[⁻−]/gu, '-').replace(/⁺/gu, '+')
+        .replace(/[⁻−]/gu, '-').replace(/⁺/gu, '+').replace(/ⁿ/gu, 'n').replace(/ⁱ/gu, 'i').trim()
+    if (/^\p{L}$/u.test(number)) return number
     if (!/^[+-]?\d+$/u.test(number)) return null
-    if (number === '2') return ' squared'
-    if (number === '3') return ' cubed'
     const unsigned = number.replace(/^[+-]/u, '')
     const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
     const sign = number.startsWith('-') ? 'minus ' : number.startsWith('+') ? 'plus ' : ''
-    return ' to the power of ' + sign + (words[unsigned] ?? unsigned)
+    return sign + (words[unsigned] ?? unsigned)
+}
+
+function speechExponentText(value) {
+    if (value === '2' || value === '²') return ' squared'
+    if (value === '3' || value === '³') return ' cubed'
+    const parts = value.split('/')
+    const spoken = parts.map(speechMathNumber)
+    if (parts.length > 2 || spoken.some(part => part == null)) return null
+    return ' to the power of ' + spoken.join(' over ')
+}
+
+function speechMathBase(prefix, element) {
+    if (!/[\p{L}\p{N})\]]$/u.test(prefix)) return false
+    // A multi-letter prose word followed by a raised number is usually an unmarked footnote.
+    // Explicit math markup permits named bases; otherwise require a single variable, number or group.
+    if (element?.closest('math')) return true
+    const word = prefix.match(/\p{L}+$/u)?.[0]
+    return !word || Array.from(word).length === 1 || /^(?:sin|cos|tan|sec|csc|cot|log|ln|exp|mm|cm|km|ft)$/u.test(word)
+}
+
+function speechMathValue(element) {
+    if (element.localName === 'mfrac' && element.children.length === 2) {
+        return Array.from(element.children, child => {
+            const spoken = speechMathValue(child)
+            return child.localName === 'mfrac' || child.querySelector('mfrac')
+                ? 'fraction ' + spoken + ' end fraction' : spoken
+        }).join(' over ')
+    }
+    if (element.children.length) return Array.from(element.childNodes, child => child.nodeType === 1
+        ? speechMathValue(child) : child.textContent.trim()).filter(Boolean).join(' ')
+    return speechMathNumber(element.textContent) ?? element.textContent.trim()
+}
+
+function raisedPdfSpeechSpan(node, previous) {
+    if (!speechExponentText(node.data.trim())) return null
+    const span = node.parentElement?.closest('span')
+    const base = previous?.parentElement?.closest('span')
+    if (!span || !base || span === base) return null
+    const style = node.ownerDocument.defaultView?.getComputedStyle(span)
+    if (style?.verticalAlign === 'super') return span
+    const current = span.getBoundingClientRect()
+    const before = base.getBoundingClientRect()
+    const font = parseFloat(style?.fontSize)
+    const baseFont = parseFloat(node.ownerDocument.defaultView?.getComputedStyle(base).fontSize)
+    if (before.height > 0 && font > 0 && font <= baseFont * 0.85 &&
+        current.bottom < before.bottom - before.height * 0.15 &&
+        current.top >= before.top - before.height * 0.6 &&
+        Math.abs(current.left - before.right) <= baseFont * 0.8) return span
+    return null
 }
 
 // The chapter's sentences in reading order, from the first one not before [fromRange] (the page on screen).
@@ -1773,6 +1826,7 @@ function speechSentencesFor(doc, index, fromRange) {
     const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
     const pieces = []
     const superscripts = new Map()
+    const fractions = new Map()
     const boundaries = []
     let text = ''
     let lastBlock = null
@@ -1792,7 +1846,7 @@ function speechSentencesFor(doc, index, fromRange) {
         }
         const parent = node.parentElement
         if (!node.data || parent?.closest('script, style, rt, [hidden], [aria-hidden="true"], [role="doc-noteref"], [epub\\:type~="noteref"]')) continue
-        if (parent?.closest('a') && isSpeechNoteReference(parent.closest('a'))) continue
+        if (parent?.closest('a') && isSpeechNoteReference(parent.closest('a'), text)) continue
         if (parent?.closest('[role="doc-pageheader"], [role="doc-pagefooter"]')) continue
         if (fixedLayout && Array.from(ignoredMargins).some(span => span.contains(node))) continue
         // Separate blocks so a paragraph without closing punctuation doesn't run into the next one.
@@ -1806,25 +1860,44 @@ function speechSentencesFor(doc, index, fromRange) {
             pendingPause = 0
         }
         lastBlock = block
+        const power = parent?.closest('msup')?.children[1]
+        const sup = parent?.closest('sup') ?? (power?.contains(node) ? power : null) ??
+            (fixedLayout ? raisedPdfSpeechSpan(node, pieces.at(-1)?.node) : null)
         pieces.push({ node, start: text.length })
-        const sup = parent?.closest('sup')
         if (sup) {
             const span = superscripts.get(sup) ?? { start: text.length, end: text.length }
             span.end = text.length + node.data.length
             superscripts.set(sup, span)
         }
+        for (let fraction = parent?.closest('mfrac'); fraction; fraction = fraction.parentElement?.closest('mfrac')) {
+            const span = fractions.get(fraction) ?? { start: text.length, end: text.length }
+            span.end = text.length + node.data.length
+            fractions.set(fraction, span)
+        }
         text += node.data
     }
     const exponents = []
-    for (const span of superscripts.values()) {
-        if (!/[\p{L}\p{N})\]]$/u.test(text.slice(Math.max(0, span.start - 2), span.start))) continue
-        const spoken = speechExponentText(text.slice(span.start, span.end))
+    for (const [element, span] of superscripts) {
+        const prefix = text.slice(0, span.start)
+        const value = text.slice(span.start, span.end)
+        if (!speechMathBase(prefix, element)) {
+            if (/\p{L}$/u.test(prefix) && /^\d{1,3}$/u.test(value)) exponents.push({ ...span, text: '' })
+            continue
+        }
+        const spoken = element.localName === 'mfrac' || element.querySelector('mfrac')
+            ? ' to the power of ' + speechMathValue(element) : speechExponentText(value)
         if (spoken) exponents.push({ ...span, text: spoken })
     }
-    for (const match of text.matchAll(/(?<=[\p{L}\p{N})\]])[⁺⁻]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+/gu)) {
+    for (const [element, span] of fractions) {
+        if (element.parentElement?.closest('mfrac') || element.children.length !== 2 ||
+            exponents.some(other => span.start >= other.start && span.end <= other.end)) continue
+        const prefix = span.start && !/\s/u.test(text[span.start - 1]) ? ' ' : ''
+        exponents.push({ ...span, text: prefix + speechMathValue(element) })
+    }
+    for (const match of text.matchAll(/(?<=[\p{L}\p{N})\]])(?:[⁺⁻]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+|[ⁿⁱ])/gu)) {
         const end = match.index + match[0].length
         if (exponents.some(span => match.index < span.end && end > span.start)) continue
-        exponents.push({ start: match.index, end, text: speechExponentText(match[0]) })
+        exponents.push({ start: match.index, end, text: speechMathBase(text.slice(0, match.index)) ? speechExponentText(match[0]) : '' })
     }
     const pointAt = offset => {
         let low = 0
@@ -1892,10 +1965,15 @@ function speechSentencesFor(doc, index, fromRange) {
     return sentences
 }
 
-function isSpeechNoteReference(link) {
+function isSpeechNoteReference(link, prefix = '') {
     const types = `${link.getAttributeNS('http://www.idpf.org/2007/ops', 'type') ?? ''} ${link.getAttribute('epub:type') ?? ''}`
-    // Numeric superscript links are common in EPUBs lacking semantic markup. Ordinary superscripts (x²) remain spoken.
-    return /\bnoteref\b/.test(types) || (link.closest('sup') && /^[\[(]?\d{1,3}[\])]?$/u.test(link.textContent.trim()))
+    if (/\bnoteref\b/.test(types) || link.getAttribute('role') === 'doc-noteref') return true
+    const href = link.getAttribute('href') ?? ''
+    const id = href.startsWith('#') ? href.slice(1) : null
+    const target = id ? link.ownerDocument.getElementById(id) : null
+    const targetTypes = `${target?.getAttributeNS('http://www.idpf.org/2007/ops', 'type') ?? ''} ${target?.getAttribute('epub:type') ?? ''}`
+    if (/\b(?:footnote|endnote)\b/u.test(targetTypes) || /^doc-(?:footnote|endnote)$/u.test(target?.getAttribute('role') ?? '')) return true
+    return link.closest('sup') && /^[\[(]?\d{1,3}[\])]?$/u.test(link.textContent.trim()) && !speechMathBase(prefix, link)
 }
 
 // [fromCfi] starts reading at the sentence holding that position (a selection) instead of at the top of the page.

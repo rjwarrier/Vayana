@@ -159,9 +159,66 @@ test('expanded exponents and following words highlight their original source wit
     }
 })
 
-test('ordinary digits, symbolic superscripts and standalone superscripts are not rewritten as powers', () => {
+test('ordinary digits and standalone superscripts are preserved while symbolic powers are spoken', () => {
     const { sentences } = setup('<p>Read x2, x<sup>n</sup> and H<sub>2</sub>O.</p><p><sup>2</sup> is a label.</p>')
-    assert.deepEqual(Array.from(sentences, s => s.text), ['Read x2, xn and H2O.', '2 is a label.'])
+    assert.deepEqual(Array.from(sentences, s => s.text), ['Read x2, x to the power of n and H2O.', '2 is a label.'])
+})
+
+test('adjacent factors, symbolic powers and fractional powers retain their boundaries', () => {
+    const { sentences } = setup('<p>Read x²y, x<sup>n</sup>, xⁿ and x<sup>1/2</sup>.</p>')
+    assert.equal(sentences[0].text, 'Read x squared y, x to the power of n, x to the power of n and x to the power of one over two.')
+})
+
+test('MathML fractions and powers retain their structure instead of concatenating digits', () => {
+    const { context, sentences } = setup('<p>Read <math><mfrac><mn>1</mn><mn>2</mn></mfrac></math> then <math><msup><mi>x</mi><mi>n</mi></msup></math> next.</p>')
+    assert.equal(sentences[0].text, 'Read one over two then x to the power of n next.')
+    context.sentenceId = sentences[0].id
+    const start = sentences[0].text.indexOf('one')
+    assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${start}, ${start + 12}).toString()`, context), '12')
+    const next = sentences[0].text.indexOf('next')
+    assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${next}, ${next + 4}).toString()`, context), 'next')
+})
+
+test('fractional MathML exponents and nested fractions preserve numerator and denominator boundaries', () => {
+    const { sentences } = setup('<p>Read <math><msup><mi>x</mi><mrow><mfrac><mn>1</mn><mn>2</mn></mfrac></mrow></msup></math>.</p><p>Read <math><mfrac><mfrac><mn>1</mn><mn>2</mn></mfrac><mn>3</mn></mfrac></math>.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['Read x to the power of one over two.', 'Read fraction one over two end fraction over three.'])
+})
+
+test('squared units and trigonometric functions are mathematical bases, not prose footnotes', () => {
+    const { sentences } = setup('<p>Read 5 cm² and sin<sup>2</sup>x.</p>')
+    assert.equal(sentences[0].text, 'Read 5 cm squared and sin squared x.')
+})
+
+test('linked powers survive while semantic and prose footnotes remain silent', () => {
+    const { sentences } = setup('<p>Read x<sup><a href="#equation">2</a></sup>. Sentence<sup>2</sup> continues. Sentence² continues. Read x<sup><a role="doc-noteref" href="#note">3</a></sup>.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['Read x squared.', 'Sentence continues.', 'Sentence continues.', 'Read x.'])
+})
+
+test('links to marked footnote targets override apparent mathematical bases', () => {
+    const { sentences } = setup('<p>Read x<sup><a href="#note">2</a></sup>.</p><aside id="note" role="doc-footnote" hidden>Footnote</aside>')
+    assert.equal(sentences[0].text, 'Read x.')
+})
+
+test('explicitly raised PDF digits become powers without rewriting ordinary digits', () => {
+    const { context, sentences } = setup('<div class="textLayer"><span>Read x</span><span style="vertical-align:super">2</span><span> then x2.</span></div>', { fixedLayout: true })
+    assert.equal(sentences[0].text, 'Read x squared then x2.')
+    context.sentenceId = sentences[0].id
+    const start = sentences[0].text.indexOf('squared')
+    assert.equal(vm.runInContext(`speech.sentences.get(sentenceId).rangeForOffsets(${start}, ${start + 7}).toString()`, context), '2')
+})
+
+test('PDF powers require a smaller raised adjacent span, not merely a higher position', () => {
+    const { window } = new JSDOM('<div class="textLayer"><span>Read x</span><span>2</span><span> then y</span><span>3</span><span> ends.</span></div>')
+    const spans = window.document.querySelectorAll('span')
+    const boxes = [[0, 20, 60, 40], [60, 15, 68, 29], [68, 20, 128, 40], [128, 20, 138, 40], [138, 20, 200, 40]]
+    spans.forEach((span, i) => {
+        const [left, top, right, bottom] = boxes[i]
+        span.getBoundingClientRect = () => ({ left, top, right, bottom, width: right - left, height: bottom - top })
+        span.style.fontSize = i === 1 ? '14px' : '20px'
+    })
+    const context = vm.createContext({ NodeFilter: window.NodeFilter, fixedLayout: true, segmenterFor: () => new Intl.Segmenter('en', { granularity: 'sentence' }) })
+    vm.runInContext(source, context)
+    assert.equal(context.speechSentencesFor(window.document, 0, null)[0].text, 'Read x squared then y3 ends.')
 })
 
 test('PDF wraps join words, retain compound hyphens and map the original printed text', () => {
