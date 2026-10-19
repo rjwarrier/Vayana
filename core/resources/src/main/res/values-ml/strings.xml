@@ -645,6 +645,8 @@
     <string name="share_quote_weight_medium">ഇടത്തരം</string>
     <string name="share_quote_weight_bold">കട്ടിയുള്ള</string>
     <string name="share_quote_italic">ഇറ്റാലിക്</string>
+    <string name="share_quote_fit">കാർഡിൽ ഒതുക്കുക</string>
+    <string name="share_quote_largest_size">പരമാവധി വലുപ്പം</string>
     <string name="share_quote_align">വിന്യാസം</string>
     <string name="share_quote_shape">ആകൃതി</string>
     <string name="share_quote_gap">പുസ്തക വിവരങ്ങൾക്ക് മുമ്പുള്ള ഇടം</string>

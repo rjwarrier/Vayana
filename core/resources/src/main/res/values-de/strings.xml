@@ -645,6 +645,8 @@
     <string name="share_quote_weight_medium">Mittel</string>
     <string name="share_quote_weight_bold">Fett</string>
     <string name="share_quote_italic">Kursiv</string>
+    <string name="share_quote_fit">An Karte anpassen</string>
+    <string name="share_quote_largest_size">Größte Schrift</string>
     <string name="share_quote_align">Ausrichtung</string>
     <string name="share_quote_shape">Format</string>
     <string name="share_quote_gap">Abstand vor den Buchangaben</string>

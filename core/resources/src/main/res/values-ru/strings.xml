@@ -661,6 +661,8 @@
     <string name="share_quote_weight_medium">Средний</string>
     <string name="share_quote_weight_bold">Жирный</string>
     <string name="share_quote_italic">Курсив</string>
+    <string name="share_quote_fit">Вписать в карточку</string>
+    <string name="share_quote_largest_size">Наибольший размер</string>
     <string name="share_quote_align">Выравнивание</string>
     <string name="share_quote_shape">Формат</string>
     <string name="share_quote_gap">Отступ перед данными книги</string>

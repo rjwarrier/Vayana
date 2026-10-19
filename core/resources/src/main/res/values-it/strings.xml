@@ -653,6 +653,8 @@
     <string name="share_quote_weight_medium">Medio</string>
     <string name="share_quote_weight_bold">Grassetto</string>
     <string name="share_quote_italic">Corsivo</string>
+    <string name="share_quote_fit">Adatta alla scheda</string>
+    <string name="share_quote_largest_size">Dimensione massima</string>
     <string name="share_quote_align">Allineamento</string>
     <string name="share_quote_shape">Formato</string>
     <string name="share_quote_gap">Spazio prima dei dati del libro</string>

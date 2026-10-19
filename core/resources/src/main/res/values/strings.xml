@@ -663,6 +663,8 @@
     <string name="share_quote_weight_medium">Medium</string>
     <string name="share_quote_weight_bold">Bold</string>
     <string name="share_quote_italic">Italic</string>
+    <string name="share_quote_fit">Fit to card</string>
+    <string name="share_quote_largest_size">Largest size</string>
     <string name="share_quote_align">Alignment</string>
     <string name="share_quote_shape">Shape</string>
     <string name="share_quote_gap">Space before book details</string>

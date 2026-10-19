@@ -653,6 +653,8 @@
     <string name="share_quote_weight_medium">Medium</string>
     <string name="share_quote_weight_bold">Gras</string>
     <string name="share_quote_italic">Italique</string>
+    <string name="share_quote_fit">Ajuster à la carte</string>
+    <string name="share_quote_largest_size">Taille maximale</string>
     <string name="share_quote_align">Alignement</string>
     <string name="share_quote_shape">Format</string>
     <string name="share_quote_gap">Espace avant les infos du livre</string>

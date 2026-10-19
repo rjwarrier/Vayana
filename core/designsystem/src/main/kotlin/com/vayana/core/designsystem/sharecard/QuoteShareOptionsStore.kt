@@ -37,6 +37,7 @@ internal object QuoteShareOptionsStore {
             showProfileName = p.getBoolean("showProfileName", d.showProfileName),
             sealScale = p.getFloat("sealScale", d.sealScale),
             quoteFontScale = p.getFloat("quoteFontScale", d.quoteFontScale),
+            fitText = p.getBoolean("fitText", d.fitText),
         )
     }
 
@@ -65,6 +66,7 @@ internal object QuoteShareOptionsStore {
             putBoolean("showProfileName", o.showProfileName)
             putFloat("sealScale", o.sealScale)
             putFloat("quoteFontScale", o.quoteFontScale)
+            putBoolean("fitText", o.fitText)
         }
     }
 

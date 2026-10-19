@@ -1,5 +1,9 @@
 package com.vayana.core.designsystem.sharecard
 
+import androidx.compose.ui.unit.em
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -164,6 +168,8 @@ data class QuoteShareOptions(
     /** The seal's size, as a multiple of the wordmark-sized default. */
     val sealScale: Float = 1f,
     val quoteFontScale: Float = 1f,
+    /** Shrink the quote (from [quoteFontScale] down) until all of it fits, instead of cutting it off. */
+    val fitText: Boolean = true,
 )
 
 /**
@@ -418,8 +424,13 @@ private fun QuoteTextTab(
     ShareCardWeightRow(selected = options.weight, onSelect = { onOptionsChange(options.copy(weight = it)) })
     ShareCardOptionsLabel(stringResource(R.string.share_quote_title_font))
     ShareCardFontRow(selected = options.titleFont, onSelect = { onOptionsChange(options.copy(titleFont = it)) })
+    ShareCardOptionChip(
+        selected = options.fitText,
+        label = stringResource(R.string.share_quote_fit),
+        onClick = { onOptionsChange(options.copy(fitText = !options.fitText)) },
+    )
     ShareCardSliderRow(
-        label = stringResource(R.string.settings_reader_font_size_title),
+        label = stringResource(if (options.fitText) R.string.share_quote_largest_size else R.string.settings_reader_font_size_title),
         value = options.quoteFontScale,
         range = MinQuoteFontScale..MaxQuoteFontScale,
         steps = QuoteFontScaleSteps,
@@ -678,6 +689,7 @@ fun QuoteShareCard(
         quoteStyle = { base -> base.forQuote(options) },
         titleStyle = { base -> base.copy(fontFamily = options.titleFont.family) },
         align = options.align,
+        fit = options.fitText,
         detailsGap = options.detailsGap.coerceIn(MinDetailsGap, MaxDetailsGap),
         showDivider = options.showDetailsDivider,
         // A taller card has room for more of a long quote.
@@ -741,16 +753,7 @@ private fun ClassicQuoteBody(content: QuoteShareContent, colors: ShareCardColors
             Text(text = "“", style = ShareCardTypography.quoteMark, color = colors.accent)
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
-        Text(
-            text = content.text,
-            style = content.quoteStyle(ShareCardTypography.quoteBody),
-            // Gives way to the book details below, ending in an ellipsis rather than pushing them off the card.
-            modifier = Modifier.weight(1f, fill = false),
-            color = colors.primaryText,
-            textAlign = content.textAlign(default = TextAlign.Start),
-            maxLines = content.lines(if (cover != null) 6 else 8),
-            overflow = TextOverflow.Ellipsis,
-        )
+        QuoteText(content, ShareCardTypography.quoteBody, colors, default = TextAlign.Start, maxLines = content.lines(if (cover != null) 6 else 8))
         if (content.hasAttribution || cover != null) {
             DetailsSeparator(content, colors, base = Spacing.lg, short = centered)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -798,16 +801,7 @@ private fun CenteredQuoteBody(content: QuoteShareContent, colors: ShareCardColor
         if (content.showQuoteMark) {
             Text(text = "“", style = ShareCardTypography.quoteMark, color = colors.accent)
         }
-        Text(
-            text = content.text,
-            style = content.quoteStyle(ShareCardTypography.quoteBody),
-            // Gives way to the book details below, ending in an ellipsis rather than pushing them off the card.
-            modifier = Modifier.weight(1f, fill = false),
-            color = colors.primaryText,
-            textAlign = content.textAlign(default = TextAlign.Center),
-            maxLines = content.lines(if (content.coverPath != null) 5 else 7),
-            overflow = TextOverflow.Ellipsis,
-        )
+        QuoteText(content, ShareCardTypography.quoteBody, colors, default = TextAlign.Center, maxLines = content.lines(if (content.coverPath != null) 5 else 7))
         if (content.hasAttribution) {
             DetailsSeparator(content, colors, base = Spacing.md, short = !start)
             QuoteAttribution(content, colors, textAlign = if (start) TextAlign.Start else TextAlign.Center)
@@ -824,16 +818,7 @@ private fun MinimalQuoteBody(content: QuoteShareContent, colors: ShareCardColors
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = content.text,
-            style = content.quoteStyle(ShareCardTypography.quoteBodyLarge),
-            // Gives way to the book details below, ending in an ellipsis rather than pushing them off the card.
-            modifier = Modifier.weight(1f, fill = false),
-            color = colors.primaryText,
-            textAlign = content.textAlign(default = TextAlign.Start),
-            maxLines = content.lines(7),
-            overflow = TextOverflow.Ellipsis,
-        )
+        QuoteText(content, ShareCardTypography.quoteBodyLarge, colors, default = TextAlign.Start, maxLines = content.lines(7))
         if (content.hasAttribution) {
             DetailsSeparator(content, colors, base = Spacing.md, short = centered)
             Text(
@@ -845,6 +830,34 @@ private fun MinimalQuoteBody(content: QuoteShareContent, colors: ShareCardColors
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/**
+ * The quote itself. It gives way to the book details below rather than pushing them off the card: with Fit to card
+ * on, it shrinks (from the chosen size down to [MinFitScale] of it) until all of it fits; otherwise it ends in an
+ * ellipsis after [maxLines].
+ */
+@Composable
+private fun ColumnScope.QuoteText(content: QuoteShareContent, base: TextStyle, colors: ShareCardColors, default: TextAlign, maxLines: Int) {
+    val style = content.quoteStyle(base).copy(color = colors.primaryText, textAlign = content.textAlign(default))
+    val modifier = Modifier.weight(1f, fill = false)
+    if (content.fit) {
+        // Line height as a multiple of the font size, so lines tighten as the text shrinks.
+        val fitted = style.copy(lineHeight = (style.lineHeight.value / style.fontSize.value).em)
+        BasicText(
+            text = content.text,
+            modifier = modifier,
+            style = fitted,
+            overflow = TextOverflow.Ellipsis,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = style.fontSize * MinFitScale,
+                maxFontSize = style.fontSize,
+                stepSize = style.fontSize * FitStepFraction,
+            ),
+        )
+    } else {
+        Text(text = content.text, style = style, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -929,6 +942,7 @@ private data class QuoteShareContent(
     val quoteStyle: (TextStyle) -> TextStyle,
     val titleStyle: (TextStyle) -> TextStyle,
     val align: QuoteCardAlign,
+    val fit: Boolean,
     val detailsGap: Float,
     val showDivider: Boolean,
     val lineScale: Float,
@@ -1049,6 +1063,8 @@ private const val MaxShareQuoteCharacters = 2_000
 internal const val MinBackdropOpacity = 0.1f
 internal const val MaxBackdropOpacity = 0.6f
 private const val DividerAlpha = 0.4f
+private const val MinFitScale = 0.4f
+private const val FitStepFraction = 0.025f
 private const val MinDetailsGap = 0f
 private const val MaxDetailsGap = 3f
 private const val DetailsGapSteps = 11

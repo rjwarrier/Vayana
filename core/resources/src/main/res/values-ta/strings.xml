@@ -645,6 +645,8 @@
     <string name="share_quote_weight_medium">நடுத்தர</string>
     <string name="share_quote_weight_bold">தடித்த</string>
     <string name="share_quote_italic">சாய்வு</string>
+    <string name="share_quote_fit">அட்டைக்குப் பொருத்து</string>
+    <string name="share_quote_largest_size">அதிகபட்ச அளவு</string>
     <string name="share_quote_align">சீரமைப்பு</string>
     <string name="share_quote_shape">வடிவம்</string>
     <string name="share_quote_gap">நூல் விவரங்களுக்கு முன் இடைவெளி</string>

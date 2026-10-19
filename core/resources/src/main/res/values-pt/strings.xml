@@ -653,6 +653,8 @@
     <string name="share_quote_weight_medium">Médio</string>
     <string name="share_quote_weight_bold">Negrito</string>
     <string name="share_quote_italic">Itálico</string>
+    <string name="share_quote_fit">Ajustar ao cartão</string>
+    <string name="share_quote_largest_size">Tamanho máximo</string>
     <string name="share_quote_align">Alinhamento</string>
     <string name="share_quote_shape">Formato</string>
     <string name="share_quote_gap">Espaço antes dos dados do livro</string>
