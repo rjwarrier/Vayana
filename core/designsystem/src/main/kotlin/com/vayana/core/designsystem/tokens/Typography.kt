@@ -46,8 +46,10 @@ object FontFamilies {
     )
 
     val Mono = FontFamily(
+        Font(R.font.jetbrains_mono, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
         Font(R.font.jetbrains_mono, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
         Font(R.font.jetbrains_mono, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+        Font(R.font.jetbrains_mono, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
     )
 }
 

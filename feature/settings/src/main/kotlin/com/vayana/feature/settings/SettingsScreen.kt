@@ -1,5 +1,7 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.designsystem.sharecard.ShareSealCard
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.LaunchedEffect
 import android.os.Build
@@ -117,8 +119,11 @@ internal val SettingsCategoryBadgeSize = Sizes.badge
 private fun settingsCategoryEntries(settings: SettingsSnapshot): List<Pair<SettingsGroup, Int>> =
     SettingsGroup.entries.mapNotNull { group ->
         val settingCount = SettingsRegistry.all.count { it.group == group && it.isVisibleFor(settings) }
-        if (settingCount > 0 || group == SettingsGroup.BACKUP) group to settingCount else null
+        if (settingCount > 0 || group in PageOnlyGroups) group to settingCount else null
     }
+
+/** Groups with no registry settings, only a page of their own: listed anyway, and without Reset all. */
+private val PageOnlyGroups = setOf(SettingsGroup.BACKUP, SettingsGroup.PROFILE)
 
 internal const val VAYANA_GITHUB_URL = "https://github.com/rjwarrier/Vayana"
 internal const val VAYANA_RELEASES_URL = "https://github.com/rjwarrier/Vayana/releases"
@@ -352,7 +357,7 @@ private fun SettingsScreen(
                     }
                 },
                 actions = {
-                    if (selectedGroup != SettingsGroup.BACKUP) {
+                    if (selectedGroup !in PageOnlyGroups) {
                         IconButton(onClick = { showResetAllDialog = true }) {
                             Icon(
                                 imageVector = Icons.Outlined.RestartAlt,
@@ -807,6 +812,11 @@ private fun SettingsGroupDetail(
         if (group == SettingsGroup.READER_TEXT) {
             item {
                 SettingsContentContainer { DictionariesCard() }
+            }
+        }
+        if (group == SettingsGroup.PROFILE) {
+            item {
+                SettingsContentContainer { ShareSealCard() }
             }
         }
         if (group == SettingsGroup.READER_TEXT) {
@@ -1424,6 +1434,7 @@ internal fun SettingsGroup.icon(): ImageVector = when (this) {
     SettingsGroup.GOALS -> Icons.Outlined.Flag
     SettingsGroup.SYNC -> Icons.Outlined.Sync
     SettingsGroup.BACKUP -> Icons.Outlined.Backup
+    SettingsGroup.PROFILE -> Icons.Outlined.AccountCircle
 }
 
 /**

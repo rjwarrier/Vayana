@@ -59,6 +59,10 @@ object Palette {
     val TextMutedDark = Color(0xFF8A9BB0)
     val TextMutedLight = Color(0xFF6B7280)
 
+    /** Accents for the fixed quote-card palettes that have no matching ramp colour above. */
+    val ShareSepiaAccent = Color(0xFF8A5A2B)
+    val ShareRoseAccent = Color(0xFF9C3D54)
+
     val Amoled = Color(0xFF000000)
     val NearBlack = Color(0xFF0A0A0A)
     val ReaderOledBackground = Amoled

@@ -1,6 +1,9 @@
 package com.vayana.core.designsystem.sharecard
 
+import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import kotlin.math.roundToInt
 import android.os.Build
 import androidx.compose.ui.res.painterResource
 import com.vayana.core.designsystem.theme.ColorSchemes
@@ -106,18 +109,7 @@ fun ShareCardDialog(
         isCapturing = true
         scope.launch {
             try {
-                // An option tap and the Share button can land in adjacent frames. Wait for the card's newly selected
-                // theme/layout/text to be drawn into the export layer before reading it back.
-                withFrameNanos { }
-                withFrameNanos { }
-                val captured = exportLayer.toImageBitmap().asAndroidBitmap()
-                // Hardware bitmaps can't be read back for encoding; take a plain copy first.
-                val bitmap = if (captured.config == Bitmap.Config.HARDWARE) {
-                    captured.copy(Bitmap.Config.ARGB_8888, false)
-                } else {
-                    captured
-                }
-                context.shareBitmap(bitmap, chooserTitle, shareImageFileName, ShareImageFormat.JPEG)
+                exportLayer.shareCardImage(context, chooserTitle, shareImageFileName)
                 onDismiss()
             } finally {
                 isCapturing = false
@@ -150,18 +142,7 @@ fun ShareCardDialog(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radii.large))
-                        .drawWithContent {
-                            // Recorded straight at the export size instead of captured from the screen and
-                            // upscaled, so text and shapes stay sharp in the saved image.
-                            val exportSize = Sizes.shareCardExportPx
-                            val exportScale = exportSize / size.width
-                            exportLayer.record(size = IntSize(exportSize, exportSize)) {
-                                scale(exportScale, pivot = Offset.Zero) {
-                                    this@drawWithContent.drawContent()
-                                }
-                            }
-                            drawContent()
-                        },
+                        .recordShareCard(exportLayer),
                 ) {
                     card()
                 }
@@ -217,6 +198,31 @@ fun ShareCardDialog(
             }
         }
     }
+}
+
+/**
+ * Records what this draws into [layer] at the export size ([Sizes.shareCardExportPx] wide, its own aspect ratio
+ * tall) as well as drawing it, so the shared image is rendered sharp instead of upscaled from the screen.
+ */
+internal fun Modifier.recordShareCard(layer: GraphicsLayer): Modifier = drawWithContent {
+    val exportWidth = Sizes.shareCardExportPx
+    val exportScale = exportWidth / size.width
+    layer.record(size = IntSize(exportWidth, (size.height * exportScale).roundToInt())) {
+        scale(exportScale, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
+    }
+    drawContent()
+}
+
+/** Shares what [recordShareCard] last recorded into this layer as a JPEG. */
+internal suspend fun GraphicsLayer.shareCardImage(context: Context, chooserTitle: String, fileName: String?) {
+    // An option tap and the Share button can land in adjacent frames. Wait for the card's newly selected
+    // theme/layout/text to be drawn into the export layer before reading it back.
+    withFrameNanos { }
+    withFrameNanos { }
+    val captured = toImageBitmap().asAndroidBitmap()
+    // Hardware bitmaps can't be read back for encoding; take a plain copy first.
+    val bitmap = if (captured.config == Bitmap.Config.HARDWARE) captured.copy(Bitmap.Config.ARGB_8888, false) else captured
+    context.shareBitmap(bitmap, chooserTitle, fileName, ShareImageFormat.JPEG)
 }
 
 /** Brand lockup on every share card: the unframed mark and wordmark share the card's accent colour. */

@@ -14,6 +14,8 @@ enum class SettingsGroup(
     @param:StringRes val titleRes: Int,
     @param:StringRes val subtitleRes: Int,
 ) {
+    /** Holds no registry settings; its page is the share-card seal. */
+    PROFILE(R.string.settings_group_profile, R.string.settings_group_profile_subtitle),
     APPEARANCE(R.string.settings_group_appearance, R.string.settings_group_appearance_subtitle),
     LIBRARY(R.string.settings_group_library, R.string.settings_group_library_subtitle),
     READER_TEXT(R.string.settings_group_reader_text, R.string.settings_group_reader_text_subtitle),
