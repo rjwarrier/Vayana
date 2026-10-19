@@ -788,6 +788,52 @@
     <string name="statistics_genres_title">குறிச்சொற்கள்</string>
     <string name="statistics_genres_support">வாசிப்பு நேரப்படி வரிசைப்படுத்திய நூல் குறிச்சொற்கள்</string>
     <string name="statistics_genres_row_value">%1$d நூல்கள் · %2$s</string>
+    <string name="statistics_period_week">வாரம்</string>
+    <string name="statistics_period_month">மாதம்</string>
+    <string name="statistics_period_year">ஆண்டு</string>
+    <string name="statistics_period_all">எல்லாம்</string>
+    <string name="statistics_period_title_week">இந்த வாரம்</string>
+    <string name="statistics_period_title_month">இந்த மாதம்</string>
+    <string name="statistics_period_title_year">இந்த ஆண்டு</string>
+    <string name="statistics_period_compare_week">கடந்த வாரம் இதே நேரத்தை விட</string>
+    <string name="statistics_period_compare_month">கடந்த மாதம் இதே நேரத்தை விட</string>
+    <string name="statistics_period_compare_year">கடந்த ஆண்டு இதே நேரத்தை விட</string>
+    <string name="statistics_period_more">%1$s கூடுதல்</string>
+    <string name="statistics_period_less">%1$s குறைவு</string>
+    <string name="statistics_section_reading">வாசிப்பு</string>
+    <string name="statistics_section_books">நூல்கள்</string>
+    <string name="statistics_section_notes">குறிப்புகளும் சொற்களும்</string>
+    <string name="statistics_section_library">நூலகம்</string>
+    <string name="statistics_streak_title">தொடர்</string>
+    <string name="statistics_rhythm_title">எப்போது வாசிக்கிறீர்கள்</string>
+    <string name="statistics_rhythm_share">%1$d%%</string>
+    <string name="statistics_rhythm_peak_morning">பெரும்பாலும் காலையில் வாசிக்கிறீர்கள்</string>
+    <string name="statistics_rhythm_peak_afternoon">பெரும்பாலும் மதியம் வாசிக்கிறீர்கள்</string>
+    <string name="statistics_rhythm_peak_evening">பெரும்பாலும் மாலையில் வாசிக்கிறீர்கள்</string>
+    <string name="statistics_rhythm_peak_night">பெரும்பாலும் இரவில் வாசிக்கிறீர்கள்</string>
+    <string name="statistics_rhythm_average">சராசரி அமர்வு: %1$s</string>
+    <string name="statistics_rhythm_longest">நீண்ட அமர்வு: %1$s</string>
+    <string name="statistics_time_morning">காலை</string>
+    <string name="statistics_time_afternoon">மதியம்</string>
+    <string name="statistics_time_evening">மாலை</string>
+    <string name="statistics_time_night">இரவு</string>
+    <string name="statistics_top_books_title">அதிகம் வாசித்தவை</string>
+    <plurals name="statistics_period_sessions">
+        <item quantity="one">%1$d அமர்வு</item>
+        <item quantity="other">%1$d அமர்வுகள்</item>
+    </plurals>
+    <plurals name="statistics_period_days">
+        <item quantity="one">%1$d நாள் வாசிப்பு</item>
+        <item quantity="other">%1$d நாட்கள் வாசிப்பு</item>
+    </plurals>
+    <plurals name="statistics_period_finished">
+        <item quantity="one">%1$d முடிந்தது</item>
+        <item quantity="other">%1$d முடிந்தன</item>
+    </plurals>
+    <plurals name="statistics_streak_days">
+        <item quantity="one">%1$d நாள்</item>
+        <item quantity="other">%1$d நாட்கள்</item>
+    </plurals>
     <string name="statistics_devices_title">சாதனங்கள்</string>
     <string name="statistics_devices_most_used">அதிகம் பயன்படுத்தியது: %1$s · வாசிப்பு நேரத்தில் %2$d%%</string>
     <string name="statistics_devices_row_value">%1$s · %2$d%%</string>

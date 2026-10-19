@@ -788,6 +788,52 @@
     <string name="statistics_genres_title">മുദ്രകൾ</string>
     <string name="statistics_genres_support">വായനാസമയം അനുസരിച്ച് ക്രമീകരിച്ച പുസ്തക മുദ്രകൾ</string>
     <string name="statistics_genres_row_value">%1$d പുസ്തകങ്ങൾ · %2$s</string>
+    <string name="statistics_period_week">ആഴ്ച</string>
+    <string name="statistics_period_month">മാസം</string>
+    <string name="statistics_period_year">വർഷം</string>
+    <string name="statistics_period_all">എല്ലാം</string>
+    <string name="statistics_period_title_week">ഈ ആഴ്ച</string>
+    <string name="statistics_period_title_month">ഈ മാസം</string>
+    <string name="statistics_period_title_year">ഈ വർഷം</string>
+    <string name="statistics_period_compare_week">കഴിഞ്ഞ ആഴ്ച ഇതേ സമയത്തെക്കാൾ</string>
+    <string name="statistics_period_compare_month">കഴിഞ്ഞ മാസം ഇതേ സമയത്തെക്കാൾ</string>
+    <string name="statistics_period_compare_year">കഴിഞ്ഞ വർഷം ഇതേ സമയത്തെക്കാൾ</string>
+    <string name="statistics_period_more">%1$s കൂടുതൽ</string>
+    <string name="statistics_period_less">%1$s കുറവ്</string>
+    <string name="statistics_section_reading">വായന</string>
+    <string name="statistics_section_books">പുസ്തകങ്ങൾ</string>
+    <string name="statistics_section_notes">കുറിപ്പുകളും വാക്കുകളും</string>
+    <string name="statistics_section_library">ലൈബ്രറി</string>
+    <string name="statistics_streak_title">തുടർച്ച</string>
+    <string name="statistics_rhythm_title">എപ്പോൾ വായിക്കുന്നു</string>
+    <string name="statistics_rhythm_share">%1$d%%</string>
+    <string name="statistics_rhythm_peak_morning">കൂടുതലും രാവിലെ വായിക്കുന്നു</string>
+    <string name="statistics_rhythm_peak_afternoon">കൂടുതലും ഉച്ചയ്ക്ക് വായിക്കുന്നു</string>
+    <string name="statistics_rhythm_peak_evening">കൂടുതലും വൈകുന്നേരം വായിക്കുന്നു</string>
+    <string name="statistics_rhythm_peak_night">കൂടുതലും രാത്രി വായിക്കുന്നു</string>
+    <string name="statistics_rhythm_average">ശരാശരി വായനാവേള: %1$s</string>
+    <string name="statistics_rhythm_longest">ഏറ്റവും നീണ്ട വായനാവേള: %1$s</string>
+    <string name="statistics_time_morning">രാവിലെ</string>
+    <string name="statistics_time_afternoon">ഉച്ച</string>
+    <string name="statistics_time_evening">വൈകുന്നേരം</string>
+    <string name="statistics_time_night">രാത്രി</string>
+    <string name="statistics_top_books_title">ഏറ്റവും കൂടുതൽ വായിച്ചത്</string>
+    <plurals name="statistics_period_sessions">
+        <item quantity="one">%1$d വായനാവേള</item>
+        <item quantity="other">%1$d വായനാവേളകൾ</item>
+    </plurals>
+    <plurals name="statistics_period_days">
+        <item quantity="one">%1$d ദിവസം വായിച്ചു</item>
+        <item quantity="other">%1$d ദിവസം വായിച്ചു</item>
+    </plurals>
+    <plurals name="statistics_period_finished">
+        <item quantity="one">%1$d പൂർത്തിയായി</item>
+        <item quantity="other">%1$d പൂർത്തിയായി</item>
+    </plurals>
+    <plurals name="statistics_streak_days">
+        <item quantity="one">%1$d ദിവസം</item>
+        <item quantity="other">%1$d ദിവസം</item>
+    </plurals>
     <string name="statistics_devices_title">ഉപകരണങ്ങൾ</string>
     <string name="statistics_devices_most_used">ഏറ്റവും കൂടുതൽ ഉപയോഗിച്ചത്: %1$s · വായനാസമയത്തിന്റെ %2$d%%</string>
     <string name="statistics_devices_row_value">%1$s · %2$d%%</string>

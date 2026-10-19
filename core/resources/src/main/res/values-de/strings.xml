@@ -788,6 +788,52 @@
     <string name="statistics_genres_title">Tags</string>
     <string name="statistics_genres_support">Buch-Tags nach Lesezeit sortiert</string>
     <string name="statistics_genres_row_value">%1$d Bücher · %2$s</string>
+    <string name="statistics_period_week">Woche</string>
+    <string name="statistics_period_month">Monat</string>
+    <string name="statistics_period_year">Jahr</string>
+    <string name="statistics_period_all">Gesamt</string>
+    <string name="statistics_period_title_week">Diese Woche</string>
+    <string name="statistics_period_title_month">Dieser Monat</string>
+    <string name="statistics_period_title_year">Dieses Jahr</string>
+    <string name="statistics_period_compare_week">als bis hierhin letzte Woche</string>
+    <string name="statistics_period_compare_month">als bis hierhin letzten Monat</string>
+    <string name="statistics_period_compare_year">als bis hierhin letztes Jahr</string>
+    <string name="statistics_period_more">%1$s mehr</string>
+    <string name="statistics_period_less">%1$s weniger</string>
+    <string name="statistics_section_reading">Lesen</string>
+    <string name="statistics_section_books">Bücher</string>
+    <string name="statistics_section_notes">Notizen &amp; Wörter</string>
+    <string name="statistics_section_library">Bibliothek</string>
+    <string name="statistics_streak_title">Serie</string>
+    <string name="statistics_rhythm_title">Wann du liest</string>
+    <string name="statistics_rhythm_share">%1$d %%</string>
+    <string name="statistics_rhythm_peak_morning">Du liest meist morgens</string>
+    <string name="statistics_rhythm_peak_afternoon">Du liest meist nachmittags</string>
+    <string name="statistics_rhythm_peak_evening">Du liest meist abends</string>
+    <string name="statistics_rhythm_peak_night">Du liest meist nachts</string>
+    <string name="statistics_rhythm_average">Durchschnittliche Sitzung: %1$s</string>
+    <string name="statistics_rhythm_longest">Längste Sitzung: %1$s</string>
+    <string name="statistics_time_morning">Morgens</string>
+    <string name="statistics_time_afternoon">Nachmittags</string>
+    <string name="statistics_time_evening">Abends</string>
+    <string name="statistics_time_night">Nachts</string>
+    <string name="statistics_top_books_title">Meistgelesen</string>
+    <plurals name="statistics_period_sessions">
+        <item quantity="one">%1$d Sitzung</item>
+        <item quantity="other">%1$d Sitzungen</item>
+    </plurals>
+    <plurals name="statistics_period_days">
+        <item quantity="one">%1$d Lesetag</item>
+        <item quantity="other">%1$d Lesetage</item>
+    </plurals>
+    <plurals name="statistics_period_finished">
+        <item quantity="one">%1$d beendet</item>
+        <item quantity="other">%1$d beendet</item>
+    </plurals>
+    <plurals name="statistics_streak_days">
+        <item quantity="one">%1$d Tag</item>
+        <item quantity="other">%1$d Tage</item>
+    </plurals>
     <string name="statistics_devices_title">Geräte</string>
     <string name="statistics_devices_most_used">Am meisten genutzt: %1$s · %2$d %% der Lesezeit</string>
     <string name="statistics_devices_row_value">%1$s · %2$d %%</string>

@@ -23,7 +23,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.annotation.StringRes
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -91,6 +94,8 @@ fun StatisticsRoute(
 ) {
     val viewModel: StatisticsViewModel = hiltViewModel()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
+    val period by viewModel.period.collectAsStateWithLifecycle()
+    val periodStats by viewModel.periodStats.collectAsStateWithLifecycle()
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsStateWithLifecycle()
     val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsStateWithLifecycle()
     val highlightsDue by viewModel.highlightsDue.collectAsStateWithLifecycle()
@@ -98,43 +103,20 @@ fun StatisticsRoute(
     val deviceStorage by viewModel.deviceStorage.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.refreshHighlightDue() }
 
-    StatisticsScreen(
-        onOpenBook = onOpenBook,
-        modifier = modifier,
-        summary = summary,
-        vocabularyCardCount = vocabularyCardCount,
-        vocabularyDueCount = vocabularyDueCount,
-        highlightsDue = highlightsDue,
-        libraryStorage = libraryStorage,
-        deviceStorage = deviceStorage,
-        onReviewVocabulary = onReviewVocabulary,
-        onOpenLearnWords = onOpenLearnWords,
-        onReviewHighlights = onReviewHighlights,
-    )
-}
-
-@Composable
-private fun StatisticsScreen(
-    onOpenBook: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-    summary: StatisticsSummary,
-    vocabularyCardCount: Int,
-    vocabularyDueCount: Int,
-    highlightsDue: List<Annotation>,
-    libraryStorage: LibraryStorage?,
-    deviceStorage: DeviceStorage?,
-    onReviewVocabulary: () -> Unit,
-    onOpenLearnWords: () -> Unit,
-    onReviewHighlights: () -> Unit,
-) {
     Scaffold(
         modifier = modifier,
         topBar = {
-            Text(
-                text = stringResource(R.string.statistics_title),
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(Paddings.screenHorizontal),
-            )
+            // Opaque, so cards scroll under it instead of showing through the title; the period stays in reach.
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Paddings.screenHorizontal)) {
+                    Text(
+                        text = stringResource(R.string.statistics_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.padding(vertical = Spacing.md),
+                    )
+                    PeriodSelector(selected = period, onSelect = viewModel::selectPeriod, modifier = Modifier.padding(bottom = Spacing.sm))
+                }
+            }
         },
     ) { innerPadding ->
         if (summary.totalBooks == 0 && summary.totalAnnotations == 0 && vocabularyCardCount == 0) {
@@ -144,6 +126,7 @@ private fun StatisticsScreen(
                 onOpenBook = onOpenBook,
                 contentPadding = innerPadding,
                 summary = summary,
+                periodStats = periodStats,
                 vocabularyCardCount = vocabularyCardCount,
                 vocabularyDueCount = vocabularyDueCount,
                 highlightsDue = highlightsDue,
@@ -162,6 +145,7 @@ private fun StatisticsDashboard(
     onOpenBook: (Long) -> Unit,
     contentPadding: PaddingValues,
     summary: StatisticsSummary,
+    periodStats: PeriodStats,
     vocabularyCardCount: Int,
     vocabularyDueCount: Int,
     highlightsDue: List<Annotation>,
@@ -178,46 +162,82 @@ private fun StatisticsDashboard(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Paddings.screenHorizontal,
-            top = contentPadding.calculateTopPadding() + Spacing.md,
+            top = contentPadding.calculateTopPadding() + Spacing.sm,
             end = Paddings.screenHorizontal,
             bottom = contentPadding.calculateBottomPadding() + Spacing.md + LocalFloatingNavigationInset.current,
         ),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalItemSpacing = Spacing.md,
     ) {
-        item { StatisticsOverviewCard(summary) }
-        if (summary.readingRecords.isNotEmpty()) {
-            item { ReadingRecordsCard(summary.readingRecords, onOpenBook) }
+        item(key = "hero", span = StaggeredGridItemSpan.FullLine) { PeriodHeroCard(periodStats) }
+
+        section(R.string.statistics_section_reading)
+        item(key = "streak") { StreakGoalCard(summary.currentStreakDays, summary.todayReadingMinutes, summary.dailyGoalMinutes) }
+        if (periodStats.totalSeconds > 0L) {
+            item(key = "rhythm") { ReadingRhythmCard(periodStats) }
         }
-        item {
+        if (periodStats.topBooks.isNotEmpty()) {
+            item(key = "top-books") { TopBooksCard(periodStats.topBooks, onOpenBook) }
+        }
+        if (periodStats.devices.isNotEmpty()) {
+            item(key = "devices") { DevicesCard(periodStats.devices, periodStats.unattributedDeviceSeconds) }
+        }
+        item(key = "activity") {
             ReadingActivityCard(
                 dailyMinutes = summary.dailyReadingMinutes,
                 recentWeekMinutes = summary.recentWeekReadingMinutes,
-                streakDays = summary.currentStreakDays,
+                streakDays = 0,
             )
         }
-        summary.readingPace?.let { pace ->
-            item {
-                ReadingPaceCard(pace = pace)
-            }
-        }
+        summary.readingPace?.let { pace -> item(key = "pace") { ReadingPaceCard(pace = pace) } }
+
+        section(R.string.statistics_section_books)
         summary.yearInBooks?.takeIf { it.finishedCount > 0 || summary.yearlyGoalBooks > 0 }?.let { year ->
-            item { YearInBooksCard(year, onOpenReview = summary.yearReview?.let { { showYearReview = true } }) }
+            item(key = "year") { YearInBooksCard(year, onOpenReview = summary.yearReview?.let { { showYearReview = true } }) }
         }
-        summary.readingHabits?.let { habits ->
-            item {
-                ReadingHabitsCard(habits = habits)
+        if (summary.readingRecords.isNotEmpty()) {
+            item(key = "records") { ReadingRecordsCard(summary.readingRecords, onOpenBook) }
+        }
+        summary.readingHabits?.takeIf { it.averageDaysToFinish != null || it.booksFinishedLastYear > 0 }?.let { habits ->
+            item(key = "habits") { ReadingHabitsCard(habits = habits) }
+        }
+        if (summary.uniqueAuthorCount > 0 || summary.topSeries != null) {
+            item(key = "authors") {
+                AuthorSeriesCard(
+                    uniqueAuthorCount = summary.uniqueAuthorCount,
+                    topAuthor = summary.topAuthor,
+                    topSeries = summary.topSeries,
+                )
             }
         }
-        if (summary.deviceStats.isNotEmpty()) {
-            item { DevicesCard(summary.deviceStats, summary.unattributedDeviceSeconds) }
+        if (summary.genreStats.isNotEmpty()) {
+            item(key = "tags") { GenreBreakdownCard(genres = summary.genreStats) }
         }
-        if (summary.dailyGoalMinutes > 0) {
-            item {
-                GoalsCard(summary = summary)
-            }
+
+        section(R.string.statistics_section_notes)
+        // Due highlights come first; with none due, today's fixed set is still on offer for practice.
+        val revisit = highlightsDue.ifEmpty { summary.highlightsToRevisit }
+        revisit.firstOrNull()?.let { highlight ->
+            item(key = "revisit") { HighlightRevisitCard(highlight, highlightsDue.size, revisit.size, onReviewHighlights) }
         }
-        item {
+        item(key = "notes") {
+            StatisticTile(
+                icon = Icons.Outlined.EditNote,
+                title = stringResource(R.string.statistics_notes_total_title),
+                value = stringResource(R.string.statistics_notes_total_value, summary.totalAnnotations),
+                supportingText = stringResource(R.string.statistics_notes_total_support, summary.notesWithText),
+            )
+        }
+        if (summary.topLookedUpWords.isNotEmpty()) {
+            item(key = "words") { TopWordsCard(words = summary.topLookedUpWords, onOpenLearnWords = onOpenLearnWords) }
+        }
+        summary.vocabularyGrowth?.let { growth -> item(key = "vocabulary-growth") { VocabularyGrowthCard(growth = growth) } }
+        if (vocabularyCardCount > 0) {
+            item(key = "vocabulary-review") { VocabularyReviewCard(vocabularyDueCount, vocabularyCardCount, onReviewVocabulary) }
+        }
+
+        section(R.string.statistics_section_library)
+        item(key = "library") {
             StatisticTile(
                 icon = Icons.Outlined.AutoStories,
                 title = stringResource(R.string.statistics_library_total_title),
@@ -230,127 +250,83 @@ private fun StatisticsDashboard(
             )
         }
         if (deviceStorage != null || libraryStorage != null) {
-            item { StorageCard(device = deviceStorage, books = libraryStorage) }
+            item(key = "storage") { StorageCard(device = deviceStorage, books = libraryStorage) }
         }
-        if (summary.readingBooks > 0) {
-            item {
-                StatisticTile(
-                    icon = Icons.Outlined.BarChart,
-                    title = stringResource(R.string.statistics_average_progress_title),
-                    value = stringResource(R.string.statistics_average_progress_value, summary.averageProgressPercent),
-                    supportingText = stringResource(R.string.statistics_average_progress_support),
+    }
+}
+
+private fun LazyStaggeredGridScope.section(@StringRes title: Int) =
+    item(key = "section-$title", span = StaggeredGridItemSpan.FullLine) { StatsSectionHeader(stringResource(title)) }
+
+@Composable
+private fun VocabularyReviewCard(dueCount: Int, cardCount: Int, onReview: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(StatsCardShape)
+            .clickable(onClick = onReview),
+        shape = StatsCardShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(Spacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(imageVector = Icons.Outlined.Style, contentDescription = null)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = stringResource(R.string.statistics_review_vocabulary_title), style = statsCardTitle)
+                Text(
+                    text = if (dueCount > 0) {
+                        stringResource(R.string.statistics_review_vocabulary_support, dueCount, cardCount)
+                    } else {
+                        stringResource(R.string.statistics_review_vocabulary_caught_up, cardCount)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
-        item {
-            StatisticTile(
-                icon = Icons.Outlined.EditNote,
-                title = stringResource(R.string.statistics_notes_total_title),
-                value = stringResource(R.string.statistics_notes_total_value, summary.totalAnnotations),
-                supportingText = stringResource(R.string.statistics_notes_total_support, summary.notesWithText),
+    }
+}
+
+@Composable
+private fun HighlightRevisitCard(highlight: Annotation, dueCount: Int, revisitCount: Int, onReview: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(StatsCardShape)
+            .clickable(onClick = onReview),
+        shape = StatsCardShape,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
+            Text(text = stringResource(R.string.statistics_highlight_revisit_title), style = statsCardTitle)
+            Text(
+                text = highlight.selectedText,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.sm),
             )
-        }
-        if (summary.uniqueAuthorCount > 0 || summary.topSeries != null) {
-            item {
-                AuthorSeriesCard(
-                    uniqueAuthorCount = summary.uniqueAuthorCount,
-                    topAuthor = summary.topAuthor,
-                    topSeries = summary.topSeries,
+            highlight.chapterTitle?.let { chapter ->
+                Text(
+                    text = chapter,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f),
+                    modifier = Modifier.padding(top = Spacing.sm),
                 )
             }
-        }
-        if (summary.genreStats.isNotEmpty()) {
-            item {
-                GenreBreakdownCard(genres = summary.genreStats)
-            }
-        }
-        if (summary.topLookedUpWords.isNotEmpty()) {
-            item {
-                TopWordsCard(words = summary.topLookedUpWords, onOpenLearnWords = onOpenLearnWords)
-            }
-        }
-        summary.vocabularyGrowth?.let { growth ->
-            item {
-                VocabularyGrowthCard(growth = growth)
-            }
-        }
-        if (vocabularyCardCount > 0) {
-            item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(StatsCardShape)
-                        .clickable(onClick = onReviewVocabulary),
-                    shape = StatsCardShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(Spacing.lg),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(imageVector = Icons.Outlined.Style, contentDescription = null)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.statistics_review_vocabulary_title), style = statsCardTitle)
-                            Text(
-                                text = if (vocabularyDueCount > 0) {
-                                    stringResource(R.string.statistics_review_vocabulary_support, vocabularyDueCount, vocabularyCardCount)
-                                } else {
-                                    stringResource(R.string.statistics_review_vocabulary_caught_up, vocabularyCardCount)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        // Due highlights come first; with none due, today's fixed set is still on offer for practice.
-        val revisit = highlightsDue.ifEmpty { summary.highlightsToRevisit }
-        revisit.firstOrNull()?.let { highlight ->
-            item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(StatsCardShape)
-                        .clickable(onClick = onReviewHighlights),
-                    shape = StatsCardShape,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                ) {
-                    Column(modifier = Modifier.padding(Spacing.lg)) {
-                        Text(
-                            text = stringResource(R.string.statistics_highlight_revisit_title),
-                            style = statsCardTitle,
-                        )
-                        Text(
-                            text = highlight.selectedText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = Spacing.sm),
-                        )
-                        highlight.chapterTitle?.let { chapter ->
-                            Text(
-                                text = chapter,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f),
-                                modifier = Modifier.padding(top = Spacing.sm),
-                            )
-                        }
-                        Text(
-                            text = if (highlightsDue.isNotEmpty()) {
-                                stringResource(R.string.statistics_highlight_due_action, highlightsDue.size)
-                            } else {
-                                stringResource(R.string.statistics_highlight_review_action, revisit.size)
-                            },
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(top = Spacing.md),
-                        )
-                    }
-                }
-            }
+            Text(
+                text = if (dueCount > 0) {
+                    stringResource(R.string.statistics_highlight_due_action, dueCount)
+                } else {
+                    stringResource(R.string.statistics_highlight_review_action, revisitCount)
+                },
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = Spacing.md),
+            )
         }
     }
 }
@@ -397,36 +373,6 @@ private fun StatisticTile(icon: ImageVector, title: String, value: String, suppo
                 )
             }
             Text(text = value, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold))
-        }
-    }
-}
-
-@Composable
-private fun StatisticsOverviewCard(summary: StatisticsSummary) {
-    val metrics = listOf(
-        summary.booksFinishedThisYear.toString() to stringResource(R.string.statistics_overview_finished),
-        (if (summary.totalReadingSeconds > 0) formatSessionDuration(summary.totalReadingSeconds)
-        else stringResource(R.string.reader_duration_minutes, 0)) to stringResource(R.string.statistics_overview_total_time),
-        summary.currentStreakDays.toString() to stringResource(R.string.statistics_overview_streak),
-    )
-    // The hero: the three figures most visits are for, large, on the primary container.
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = StatsCardShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-    ) {
-        Column(modifier = Modifier.padding(StatsCardPadding), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-            Text(stringResource(R.string.statistics_overview_title), style = statsCardTitle)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                metrics.forEach { (value, label) ->
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(value, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2)
-                    }
-                }
-            }
         }
     }
 }
@@ -624,49 +570,8 @@ private fun formatSessionDuration(seconds: Long): String {
 }
 
 @Composable
-private fun GoalsCard(summary: StatisticsSummary) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = StatsCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Column(modifier = Modifier.padding(StatsCardPadding)) {
-            Text(text = stringResource(R.string.statistics_goals_title), style = statsCardTitle)
-            if (summary.dailyGoalMinutes > 0) {
-                GoalRow(
-                    modifier = Modifier.padding(top = Spacing.md),
-                    label = stringResource(R.string.statistics_goals_daily_label),
-                    valueText = stringResource(
-                        R.string.statistics_goals_daily_value,
-                        summary.todayReadingMinutes,
-                        summary.dailyGoalMinutes,
-                    ),
-                    fraction = (summary.todayReadingMinutes.toFloat() / summary.dailyGoalMinutes).coerceIn(0f, 1f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun GoalRow(modifier: Modifier = Modifier, label: String, valueText: String, fraction: Float) {
-    Column(modifier = modifier) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = label, style = MaterialTheme.typography.bodyMedium)
-            Text(text = valueText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        VayanaLinearProgressIndicator(
-            progress = { fraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Spacing.xs),
-        )
-    }
-}
-
-@Composable
+/** How books get finished (the period's rhythm card covers days and session lengths). */
 private fun ReadingHabitsCard(habits: ReadingHabits) {
-    val locale = LocalLocale.current.platformLocale
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = StatsCardShape,
@@ -674,17 +579,6 @@ private fun ReadingHabitsCard(habits: ReadingHabits) {
     ) {
         Column(modifier = Modifier.padding(StatsCardPadding)) {
             Text(text = stringResource(R.string.statistics_habits_title), style = statsCardTitle)
-            habits.busiestDayOfWeek?.let { day ->
-                HabitFactRow(
-                    stringResource(
-                        R.string.statistics_habits_busiest_day,
-                        day.getDisplayName(TextStyle.FULL, locale),
-                    ),
-                )
-            }
-            if (habits.averageSessionMinutes > 0) {
-                HabitFactRow(stringResource(R.string.statistics_habits_average_session, habits.averageSessionMinutes))
-            }
             habits.averageDaysToFinish?.let { days ->
                 HabitFactRow(stringResource(R.string.statistics_habits_days_to_finish, days))
             }

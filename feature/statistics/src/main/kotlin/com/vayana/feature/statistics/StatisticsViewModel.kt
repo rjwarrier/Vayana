@@ -136,10 +136,6 @@ data class StatisticsSummary(
     val topAuthor: AuthorStat? = null,
     val topSeries: SeriesProgress? = null,
     val vocabularyGrowth: VocabularyGrowth? = null,
-    /** Most reading time first; empty unless sessions name at least two devices (GitHub sync across devices). */
-    val deviceStats: List<DeviceStat> = emptyList(),
-    /** Counted reading time from sessions recorded before devices were, so not in [deviceStats]. */
-    val unattributedDeviceSeconds: Long = 0L,
 )
 
 @HiltViewModel
@@ -174,11 +170,17 @@ class StatisticsViewModel @Inject constructor(
         }
         .distinctUntilChanged()
 
+    /** One live query shared by the summary and the period stats, instead of two. */
+    private val sessions = readingSessionRepository.observeAll()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
     private val coreInputs = combine(
         resolvedBooks.all,
         annotations,
-        wordLookupStatRepository.observeTop(TopLookedUpWordsLimit),
-        readingSessionRepository.observeAll(),
+        // Taps on "the" or "he" are slips, not words someone wanted to learn: they'd crowd out the real ones.
+        wordLookupStatRepository.observeTop(TopLookedUpWordsLimit * 6)
+            .map { words -> words.filterNot { it.word.lowercase().replace('’', '\'') in CommonWords }.take(TopLookedUpWordsLimit) },
+        sessions,
         summarySettings,
     ) { books, annotations, topWords, sessions, settings -> CoreInputs(books, annotations, topWords, sessions, settings) }
 
@@ -207,6 +209,20 @@ class StatisticsViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+
+    private val _period = MutableStateFlow(StatsPeriod.WEEK)
+    val period: StateFlow<StatsPeriod> = _period
+
+    fun selectPeriod(period: StatsPeriod) { _period.value = period }
+
+    /** The hero and the cards about the selected week, month, year or all time. */
+    val periodStats: StateFlow<PeriodStats> = combine(resolvedBooks.all, sessions, summarySettings, _period) { books, sessions, settings, period ->
+        val zone = ZoneId.systemDefault()
+        periodStats(period, sessions, books, settings.firstDayOfWeek, LocalDate.now(zone), zone)
+    }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PeriodStats(StatsPeriod.WEEK))
 
     /**
      * How much room the book files take. Measured again only when a book's file changes (added, replaced, removed),
@@ -278,6 +294,7 @@ internal class StatisticsSummaryCalculator {
     private var reading = StatisticsSummary()
     private var annotationInputs: Pair<List<Annotation>, Pair<LocalDate, ZoneId>>? = null
     private var notes = 0
+    private var ownMarks = 0
     private var highlights = emptyList<Annotation>()
     private var yearHighlights = 0
     private var yearNotes = 0
@@ -299,7 +316,10 @@ internal class StatisticsSummaryCalculator {
         }
         val nextAnnotations = annotations to (today to zone)
         if (annotationInputs != nextAnnotations) {
-            notes = annotations.count { !it.readerNote.isNullOrBlank() }
+            // Your own marks: Goodreads community quotes are thousands of other readers' highlights, not yours.
+            val own = annotations.filter { !it.isDeleted && !it.isCommunityQuote() }
+            ownMarks = own.size
+            notes = own.count { !it.readerNote.isNullOrBlank() }
             highlights = dailyHighlights(annotations, today)
             val marks = annotations.filter {
                 !it.isDeleted && !it.isCommunityQuote() && Instant.ofEpochMilli(it.createdAt).atZone(zone).year == today.year
@@ -315,7 +335,7 @@ internal class StatisticsSummaryCalculator {
             vocabularyInputs = nextVocabulary
         }
         return reading.copy(
-            totalAnnotations = annotations.size,
+            totalAnnotations = ownMarks,
             notesWithText = notes,
             highlightsToRevisit = highlights,
             topLookedUpWords = topWords,
@@ -378,7 +398,6 @@ private fun List<Book>.readingSummary(
     }
     val recentWeekMinutes = (0 until 7).sumOf { daysAgo -> ((secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L) / 60L).toInt() }
     val yearInBooks = yearInBooks(today, zone, yearlyGoalBooks)
-    val deviceStats = deviceStats(countedSessions)
     return StatisticsSummary(
         readingRecords = filter { it.startedReadingAt != null || it.finishedReadingAt != null ||
             it.readingPercent > 0f || it.totalReadingSeconds > 0L || it.lastReadAt != null }
@@ -405,12 +424,10 @@ private fun List<Book>.readingSummary(
         uniqueAuthorCount = mapNotNull { it.author?.trim()?.lowercase()?.ifBlank { null } }.distinct().size,
         topAuthor = topAuthor(),
         topSeries = topSeries(finishedThreshold),
-        deviceStats = deviceStats,
-        unattributedDeviceSeconds = if (deviceStats.isEmpty()) 0L
-            else countedSessions.filter { it.deviceName == null }.sumOf { it.durationSeconds },
     )
 }
 
+/** Most reading time first; empty unless sessions name at least two devices (GitHub sync across devices). */
 internal fun deviceStats(sessions: List<ReadingSession>): List<DeviceStat> = sessions
     .filter { it.deviceName != null }
     .groupBy { it.deviceName!! }
@@ -540,13 +557,24 @@ private fun vocabularyGrowth(
 }
 
 /** The first day of the week containing this date, for weeks that begin on [firstDayOfWeek]. */
-private fun LocalDate.startOfWeek(firstDayOfWeek: DayOfWeek): LocalDate =
+internal fun LocalDate.startOfWeek(firstDayOfWeek: DayOfWeek): LocalDate =
     minusDays(((dayOfWeek.value - firstDayOfWeek.value + 7) % 7).toLong())
 
 private const val TopLookedUpWordsLimit = 8
 
+// ponytail: English function words only; a per-language list if lookups in other languages show the same noise.
+private val CommonWords = setOf(
+    "a", "an", "the", "and", "or", "but", "if", "of", "to", "in", "on", "at", "by", "for", "with", "from", "as", "into",
+    "is", "are", "was", "were", "be", "been", "am", "do", "does", "did", "have", "has", "had", "will", "would", "can",
+    "could", "shall", "should", "may", "might", "must", "not", "no", "yes", "so", "than", "then", "too", "very",
+    "i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "it", "its", "we", "us", "our", "they", "them",
+    "their", "this", "that", "these", "those", "there", "there's", "here", "what", "which", "who", "whom", "whose",
+    "when", "where", "why", "how", "all", "any", "each", "every", "some", "one", "two", "it's", "i'm", "don't",
+    "just", "only", "also", "now", "up", "out", "about", "like", "more", "most", "such", "own", "same", "other",
+)
+
 /** Sessions shorter than this are noise (an accidental open) and are dropped from the count/highest stat. */
-private const val MinCountedSessionSeconds = 60L
+internal const val MinCountedSessionSeconds = 60L
 
 /** Widest the reading-activity contribution grid ever grows, in weeks (~1 year). */
 const val ActivityGridWeeks = 53

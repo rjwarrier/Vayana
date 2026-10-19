@@ -56,13 +56,7 @@ internal fun ReadingRecordsCard(books: List<Book>, onOpenBook: (Long) -> Unit) {
 private fun ReadingRecordRow(book: Book, onOpenBook: (Long) -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = { onOpenBook(book.id) }).padding(vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        val coverModifier = Modifier.width(48.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(Radii.small))
-        if (book.coverPath != null) AsyncImage(
-            model = File(book.coverPath), contentDescription = null, modifier = coverModifier,
-            contentScale = ContentScale.Crop, colorFilter = rememberCoverColorFilter(),
-        ) else Surface(modifier = coverModifier, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-            Box(contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null) }
-        }
+        BookCoverThumb(book)
         Column(Modifier.weight(1f)) {
             Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             book.author?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -78,5 +72,17 @@ private fun ReadingRecordRow(book: Book, onOpenBook: (Long) -> Unit) {
                 }
             Text(time, style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+/** A small cover, or a book glyph when the book has none. */
+@Composable
+internal fun BookCoverThumb(book: Book) {
+    val coverModifier = Modifier.width(48.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(Radii.small))
+    if (book.coverPath != null) AsyncImage(
+        model = File(book.coverPath), contentDescription = null, modifier = coverModifier,
+        contentScale = ContentScale.Crop, colorFilter = rememberCoverColorFilter(),
+    ) else Surface(modifier = coverModifier, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+        Box(contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null) }
     }
 }
