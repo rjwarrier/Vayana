@@ -1506,19 +1506,19 @@
     </string-array>
     <string name="help_section_library_description">Your bookshelf — everything you\'re reading, have read, or plan to.</string>
     <string-array name="help_section_library_tips">
-        <item>Tap a book\'s cover to jump straight into the reader.</item>
-        <item>Open a book\'s details to edit metadata, change covers, add shelves, or remove it.</item>
+        <item>Tap a book’s cover to open its details, then choose Continue reading.</item>
+        <item>Open a book’s details to edit metadata, change covers, add shelves, or remove it.</item>
         <item>Use shelves to group books by series, genre, or mood.</item>
-        <item>Pull down to sync recent changes from your other devices.</item>
+        <item>Tap Sync in the Books toolbar to bring in changes from your other devices.</item>
     </string-array>
     <string name="help_section_reader_description">Read EPUB and PDF books with progress, navigation, and focused display controls.</string>
     <string-array name="help_section_reader_tips">
-        <item>Tap the center of the page to show or hide the reading toolbar.</item>
+        <item>Double-tap blank space in the middle of the page to open the reader tools. You can change this gesture in Settings.</item>
         <item>Select text to highlight it or attach a note.</item>
-        <item>Open the type settings to change font, size, line spacing, and theme.</item>
+        <item>Open Style to change font, size, line spacing, and theme. The page previews each change.</item>
         <item>Use the table of contents to jump between chapters instantly.</item>
         <item>PDF books include page navigation, zoom, progress, bookmarks, and reading history.</item>
-        <item>Your position syncs automatically as you read.</item>
+        <item>The back arrow in the reader tools closes the book. With GitHub sync, your position can sync as you read.</item>
     </string-array>
     <string name="help_section_offline_description">Track books you own, borrowed copies, and titles that are not stored as reader files.</string>
     <string-array name="help_section_offline_tips">
@@ -1528,9 +1528,10 @@
     </string-array>
     <string name="help_section_reading_tools_description">Understand unfamiliar text and listen without leaving your book.</string>
     <string-array name="help_section_reading_tools_tips">
-        <item>Select a word for the dictionary, Wikipedia, Wiktionary, or translation tools.</item>
+        <item>Double-tap a word for an offline definition, or select text for Wikipedia, Wiktionary, or translation.</item>
+        <item>Add dictionaries for more languages in Settings → Reader text → Dictionaries.</item>
         <item>Save useful words to your vocabulary list for later review.</item>
-        <item>Use Read aloud for text-to-speech, then adjust voice, rate, and pitch in Settings.</item>
+        <item>Use Read aloud for text-to-speech, adjust voice, rate, and pitch, and teach it how to say names in each book.</item>
         <item>Choose the book language so lookup and speech tools use the right language.</item>
     </string-array>
     <string name="help_section_notes_description">All highlights and notes you\'ve captured across every book, in one place.</string>
@@ -1540,12 +1541,12 @@
         <item>Edit or delete a note directly from this list.</item>
         <item>Export notes to share or back them up outside the app.</item>
     </string-array>
-    <string name="help_section_statistics_description">Reading streaks, time spent, and vocabulary you\'ve been building.</string>
+    <string name="help_section_statistics_description">Reading time by week, month, year, or all time, plus streaks, goals, and words you looked up.</string>
     <string-array name="help_section_statistics_tips">
-        <item>Check your daily and weekly reading streaks at a glance.</item>
-        <item>See time spent per book and overall reading pace.</item>
-        <item>Review vocabulary you\'ve looked up with spaced-repetition flashcards.</item>
-        <item>Trends update automatically as you keep reading.</item>
+        <item>Switch between Week, Month, Year, and All time to compare with the previous period.</item>
+        <item>Tap the chip on the main card to switch between bars and a line.</item>
+        <item>See when you read, your most-read books, time per device, and how much you listened.</item>
+        <item>Open Words you looked up to see their meanings in Learn, and review vocabulary with flashcards.</item>
     </string-array>
     <string name="help_section_widgets_description">Continue reading and see progress directly from your home screen.</string>
     <string-array name="help_section_widgets_tips">
@@ -1556,7 +1557,8 @@
     </string-array>
     <string name="help_section_search_description">Find any book, note, or highlight across your entire library.</string>
     <string-array name="help_section_search_tips">
-        <item>Search matches titles, authors, notes, and highlighted text.</item>
+        <item>Search matches titles, authors, notes, highlighted text, and downloaded book text.</item>
+        <item>Put a phrase in quotes for an exact match, or narrow results to one book or shelf.</item>
         <item>Tap a result to open it at the exact matching location.</item>
         <item>Use search from within a book to jump to other mentions of a phrase.</item>
     </string-array>
@@ -1565,7 +1567,7 @@
         <item>Connect a GitHub repository to sync your data automatically.</item>
         <item>Create a manual backup file any time from Settings.</item>
         <item>Restore from a backup file to recover your library on a new device.</item>
-        <item>Test your connection if sync ever stops working.</item>
+        <item>Test your connection if sync ever stops working. Help and about → Data usage shows what each sync sent.</item>
     </string-array>
     <string name="help_section_trash_description">Recently removed books are kept here before they\'re gone for good.</string>
     <string-array name="help_section_trash_tips">
@@ -1578,6 +1580,7 @@
         <item>Search settings directly instead of hunting through categories.</item>
         <item>Adjust appearance, typography, and layout to match your taste.</item>
         <item>Set reading goals to track progress over time.</item>
+        <item>Help and about → Privacy &amp; data shows where your data is stored and what leaves this phone.</item>
         <item>Reset a single setting or everything back to defaults.</item>
     </string-array>
     <string name="help_section_accessibility_description">Tune Vayana for clearer reading, calmer motion, and e-ink displays.</string>
@@ -1591,7 +1594,7 @@
     <string-array name="help_section_diagnostics_tips">
         <item>Open Settings → Help and about → Diagnostics after a crash or failed sync.</item>
         <item>Review the captured app, device, crash, and sync details before sharing.</item>
-        <item>Use Share diagnostics to send the report to the developer with steps to reproduce the problem.</item>
+        <item>Use Share with developer to send the report, with steps to reproduce the problem.</item>
         <item>Diagnostics are stored on this device and can be cleared from the same screen.</item>
     </string-array>
 

@@ -1313,18 +1313,19 @@
     <!-- Help screen -->
     <string name="help_section_library_description">Sua estante: tudo o que você está lendo, já leu ou pretende ler.</string>
     <string-array name="help_section_library_tips">
-        <item>Toque na capa de um livro para ir direto ao leitor.</item>
-        <item>Abra os detalhes de um livro para editar metadados, trocar a capa, adicioná-lo a estantes ou removê-lo.</item>
+        <item>Toque na capa de um livro para abrir os detalhes e depois em Continuar lendo.</item>
+        <item>Abra os detalhes de um livro para editar metadados, trocar a capa, adicionar a estantes ou removê-lo.</item>
         <item>Use estantes para agrupar livros por série, gênero ou humor.</item>
-        <item>Puxe para baixo para sincronizar as alterações recentes dos seus outros dispositivos.</item>
+        <item>Toque em Sincronizar na barra de Livros para trazer as mudanças dos seus outros dispositivos.</item>
     </string-array>
     <string name="help_section_reader_description">A própria tela de leitura, com destaques, notas e controles de tipografia.</string>
     <string-array name="help_section_reader_tips">
-        <item>Toque no centro da página para mostrar ou ocultar a barra de leitura.</item>
+        <item>Toque duas vezes em um espaço vazio no meio da página para abrir as ferramentas do leitor. Você pode mudar esse gesto em Configurações.</item>
         <item>Selecione um texto para destacá-lo ou anexar uma nota.</item>
-        <item>Abra as configurações de texto para mudar fonte, tamanho, espaçamento entre linhas e tema.</item>
-        <item>Use o sumário para pular entre capítulos na hora.</item>
-        <item>Sua posição é sincronizada automaticamente enquanto você lê.</item>
+        <item>Abra Estilo para mudar fonte, tamanho, espaçamento e tema. A página mostra cada mudança na hora.</item>
+        <item>Use o sumário para pular entre capítulos instantaneamente.</item>
+        <item>Livros em PDF incluem navegação por páginas, zoom, progresso, marcadores e histórico de leitura.</item>
+        <item>A seta de voltar nas ferramentas do leitor fecha o livro. Com a sincronização com o GitHub, sua posição pode sincronizar enquanto você lê.</item>
     </string-array>
     <string name="help_section_notes_description">Todos os destaques e notas que você registrou em cada livro, em um só lugar.</string>
     <string-array name="help_section_notes_tips">
@@ -1333,25 +1334,26 @@
         <item>Edite ou exclua uma nota direto nesta lista.</item>
         <item>Exporte notas para compartilhá-las ou guardá-las fora do app.</item>
     </string-array>
-    <string name="help_section_statistics_description">Sequências de leitura, tempo gasto e o vocabulário que você vem construindo.</string>
+    <string name="help_section_statistics_description">Tempo de leitura por semana, mês, ano ou em tudo, além de sequências, metas e palavras que você pesquisou.</string>
     <string-array name="help_section_statistics_tips">
-        <item>Veja suas sequências de leitura diárias e semanais num relance.</item>
-        <item>Confira o tempo gasto em cada livro e seu ritmo geral de leitura.</item>
-        <item>Revise o vocabulário que você pesquisou com cartões de repetição espaçada.</item>
-        <item>As tendências se atualizam automaticamente conforme você lê.</item>
+        <item>Alterne entre Semana, Mês, Ano e Tudo para comparar com o período anterior.</item>
+        <item>Toque no chip do cartão principal para alternar entre barras e linha.</item>
+        <item>Veja quando você lê, seus livros mais lidos, o tempo por dispositivo e quanto você ouviu.</item>
+        <item>Abra Palavras que você pesquisou para ver os significados em Aprender e revise o vocabulário com cartões.</item>
     </string-array>
     <string name="help_section_search_description">Encontre qualquer livro, nota ou destaque em toda a sua biblioteca.</string>
     <string-array name="help_section_search_tips">
-        <item>A busca abrange títulos, autores, notas e texto destacado.</item>
-        <item>Toque em um resultado para abri-lo exatamente na posição encontrada.</item>
-        <item>Use a busca dentro de um livro para pular para outras ocorrências de uma frase.</item>
+        <item>A busca encontra títulos, autores, notas, texto destacado e o texto dos livros baixados.</item>
+        <item>Coloque uma frase entre aspas para uma correspondência exata, ou limite os resultados a um livro ou estante.</item>
+        <item>Toque em um resultado para abri-lo no local exato da correspondência.</item>
+        <item>Busque dentro de um livro para pular para outras ocorrências de uma frase.</item>
     </string-array>
     <string name="help_section_sync_description">Mantenha sua biblioteca, notas e progresso com backup e sincronizados entre dispositivos.</string>
     <string-array name="help_section_sync_tips">
         <item>Conecte um repositório do GitHub para sincronizar seus dados automaticamente.</item>
         <item>Crie um backup manual a qualquer momento em Configurações.</item>
-        <item>Restaure um backup para recuperar sua biblioteca em um dispositivo novo.</item>
-        <item>Teste sua conexão se a sincronização parar de funcionar.</item>
+        <item>Restaure um backup para recuperar sua biblioteca em um novo dispositivo.</item>
+        <item>Teste a conexão se a sincronização parar de funcionar. Ajuda e sobre → Uso de dados mostra o que cada sincronização enviou.</item>
     </string-array>
     <string name="help_section_trash_description">Os livros removidos recentemente ficam aqui antes de sumirem de vez.</string>
     <string-array name="help_section_trash_tips">
@@ -1361,9 +1363,10 @@
     </string-array>
     <string name="help_section_settings_description">Personalize aparência, comportamento da leitura, metas e dados.</string>
     <string-array name="help_section_settings_tips">
-        <item>Busque configurações diretamente em vez de procurar pelas categorias.</item>
+        <item>Pesquise configurações diretamente em vez de percorrer as categorias.</item>
         <item>Ajuste aparência, tipografia e layout ao seu gosto.</item>
-        <item>Defina metas de leitura para acompanhar seu progresso ao longo do tempo.</item>
+        <item>Defina metas de leitura para acompanhar seu progresso.</item>
+        <item>Ajuda e sobre → Privacidade e dados mostra onde seus dados ficam e o que sai deste celular.</item>
         <item>Redefina uma configuração ou todas para os valores padrão.</item>
     </string-array>
 
@@ -2028,10 +2031,11 @@
     </string-array>
     <string name="help_section_reading_tools_description">Entenda textos desconhecidos e ouça sem sair do livro.</string>
     <string-array name="help_section_reading_tools_tips">
-        <item>Selecione uma palavra para o dicionário, a Wikipédia, o Wikcionário ou as ferramentas de tradução.</item>
+        <item>Toque duas vezes em uma palavra para ver a definição off-line, ou selecione texto para Wikipedia, Wiktionary ou tradução.</item>
+        <item>Adicione dicionários de outros idiomas em Configurações → Texto do leitor → Dicionários.</item>
         <item>Salve palavras úteis na sua lista de vocabulário para revisar depois.</item>
-        <item>Use Ler em voz alta para a conversão de texto em voz e ajuste voz, velocidade e tom em Configurações.</item>
-        <item>Escolha o idioma do livro para que as ferramentas de consulta e de voz usem o idioma certo.</item>
+        <item>Use a leitura em voz alta, ajuste voz, velocidade e tom, e ensine como pronunciar os nomes de cada livro.</item>
+        <item>Escolha o idioma do livro para que consultas e voz usem o idioma certo.</item>
     </string-array>
     <string name="help_section_widgets_description">Continue lendo e veja seu progresso direto da tela inicial.</string>
     <string-array name="help_section_widgets_tips">
@@ -2051,7 +2055,7 @@
     <string-array name="help_section_diagnostics_tips">
         <item>Abra Configurações → Ajuda e sobre → Diagnóstico após uma falha ou sincronização com erro.</item>
         <item>Revise os detalhes coletados do app, do dispositivo, da falha e da sincronização antes de compartilhar.</item>
-        <item>Use Compartilhar com o desenvolvedor para enviar o relatório com os passos para reproduzir o problema.</item>
+        <item>Use Compartilhar com o desenvolvedor para enviar o relatório, com os passos para reproduzir o problema.</item>
         <item>O diagnóstico fica armazenado neste dispositivo e pode ser apagado na mesma tela.</item>
     </string-array>
     <string name="today_title">Hoje</string>

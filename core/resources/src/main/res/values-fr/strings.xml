@@ -1313,18 +1313,19 @@
     <!-- Help screen -->
     <string name="help_section_library_description">Votre bibliothèque : tout ce que vous lisez, avez lu ou prévoyez de lire.</string>
     <string-array name="help_section_library_tips">
-        <item>Touchez la couverture d\'un livre pour ouvrir directement la liseuse.</item>
-        <item>Ouvrez les détails d\'un livre pour modifier ses métadonnées, changer sa couverture, l\'ajouter à des étagères ou le supprimer.</item>
+        <item>Touchez la couverture d’un livre pour ouvrir ses détails, puis Continuer la lecture.</item>
+        <item>Ouvrez les détails d’un livre pour modifier ses métadonnées, changer sa couverture, l’ajouter à des étagères ou le retirer.</item>
         <item>Utilisez les étagères pour regrouper les livres par série, genre ou humeur.</item>
-        <item>Tirez vers le bas pour synchroniser les modifications récentes de vos autres appareils.</item>
+        <item>Touchez Synchroniser dans la barre d’outils de Livres pour récupérer les modifications de vos autres appareils.</item>
     </string-array>
     <string name="help_section_reader_description">L\'écran de lecture lui-même, avec surlignages, notes et réglages typographiques.</string>
     <string-array name="help_section_reader_tips">
-        <item>Touchez le centre de la page pour afficher ou masquer la barre de lecture.</item>
-        <item>Sélectionnez du texte pour le surligner ou y joindre une note.</item>
-        <item>Ouvrez les réglages de texte pour changer la police, la taille, l\'interligne et le thème.</item>
-        <item>Utilisez le sommaire pour passer d\'un chapitre à l\'autre instantanément.</item>
-        <item>Votre position se synchronise automatiquement pendant la lecture.</item>
+        <item>Touchez deux fois un espace vide au milieu de la page pour ouvrir les outils de lecture. Ce geste se modifie dans les Paramètres.</item>
+        <item>Sélectionnez du texte pour le surligner ou y ajouter une note.</item>
+        <item>Ouvrez Style pour changer la police, la taille, l’interligne et le thème. La page montre chaque changement aussitôt.</item>
+        <item>Utilisez la table des matières pour passer instantanément d’un chapitre à l’autre.</item>
+        <item>Les livres PDF offrent la navigation par page, le zoom, la progression, les signets et l’historique de lecture.</item>
+        <item>La flèche retour des outils de lecture ferme le livre. Avec la synchronisation GitHub, votre position peut se synchroniser pendant la lecture.</item>
     </string-array>
     <string name="help_section_notes_description">Tous les surlignages et notes de tous vos livres, au même endroit.</string>
     <string-array name="help_section_notes_tips">
@@ -1333,25 +1334,26 @@
         <item>Modifiez ou supprimez une note directement dans cette liste.</item>
         <item>Exportez vos notes pour les partager ou les sauvegarder hors de l\'appli.</item>
     </string-array>
-    <string name="help_section_statistics_description">Séries de lecture, temps passé et vocabulaire que vous enrichissez.</string>
+    <string name="help_section_statistics_description">Temps de lecture par semaine, mois, année ou depuis toujours, ainsi que séries, objectifs et mots recherchés.</string>
     <string-array name="help_section_statistics_tips">
-        <item>Consultez vos séries de lecture quotidiennes et hebdomadaires d\'un coup d\'œil.</item>
-        <item>Voyez le temps passé par livre et votre rythme de lecture global.</item>
-        <item>Révisez le vocabulaire recherché avec des cartes à répétition espacée.</item>
-        <item>Les tendances se mettent à jour automatiquement au fil de vos lectures.</item>
+        <item>Passez de Semaine à Mois, Année et Tout pour comparer avec la période précédente.</item>
+        <item>Touchez la puce de la carte principale pour passer des barres à une courbe.</item>
+        <item>Voyez quand vous lisez, vos livres les plus lus, le temps par appareil et combien vous avez écouté.</item>
+        <item>Ouvrez Mots recherchés pour voir leur sens dans Apprendre, et révisez le vocabulaire avec des fiches.</item>
     </string-array>
     <string name="help_section_search_description">Trouvez n\'importe quel livre, note ou surlignage dans toute votre bibliothèque.</string>
     <string-array name="help_section_search_tips">
-        <item>La recherche porte sur les titres, auteurs, notes et textes surlignés.</item>
-        <item>Touchez un résultat pour l\'ouvrir à l\'emplacement exact.</item>
-        <item>Recherchez dans un livre pour passer aux autres occurrences d\'une phrase.</item>
+        <item>La recherche trouve titres, auteurs, notes, texte surligné et texte des livres téléchargés.</item>
+        <item>Mettez une expression entre guillemets pour une correspondance exacte, ou limitez les résultats à un livre ou une étagère.</item>
+        <item>Touchez un résultat pour l’ouvrir à l’endroit exact de la correspondance.</item>
+        <item>Cherchez dans un livre pour passer aux autres occurrences d’une expression.</item>
     </string-array>
     <string name="help_section_sync_description">Gardez votre bibliothèque, vos notes et votre progression sauvegardées et synchronisées entre vos appareils.</string>
     <string-array name="help_section_sync_tips">
         <item>Connectez un dépôt GitHub pour synchroniser vos données automatiquement.</item>
-        <item>Créez une sauvegarde manuelle à tout moment depuis les Paramètres.</item>
-        <item>Restaurez une sauvegarde pour récupérer votre bibliothèque sur un nouvel appareil.</item>
-        <item>Testez votre connexion si la synchronisation cesse de fonctionner.</item>
+        <item>Créez à tout moment une sauvegarde manuelle depuis les Paramètres.</item>
+        <item>Restaurez une sauvegarde pour retrouver votre bibliothèque sur un nouvel appareil.</item>
+        <item>Testez la connexion si la synchronisation ne fonctionne plus. Aide et à propos → Consommation de données montre ce que chaque synchronisation a envoyé.</item>
     </string-array>
     <string name="help_section_trash_description">Les livres supprimés récemment restent ici avant de disparaître définitivement.</string>
     <string-array name="help_section_trash_tips">
@@ -1361,10 +1363,11 @@
     </string-array>
     <string name="help_section_settings_description">Personnalisez l\'apparence, la lecture, les objectifs et les données.</string>
     <string-array name="help_section_settings_tips">
-        <item>Recherchez directement un paramètre au lieu de parcourir les catégories.</item>
-        <item>Adaptez l\'apparence, la typographie et la mise en page à votre goût.</item>
-        <item>Fixez des objectifs de lecture pour suivre votre progression dans le temps.</item>
-        <item>Réinitialisez un paramètre ou tous les paramètres à leurs valeurs par défaut.</item>
+        <item>Cherchez un paramètre directement plutôt que de parcourir les catégories.</item>
+        <item>Adaptez l’apparence, la typographie et la mise en page à vos goûts.</item>
+        <item>Fixez des objectifs de lecture pour suivre vos progrès.</item>
+        <item>Aide et à propos → Confidentialité et données montre où sont stockées vos données et ce qui quitte ce téléphone.</item>
+        <item>Réinitialisez un paramètre ou tous les paramètres.</item>
     </string-array>
 
     <!-- Settings search keywords: space-separated words (and synonyms) people might type to find each setting -->
@@ -2028,10 +2031,11 @@
     </string-array>
     <string name="help_section_reading_tools_description">Comprenez un texte inconnu et écoutez sans quitter votre livre.</string>
     <string-array name="help_section_reading_tools_tips">
-        <item>Sélectionnez un mot pour le dictionnaire, Wikipédia, le Wiktionnaire ou les outils de traduction.</item>
+        <item>Touchez deux fois un mot pour une définition hors ligne, ou sélectionnez du texte pour Wikipedia, Wiktionary ou la traduction.</item>
+        <item>Ajoutez des dictionnaires d’autres langues dans Paramètres → Texte de la liseuse → Dictionnaires.</item>
         <item>Enregistrez les mots utiles dans votre liste de vocabulaire pour les réviser plus tard.</item>
-        <item>Utilisez Lire à voix haute pour la synthèse vocale, puis réglez la voix, le débit et la hauteur dans les Paramètres.</item>
-        <item>Choisissez la langue du livre pour que les outils de recherche et de synthèse vocale utilisent la bonne langue.</item>
+        <item>Utilisez la lecture à voix haute, réglez la voix, la vitesse et la hauteur, et apprenez-lui à prononcer les noms de chaque livre.</item>
+        <item>Choisissez la langue du livre pour que la recherche et la voix utilisent la bonne langue.</item>
     </string-array>
     <string name="help_section_widgets_description">Reprenez la lecture et suivez votre progression directement depuis l\'écran d\'accueil.</string>
     <string-array name="help_section_widgets_tips">
@@ -2051,7 +2055,7 @@
     <string-array name="help_section_diagnostics_tips">
         <item>Ouvrez Paramètres → Aide et à propos → Diagnostic après un plantage ou un échec de synchronisation.</item>
         <item>Vérifiez les détails recueillis sur l\'application, l\'appareil, le plantage et la synchronisation avant de les partager.</item>
-        <item>Utilisez Partager avec le développeur pour lui envoyer le rapport avec les étapes pour reproduire le problème.</item>
+        <item>Utilisez Partager avec le développeur pour envoyer le rapport, avec les étapes pour reproduire le problème.</item>
         <item>Le diagnostic est stocké sur cet appareil et peut être effacé depuis le même écran.</item>
     </string-array>
     <string name="today_title">Aujourd\'hui</string>

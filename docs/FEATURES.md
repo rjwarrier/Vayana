@@ -1,4 +1,4 @@
-# Features: onboarding, search, Read Next, deleting books, opening files, read aloud, highlight review
+# Features: onboarding, search, Read Next, deleting books, opening files, statistics, dictionaries, data usage, read aloud, highlight review
 
 How these features behave, where their code lives, and the rules that aren't obvious from
 reading one file. Keep this in step with the code when any of them changes.
@@ -371,6 +371,58 @@ imported into the library like any picked file.
 - A file whose display name has no extension is still accepted when its MIME type is `application/epub+zip`.
 
 **Tests:** `feature/library/.../IncomingBookFilesTest.kt`.
+
+## Statistics
+
+**Code:** `feature/statistics/` (`StatisticsScreen.kt`, `PeriodStats.kt`, `StatisticsPeriodCards.kt`,
+`LearnWordsScreen.kt`), `core/sync/.../history/SessionDeviceBackfill.kt`.
+
+- **Periods:** Week, Month, Year and All time. The hero compares the period with the same point of the previous
+  one (not the whole previous period), with sessions, days read and books finished. All time always shows the last
+  12 months, empty months as 0. Bars or line is the `statistics.line_chart` setting, so it survives restarts.
+- **Sections:** Reading (streak/goal, When you read, Listened vs read, Most read, Devices, activity, pace), Books
+  (Year in books and the year review, records, habits, authors/series, tags), Notes & words, Library.
+- **Listened vs read:** `reading_sessions.listenedSeconds` (DB v41) is the part of a session spent in read aloud,
+  including with the screen off. It travels as an optional field, written only when above 0.
+- **Devices:** `reading_sessions.deviceName` (DB v40) is the sync device name of the device that recorded the
+  session. `SessionDeviceBackfill` names older sessions once per sync repository from its commit history: it waits
+  for an unmetered network, halves its GraphQL page size on gateway timeouts, retries a failed run a day later and
+  never repeats a finished one. Unmatched time is reported as not included rather than guessed.
+
+## Dictionaries and Learn words
+
+**Code:** `dictionary/api/` (`DictionaryRepository`, `LookupForms.kt`), `dictionary/stardict/`
+(`OfflineDictionaryRepository`, `SqliteDictionary`, `GcideParser`, `StarDictPack`, `OlamPack`, `WordNetDictionary`),
+`feature/settings/.../DictionariesCard.kt`, `ReaderViewModel` (lookup counting).
+
+- **Sources:** Open English WordNet (ZIP the user downloads, then installs), GCIDE (downloaded from GNU and parsed
+  on the phone into a SQLite pack), Olam English→Malayalam, the FreeDict catalog (StarDict downloads checked against
+  the catalog's SHA-512) and imported StarDict files with user-chosen word and meaning languages.
+- **Storage:** everything lives under `filesDir/dictionaries`. Installs build in a `.installing` staging location
+  and are renamed into place; leftovers are deleted at start-up. The user's order is a local `order` file, so
+  dictionaries and their order are per device and never synced.
+- **Lookup:** `lookupForms` generates candidate forms (possessives, contractions, archaic `-est`/`-eth`/`-st`
+  endings, accent-folded spellings), and each pack answers all of them in one `WHERE key IN (…)` query. Accent
+  folding covers Latin letters and the Cyrillic stress mark only, so Indic vowel signs stay intact. The book's
+  language (ISO 639-1 mapped to 639-3) picks dictionaries whose words are in that language first; entries from
+  dictionaries with other meaning languages are attached as `alsoIn`.
+- **Learn words:** a lookup counts only when it looks meant: the card stayed open 1.5 s and the word was then let
+  go unchanged, or the user read it online, saved it or tapped a synonym. Growing the selection into a phrase or a
+  highlight discards it, and a word no installed dictionary knows is never counted. Counts aggregate across synced
+  devices; removals sync.
+
+## Data usage and Privacy & data
+
+**Code:** `feature/settings/` (`DataUsageViewModel`, `AppDataUsageHistory`, `PrivacyViewModel`),
+`core/sync/.../usage/SyncDataUsage.kt`.
+
+- **App data:** Android's `NetworkStatsManager` per-UID Wi-Fi and mobile bytes, saved once a day on the device
+  (never synced) so history outlives Android's own. Android 8–9 may not report mobile data.
+- **Sync data:** `SyncDataUsageLog` appends one JSON line per sync (kind, network, bytes up/down, requests), kept for
+  120 days; a torn write loses only its own line.
+- **Privacy & data:** a read-only summary of where data is stored and what leaves the device, plus live device
+  encryption, screen-lock and sync-repository visibility checks. A public repository is flagged; an unreachable
+  GitHub shows as unknown, not private.
 
 ## Read aloud: focus, media controls, start from selection
 

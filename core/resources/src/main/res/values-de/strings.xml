@@ -1299,18 +1299,19 @@
     <!-- Help screen -->
     <string name="help_section_library_description">Dein Bücherregal: alles, was du liest, gelesen hast oder noch lesen willst.</string>
     <string-array name="help_section_library_tips">
-        <item>Tippe auf ein Cover, um direkt in den Reader zu springen.</item>
-        <item>Öffne die Buchdetails, um Metadaten zu bearbeiten, Cover zu ändern, Regale zuzuweisen oder das Buch zu entfernen.</item>
-        <item>Gruppiere Bücher in Regalen nach Reihe, Genre oder Stimmung.</item>
-        <item>Zieh nach unten, um aktuelle Änderungen deiner anderen Geräte zu synchronisieren.</item>
+        <item>Tippe auf ein Cover, um die Buchdetails zu öffnen, und dann auf Weiterlesen.</item>
+        <item>Öffne die Buchdetails, um Metadaten zu bearbeiten, Cover zu ändern, Regale hinzuzufügen oder das Buch zu entfernen.</item>
+        <item>Gruppiere Bücher mit Regalen nach Reihe, Genre oder Stimmung.</item>
+        <item>Tippe in der Symbolleiste von Bücher auf Synchronisieren, um Änderungen deiner anderen Geräte zu holen.</item>
     </string-array>
     <string name="help_section_reader_description">Die Leseansicht selbst, mit Markierungen, Notizen und Typografie-Einstellungen.</string>
     <string-array name="help_section_reader_tips">
-        <item>Tippe in die Seitenmitte, um die Leseleiste ein- oder auszublenden.</item>
-        <item>Wähle Text aus, um ihn zu markieren oder eine Notiz hinzuzufügen.</item>
-        <item>Öffne die Texteinstellungen, um Schrift, Größe, Zeilenabstand und Design zu ändern.</item>
-        <item>Spring über das Inhaltsverzeichnis sofort zwischen Kapiteln.</item>
-        <item>Deine Position wird beim Lesen automatisch synchronisiert.</item>
+        <item>Tippe zweimal auf eine freie Stelle in der Seitenmitte, um die Lesewerkzeuge zu öffnen. Die Geste lässt sich in den Einstellungen ändern.</item>
+        <item>Wähle Text aus, um ihn zu markieren oder eine Notiz anzuhängen.</item>
+        <item>Öffne Stil, um Schrift, Größe, Zeilenabstand und Design zu ändern. Die Seite zeigt jede Änderung sofort.</item>
+        <item>Springe über das Inhaltsverzeichnis direkt zwischen Kapiteln.</item>
+        <item>PDF-Bücher bieten Seitennavigation, Zoom, Fortschritt, Lesezeichen und Leseverlauf.</item>
+        <item>Der Zurück-Pfeil in den Lesewerkzeugen schließt das Buch. Mit GitHub-Synchronisierung kann deine Position beim Lesen synchronisiert werden.</item>
     </string-array>
     <string name="help_section_notes_description">Alle Markierungen und Notizen aus allen Büchern an einem Ort.</string>
     <string-array name="help_section_notes_tips">
@@ -1319,25 +1320,26 @@
         <item>Bearbeite oder lösche Notizen direkt in dieser Liste.</item>
         <item>Exportiere Notizen, um sie zu teilen oder außerhalb der App zu sichern.</item>
     </string-array>
-    <string name="help_section_statistics_description">Leseserien, Lesezeit und dein wachsender Wortschatz.</string>
+    <string name="help_section_statistics_description">Lesezeit pro Woche, Monat, Jahr oder gesamt, dazu Serien, Ziele und nachgeschlagene Wörter.</string>
     <string-array name="help_section_statistics_tips">
-        <item>Sieh deine täglichen und wöchentlichen Leseserien auf einen Blick.</item>
-        <item>Sieh die Zeit pro Buch und dein allgemeines Lesetempo.</item>
-        <item>Wiederhole nachgeschlagene Wörter mit Karteikarten in wachsenden Abständen.</item>
-        <item>Trends aktualisieren sich automatisch, während du weiterliest.</item>
+        <item>Wechsle zwischen Woche, Monat, Jahr und Gesamt, um mit dem vorigen Zeitraum zu vergleichen.</item>
+        <item>Tippe auf den Chip auf der Hauptkarte, um zwischen Balken und Linie zu wechseln.</item>
+        <item>Sieh, wann du liest, deine meistgelesenen Bücher, die Zeit pro Gerät und wie viel du gehört hast.</item>
+        <item>Öffne Nachgeschlagene Wörter, um ihre Bedeutungen unter Lernen zu sehen, und wiederhole Vokabeln mit Karteikarten.</item>
     </string-array>
     <string name="help_section_search_description">Finde jedes Buch, jede Notiz und jede Markierung in deiner ganzen Bibliothek.</string>
     <string-array name="help_section_search_tips">
-        <item>Die Suche durchsucht Titel, Autoren, Notizen und markierten Text.</item>
-        <item>Tippe auf einen Treffer, um genau an dieser Stelle zu öffnen.</item>
-        <item>Nutze die Suche im Buch, um zu weiteren Vorkommen einer Formulierung zu springen.</item>
+        <item>Die Suche findet Titel, Autoren, Notizen, markierten Text und den Text heruntergeladener Bücher.</item>
+        <item>Setze eine Wendung in Anführungszeichen für eine exakte Suche oder grenze auf ein Buch oder Regal ein.</item>
+        <item>Tippe auf ein Ergebnis, um genau an der passenden Stelle zu öffnen.</item>
+        <item>Suche innerhalb eines Buches, um zu weiteren Stellen einer Wendung zu springen.</item>
     </string-array>
     <string name="help_section_sync_description">Sichere Bibliothek, Notizen und Fortschritt und halte sie auf allen Geräten synchron.</string>
     <string-array name="help_section_sync_tips">
         <item>Verbinde ein GitHub-Repository, um deine Daten automatisch zu synchronisieren.</item>
         <item>Erstelle jederzeit in den Einstellungen eine manuelle Sicherung.</item>
         <item>Stelle eine Sicherung wieder her, um deine Bibliothek auf ein neues Gerät zu holen.</item>
-        <item>Teste die Verbindung, falls die Synchronisierung einmal nicht mehr funktioniert.</item>
+        <item>Teste die Verbindung, wenn die Synchronisierung nicht mehr funktioniert. Hilfe und Info → Datennutzung zeigt, was jede Synchronisierung gesendet hat.</item>
     </string-array>
     <string name="help_section_trash_description">Kürzlich entfernte Bücher bleiben hier, bevor sie endgültig verschwinden.</string>
     <string-array name="help_section_trash_tips">
@@ -1348,9 +1350,10 @@
     <string name="help_section_settings_description">Passe Darstellung, Leseverhalten, Ziele und Daten an.</string>
     <string-array name="help_section_settings_tips">
         <item>Durchsuche die Einstellungen direkt, statt dich durch Kategorien zu klicken.</item>
-        <item>Passe Darstellung, Typografie und Layout an deinen Geschmack an.</item>
-        <item>Setze Leseziele, um deinen Fortschritt über die Zeit zu verfolgen.</item>
-        <item>Setze einzelne oder alle Einstellungen auf die Standardwerte zurück.</item>
+        <item>Passe Erscheinungsbild, Typografie und Layout an deinen Geschmack an.</item>
+        <item>Lege Leseziele fest, um deinen Fortschritt zu verfolgen.</item>
+        <item>Hilfe und Info → Datenschutz &amp; Daten zeigt, wo deine Daten liegen und was dieses Gerät verlässt.</item>
+        <item>Setze eine einzelne Einstellung oder alles auf die Standardwerte zurück.</item>
     </string-array>
 
     <!-- Settings search keywords: space-separated words (and synonyms) people might type to find each setting -->
@@ -2003,10 +2006,11 @@
     </string-array>
     <string name="help_section_reading_tools_description">Verstehe unbekannten Text und höre zu, ohne dein Buch zu verlassen.</string>
     <string-array name="help_section_reading_tools_tips">
-        <item>Wähle ein Wort für das Wörterbuch, Wikipedia, Wiktionary oder die Übersetzungswerkzeuge aus.</item>
+        <item>Tippe zweimal auf ein Wort für eine Offline-Definition oder wähle Text für Wikipedia, Wiktionary oder Übersetzung aus.</item>
+        <item>Füge unter Einstellungen → Reader-Text → Wörterbücher Wörterbücher für weitere Sprachen hinzu.</item>
         <item>Speichere nützliche Wörter in deiner Vokabelliste, um sie später zu wiederholen.</item>
-        <item>Nutze „Vorlesen“ für die Sprachausgabe und passe Stimme, Tempo und Tonhöhe in den Einstellungen an.</item>
-        <item>Wähle die Buchsprache, damit Nachschlage- und Sprachwerkzeuge die richtige Sprache verwenden.</item>
+        <item>Nutze Vorlesen für Sprachausgabe, passe Stimme, Tempo und Tonhöhe an und bring ihm bei, wie Namen in jedem Buch klingen.</item>
+        <item>Lege die Sprache des Buches fest, damit Nachschlagen und Sprachausgabe die richtige Sprache verwenden.</item>
     </string-array>
     <string name="help_section_widgets_description">Lies weiter und sieh deinen Fortschritt direkt auf dem Startbildschirm.</string>
     <string-array name="help_section_widgets_tips">
@@ -2026,7 +2030,7 @@
     <string-array name="help_section_diagnostics_tips">
         <item>Öffne nach einem Absturz oder einer fehlgeschlagenen Synchronisierung Einstellungen → Hilfe und Info → Diagnose.</item>
         <item>Prüfe die erfassten App-, Geräte-, Absturz- und Synchronisierungsdetails, bevor du sie teilst.</item>
-        <item>Nutze „Mit Entwickler teilen“, um den Bericht mit den Schritten zum Reproduzieren des Problems zu senden.</item>
+        <item>Sende den Bericht mit Mit Entwickler teilen und beschreibe, wie sich das Problem wiederholen lässt.</item>
         <item>Diagnosedaten werden auf diesem Gerät gespeichert und können auf demselben Bildschirm gelöscht werden.</item>
     </string-array>
     <string name="today_title">Heute</string>

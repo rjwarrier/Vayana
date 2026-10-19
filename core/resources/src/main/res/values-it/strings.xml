@@ -1313,18 +1313,19 @@
     <!-- Help screen -->
     <string name="help_section_library_description">La tua libreria: tutto ciò che stai leggendo, hai letto o vuoi leggere.</string>
     <string-array name="help_section_library_tips">
-        <item>Tocca la copertina di un libro per aprire subito il lettore.</item>
-        <item>Apri i dettagli di un libro per modificare i metadati, cambiare copertina, aggiungerlo agli scaffali o rimuoverlo.</item>
+        <item>Tocca la copertina di un libro per aprirne i dettagli, poi scegli Continua a leggere.</item>
+        <item>Apri i dettagli di un libro per modificare i metadati, cambiare la copertina, aggiungerlo a scaffali o rimuoverlo.</item>
         <item>Usa gli scaffali per raggruppare i libri per serie, genere o umore.</item>
-        <item>Trascina verso il basso per sincronizzare le modifiche recenti degli altri dispositivi.</item>
+        <item>Tocca Sincronizza nella barra di Libri per ricevere le modifiche dagli altri dispositivi.</item>
     </string-array>
     <string name="help_section_reader_description">La vista di lettura, con evidenziazioni, note e controlli tipografici.</string>
     <string-array name="help_section_reader_tips">
-        <item>Tocca il centro della pagina per mostrare o nascondere la barra di lettura.</item>
-        <item>Seleziona del testo per evidenziarlo o aggiungere una nota.</item>
-        <item>Apri le impostazioni del testo per cambiare carattere, dimensione, interlinea e tema.</item>
-        <item>Usa l\'indice per passare subito da un capitolo all\'altro.</item>
-        <item>La tua posizione si sincronizza automaticamente mentre leggi.</item>
+        <item>Tocca due volte uno spazio vuoto al centro della pagina per aprire gli strumenti di lettura. Puoi cambiare il gesto nelle Impostazioni.</item>
+        <item>Seleziona il testo per evidenziarlo o aggiungere una nota.</item>
+        <item>Apri Stile per cambiare carattere, dimensione, interlinea e tema. La pagina mostra subito ogni modifica.</item>
+        <item>Usa l’indice per passare subito da un capitolo all’altro.</item>
+        <item>I libri PDF offrono navigazione per pagine, zoom, avanzamento, segnalibri e cronologia di lettura.</item>
+        <item>La freccia indietro negli strumenti di lettura chiude il libro. Con la sincronizzazione GitHub, la posizione può sincronizzarsi mentre leggi.</item>
     </string-array>
     <string name="help_section_notes_description">Tutte le evidenziazioni e note di ogni libro, in un unico posto.</string>
     <string-array name="help_section_notes_tips">
@@ -1333,25 +1334,26 @@
         <item>Modifica o elimina una nota direttamente da questo elenco.</item>
         <item>Esporta le note per condividerle o salvarle fuori dall\'app.</item>
     </string-array>
-    <string name="help_section_statistics_description">Serie di lettura, tempo dedicato e il vocabolario che stai costruendo.</string>
+    <string name="help_section_statistics_description">Tempo di lettura per settimana, mese, anno o da sempre, più serie, obiettivi e parole cercate.</string>
     <string-array name="help_section_statistics_tips">
-        <item>Controlla a colpo d\'occhio le serie di lettura giornaliere e settimanali.</item>
-        <item>Guarda il tempo dedicato a ogni libro e il tuo ritmo di lettura.</item>
-        <item>Ripassa il vocabolario cercato con schede a ripetizione dilazionata.</item>
-        <item>Le tendenze si aggiornano automaticamente mentre leggi.</item>
+        <item>Passa tra Settimana, Mese, Anno e Sempre per confrontare con il periodo precedente.</item>
+        <item>Tocca il chip sulla scheda principale per passare tra barre e linea.</item>
+        <item>Scopri quando leggi, i libri più letti, il tempo per dispositivo e quanto hai ascoltato.</item>
+        <item>Apri Parole cercate per vederne il significato in Impara, e ripassa i vocaboli con le schede.</item>
     </string-array>
     <string name="help_section_search_description">Trova qualsiasi libro, nota o evidenziazione in tutta la libreria.</string>
     <string-array name="help_section_search_tips">
-        <item>La ricerca copre titoli, autori, note e testo evidenziato.</item>
-        <item>Tocca un risultato per aprirlo nella posizione esatta.</item>
-        <item>Cerca all\'interno di un libro per passare ad altre occorrenze di una frase.</item>
+        <item>La ricerca trova titoli, autori, note, testo evidenziato e il testo dei libri scaricati.</item>
+        <item>Metti una frase tra virgolette per una corrispondenza esatta, o limita i risultati a un libro o a uno scaffale.</item>
+        <item>Tocca un risultato per aprirlo nel punto esatto della corrispondenza.</item>
+        <item>Cerca all’interno di un libro per passare alle altre occorrenze di una frase.</item>
     </string-array>
     <string name="help_section_sync_description">Mantieni libreria, note e progressi salvati e sincronizzati su tutti i dispositivi.</string>
     <string-array name="help_section_sync_tips">
         <item>Collega un repository GitHub per sincronizzare automaticamente i tuoi dati.</item>
-        <item>Crea un backup manuale in qualsiasi momento dalle Impostazioni.</item>
+        <item>Crea un backup manuale quando vuoi dalle Impostazioni.</item>
         <item>Ripristina un backup per recuperare la libreria su un nuovo dispositivo.</item>
-        <item>Verifica la connessione se la sincronizzazione smette di funzionare.</item>
+        <item>Verifica la connessione se la sincronizzazione smette di funzionare. Aiuto e info → Consumo dati mostra cosa ha inviato ogni sincronizzazione.</item>
     </string-array>
     <string name="help_section_trash_description">I libri rimossi di recente restano qui prima di sparire definitivamente.</string>
     <string-array name="help_section_trash_tips">
@@ -1361,10 +1363,11 @@
     </string-array>
     <string name="help_section_settings_description">Personalizza aspetto, lettura, obiettivi e dati.</string>
     <string-array name="help_section_settings_tips">
-        <item>Cerca direttamente le impostazioni invece di scorrere le categorie.</item>
-        <item>Regola aspetto, tipografia e layout secondo i tuoi gusti.</item>
-        <item>Imposta obiettivi di lettura per seguire i tuoi progressi nel tempo.</item>
-        <item>Ripristina una singola impostazione o tutte ai valori predefiniti.</item>
+        <item>Cerca direttamente un’impostazione invece di scorrere le categorie.</item>
+        <item>Adatta aspetto, tipografia e layout ai tuoi gusti.</item>
+        <item>Imposta obiettivi di lettura per seguire i tuoi progressi.</item>
+        <item>Aiuto e info → Privacy e dati mostra dove sono salvati i tuoi dati e cosa esce da questo telefono.</item>
+        <item>Ripristina un’impostazione o tutte ai valori predefiniti.</item>
     </string-array>
 
     <!-- Settings search keywords: space-separated words (and synonyms) people might type to find each setting -->
@@ -2028,10 +2031,11 @@
     </string-array>
     <string name="help_section_reading_tools_description">Comprendi testi poco familiari e ascolta senza lasciare il libro.</string>
     <string-array name="help_section_reading_tools_tips">
-        <item>Seleziona una parola per il dizionario, Wikipedia, Wikizionario o gli strumenti di traduzione.</item>
-        <item>Salva le parole utili nel tuo elenco di vocaboli per ripassarle in seguito.</item>
-        <item>Usa Leggi ad alta voce per la sintesi vocale, poi regola voce, velocità e tono nelle Impostazioni.</item>
-        <item>Scegli la lingua del libro così gli strumenti di ricerca e di sintesi vocale usano la lingua giusta.</item>
+        <item>Tocca due volte una parola per una definizione offline, o seleziona il testo per Wikipedia, Wiktionary o la traduzione.</item>
+        <item>Aggiungi dizionari per altre lingue in Impostazioni → Testo del lettore → Dizionari.</item>
+        <item>Salva le parole utili nel tuo elenco di vocaboli per ripassarle più tardi.</item>
+        <item>Usa la lettura ad alta voce, regola voce, velocità e tono, e insegnale come pronunciare i nomi di ogni libro.</item>
+        <item>Scegli la lingua del libro così ricerca e voce usano la lingua giusta.</item>
     </string-array>
     <string name="help_section_widgets_description">Continua a leggere e vedi i progressi direttamente dalla schermata Home.</string>
     <string-array name="help_section_widgets_tips">
@@ -2051,7 +2055,7 @@
     <string-array name="help_section_diagnostics_tips">
         <item>Apri Impostazioni → Aiuto e info → Diagnostica dopo un arresto anomalo o una sincronizzazione non riuscita.</item>
         <item>Controlla i dettagli raccolti su app, dispositivo, arresto anomalo e sincronizzazione prima di condividerli.</item>
-        <item>Usa Condividi con lo sviluppatore per inviargli il report con i passaggi per riprodurre il problema.</item>
+        <item>Usa Condividi con lo sviluppatore per inviare il rapporto, con i passaggi per riprodurre il problema.</item>
         <item>La diagnostica è salvata su questo dispositivo e può essere cancellata dalla stessa schermata.</item>
     </string-array>
     <string name="today_title">Oggi</string>

@@ -48,7 +48,7 @@ Dieses Handbuch beschreibt die Funktionen von Vayana 0.93 und erklärt die häuf
 5. Tippe auf ein Cover, um die **Buchdetails** zu öffnen, und wähle **Weiterlesen**.
 6. Tippe in die Mitte einer EPUB-Seite, um die Reader-Werkzeuge und Darstellungseinstellungen anzuzeigen.
 
-Vayana speichert die Bibliothek standardmäßig lokal. Ein Konto ist nicht erforderlich. Sicherung, GitHub-Synchronisierung, Goodreads, Project Gutenberg, OPDS, Wikimedia-Nachschlagen und Übersetzung sind optional.
+Vayana speichert die Bibliothek standardmäßig lokal. Ein Konto ist nicht erforderlich. Sicherung, GitHub-Synchronisierung, Goodreads, Project Gutenberg, OPDS, Wörterbuch-Downloads, Wikimedia-Nachschlagen und Übersetzung sind optional.
 
 <table>
   <tr>
@@ -71,7 +71,7 @@ Das kompakte Smartphone-Layout bietet drei Hauptbereiche:
 
 - **Bücher** öffnet die Leseübersicht und Bibliothek.
 - **Notizen** gruppiert Markierungen, Unterstreichungen und Notizen nach Buch.
-- **Statistiken** zeigt Lesezeit, Leseserien, Ziele, abgeschlossene Bücher und Speicherverbrauch.
+- **Statistiken** zeigt Lesezeit pro Woche, Monat, Jahr oder gesamt, Leseserien, Ziele, abgeschlossene Bücher, nachgeschlagene Wörter und Speicherverbrauch.
 
 Die Schaltfläche **Bücher hinzufügen** erscheint neben der Hauptnavigation. Die Bibliotheksleiste bietet außerdem:
 
@@ -224,6 +224,7 @@ Vayanas EPUB-Reader merkt sich die Position für jedes Buch und unterstützt anp
 - Suche im aktuellen Buch.
 - Sieh den Fortschritt nach Seite/Position und Prozent.
 - Nutze Vollbild, Kopf-/Fußzeileninformationen und die Option zum Wachhalten des Bildschirms nach Wunsch.
+- Der Zurück-Pfeil oben in den Lesewerkzeugen schließt das Buch – hilfreich auf E-Ink-Geräten, auf denen Zurück-Gesten unzuverlässig sind.
 - Im Querformat können breite Bildschirme zwei Spalten zeigen.
 
 Nach einer längeren Pause kann Vayana einen kurzen **Willkommen zurück**-Rückblick mit dem letzten Kapitel und dem jüngsten Lesekontext anzeigen.
@@ -232,7 +233,7 @@ Nach einer längeren Pause kann Vayana einen kurzen **Willkommen zurück**-Rück
 
 ### Typografie und Seitendarstellung
 
-Öffne **Einstellungen** im Reader, um Folgendes anzupassen:
+Öffne **Stil** in den Lesewerkzeugen, um Folgendes anzupassen. Die Seite bleibt hinter dem Bereich sichtbar, sodass jede Änderung sofort zu sehen ist.
 
 - Seitenthema: System, Hell, Papier, Sepia, Minze oder weitere verfügbare Themen
 - Schriftfamilie, importierte eigene Schrift, Schriftgröße und kräftigeren Text
@@ -319,17 +320,43 @@ Der globale Bereich **Notizen** gruppiert Anmerkungen nach Buch und zeigt Anzahl
 
 ## Wörterbuch, Übersetzung und Vokabeln
 
-- Tippe zweimal auf ein Wort in einer unterstützten Textansicht, um das mitgelieferte Offline-Wörterbuch zu öffnen.
-- Vayana nutzt die Buchsprache zum Nachschlagen, wenn entsprechende Metadaten vorhanden sind.
+Tippe zweimal auf ein Wort, um es offline nachzuschlagen. Vayana versucht zuerst die Wörterbücher für die Sprache des Buches und fügt unter der Hauptdefinition die Bedeutung in deinen anderen installierten Sprachen hinzu, etwa Malayalam aus Olam. Gefunden werden auch Possessivformen, Zusammenziehungen, ältere Verbendungen (*canst*, *lendeth*) und Wörter mit oder ohne Akzente.
+
+<a id="offline-dictionaries"></a>
+
+### Offline-Wörterbücher
+
+Verwalte Wörterbücher unter **Einstellungen → Reader-Text → Wörterbücher**. Sie werden in der angezeigten Reihenfolge versucht: Mit **Zuerst …** rückt eines nach oben, mit dem Papierkorb entfernst du es.
+
+| Wörterbuch | Wörter und Bedeutungen | Installation |
+| --- | --- | --- |
+| Open English WordNet | Moderne englische Definitionen mit Beispielen | **Wörterbuch holen** lädt die kostenlose ZIP im Browser herunter; danach **ZIP installieren** |
+| GCIDE (Webster’s 1913) | Englisch, auch ältere und literarische Wörter | Der Download-Knopf holt es von GNU und baut es auf dem Smartphone auf; das dauert einige Minuten |
+| Olam | Englisch → Malayalam | Download-Knopf |
+| FreeDict | Über 300 zweisprachige Wörterbücher | **Weitere Wörterbücher** öffnet den FreeDict-Katalog, deine Sprachen zuerst |
+| Eigenes Wörterbuch | Jedes StarDict-Wörterbuch | **StarDict-Datei importieren**, dann die Sprache der Wörter und der Bedeutungen wählen |
+
+Downloads werden vor der Installation geprüft, ein beschädigter Download wird abgelehnt. Jedes Gerät hat seine eigenen Wörterbücher; sie werden nicht synchronisiert.
+
+<a id="online-lookup-and-translation"></a>
+
+### Online-Nachschlagen und Übersetzung
+
 - Suche ausgewählte Wörter oder Wendungen in Wiktionary oder Wikipedia, wenn Internet verfügbar ist.
 - Sende eine Auswahl an eine installierte Übersetzungs-App.
-- Speichere nachgeschlagene Wörter in der Vokabelliste.
-- Entdecke ungewöhnliche Wörter aus dem aktuellen Kapitel.
-- Markiere vertraute Begriffe als bekannt.
-- Wiederhole gespeicherte Vokabeln in zeitlichen Abständen.
-- Exportiere Vokabeln als Anki-kompatible CSV oder lesbares Markdown.
 
 Online-Nachschlagen sendet nur die ausgewählte Anfrage an den gewählten Anbieter, wenn du es anforderst. Übersetzung benötigt eine kompatible Übersetzungs-App.
+
+<a id="learn-and-vocabulary"></a>
+
+### Lernen und Vokabeln
+
+- **Statistiken → Nachgeschlagene Wörter → Alle ansehen** öffnet **Lernen**: jedes nachgeschlagene Wort, wie oft, wann und der Satz, aus dem es stammt. Tippe auf ein Wort, um seine Bedeutung zu sehen, oder entferne es. Liste und Entfernungen werden zwischen Geräten synchronisiert.
+- Behalten werden nur bewusste Abfragen: eine Definition, die du einen Moment offen lässt, online liest oder speicherst. Ein Wort auszuwählen, um eine Markierung zu beginnen, zählt nicht, und Wörter, die kein installiertes Wörterbuch kennt, etwa Namen und Tippfehler, werden nicht gespeichert.
+- Blende bekannte Wörter aus oder speichere ein Wort für die **Vokabelwiederholung**.
+- Entdecke ungewöhnliche Wörter aus dem aktuellen Kapitel und markiere vertraute Begriffe als bekannt.
+- Wiederhole gespeicherte Vokabeln in zeitlichen Abständen.
+- Exportiere Vokabeln als Anki-kompatible CSV oder lesbares Markdown.
 
 <a id="read-aloud"></a>
 
@@ -340,6 +367,9 @@ Android-Sprachausgabe kann ein EPUB Satz für Satz lesen und zwischen Kapiteln f
 - Beginne an der aktuellen Position oder einer ausgewählten Textstelle.
 - Verfolge die Markierung des gesprochenen Wortes/Satzes im Text.
 - Wähle eine installierte TTS-Engine, Sprache, Stimme, Geschwindigkeit und Tonhöhe.
+- Bring ihr Namen bei: Unter **Vorlesen → Aussprachen für dieses Buch** schreibst du, wie ein Wort oder eine Wendung klingen soll. Korrekturen werden auf dem Gerät gespeichert.
+- Pausen folgen Absätzen, Überschriften und Szenenwechseln. Römische Zahlen in Bezeichnungen wie *Kapitel IV* werden als Zahlen gelesen, und englische Stimmen erhalten zusätzlich Hinweise für Daten, Uhrzeiten, Geldbeträge und Maße.
+- Das Zuhören läuft bei ausgeschaltetem Bildschirm weiter und zählt als Lesezeit; die Statistik zeigt, wie viel du gehört hast.
 - Nutze einen Abschalttimer.
 - Pausiere durch Tippen in den Reader.
 - Steuere die Wiedergabe über Benachrichtigungen, Sperrbildschirm, Kopfhörer oder Bluetooth.
@@ -359,25 +389,28 @@ Die globale Suche findet:
 - Persönliche Markierungen und Notizen
 - Letzte Suchanfragen und Präfixtreffer
 
+Setze eine Wendung in doppelte Anführungszeichen, etwa `"river boat"`, damit die Wörter zusammen und in dieser Reihenfolge vorkommen. Die Chips für **Buch** und **Regal** unter dem Suchfeld grenzen die Ergebnisse auf ein Buch oder Regal ein, und die Ergebnis-Chips wechseln zwischen Alle, Bücher, Notizen und Inhalte.
+
 Lokal verfügbare EPUB-Inhalte werden für schnelle Suche indexiert. PDF-Seitentext und Inhalte gedruckter Bücher werden nicht indexiert, ihre persönlichen Anmerkungen können jedoch in der Anmerkungssuche erscheinen.
 
 <a id="statistics-and-goals"></a>
 
 ## Statistiken und Ziele
 
-**Reading records** zeigt Bücher mit gespeicherter Leseaktivität, auch gedruckte Bücher, die noch gelesen werden. Jeder Eintrag enthält Cover, Titel, Autor, gespeicherte Start- und Abschlussdaten sowie die gesamte erfasste Lesezeit. Tippe auf einen Eintrag, um die Buchdetails zu öffnen; **View all reading records** zeigt bei mehr als drei Büchern die vollständige Liste. Unbekannte Daten erscheinen als **Not recorded**. Die Zeit stammt aus gespeicherten Sitzungen; ein Abschlussdatum allein schätzt keine Lesezeit.
+Wähle oben in der Statistik **Woche**, **Monat**, **Jahr** oder **Gesamt**. Die Hauptkarte zeigt die Lesezeit im Zeitraum und den Vergleich mit demselben Punkt des vorigen Zeitraums, dazu Sitzungen, Lesetage und abgeschlossene Bücher. Das Diagramm zeigt Balken oder eine Linie; der kleine Chip in der Ecke der Karte wechselt, und Vayana merkt sich die Wahl. Tippe auf einen Balken, um seine Zeit zu sehen. **Gesamt** zeigt die letzten 12 Monate, auch Monate ohne Lesen.
 
-Vayana erfasst Lesesitzungen und zeigt:
+Die Karten darunter sind gruppiert:
 
-- Tägliche und gesamte Lesezeit
-- Leseserien und Aktivität in Kalenderform
-- Abgeschlossene Bücher nach Monat und Jahr
-- Tägliche Minutenziele und jährliche Buchziele
-- Leseverlauf pro Buch
-- Speicherverbrauch für Bücher, Cover, Notizen/Zitate, Wörterbuchdaten und Cache
-- Summen nach Format sowie größte/kleinste Bücher
+- **Lesen:** Serie und Tagesziel, **Wann du liest** (Tageszeit, Wochentag, durchschnittliche und längste Sitzung), **Gehört und gelesen**, **Meistgelesen**, **Geräte**, Leseaktivität und das Tempo bis zum Ende des aktuellen Buches
+- **Bücher:** **Das Jahr in Büchern** mit **Dein Jahr ansehen**, einer teilbaren Jahresübersicht; Leseprotokolle; Lesegewohnheiten; Autoren und Reihen; Tags nach Lesezeit
+- **Notizen & Wörter:** eine Markierung zum Wiederentdecken, Notizen und Markierungen, **Nachgeschlagene Wörter**, Wortschatzwachstum und Vokabelwiederholung
+- **Bibliothek:** Bibliothekssummen, durchschnittlicher Fortschritt und Speicher für Bücher, Cover, Notizen/Zitate, Wörterbücher, Schriften und Cache
 
-Statistiken basieren auf von Vayana erfasster Aktivität. Von einem anderen Gerät synchronisierte Sitzungen können nach der Synchronisierung beitragen.
+**Geräte** zeigt die Lesezeit pro synchronisiertem Gerät und das meistgenutzte. Jede Sitzung speichert den Synchronisierungsnamen des Geräts, auf dem gelesen wurde. Mit [GitHub-Synchronisierung](#github-sync) werden ältere Sitzungen einmalig aus dem Verlauf des Repositorys zugeordnet, sobald das Gerät im WLAN ist; Zeit, die sich nicht zuordnen lässt, wird als nicht enthalten angezeigt.
+
+**Leseprotokolle** zeigt Bücher mit gespeicherter Leseaktivität, auch gedruckte Bücher, die noch gelesen werden. Jeder Eintrag enthält Cover, Titel, Autor, gespeicherte Start- und Abschlussdaten sowie die gesamte erfasste Lesezeit. Tippe auf einen Eintrag, um die Buchdetails zu öffnen; **Alle Leseprotokolle ansehen** zeigt bei mehr als drei Büchern die vollständige Liste. Unbekannte Daten erscheinen als **Nicht erfasst**. Die Zeit stammt aus gespeicherten Sitzungen; ein Abschlussdatum allein schätzt keine Lesezeit.
+
+Statistiken basieren auf von Vayana erfasster Aktivität. Von einem anderen Gerät synchronisierte Sitzungen können nach der Synchronisierung beitragen. Tägliche Minuten- und jährliche Buchziele legst du in den Einstellungen unter den Lesezielen fest.
 
 <p align="center">
   <img src="assets/user-guide/05-statistics.png" alt="Statistikbildschirm mit Leseaktivität, Zielen und Speicherverbrauch" width="360"><br>
@@ -452,17 +485,20 @@ Die GitHub-Synchronisierung nutzt ein Repository unter deiner Kontrolle. Sie kan
 - Bücher, Cover und Bibliotheksmetadaten
 - Leseposition, Sitzungen und Daten
 - Markierungen, Notizen, Regale und Als Nächstes lesen
-- Vokabeln und übertragbare Einstellungen
+- Vokabeln, nachgeschlagene Wörter und übertragbare Einstellungen
+- Home-Library-Bücher und ihre Lesedaten
 - Löschungen und Wiederherstellungen
 
-Buch- und Coverdateien werden vor dem Hochladen mit AES-GCM und der Synchronisierungs-Passphrase verschlüsselt. Das GitHub-Token wird auf dem Gerät gespeichert. Leichte Fortschrittssynchronisierung kann während des Lesens laufen, während die vollständige Synchronisierung Bibliothekszustand und Dateien abgleicht.
+Buch- und Coverdateien werden vor dem Hochladen mit AES-GCM und der Synchronisierungs-Passphrase verschlüsselt. Das GitHub-Token wird auf dem Gerät gespeichert. Leichte Fortschrittssynchronisierung kann während des Lesens laufen, während die vollständige Synchronisierung Bibliothekszustand und Dateien abgleicht. Hochgeladen wird nur, was sich geändert hat; eine Synchronisierung ohne Neues dauert etwa eine Sekunde, und **Einstellungen → Hilfe und Info → Datennutzung** zeigt, was jede Synchronisierung gesendet und empfangen hat.
+
+Jedes Gerät, das ein Repository nutzt, braucht Vayana 0.93 oder neuer: Ältere Versionen können das kompakte Synchronisierungsformat nicht lesen.
 
 Wichtige Einrichtungsregeln:
 
 - Nutze ein privates Repository nur für die Vayana-Synchronisierung.
 - Gib dem Token nur den benötigten Repository-Zugriff.
 - Nutze auf allen Geräten dasselbe Repository, denselben Branch und dieselbe Passphrase.
-- Gib jedem Gerät einen erkennbaren Namen für Konflikt- und Verlaufsmeldungen.
+- Gib jedem Gerät einen erkennbaren Namen für Konflikt- und Verlaufsmeldungen und die Karte **Geräte** in der Statistik.
 - Bewahre die Passphrase sicher auf; verschlüsselte Dateien lassen sich ohne sie nicht wiederherstellen.
 - Nutze **GitHub-Verbindung testen** vor der ersten vollständigen Synchronisierung.
 
@@ -507,13 +543,13 @@ Die Einstellungen sind gruppiert und durchsuchbar:
 
 - **Darstellung:** Thema, Farben, E-Ink, Bewegung, Navigation, Daten und App-Sprache
 - **Bibliothek:** Startbildschirm, Cover, Verhalten beim Abschluss, Bücher ohne digitale Datei, Home Library, Erinnerungen und Kürzlich gelöscht
-- **Reader-Text:** Schrift, Größe, Abstände, Buchstile und eigene Schriften
+- **Reader-Text:** Schrift, Größe, Abstände, Buchstile, eigene Schriften und Offline-Wörterbücher
 - **Reader-Seite:** Seitenfarben, Ränder, Kopfzeile, Fußzeile und Fortschrittsanzeige
 - **Reader-Steuerung:** Tippen, Tasten, Markierungen, Wachhalten, Vorlesen und zugehörige Steuerung
 - **Leseziele:** tägliche Minuten, jährliche Bücher und Wochenbeginn
 - **Synchronisierung:** GitHub-Repository, Zugangsdaten, Passphrase, Gerätename, Zustand, Tests und Übertragung
 - **Sicherung und Wiederherstellung:** manuelle und geplante Sicherungen
-- **Hilfe und Über:** integrierte Hilfe, Diagnose, Version, Quellcode, Versionslink, Teilen und Entwicklerlinks
+- **Hilfe und Info:** integrierte Hilfe, Diagnose, Datenschutz & Daten, Datennutzung, Version, Quellcode, Versionslink, Teilen und Entwicklerlinks
 
 Vayanas Oberflächensprache kann unabhängig von der Buchsprache gewählt werden. Version 0.93 enthält Englisch, Spanisch, Portugiesisch, Russisch, Deutsch, Französisch, Italienisch, Malayalam und Tamil. Suche in den Einstellungen nach **Sprache**, um die App-Sprache zu ändern; Bücher behalten ihre eigenen Sprachmetadaten.
 
@@ -526,9 +562,9 @@ Vayanas Oberflächensprache kann unabhängig von der Buchsprache gewählt werden
 
 ## Diagnose und Support
 
-Öffne **Einstellungen → Hilfe und Über → Diagnose**, wenn die App abstürzt oder die Synchronisierung unerwartet reagiert.
+Öffne **Einstellungen → Hilfe und Info → Diagnose**, wenn die App abstürzt oder die Synchronisierung unerwartet reagiert.
 
-Diagnose zeichnet jüngste unbehandelte Abstürze und Synchronisierungsprobleme lokal auf. Der Bildschirm zeigt Anzahlen, neueste Ereignisse zuerst und ausklappbare technische Details. Außerdem bietet er:
+Diagnose zeichnet jüngste unbehandelte Abstürze und Synchronisierungsprobleme lokal auf. Eine Synchronisierung, die nur ausfällt, weil das Gerät offline ist, gilt nicht als Problem. Der Bildschirm zeigt Anzahlen, neueste Ereignisse zuerst und ausklappbare technische Details. Außerdem bietet er:
 
 - **Mit Entwickler teilen**, um das Android-Teilen-Menü mit einem Klartextbericht zu öffnen
 - **Bericht kopieren**, um den Bericht in die Zwischenablage zu legen
@@ -566,7 +602,9 @@ Melde reproduzierbare Probleme über [GitHub Issues](https://github.com/rjwarrie
 
 ## Datenschutz und Online-Dienste
 
-Grundlegendes Lesen, lokale Suche, Notizen, Offline-Wörterbuch, Statistiken und lokale Sicherung funktionieren ohne Vayana-Konto.
+Grundlegendes Lesen, lokale Suche, Notizen, installierte Offline-Wörterbücher, Statistiken und lokale Sicherung funktionieren ohne Vayana-Konto.
+
+**Einstellungen → Hilfe und Info → Datenschutz & Daten** zeigt, wo deine Daten auf dem Gerät liegen, was es verlässt und an wen, sowie den aktuellen Stand von Geräteverschlüsselung, Displaysperre und Sichtbarkeit des Synchronisierungs-Repositorys. **Datennutzung** daneben zeigt Vayanas WLAN- und Mobildaten pro Tag und was jede Synchronisierung gesendet und empfangen hat; diese Aufzeichnungen bleiben auf dem Gerät.
 
 Netzwerkzugriff erfolgt, wenn du eine Online-Funktion auswählst oder einrichtest:
 
@@ -576,6 +614,7 @@ Netzwerkzugriff erfolgt, wenn du eine Online-Funktion auswählst oder einrichtes
 | OPDS | Katalogadresse, Navigations-/Suchanfragen, optionale Serveranmeldung und Downloads |
 | Goodreads | Abfragen zu Buchmetadaten/Covern und Browseralternative |
 | Wiktionary/Wikipedia | Ausgewähltes Wort oder Wendung beim angeforderten Nachschlagen |
+| Wörterbuch-Downloads | Downloads von Open English WordNet, GNU (GCIDE), Olam oder FreeDict, wenn du ein Wörterbuch installierst; Offline-Nachschlagen bleibt auf dem Gerät |
 | Übersetzung | Ausgewählter Text an die gewählte Übersetzungs-App bzw. den Anbieter |
 | GitHub-Synchronisierung | Synchronisierungsmetadaten sowie AES-GCM-verschlüsselte Buch-/Coverdateien; Repository-Kennungen und Token bleiben in den App-Einstellungen auf dem Gerät |
 | Coversuche | Die für die ausgewählte Quelle benötigten Buchsuchmetadaten |
@@ -617,8 +656,9 @@ Diagnoseprotokolle bleiben auf dem Gerät, bis du sie ausdrücklich kopierst, te
 
 ### Wörterbuch oder Übersetzung ist nicht verfügbar
 
+- Installiere unter **Einstellungen → Reader-Text → Wörterbücher** ein Wörterbuch für die Sprache des Buches.
 - Prüfe, ob die Buchsprache in den Metadaten korrekt ist.
-- Offline-Ergebnisse hängen von den installierten/mitgelieferten Wörterbuchdaten ab.
+- Antwortet zuerst das falsche Wörterbuch, ändere dort die Reihenfolge.
 - Die Wikimedia-Alternative benötigt Internetzugriff.
 - Übersetzung benötigt eine kompatible App.
 
@@ -648,13 +688,14 @@ Diagnoseprotokolle bleiben auf dem Gerät, bis du sie ausdrücklich kopierst, te
 - Nur von Vayana erfasste Sitzungen werden gezählt.
 - Prüfe, ob das Buch über Vayana geöffnet wird und die Geräteuhr korrekt ist.
 - Synchronisiere, wenn die Aktivität auf einem anderen konfigurierten Gerät erfasst wurde.
+- Fehlt auf der Karte **Geräte** ein Gerät, gib jedem Gerät unter **Einstellungen → Synchronisierung** einen eigenen Namen und synchronisiere erneut.
 
 <a id="the-app-crashed"></a>
 
 ### Die App ist abgestürzt
 
 1. Öffne Vayana erneut.
-2. Gehe zu **Einstellungen → Hilfe und Über → Diagnose**.
+2. Gehe zu **Einstellungen → Hilfe und Info → Diagnose**.
 3. Klappe den neuesten Absturz aus und prüfe, ob die Uhrzeit passt.
 4. Nutze **Mit Entwickler teilen** oder **Bericht kopieren**.
 5. Beschreibe die Aktion unmittelbar vor dem Absturz.

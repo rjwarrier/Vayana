@@ -48,7 +48,7 @@ Esta guía describe las funciones disponibles en Vayana 0.93 y explica los proce
 5. Toca una portada para abrir **Detalles del libro** y elige **Continuar leyendo**.
 6. Toca el centro de una página EPUB para mostrar las herramientas del lector y los controles de apariencia.
 
-Vayana almacena la biblioteca localmente de forma predeterminada. No requiere una cuenta. Las copias de seguridad, la sincronización con GitHub, Goodreads, Project Gutenberg, OPDS, las consultas Wikimedia y la traducción son opcionales.
+Vayana almacena la biblioteca localmente de forma predeterminada. No requiere una cuenta. Las copias de seguridad, la sincronización con GitHub, Goodreads, Project Gutenberg, OPDS, las descargas de diccionarios, las consultas Wikimedia y la traducción son opcionales.
 
 <table>
   <tr>
@@ -71,7 +71,7 @@ El diseño compacto para teléfonos tiene tres destinos principales:
 
 - **Libros** abre el panel de lectura y la biblioteca.
 - **Notas** agrupa resaltados, subrayados y notas por libro.
-- **Estadísticas** muestra tiempo de lectura, rachas, objetivos, libros terminados y uso de almacenamiento.
+- **Estadísticas** muestra el tiempo de lectura por semana, mes, año o en total, rachas, objetivos, libros terminados, palabras que buscaste y uso de almacenamiento.
 
 El botón **Añadir libros** aparece junto a la navegación principal. La barra de herramientas de la biblioteca también ofrece:
 
@@ -224,6 +224,7 @@ El lector EPUB de Vayana recuerda la posición de cada libro y admite texto reaj
 - Busca en el libro actual.
 - Consulta el progreso por página/posición y porcentaje.
 - Configura pantalla completa, información de encabezado/pie y mantener la pantalla encendida según tus preferencias.
+- La flecha atrás en la parte superior de las herramientas del lector cierra el libro, algo útil en dispositivos E-Ink donde los gestos de retroceso fallan.
 - En horizontal, las pantallas anchas pueden mostrar dos columnas.
 
 Al volver después de un tiempo, Vayana puede mostrar un breve resumen de **Bienvenido de nuevo** con el último capítulo y el contexto reciente de lectura.
@@ -232,7 +233,7 @@ Al volver después de un tiempo, Vayana puede mostrar un breve resumen de **Bien
 
 ### Tipografía y apariencia de la página
 
-Abre **Ajustes** dentro del lector para modificar:
+Abre **Estilo** en las herramientas del lector para modificar lo siguiente. La página sigue visible detrás del panel, así que cada cambio se ve al momento.
 
 - Tema de página: Sistema, Claro, Papel, Sepia, Menta u otros temas disponibles
 - Familia tipográfica, fuente personalizada importada, tamaño y texto más grueso
@@ -319,17 +320,43 @@ El destino global **Notas** agrupa las anotaciones por libro y muestra recuentos
 
 ## Diccionario, traducción y vocabulario
 
-- Toca dos veces una palabra en una vista de texto compatible para abrir el diccionario sin conexión incluido.
-- Vayana usa el idioma del libro para las consultas cuando sus metadatos lo indican.
+Toca dos veces una palabra para consultarla sin conexión. Vayana prueba primero los diccionarios del idioma del libro y, bajo la definición principal, añade el significado en tus otros idiomas instalados, como el malayalam de Olam. Las consultas también encuentran posesivos, contracciones, terminaciones verbales antiguas (*canst*, *lendeth*) y palabras escritas con o sin acentos.
+
+<a id="offline-dictionaries"></a>
+
+### Diccionarios sin conexión
+
+Gestiona los diccionarios en **Ajustes → Texto del lector → Diccionarios**. Se prueban en el orden mostrado: usa **Probar primero …** para subir uno y el botón de papelera para quitarlo.
+
+| Diccionario | Palabras y significados | Cómo instalarlo |
+| --- | --- | --- |
+| Open English WordNet | Definiciones modernas en inglés con ejemplos | **Obtener diccionario** descarga el ZIP gratuito en el navegador; luego **Instalar ZIP** |
+| GCIDE (Webster’s 1913) | Inglés, incluidas palabras antiguas y literarias | El botón de descarga lo obtiene de GNU y lo prepara en el teléfono, lo que tarda unos minutos |
+| Olam | Inglés → malayalam | Botón de descarga |
+| FreeDict | Más de 300 diccionarios bilingües | **Más diccionarios** abre el catálogo de FreeDict, con tus idiomas primero |
+| Tu propio diccionario | Cualquier diccionario StarDict | **Importar archivo StarDict** y elige el idioma de las palabras y de los significados |
+
+Las descargas se comprueban antes de instalarse y una descarga dañada se rechaza. Cada dispositivo tiene sus propios diccionarios; no se sincronizan.
+
+<a id="online-lookup-and-translation"></a>
+
+### Consulta en línea y traducción
+
 - Busca palabras o frases seleccionadas en Wiktionary o Wikipedia cuando haya conexión a Internet.
 - Envía una selección a una aplicación de traducción instalada.
-- Guarda las palabras consultadas en la lista de vocabulario.
-- Descubre palabras poco habituales del capítulo actual.
-- Marca como conocidos los términos que ya dominas.
-- Repasa el vocabulario guardado a intervalos espaciados.
-- Exporta el vocabulario como CSV compatible con Anki o Markdown legible.
 
-Las consultas en línea solo envían la búsqueda seleccionada al proveedor elegido cuando lo solicitas. La traducción requiere una aplicación de traducción compatible.
+La consulta en línea envía solo la consulta seleccionada al proveedor elegido cuando la solicitas. La traducción requiere una aplicación de traducción compatible.
+
+<a id="learn-and-vocabulary"></a>
+
+### Aprender y vocabulario
+
+- **Estadísticas → Palabras que buscaste → Ver todo** abre **Aprender**: cada palabra que buscaste, cuántas veces, cuándo y la frase de la que procede. Toca una palabra para ver su significado o quítala. La lista y lo que quitas se sincronizan entre dispositivos.
+- Solo se guardan las consultas intencionadas: una definición que dejas abierta un momento, lees en línea o guardas. Seleccionar una palabra para empezar un resaltado no cuenta, y las palabras que ningún diccionario instalado conoce, como nombres y erratas, no se guardan.
+- Oculta las palabras que ya conoces o guarda una palabra para el **repaso de vocabulario**.
+- Descubre palabras poco comunes del capítulo actual y marca términos conocidos.
+- Repasa el vocabulario guardado con intervalos espaciados.
+- Exporta el vocabulario como CSV compatible con Anki o Markdown legible.
 
 <a id="read-aloud"></a>
 
@@ -340,6 +367,9 @@ La síntesis de voz de Android puede leer un EPUB frase por frase y continuar en
 - Comienza desde la posición actual o un pasaje seleccionado.
 - Sigue la marca de la palabra/frase pronunciada en el texto.
 - Elige un motor TTS instalado, idioma, voz, velocidad y tono.
+- Enséñale nombres: en **Leer en voz alta → Pronunciaciones de este libro** escribes cómo debe sonar una palabra o frase. Las correcciones se guardan en el dispositivo.
+- Las pausas siguen los párrafos, títulos y cambios de escena. Los números romanos en etiquetas como *Capítulo IV* se leen como números, y las voces en inglés reciben además indicaciones para fechas, horas, importes y medidas.
+- La escucha continúa con la pantalla apagada y cuenta como tiempo de lectura; Estadísticas muestra cuánto escuchaste.
 - Usa un temporizador de apagado.
 - Pausa tocando el lector.
 - Controla la reproducción desde las notificaciones, pantalla de bloqueo, auriculares o controles Bluetooth.
@@ -359,25 +389,28 @@ La búsqueda global puede encontrar:
 - Resaltados y notas personales
 - Consultas recientes y coincidencias por prefijo
 
+Pon una frase entre comillas dobles, como `"river boat"`, para que las palabras aparezcan juntas y en ese orden. Los chips de **libro** y **estantería** bajo el cuadro de búsqueda limitan los resultados a un libro o una estantería, y los chips de resultados alternan entre Todo, Libros, Notas y Contenido.
+
 El contenido EPUB disponible localmente se indexa para buscar con rapidez. El texto de las páginas PDF y el contenido de los libros físicos no se indexan, aunque sus anotaciones personales sí pueden aparecer en la búsqueda de anotaciones.
 
 <a id="statistics-and-goals"></a>
 
 ## Estadísticas y objetivos
 
-**Reading records** muestra los libros con actividad guardada, incluidos los libros físicos en curso. Cada entrada incluye portada, título, autor, fechas de inicio y finalización registradas y tiempo de lectura acumulado. Toca una entrada para abrir los detalles del libro; **View all reading records** muestra la lista completa cuando hay más de tres libros. Las fechas desconocidas aparecen como **Not recorded**. El tiempo procede de sesiones guardadas; indicar una fecha de finalización no estima el tiempo de lectura.
+Elige **Semana**, **Mes**, **Año** o **Todo** en la parte superior de Estadísticas. La tarjeta principal muestra el tiempo leído en ese periodo y su comparación con el mismo punto del periodo anterior, junto con sesiones, días de lectura y libros terminados. El gráfico puede mostrar barras o una línea; el pequeño chip de la esquina de la tarjeta cambia entre ambos y Vayana recuerda la elección. Toca una barra para ver su tiempo. **Todo** muestra los últimos 12 meses, incluidos los meses sin lectura.
 
-Vayana registra sesiones de lectura y presenta:
+Las tarjetas de abajo se agrupan así:
 
-- Tiempo de lectura diario y total
-- Rachas de lectura y actividad en calendario
-- Libros terminados por mes y año
-- Objetivos diarios de minutos y anuales de libros
-- Historial de lectura por libro
-- Almacenamiento usado por libros, portadas, notas/citas, datos de diccionario y caché
-- Totales por formato y libros más grandes/más pequeños
+- **Lectura:** racha y objetivo diario, **Cuándo lees** (hora del día, día de la semana y sesión media y más larga), **Escuchado y leído**, **Lo más leído**, **Dispositivos**, actividad de lectura y ritmo para terminar el libro actual
+- **Libros:** **El año en libros** con **Ver tu año**, un resumen del año para compartir; registros de lectura; hábitos de lectura; autores y series; y etiquetas según el tiempo de lectura
+- **Notas y palabras:** un resaltado para volver a ver, notas y resaltados, **Palabras que buscaste**, crecimiento del vocabulario y repaso de vocabulario
+- **Biblioteca:** totales de la biblioteca, progreso medio y almacenamiento usado por libros, portadas, notas/citas, diccionarios, fuentes y caché
 
-Las estadísticas se basan en la actividad registrada por Vayana. Las sesiones de otro dispositivo pueden contribuir después de sincronizarse.
+**Dispositivos** muestra el tiempo de lectura por dispositivo sincronizado y el más usado. Cada sesión guarda el nombre de sincronización del dispositivo en el que se leyó. Con la [sincronización con GitHub](#github-sync), las sesiones anteriores se asignan una sola vez a partir del historial del repositorio la próxima vez que el dispositivo esté en Wi‑Fi; el tiempo que no se puede asignar se muestra como no incluido.
+
+**Registros de lectura** muestra los libros con actividad de lectura guardada, incluidos libros físicos aún en curso. Cada entrada muestra portada, título, autor, fechas registradas de inicio y fin y el tiempo de lectura acumulado. Toca una entrada para abrir los detalles del libro; usa **Ver todos los registros de lectura** cuando haya más de tres libros. Las fechas que faltan aparecen como **Sin registrar**. El tiempo procede de las sesiones guardadas; una fecha de fin no estima el tiempo de lectura.
+
+Las estadísticas se basan en la actividad registrada por Vayana. Las sesiones de otro dispositivo pueden contribuir después de sincronizarse. Los objetivos diarios de minutos y anuales de libros se fijan en los ajustes de objetivos de lectura.
 
 <p align="center">
   <img src="assets/user-guide/05-statistics.png" alt="Pantalla de estadísticas con actividad de lectura, objetivos y almacenamiento" width="360"><br>
@@ -452,17 +485,20 @@ La sincronización con GitHub usa un repositorio bajo tu control. Puede sincroni
 - Libros, portadas y metadatos de la biblioteca
 - Posición de lectura, sesiones y fechas
 - Resaltados, notas, estanterías y Próximas lecturas
-- Vocabulario y ajustes portables
+- Vocabulario, palabras consultadas y ajustes portables
+- Libros de Home Library y sus datos de lectura
 - Eliminaciones y restauraciones
 
-Los archivos de libros y portadas se cifran con AES-GCM usando la frase de contraseña de sincronización antes de subirse. El token de GitHub se almacena en el dispositivo. La sincronización ligera del progreso puede ejecutarse mientras lees, y la sincronización completa concilia el estado de la biblioteca y sus archivos.
+Los archivos de libros y portadas se cifran con AES-GCM usando la frase de contraseña de sincronización antes de subirse. El token de GitHub se almacena en el dispositivo. La sincronización ligera del progreso puede ejecutarse mientras lees, y la sincronización completa concilia el estado de la biblioteca y sus archivos. Solo se sube lo que ha cambiado: una sincronización sin novedades tarda alrededor de un segundo, y **Ajustes → Ayuda e información → Uso de datos** muestra lo que envió y recibió cada sincronización.
+
+Todos los dispositivos que comparten un repositorio necesitan Vayana 0.93 o posterior: las versiones anteriores no pueden leer su formato de sincronización compacto.
 
 Reglas importantes de configuración:
 
 - Usa un repositorio privado dedicado a la sincronización de Vayana.
 - Concede al token solo el acceso al repositorio que necesita.
 - Usa el mismo repositorio, rama y frase de contraseña en todos los dispositivos.
-- Asigna a cada dispositivo un nombre reconocible para los mensajes de conflicto e historial.
+- Asigna a cada dispositivo un nombre reconocible para los mensajes de conflicto e historial y la tarjeta **Dispositivos** de Estadísticas.
 - Guarda la frase de contraseña en un lugar seguro; sin ella no se pueden recuperar los archivos cifrados.
 - Usa **Probar conexión con GitHub** antes de la primera sincronización completa.
 
@@ -507,13 +543,13 @@ Los ajustes están agrupados y permiten búsquedas:
 
 - **Apariencia:** tema, colores, E-Ink, movimiento, navegación, fechas e idioma de la aplicación
 - **Biblioteca:** pantalla inicial, portadas, comportamiento al terminar, libros sin archivo digital, Home Library, recordatorios y Eliminados recientemente
-- **Texto del lector:** fuente, tamaño, espaciado, estilos del libro y fuentes personalizadas
+- **Texto del lector:** fuente, tamaño, espaciado, estilos del libro, fuentes personalizadas y diccionarios sin conexión
 - **Página del lector:** colores de página, márgenes, encabezado, pie y presentación del progreso
 - **Controles del lector:** toques, teclas, resaltado, mantenimiento de pantalla encendida, lectura en voz alta y controles relacionados
 - **Objetivos de lectura:** minutos diarios, libros anuales e inicio de semana
 - **Sincronización:** repositorio GitHub, credenciales, frase de contraseña, nombre del dispositivo, estado, pruebas y transferencia
 - **Copia de seguridad y restauración:** copias manuales y programadas
-- **Ayuda y acerca de:** ayuda integrada, Diagnóstico, versión, código fuente, enlace a la versión, compartir y enlaces del desarrollador
+- **Ayuda e información:** ayuda integrada, Diagnóstico, Privacidad y datos, Uso de datos, versión, código fuente, enlace a la versión, compartir y enlaces del desarrollador
 
 El idioma de la interfaz de Vayana se puede elegir independientemente del idioma de los libros. La versión 0.93 incluye inglés, español, portugués, ruso, alemán, francés, italiano, malayalam y tamil. Busca **Idioma** en Ajustes para cambiar el idioma de la aplicación; los libros conservan sus propios metadatos de idioma.
 
@@ -526,9 +562,9 @@ El idioma de la interfaz de Vayana se puede elegir independientemente del idioma
 
 ## Diagnóstico y soporte
 
-Abre **Ajustes → Ayuda y acerca de → Diagnóstico** cuando la aplicación se cierre inesperadamente o la sincronización no se comporte como esperas.
+Abre **Ajustes → Ayuda e información → Diagnóstico** cuando la aplicación se cierre inesperadamente o la sincronización no se comporte como esperas.
 
-Diagnóstico registra localmente cierres inesperados no controlados y problemas recientes de sincronización. La pantalla muestra recuentos, eventos del más reciente al más antiguo y detalles técnicos desplegables. También ofrece:
+Diagnóstico registra localmente cierres inesperados no controlados y problemas recientes de sincronización. Una sincronización que solo falla porque el dispositivo no tiene conexión no se registra como problema. La pantalla muestra recuentos, eventos del más reciente al más antiguo y detalles técnicos desplegables. También ofrece:
 
 - **Compartir con el desarrollador** para abrir el panel de compartir de Android con un informe de texto
 - **Copiar informe** para colocarlo en el portapapeles
@@ -566,7 +602,9 @@ Informa de problemas reproducibles mediante [GitHub Issues](https://github.com/r
 
 ## Privacidad y servicios en línea
 
-La lectura básica, búsqueda local, notas, diccionario sin conexión, estadísticas y copias locales funcionan sin una cuenta Vayana.
+La lectura básica, búsqueda local, notas, los diccionarios sin conexión instalados, estadísticas y copias locales funcionan sin una cuenta Vayana.
+
+**Ajustes → Ayuda e información → Privacidad y datos** muestra dónde se guardan tus datos en el dispositivo, qué sale de él y hacia quién, y el estado actual del cifrado del dispositivo, el bloqueo de pantalla y la visibilidad del repositorio de sincronización. **Uso de datos**, a su lado, muestra los datos Wi‑Fi y móviles de Vayana por día y lo que envió y recibió cada sincronización; estos registros se quedan en el dispositivo.
 
 Se accede a la red cuando eliges o configuras una función en línea:
 
@@ -576,6 +614,7 @@ Se accede a la red cuando eliges o configuras una función en línea:
 | OPDS | Dirección del catálogo, solicitudes de navegación/búsqueda, autenticación opcional del servidor y descargas |
 | Goodreads | Consulta de metadatos/portadas de libros y alternativa mediante navegador |
 | Wiktionary/Wikipedia | La palabra o frase seleccionada cuando solicitas una consulta |
+| Descargas de diccionarios | Descargas desde Open English WordNet, GNU (GCIDE), Olam o FreeDict cuando instalas un diccionario; las consultas sin conexión se quedan en el dispositivo |
 | Traducción | Texto seleccionado enviado a la aplicación/proveedor de traducción elegido |
 | Sincronización con GitHub | Metadatos de sincronización y archivos de libros/portadas cifrados con AES-GCM; los identificadores del repositorio y el token permanecen en los ajustes de la aplicación en el dispositivo |
 | Búsqueda de portadas | Metadatos de búsqueda del libro necesarios para la fuente elegida |
@@ -617,8 +656,9 @@ Los registros de diagnóstico permanecen en el dispositivo hasta que los copies,
 
 ### El diccionario o la traducción no están disponibles
 
+- Instala un diccionario para el idioma del libro en **Ajustes → Texto del lector → Diccionarios**.
 - Confirma que el idioma del libro sea correcto en los metadatos.
-- Los resultados sin conexión dependen de los datos del diccionario instalado/incluido.
+- Si responde primero el diccionario equivocado, cambia allí el orden.
 - La alternativa Wikimedia requiere acceso a Internet.
 - La traducción requiere una aplicación compatible.
 
@@ -648,13 +688,14 @@ Los registros de diagnóstico permanecen en el dispositivo hasta que los copies,
 - Solo se cuentan las sesiones registradas por Vayana.
 - Confirma que el libro se abra mediante Vayana y que el reloj del dispositivo sea correcto.
 - Ejecuta la sincronización si la actividad se registró en otro dispositivo configurado.
+- Si falta un dispositivo en la tarjeta **Dispositivos**, da a cada uno su propio nombre en **Ajustes → Sincronización** y vuelve a sincronizar.
 
 <a id="the-app-crashed"></a>
 
 ### La aplicación se cerró inesperadamente
 
 1. Vuelve a abrir Vayana.
-2. Ve a **Ajustes → Ayuda y acerca de → Diagnóstico**.
+2. Ve a **Ajustes → Ayuda e información → Diagnóstico**.
 3. Despliega el cierre inesperado más reciente y confirma que la hora coincida.
 4. Usa **Compartir con el desarrollador** o **Copiar informe**.
 5. Describe la acción realizada inmediatamente antes del cierre.

@@ -9,7 +9,7 @@ This guide creates a dedicated private repository, gives Vayana access only to t
 You need:
 
 - A GitHub account
-- Vayana installed on each Android device
+- Vayana 0.93 or newer on each Android device (older versions cannot read the compact sync format)
 - A strong sync passphrase that you can enter on every device
 - About 10 minutes for the initial setup
 
@@ -120,10 +120,12 @@ Repeat these steps for each additional device, giving every device a different n
 
 ## Everyday sync behavior
 
-- **Full sync** merges the library, books, covers, annotations, shelves, vocabulary, reading sessions, settings, deletions, and reading progress.
+- **Full sync** merges the library, books, covers, annotations, shelves, vocabulary, looked-up words, reading sessions, settings, deletions, and reading progress. Books mirrored from Home Library also reach devices without Home Library, where they stay read-only.
 - **Reading progress only** exchanges the latest reading positions without running the full library workflow.
 - **Sync while reading** performs lightweight progress sync after the configured number of page turns.
 - If two devices report different positions, the conflict dialog shows the sync time and device name so you can choose the correct position.
+- Only changed data is uploaded. **Settings** → **Help and about** → **Data usage** shows what each sync sent and received.
+- Each device's name is recorded with its reading sessions for the **Devices** card in Stats. Sessions from before 0.93 are credited once from the repository's commit history, the next time the device is on Wi-Fi.
 - Permanently deleted encrypted files may remain in older Git commits unless the repository history is rewritten.
 
 For the cleanest results, let one device finish syncing before starting a sync on another device.
@@ -138,6 +140,7 @@ For the cleanest results, let one device finish syncing before starting a sync o
 | **404 / not found** | Check the owner, repository name, branch, selected repository access, and whether the token can access a private repository. |
 | **Upload rejected or protected branch error** | Use a dedicated branch that does not require pull requests, reviews, or signed commits for every change. |
 | **Import or decryption fails** | Enter the exact passphrase used to export the setup and encrypt the existing cloud assets. Passphrases are case-sensitive. |
+| **A device stopped syncing after another was updated** | Update every device that shares the repository to Vayana 0.93 or newer. |
 | **Both devices show the same device name** | Rename each device in **Settings** before the next sync. |
 | **A conflict dialog appears** | Compare the displayed position, sync time, and device name, then choose the version you want to keep. |
 
