@@ -159,6 +159,8 @@ data class QuoteShareOptions(
     val showTagline: Boolean = true,
     /** The reader's seal ([ShareSeal]) at the top right, when one is set. */
     val showSeal: Boolean = true,
+    /** The reader's profile name ([ShareProfile]) at the bottom right, when one is set. */
+    val showProfileName: Boolean = true,
     /** The seal's size, as a multiple of the wordmark-sized default. */
     val sealScale: Float = 1f,
     val quoteFontScale: Float = 1f,
@@ -536,6 +538,7 @@ fun ShareCardSealControls(show: Boolean, scale: Float, onShowChange: (Boolean) -
                 label = stringResource(R.string.share_quote_seal_size),
                 value = scale,
                 range = MinSealScale..MaxSealScale,
+                // An M3 discrete slider: a tick every 10%, fine enough to match the seal to the wordmark.
                 steps = SealScaleSteps,
                 onChange = onScaleChange,
             )
@@ -587,6 +590,11 @@ private fun QuoteIncludeTab(
         }
         ShareCardOptionChip(options.showTagline, stringResource(R.string.share_card_image_options_tagline)) {
             onOptionsChange(options.copy(showTagline = !options.showTagline))
+        }
+        if (hasShareProfileName()) {
+            ShareCardOptionChip(options.showProfileName, stringResource(R.string.share_profile_name)) {
+                onOptionsChange(options.copy(showProfileName = !options.showProfileName))
+            }
         }
     }
     Spacer(modifier = Modifier.height(Spacing.sm))
@@ -707,25 +715,14 @@ fun QuoteShareCard(
                 QuoteShareCardLayout.CENTERED -> CenteredQuoteBody(content, colors, bodyModifier)
                 QuoteShareCardLayout.MINIMAL -> MinimalQuoteBody(content, colors, bodyModifier)
             }
-            if (options.showCaption || options.showTagline) {
-                Column {
-                    HorizontalDivider(color = colors.divider)
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        if (options.showCaption) {
-                            ShareCardCaption(text = stringResource(R.string.share_card_highlighted_in, watermark), color = colors.accent)
-                        } else {
-                            Spacer(modifier = Modifier)
-                        }
-                        if (options.showTagline) {
-                            ShareCardCaption(text = footerRight, color = colors.mutedText)
-                        }
-                    }
-                }
-            }
+            ShareCardFooter(
+                left = listOfNotNull(
+                    (stringResource(R.string.share_card_highlighted_in, watermark) to colors.accent).takeIf { options.showCaption },
+                    (footerRight to colors.mutedText).takeIf { options.showTagline },
+                ),
+                profileName = shareProfileName(options.showProfileName),
+                colors = colors,
+            )
         }
     }
 }
@@ -1057,9 +1054,10 @@ private const val MaxDetailsGap = 3f
 private const val DetailsGapSteps = 11
 private const val ShortDividerFraction = 0.3f
 private const val CoverDecodePx = 1600
-private const val MinSealScale = 0.5f
-private const val MaxSealScale = 2f
-private const val SealScaleSteps = 5
+private const val MinSealScale = 0.3f
+private const val MaxSealScale = 2.5f
+/** Ticks between the ends: (2.5 - 0.3) / 0.1 = 22 intervals. */
+private const val SealScaleSteps = 21
 
 /** Share of the editor's height the preview gets; the tabs and their controls take the rest. */
 private const val PreviewHeightFraction = 0.45f

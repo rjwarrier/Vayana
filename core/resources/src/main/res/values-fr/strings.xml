@@ -658,9 +658,11 @@
     <string name="share_quote_gap">Espace avant les infos du livre</string>
     <string name="share_quote_divider">Séparateur</string>
     <string name="settings_group_profile">Profil</string>
-    <string name="settings_group_profile_subtitle">Votre sceau pour les cartes de citations</string>
+    <string name="settings_group_profile_subtitle">Votre nom et votre sceau pour les cartes</string>
+    <string name="share_profile_name">Nom de profil</string>
+    <string name="share_profile_name_hint">Apparaît en bas à droite de vos cartes de partage quand la puce Nom de profil est activée.</string>
     <string name="share_seal_title">Votre sceau</string>
-    <string name="share_seal_body">Une forme PNG, idéalement blanche sur fond transparent. Elle apparaît en haut à droite de vos cartes de citations, aux couleurs de la carte.</string>
+    <string name="share_seal_body">Une forme PNG, idéalement blanche sur fond transparent. Elle apparaît en haut à droite de vos cartes de partage, aux couleurs de la carte.</string>
     <string name="share_seal_add">Ajouter un sceau</string>
     <string name="share_seal_change">Changer</string>
     <string name="share_seal_remove">Retirer</string>

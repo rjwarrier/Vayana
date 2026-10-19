@@ -650,9 +650,11 @@
     <string name="share_quote_gap">പുസ്തക വിവരങ്ങൾക്ക് മുമ്പുള്ള ഇടം</string>
     <string name="share_quote_divider">വിഭജനരേഖ</string>
     <string name="settings_group_profile">പ്രൊഫൈൽ</string>
-    <string name="settings_group_profile_subtitle">പങ്കിടുന്ന ഉദ്ധരണി കാർഡുകൾക്കുള്ള നിങ്ങളുടെ മുദ്ര</string>
+    <string name="settings_group_profile_subtitle">പങ്കിടൽ കാർഡുകൾക്കുള്ള നിങ്ങളുടെ പേരും മുദ്രയും</string>
+    <string name="share_profile_name">പ്രൊഫൈൽ പേര്</string>
+    <string name="share_profile_name_hint">പ്രൊഫൈൽ പേര് ചിപ്പ് ഓണായിരിക്കുമ്പോൾ പങ്കിടുന്ന കാർഡുകളുടെ താഴെ വലത്ത് കാണാം.</string>
     <string name="share_seal_title">നിങ്ങളുടെ മുദ്ര</string>
-    <string name="share_seal_body">ഒരു PNG രൂപം, സുതാര്യമായ പശ്ചാത്തലത്തിൽ വെള്ളയായാൽ ഏറ്റവും നല്ലത്. ഉദ്ധരണി കാർഡുകളുടെ മുകളിൽ വലത്ത്, കാർഡിന്റെ നിറങ്ങളിൽ ഇത് കാണാം.</string>
+    <string name="share_seal_body">ഒരു PNG രൂപം, സുതാര്യമായ പശ്ചാത്തലത്തിൽ വെള്ളയായാൽ ഏറ്റവും നല്ലത്. പങ്കിടൽ കാർഡുകളുടെ മുകളിൽ വലത്ത്, കാർഡിന്റെ നിറങ്ങളിൽ ഇത് കാണാം.</string>
     <string name="share_seal_add">മുദ്ര ചേർക്കുക</string>
     <string name="share_seal_change">മാറ്റുക</string>
     <string name="share_seal_remove">നീക്കുക</string>

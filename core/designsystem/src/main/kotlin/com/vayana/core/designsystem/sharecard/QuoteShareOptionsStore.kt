@@ -34,6 +34,7 @@ internal object QuoteShareOptionsStore {
             showCaption = p.getBoolean("showCaption", d.showCaption),
             showTagline = p.getBoolean("showTagline", d.showTagline),
             showSeal = p.getBoolean("showSeal", d.showSeal),
+            showProfileName = p.getBoolean("showProfileName", d.showProfileName),
             sealScale = p.getFloat("sealScale", d.sealScale),
             quoteFontScale = p.getFloat("quoteFontScale", d.quoteFontScale),
         )
@@ -61,6 +62,7 @@ internal object QuoteShareOptionsStore {
             putBoolean("showCaption", o.showCaption)
             putBoolean("showTagline", o.showTagline)
             putBoolean("showSeal", o.showSeal)
+            putBoolean("showProfileName", o.showProfileName)
             putFloat("sealScale", o.sealScale)
             putFloat("quoteFontScale", o.quoteFontScale)
         }

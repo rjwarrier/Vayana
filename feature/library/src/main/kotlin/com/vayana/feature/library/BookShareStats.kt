@@ -18,11 +18,9 @@ internal class BookShareStats(
     val stat1Label: String,
     val stat2Value: String,
     val stat2Label: String,
-    val footerLeft: String,
     val progressFraction: Float?,
     @param:StringRes val stat1OptionLabel: Int,
     @param:StringRes val stat2OptionLabel: Int,
-    @param:StringRes val dateOptionLabel: Int,
 )
 
 @Composable
@@ -40,11 +38,9 @@ internal fun Book.shareStats(): BookShareStats {
             stat1Label = stringResource(R.string.share_card_stat_progress_label),
             stat2Value = stringResource(R.string.share_card_stat_hours, (seconds / 3600).toInt(), ((seconds % 3600) / 60).toInt()),
             stat2Label = stringResource(R.string.share_card_stat_read_time_label),
-            footerLeft = stringResource(R.string.library_imported_on, createdAt.formatDate()),
             progressFraction = readingPercent,
             stat1OptionLabel = R.string.share_card_image_options_progress,
             stat2OptionLabel = R.string.share_card_image_options_read_time,
-            dateOptionLabel = R.string.share_card_image_options_imported_date,
         )
     }
     val days = remember(startedReadingAt, finishedReadingAt) {
@@ -58,10 +54,8 @@ internal fun Book.shareStats(): BookShareStats {
         stat1Label = stringResource(R.string.share_card_stat_format_label),
         stat2Value = days?.toString() ?: "-",
         stat2Label = stringResource(R.string.share_card_stat_days_label),
-        footerLeft = stringResource(R.string.library_added_on, createdAt.formatDate()),
         progressFraction = readingPercent.takeIf { pageCount != null },
         stat1OptionLabel = R.string.share_card_image_options_format,
         stat2OptionLabel = R.string.share_card_image_options_days,
-        dateOptionLabel = R.string.share_card_image_options_added_date,
     )
 }

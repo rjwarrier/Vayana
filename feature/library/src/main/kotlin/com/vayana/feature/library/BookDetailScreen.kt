@@ -312,8 +312,8 @@ internal data class BookShareImageOptions(
     val showReadTime: Boolean = true,
     val showRating: Boolean = true,
     val showTags: Boolean = true,
-    /** Mutually exclusive with [showTags]; the options panel keeps at most one of them on. */
-    val showImportedDate: Boolean = false,
+    /** The reader's profile name (Settings → Profile) at the bottom right, when one is set. */
+    val showProfileName: Boolean = true,
     val showTagline: Boolean = true,
     val showYearlyGoal: Boolean = false,
     /** Colours, shape, type and seal: everything about the card's look rather than what it shows. */
@@ -1349,7 +1349,6 @@ private fun BookDetailScreen(
                 ratingValue = book.rating.takeIf { it > 0f }?.let { stringResource(R.string.share_card_stat_rating_value, it) },
                 ratingLabel = stringResource(R.string.share_card_stat_rating_label),
                 tags = book.tags(),
-                footerLeft = shareStats.footerLeft,
                 footerRight = stringResource(R.string.share_card_tagline),
                 watermark = stringResource(R.string.share_card_watermark),
                 theme = shareImageOptions.theme,
@@ -1361,7 +1360,7 @@ private fun BookDetailScreen(
                 showReadTime = shareImageOptions.showReadTime,
                 showRating = shareImageOptions.showRating,
                 showTags = shareImageOptions.showTags,
-                showImportedDate = shareImageOptions.showImportedDate,
+                showProfileName = shareImageOptions.showProfileName,
                 showTagline = shareImageOptions.showTagline,
                 layout = shareImageOptions.layout,
                 backdropCoverAlpha = shareImageOptions.backdropCoverAlpha,

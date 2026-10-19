@@ -666,9 +666,11 @@
     <string name="share_quote_gap">Отступ перед данными книги</string>
     <string name="share_quote_divider">Разделитель</string>
     <string name="settings_group_profile">Профиль</string>
-    <string name="settings_group_profile_subtitle">Ваша печать для карточек с цитатами</string>
+    <string name="settings_group_profile_subtitle">Ваше имя и печать для карточек</string>
+    <string name="share_profile_name">Имя профиля</string>
+    <string name="share_profile_name_hint">Показывается внизу справа на карточках, когда включён чип «Имя профиля».</string>
     <string name="share_seal_title">Ваша печать</string>
-    <string name="share_seal_body">Фигура в PNG, лучше белая на прозрачном фоне. Она появляется в правом верхнем углу карточек с цитатами, в цветах карточки.</string>
+    <string name="share_seal_body">Фигура в PNG, лучше белая на прозрачном фоне. Она появляется в правом верхнем углу карточек для публикации, в цветах карточки.</string>
     <string name="share_seal_add">Добавить печать</string>
     <string name="share_seal_change">Заменить</string>
     <string name="share_seal_remove">Удалить</string>

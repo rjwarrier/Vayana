@@ -26,6 +26,7 @@ import com.vayana.core.designsystem.sharecard.ShareCardSealControls
 import com.vayana.core.designsystem.sharecard.ShareCardShapeRow
 import com.vayana.core.designsystem.sharecard.ShareCardSliderRow
 import com.vayana.core.designsystem.sharecard.ShareCardWeightRow
+import com.vayana.core.designsystem.sharecard.hasShareProfileName
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
 
@@ -166,18 +167,17 @@ internal fun BookShareTab(
                 }
                 // Same as rating: a book without tags would get a toggle that changes nothing.
                 if (hasTags) {
-                    // Tags and the imported date compete for the same space, so showing one hides the other.
                     ShareCardOptionChip(options.showTags, stringResource(R.string.share_card_image_options_tags)) {
-                        val showTags = !options.showTags
-                        onOptionsChange(options.copy(showTags = showTags, showImportedDate = options.showImportedDate && !showTags))
+                        onOptionsChange(options.copy(showTags = !options.showTags))
                     }
-                }
-                ShareCardOptionChip(options.showImportedDate, stringResource(stats.dateOptionLabel)) {
-                    val showImportedDate = !options.showImportedDate
-                    onOptionsChange(options.copy(showImportedDate = showImportedDate, showTags = options.showTags && !showImportedDate))
                 }
                 ShareCardOptionChip(options.showTagline, stringResource(R.string.share_card_image_options_tagline)) {
                     onOptionsChange(options.copy(showTagline = !options.showTagline))
+                }
+                if (hasShareProfileName()) {
+                    ShareCardOptionChip(options.showProfileName, stringResource(R.string.share_profile_name)) {
+                        onOptionsChange(options.copy(showProfileName = !options.showProfileName))
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
@@ -222,7 +222,7 @@ internal object BookShareOptionsStore {
             showReadTime = p.getBoolean("showReadTime", d.showReadTime),
             showRating = p.getBoolean("showRating", d.showRating),
             showTags = p.getBoolean("showTags", d.showTags),
-            showImportedDate = p.getBoolean("showImportedDate", d.showImportedDate),
+            showProfileName = p.getBoolean("showProfileName", d.showProfileName),
             showTagline = p.getBoolean("showTagline", d.showTagline),
             showYearlyGoal = p.getBoolean("showYearlyGoal", d.showYearlyGoal),
             style = BookCardStyle(
@@ -253,7 +253,7 @@ internal object BookShareOptionsStore {
             putBoolean("showReadTime", o.showReadTime)
             putBoolean("showRating", o.showRating)
             putBoolean("showTags", o.showTags)
-            putBoolean("showImportedDate", o.showImportedDate)
+            putBoolean("showProfileName", o.showProfileName)
             putBoolean("showTagline", o.showTagline)
             putBoolean("showYearlyGoal", o.showYearlyGoal)
             putString("palette", s.palette.name)

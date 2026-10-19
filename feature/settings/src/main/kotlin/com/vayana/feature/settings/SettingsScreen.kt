@@ -1,5 +1,6 @@
 package com.vayana.feature.settings
 
+import com.vayana.core.designsystem.sharecard.ShareProfileNameCard
 import com.vayana.core.designsystem.sharecard.ShareSealCard
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.core.content.ContextCompat
@@ -816,7 +817,12 @@ private fun SettingsGroupDetail(
         }
         if (group == SettingsGroup.PROFILE) {
             item {
-                SettingsContentContainer { ShareSealCard() }
+                SettingsContentContainer {
+                    Column(verticalArrangement = Arrangement.spacedBy(SettingsPagePadding)) {
+                        ShareProfileNameCard()
+                        ShareSealCard()
+                    }
+                }
             }
         }
         if (group == SettingsGroup.READER_TEXT) {

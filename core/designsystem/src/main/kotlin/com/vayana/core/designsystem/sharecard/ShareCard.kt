@@ -267,7 +267,6 @@ fun BookShareCard(
     ratingValue: String?,
     ratingLabel: String,
     tags: List<String>,
-    footerLeft: String,
     footerRight: String,
     watermark: String,
     modifier: Modifier = Modifier,
@@ -280,7 +279,7 @@ fun BookShareCard(
     showReadTime: Boolean = true,
     showRating: Boolean = true,
     showTags: Boolean = true,
-    showImportedDate: Boolean = true,
+    showProfileName: Boolean = true,
     showTagline: Boolean = true,
     layout: BookShareCardLayout = BookShareCardLayout.CLASSIC,
     /** Opacity of the full-bleed cover used by [BookShareCardLayout.BACKDROP]. */
@@ -367,25 +366,11 @@ fun BookShareCard(
                 BookShareCardLayout.BACKDROP,
                 -> MinimalBookShareBody(content, colors, bodyModifier)
             }
-            if (showImportedDate || showTagline) {
-                Column {
-                    HorizontalDivider(color = colors.divider)
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        if (showImportedDate) {
-                            ShareCardCaption(text = footerLeft, color = colors.mutedText)
-                        } else {
-                            Spacer(modifier = Modifier)
-                        }
-                        if (showTagline) {
-                            ShareCardCaption(text = footerRight, color = colors.mutedText)
-                        }
-                    }
-                }
-            }
+            ShareCardFooter(
+                left = listOfNotNull((footerRight to colors.mutedText).takeIf { showTagline }),
+                profileName = shareProfileName(showProfileName),
+                colors = colors,
+            )
         }
     }
 }

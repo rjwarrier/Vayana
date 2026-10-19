@@ -658,9 +658,11 @@
     <string name="share_quote_gap">Spazio prima dei dati del libro</string>
     <string name="share_quote_divider">Divisore</string>
     <string name="settings_group_profile">Profilo</string>
-    <string name="settings_group_profile_subtitle">Il tuo sigillo per le schede delle citazioni</string>
+    <string name="settings_group_profile_subtitle">Il tuo nome e sigillo per le schede</string>
+    <string name="share_profile_name">Nome profilo</string>
+    <string name="share_profile_name_hint">Appare in basso a destra nelle schede condivise quando il chip Nome profilo è attivo.</string>
     <string name="share_seal_title">Il tuo sigillo</string>
-    <string name="share_seal_body">Una forma PNG, meglio se bianca su sfondo trasparente. Appare in alto a destra nelle schede delle citazioni, nei colori della scheda.</string>
+    <string name="share_seal_body">Una forma PNG, meglio se bianca su sfondo trasparente. Appare in alto a destra nelle schede condivise, nei colori della scheda.</string>
     <string name="share_seal_add">Aggiungi sigillo</string>
     <string name="share_seal_change">Cambia</string>
     <string name="share_seal_remove">Rimuovi</string>

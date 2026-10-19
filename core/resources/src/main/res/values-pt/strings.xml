@@ -658,9 +658,11 @@
     <string name="share_quote_gap">Espaço antes dos dados do livro</string>
     <string name="share_quote_divider">Divisor</string>
     <string name="settings_group_profile">Perfil</string>
-    <string name="settings_group_profile_subtitle">Seu selo para os cartões de citação</string>
+    <string name="settings_group_profile_subtitle">Seu nome e selo para os cartões</string>
+    <string name="share_profile_name">Nome do perfil</string>
+    <string name="share_profile_name_hint">Aparece no canto inferior direito dos seus cartões quando o chip Nome do perfil está ativado.</string>
     <string name="share_seal_title">Seu selo</string>
-    <string name="share_seal_body">Uma forma em PNG, de preferência branca em fundo transparente. Ela aparece no canto superior direito dos seus cartões de citação, nas cores do cartão.</string>
+    <string name="share_seal_body">Uma forma em PNG, de preferência branca em fundo transparente. Ela aparece no canto superior direito dos seus cartões de compartilhamento, nas cores do cartão.</string>
     <string name="share_seal_add">Adicionar selo</string>
     <string name="share_seal_change">Trocar</string>
     <string name="share_seal_remove">Remover</string>

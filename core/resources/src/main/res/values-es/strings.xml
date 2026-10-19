@@ -658,9 +658,11 @@
     <string name="share_quote_gap">Espacio antes de los datos del libro</string>
     <string name="share_quote_divider">Separador</string>
     <string name="settings_group_profile">Perfil</string>
-    <string name="settings_group_profile_subtitle">Tu sello para las tarjetas de citas</string>
+    <string name="settings_group_profile_subtitle">Tu nombre y sello para las tarjetas</string>
+    <string name="share_profile_name">Nombre de perfil</string>
+    <string name="share_profile_name_hint">Aparece abajo a la derecha de tus tarjetas cuando el chip Nombre de perfil está activado.</string>
     <string name="share_seal_title">Tu sello</string>
-    <string name="share_seal_body">Una forma PNG, idealmente blanca sobre fondo transparente. Aparece arriba a la derecha de tus tarjetas de citas, con los colores de la tarjeta.</string>
+    <string name="share_seal_body">Una forma PNG, idealmente blanca sobre fondo transparente. Aparece arriba a la derecha de tus tarjetas para compartir, con los colores de la tarjeta.</string>
     <string name="share_seal_add">Añadir sello</string>
     <string name="share_seal_change">Cambiar</string>
     <string name="share_seal_remove">Quitar</string>

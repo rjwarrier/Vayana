@@ -650,9 +650,11 @@
     <string name="share_quote_gap">நூல் விவரங்களுக்கு முன் இடைவெளி</string>
     <string name="share_quote_divider">பிரிகோடு</string>
     <string name="settings_group_profile">சுயவிவரம்</string>
-    <string name="settings_group_profile_subtitle">பகிரும் மேற்கோள் அட்டைகளுக்கான உங்கள் முத்திரை</string>
+    <string name="settings_group_profile_subtitle">பகிர்வு அட்டைகளுக்கான உங்கள் பெயரும் முத்திரையும்</string>
+    <string name="share_profile_name">சுயவிவரப் பெயர்</string>
+    <string name="share_profile_name_hint">சுயவிவரப் பெயர் சிப் இயக்கத்தில் இருக்கும்போது பகிர்வு அட்டைகளின் கீழ் வலப்பக்கத்தில் தோன்றும்.</string>
     <string name="share_seal_title">உங்கள் முத்திரை</string>
-    <string name="share_seal_body">ஒரு PNG வடிவம், ஒளிபுகும் பின்னணியில் வெள்ளையாக இருந்தால் சிறந்தது. இது மேற்கோள் அட்டைகளின் மேல் வலப்பக்கத்தில், அட்டையின் நிறங்களில் தோன்றும்.</string>
+    <string name="share_seal_body">ஒரு PNG வடிவம், ஒளிபுகும் பின்னணியில் வெள்ளையாக இருந்தால் சிறந்தது. இது பகிர்வு அட்டைகளின் மேல் வலப்பக்கத்தில், அட்டையின் நிறங்களில் தோன்றும்.</string>
     <string name="share_seal_add">முத்திரை சேர்</string>
     <string name="share_seal_change">மாற்று</string>
     <string name="share_seal_remove">நீக்கு</string>

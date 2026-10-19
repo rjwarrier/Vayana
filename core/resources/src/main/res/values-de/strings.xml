@@ -650,9 +650,11 @@
     <string name="share_quote_gap">Abstand vor den Buchangaben</string>
     <string name="share_quote_divider">Trennlinie</string>
     <string name="settings_group_profile">Profil</string>
-    <string name="settings_group_profile_subtitle">Dein Siegel für geteilte Zitatkarten</string>
+    <string name="settings_group_profile_subtitle">Dein Name und Siegel für Teilen-Karten</string>
+    <string name="share_profile_name">Profilname</string>
+    <string name="share_profile_name_hint">Erscheint unten rechts auf deinen Teilen-Karten, wenn der Chip „Profilname“ an ist.</string>
     <string name="share_seal_title">Dein Siegel</string>
-    <string name="share_seal_body">Eine PNG-Form, am besten weiß auf transparentem Hintergrund. Sie erscheint oben rechts auf deinen Zitatkarten, in den Farben der Karte.</string>
+    <string name="share_seal_body">Eine PNG-Form, am besten weiß auf transparentem Hintergrund. Sie erscheint oben rechts auf deinen Teilen-Karten, in den Farben der Karte.</string>
     <string name="share_seal_add">Siegel hinzufügen</string>
     <string name="share_seal_change">Ändern</string>
     <string name="share_seal_remove">Entfernen</string>
