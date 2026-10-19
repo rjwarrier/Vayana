@@ -6,10 +6,14 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.vayana.core.database.entity.BookEntity
+import com.vayana.core.database.model.StartedReadingSeconds
 import kotlinx.coroutines.flow.Flow
 
 /** What an exported notebook shows about its book. */
 data class BookNotebookFields(val id: Long, val syncId: String, val title: String, val author: String?, val tagsCsv: String?)
+
+/** SQL twin of `Book.hasStartedReading` for a book read in the app. */
+private const val StartedEbook = "(finishedReadingAt IS NOT NULL OR totalReadingSeconds >= $StartedReadingSeconds)"
 
 @Dao
 interface BookDao {
@@ -148,10 +152,11 @@ interface BookDao {
 
     @Query(
         "UPDATE books SET lastLocator = :locator, readingPercent = :readingPercent, " +
-            "startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :updatedAt ELSE startedReadingAt END, " +
-            "finishedReadingAt = CASE WHEN :readingPercent >= :finishedThreshold THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
+            "startedReadingAt = CASE WHEN startedReadingAt IS NULL AND totalReadingSeconds >= $StartedReadingSeconds THEN :updatedAt ELSE startedReadingAt END, " +
+            "finishedReadingAt = CASE WHEN :readingPercent >= :finishedThreshold AND totalReadingSeconds >= $StartedReadingSeconds THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
             "updatedAt = :updatedAt, lastReadAt = :updatedAt WHERE id = :id",
     )
+    /** Saves the place on every turn, but only a book read for [StartedReadingSeconds] gets a start or finish date. */
     suspend fun updateLocator(id: Long, locator: String, readingPercent: Float, finishedThreshold: Float, updatedAt: Long)
 
     @Query(
@@ -192,8 +197,7 @@ interface BookDao {
     suspend fun addReadingTime(id: Long, addedSeconds: Long, updatedAt: Long)
 
     @Query(
-        "UPDATE books SET startedReadingAt = CASE WHEN startedReadingAt IS NULL THEN :timestamp ELSE startedReadingAt END, " +
-            "lastReadAt = :timestamp, updatedAt = :timestamp WHERE id = :id",
+        "UPDATE books SET lastReadAt = :timestamp, updatedAt = :timestamp WHERE id = :id",
     )
     suspend fun recordBookOpened(id: Long, timestamp: Long)
 
@@ -268,14 +272,14 @@ interface BookDao {
      */
     @Query(
         "SELECT * FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt > 0 AND filePath != '' " +
-            "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
+            "AND fileAvailability = 'LOCAL' AND $StartedEbook ORDER BY lastReadAt DESC LIMIT 1",
     )
     fun observeContinueReading(): Flow<BookEntity?>
 
     /** The most recently read book whose file is on this device, so it can open in the reader. */
     @Query(
         "SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt IS NOT NULL AND filePath != '' " +
-            "AND fileAvailability = 'LOCAL' ORDER BY lastReadAt DESC LIMIT 1",
+            "AND fileAvailability = 'LOCAL' AND $StartedEbook ORDER BY lastReadAt DESC LIMIT 1",
     )
     suspend fun lastReadOpenableBookId(): Long?
 

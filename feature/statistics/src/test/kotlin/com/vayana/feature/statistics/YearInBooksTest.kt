@@ -78,5 +78,6 @@ class YearInBooksTest {
         lastReadAt = null,
         lastLocator = null,
         finishedReadingAt = finished?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
+        totalReadingSeconds = if (progress > 0f) 600L else 0L,
     )
 }

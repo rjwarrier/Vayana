@@ -95,7 +95,7 @@ class ReadingFeaturesTest {
 
     @Test fun dashboardPreservesCurrentReadingAndOnlyTheFirstThreeActivePlans() = runBlocking {
         val paper = books.insertOfflineBook("Paper", null, BookFormat.PHYSICAL, null, null)
-        val current = paper.copy(id=10, syncId="current", format=BookFormat.EPUB, filePath="book.epub", lastReadAt=900, readingPercent=.5f)
+        val current = paper.copy(id=10, syncId="current", format=BookFormat.EPUB, filePath="book.epub", lastReadAt=900, readingPercent=.5f, totalReadingSeconds=600)
         val paused = current.copy(id=11, syncId="paused", readingDisposition="PAUSED", lastReadAt=1000)
         val finished = current.copy(id=12, syncId="finished", finishedReadingAt=1100)
         val active = (1..4).map { paper.copy(id=it.toLong(), syncId="plan-$it") }

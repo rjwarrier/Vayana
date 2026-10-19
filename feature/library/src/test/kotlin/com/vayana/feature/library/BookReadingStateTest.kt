@@ -3,6 +3,8 @@ package com.vayana.feature.library
 import com.vayana.core.database.model.Book
 import com.vayana.core.database.model.BookFileAvailability
 import com.vayana.core.database.model.BookFormat
+import com.vayana.core.database.model.StartedReadingSeconds
+import com.vayana.core.database.model.shownReadingPercent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -15,16 +17,30 @@ class BookReadingStateTest {
     }
 
     @Test
-    fun anySignOfReadingMeansReading() {
-        assertEquals(BookReadingState.READING, book(percent = 0.18f).readingState())
-        assertEquals(BookReadingState.READING, book(lastReadAt = 5L).readingState())
-        assertEquals(BookReadingState.READING, book().copy(startedReadingAt = 5L).readingState())
+    fun anEbookIsReadingOnlyAfterFiveMinutesOfReading() {
+        // Opened, or leafed through its contents: a position and a date, but not a book being read.
+        val opened = book(percent = 0.18f, lastReadAt = 5L).copy(startedReadingAt = 5L, totalReadingSeconds = 299L)
+        assertEquals(BookReadingState.NOT_STARTED, opened.readingState())
+        assertEquals(0f, opened.shownReadingPercent)
+        val read = opened.copy(totalReadingSeconds = StartedReadingSeconds)
+        assertEquals(BookReadingState.READING, read.readingState())
+        assertEquals(0.18f, read.shownReadingPercent)
+        // Jumping to the last chapter doesn't finish it either.
+        assertEquals(BookReadingState.NOT_STARTED, book(percent = 1f).readingState())
+    }
+
+    @Test
+    fun aBookReadOutsideTheAppCountsFromAnyRecordedReading() {
+        val paper = book().copy(format = BookFormat.PHYSICAL, filePath = "")
+        assertEquals(BookReadingState.NOT_STARTED, paper.readingState())
+        assertEquals(BookReadingState.READING, paper.copy(readingPercent = 0.18f).readingState())
+        assertEquals(BookReadingState.READING, paper.copy(startedReadingAt = 5L).readingState())
     }
 
     @Test
     fun finishedWinsOverProgress() {
         assertEquals(BookReadingState.FINISHED, book(percent = 0.4f).copy(finishedReadingAt = 9L).readingState())
-        assertEquals(BookReadingState.FINISHED, book(percent = 1f).readingState())
+        assertEquals(BookReadingState.FINISHED, book(percent = 1f).copy(totalReadingSeconds = StartedReadingSeconds).readingState())
     }
 
     @Test
@@ -45,7 +61,7 @@ class BookReadingStateTest {
         assertFalse(finished.finishedLongAgo(finishedAt + ReadAgainAfterMillis - 1))
         assertTrue(finished.finishedLongAgo(finishedAt + ReadAgainAfterMillis))
         // Finished only by reaching the end: counts from when it was last read.
-        assertTrue(book(percent = 1f, lastReadAt = finishedAt).finishedLongAgo(finishedAt + ReadAgainAfterMillis))
+        assertTrue(book(percent = 1f, lastReadAt = finishedAt).copy(totalReadingSeconds = StartedReadingSeconds).finishedLongAgo(finishedAt + ReadAgainAfterMillis))
         // A book still being read is never "read again", however old.
         assertFalse(book(percent = 0.5f, lastReadAt = finishedAt).finishedLongAgo(finishedAt + 10 * ReadAgainAfterMillis))
     }

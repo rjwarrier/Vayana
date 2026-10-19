@@ -1,5 +1,8 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.hasStartedReading
+import com.vayana.core.database.model.isFinished
+import com.vayana.core.database.model.shownReadingPercent
 import androidx.compose.animation.animateColorAsState
 import com.vayana.core.designsystem.theme.vayanaTween
 import android.net.Uri
@@ -1616,9 +1619,9 @@ private fun LibraryListRowStatus(book: Book, isDownloading: Boolean, downloadPro
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            book.readingPercent > 0f -> {
+            book.shownReadingPercent > 0f -> {
                 VayanaLinearProgressIndicator(
-                    progress = { book.readingPercent.coerceIn(0f, 1f) },
+                    progress = { book.shownReadingPercent },
                     modifier = Modifier.weight(1f),
                     strokeCap = StrokeCap.Round,
                 )
@@ -1752,7 +1755,7 @@ private fun LibraryHeroCard(
                     )
                 }
 
-                if (book.readingPercent > 0f) {
+                if (book.shownReadingPercent > 0f) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1893,9 +1896,9 @@ private fun BookCoverCell(
                     .padding(top = Spacing.xs),
                 strokeCap = StrokeCap.Round,
             )
-        } else if (book.readingPercent > 0f) {
+        } else if (book.shownReadingPercent > 0f) {
             VayanaLinearProgressIndicator(
-                progress = { book.readingPercent.coerceIn(0f, 1f) },
+                progress = { book.shownReadingPercent },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Spacing.xs),
@@ -2185,11 +2188,6 @@ internal fun Book.seriesDisplay(): String = listOfNotNull(
 @Composable
 @androidx.compose.runtime.ReadOnlyComposable
 internal fun Long.formatDate(): String = asAppDate()
-
-internal fun Book.hasStartedReading(): Boolean =
-    startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
-
-internal fun Book.isFinished(): Boolean = finishedReadingAt != null || readingPercent >= 1f
 
 /** Where the reader is with a book, which decides what its details screen offers and shows. */
 internal enum class BookReadingState { NOT_STARTED, READING, FINISHED }

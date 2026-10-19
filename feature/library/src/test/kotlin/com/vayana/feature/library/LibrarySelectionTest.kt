@@ -18,7 +18,7 @@ class LibrarySelectionTest {
         assertSame(first, selector.select(books, controls.copy(viewMode = LibraryViewMode.LIST, groupBy = LibraryGroupBy.AUTHOR), .95f))
         assertEquals(listOf(1L), selector.select(books, controls.copy(query = "zebra"), .95f).map { it.id })
         assertEquals(listOf(1L, 2L), selector.select(books, controls.copy(sortDirection = LibrarySortDirection.DESCENDING), .95f).map { it.id })
-        val updated = books.map { if (it.id == 1L) it.copy(readingPercent = .96f) else it }
+        val updated = books.map { if (it.id == 1L) it.copy(readingPercent = .96f, totalReadingSeconds = 600) else it }
         assertEquals(listOf(1L), selector.select(updated, controls.copy(filter = LibraryFilter.FINISHED), .95f).map { it.id })
         assertEquals(emptyList(), selector.select(updated, controls.copy(filter = LibraryFilter.FINISHED), .99f))
     }

@@ -136,6 +136,28 @@ data class Book(
     val isHomeLibrary: Boolean get() = source == BookSource.HOME_LIBRARY
 }
 
+/**
+ * In-app reading time before an EPUB or PDF counts as started. Opening a book, or leafing through its contents,
+ * saves a position (so it reopens there) but doesn't make it a book being read.
+ */
+const val StartedReadingSeconds = 300L
+
+/**
+ * Whether the reader has begun this book. An ebook needs [StartedReadingSeconds] of reading here or on a synced
+ * device, or a finish date; a book read outside the app counts from any page, date or session recorded for it.
+ */
+fun Book.hasStartedReading(): Boolean = finishedReadingAt != null || if (format.isOffline) {
+    startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
+} else {
+    totalReadingSeconds >= StartedReadingSeconds
+}
+
+/** Finished by date, or by reaching the end of a book actually read (not one jumped to its last chapter). */
+fun Book.isFinished(): Boolean = finishedReadingAt != null || (readingPercent >= 1f && hasStartedReading())
+
+/** Progress worth showing beside the cover: none until the book [hasStartedReading]. */
+val Book.shownReadingPercent: Float get() = if (hasStartedReading()) readingPercent.coerceIn(0f, 1f) else 0f
+
 /** Owners of mirrored books (`books.source`). */
 object BookSource {
     const val HOME_LIBRARY = "home_library"

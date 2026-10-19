@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.hasStartedReading
+import com.vayana.core.database.model.isFinished
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box

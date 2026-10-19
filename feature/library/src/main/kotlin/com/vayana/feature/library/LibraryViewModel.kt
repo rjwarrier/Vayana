@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.shownReadingPercent
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.resources.UiText
 import com.vayana.core.resources.R
@@ -3420,11 +3421,11 @@ private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(
 
 private fun List<Book>.filterBy(filter: LibraryFilter, finishedThreshold: Float): List<Book> = when (filter) {
     LibraryFilter.ALL -> this
-    LibraryFilter.READING -> filter { it.readingDisposition == "ACTIVE" && it.readingPercent > 0f && it.readingPercent < finishedThreshold }
-    LibraryFilter.FINISHED -> filter { it.readingPercent >= finishedThreshold }
+    LibraryFilter.READING -> filter { it.readingDisposition == "ACTIVE" && it.shownReadingPercent > 0f && it.readingPercent < finishedThreshold }
+    LibraryFilter.FINISHED -> filter { it.shownReadingPercent >= finishedThreshold }
     LibraryFilter.PAUSED -> filter { it.readingDisposition == "PAUSED" }
     LibraryFilter.DNF -> filter { it.readingDisposition == "DNF" }
-    LibraryFilter.NOT_STARTED -> filter { it.readingDisposition == "ACTIVE" && it.readingPercent <= 0f }
+    LibraryFilter.NOT_STARTED -> filter { it.readingDisposition == "ACTIVE" && it.shownReadingPercent <= 0f }
 }
 
 internal fun Book.hasMeaningfulSyncedProgressChange(after: Book): Boolean {

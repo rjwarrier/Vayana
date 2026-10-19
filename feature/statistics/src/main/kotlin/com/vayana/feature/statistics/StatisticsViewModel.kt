@@ -1,5 +1,7 @@
 package com.vayana.feature.statistics
 
+import com.vayana.core.database.model.hasStartedReading
+import com.vayana.core.database.model.shownReadingPercent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vayana.core.database.model.Annotation
@@ -410,12 +412,11 @@ private fun List<Book>.readingSummary(
     val recentWeekMinutes = (0 until 7).sumOf { daysAgo -> ((secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L) / 60L).toInt() }
     val yearInBooks = yearInBooks(today, zone, yearlyGoalBooks)
     return StatisticsSummary(
-        readingRecords = filter { it.startedReadingAt != null || it.finishedReadingAt != null ||
-            it.readingPercent > 0f || it.totalReadingSeconds > 0L || it.lastReadAt != null }
+        readingRecords = filter { it.hasStartedReading() }
             .sortedByDescending { it.finishedReadingAt ?: it.lastReadAt ?: it.startedReadingAt ?: it.updatedAt },
         totalBooks = size,
-        readingBooks = count { it.readingPercent > 0f && it.readingPercent < finishedThreshold },
-        finishedBooks = count { it.readingPercent >= finishedThreshold },
+        readingBooks = count { it.shownReadingPercent > 0f && it.readingPercent < finishedThreshold },
+        finishedBooks = count { it.shownReadingPercent >= finishedThreshold },
         averageProgressPercent = average.coerceIn(0, 100),
         sessionCount = countedSessions.size,
         totalReadingSeconds = countedSessions.sumOf { it.durationSeconds },
@@ -459,7 +460,7 @@ private fun List<Book>.readingPaceEstimate(
     today: LocalDate,
     finishedThreshold: Float,
 ): ReadingPaceEstimate? {
-    val currentBook = filter { it.readingPercent > 0.01f && it.readingPercent < finishedThreshold && it.totalReadingSeconds > 0L }
+    val currentBook = filter { it.shownReadingPercent > 0.01f && it.readingPercent < finishedThreshold && it.totalReadingSeconds > 0L }
         .maxByOrNull { it.lastReadAt ?: 0L }
         ?: return null
     val recentSecondsPerDay = (0 until PaceWindowDays)

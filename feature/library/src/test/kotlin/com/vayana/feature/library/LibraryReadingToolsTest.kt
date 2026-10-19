@@ -98,7 +98,7 @@ class LibraryReadingToolsTest {
         series = null, seriesNumber = null, description = "Fantasy", tagsCsv = "Favorite, Fiction",
         coverPath = null, filePath = "", fileAvailability = BookFileAvailability.LOCAL, format = BookFormat.EPUB,
         fileHash = "hash", readingPercent = .25f, rating = 0f, createdAt = 0, updatedAt = 0,
-        lastReadAt = day, lastLocator = null)
+        lastReadAt = day, lastLocator = null, totalReadingSeconds = 600)
 
     @Test fun shelfCombinesCriteriaAndTracksProgressAndNotes() {
         val rule = SmartShelf(name = "Stalled fantasy", query = "fantasy", author = "le guin", tag = "favorite",
@@ -112,7 +112,7 @@ class LibraryReadingToolsTest {
     }
 
     @Test fun neverOpenedBooksAreUnreadButNotDormant() {
-        val unread = book().copy(readingPercent = 0f, lastReadAt = null)
+        val unread = book().copy(readingPercent = 0f, lastReadAt = null, totalReadingSeconds = 0)
         assertTrue(SmartShelf(name = "Unread", status = SmartShelfStatus.UNREAD).matches(unread, emptySet(), .95f, day))
         assertFalse(SmartShelf(name = "Dormant", dormantDays = 1).matches(unread, emptySet(), .95f, day))
     }
@@ -132,7 +132,7 @@ class LibraryReadingToolsTest {
 
     @Test fun timeEstimateRequiresMeasuredProgressAndFallsBackToPercent() {
         assertEquals(FinishByPlan(3, 60, PlanUnit.MINUTES), finishByPlan(book().copy(totalReadingSeconds = 3600), today.plusDays(2), today))
-        assertEquals(FinishByPlan(3, 25, PlanUnit.PERCENT), finishByPlan(book(), today.plusDays(2), today))
+        assertEquals(FinishByPlan(3, 25, PlanUnit.PERCENT), finishByPlan(book().copy(totalReadingSeconds = 0), today.plusDays(2), today))
         assertEquals(PlanUnit.PERCENT, finishByPlan(book().copy(readingPercent = 0f, totalReadingSeconds = 3600), today, today).unit)
     }
 

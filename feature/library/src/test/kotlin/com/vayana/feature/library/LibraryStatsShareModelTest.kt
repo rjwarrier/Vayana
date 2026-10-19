@@ -69,6 +69,6 @@ class LibraryStatsShareModelTest {
         seriesNumber = null, description = null, coverPath = null, filePath = "books/$id.epub",
         fileAvailability = BookFileAvailability.LOCAL, format = BookFormat.EPUB, fileHash = "hash-$id",
         readingPercent = progress, rating = 0f, createdAt = id, updatedAt = id,
-        lastReadAt = null, lastLocator = null,
+        lastReadAt = null, lastLocator = null, totalReadingSeconds = if (progress > 0f) 600L else 0L,
     )
 }

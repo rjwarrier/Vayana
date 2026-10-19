@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.isFinished
 import com.vayana.core.database.model.Book
 import java.util.Locale
 import kotlin.math.floor

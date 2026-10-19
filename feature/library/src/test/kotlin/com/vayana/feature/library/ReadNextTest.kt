@@ -147,6 +147,7 @@ class ReadNextTest {
         updatedAt = 0L,
         lastReadAt = if (reading) 1_000L + id else null,
         lastLocator = null,
+        totalReadingSeconds = if (reading) 600L else 0L,
         finishedReadingAt = if (finished) 2_000L else null,
     )
 }

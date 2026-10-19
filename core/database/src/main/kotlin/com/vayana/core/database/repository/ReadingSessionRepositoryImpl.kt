@@ -7,7 +7,9 @@ import com.vayana.core.database.dao.BookDao
 import com.vayana.core.database.dao.ReadingSessionDao
 import com.vayana.core.database.dao.TombstoneDao
 import com.vayana.core.database.entity.ReadingSessionEntity
+import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.model.ReadingSession
+import com.vayana.core.database.model.StartedReadingSeconds
 import com.vayana.core.database.model.PhysicalReadingSessionSummary
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -80,9 +82,13 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                     deviceName = localDeviceName.value, listenedSeconds = listened))
             }
             val addedSeconds = durationSeconds - (existing?.durationSeconds ?: 0L)
+            val total = maxOf(book.totalReadingSeconds + addedSeconds, readingSessionDao.totalSecondsForBook(bookId))
             bookDao.update(book.copy(
-                totalReadingSeconds = maxOf(book.totalReadingSeconds + addedSeconds, readingSessionDao.totalSecondsForBook(bookId)),
-                startedReadingAt = book.startedReadingAt ?: startedAt,
+                totalReadingSeconds = total,
+                // An ebook is started by reading it a while, not by opening it (see Book.hasStartedReading).
+                startedReadingAt = book.startedReadingAt ?: startedAt.takeIf {
+                    total >= StartedReadingSeconds || BookFormat.valueOf(book.format).isOffline
+                },
                 lastReadAt = maxOf(book.lastReadAt ?: 0L, endedAt),
                 updatedAt = maxOf(book.updatedAt, endedAt),
             ))
