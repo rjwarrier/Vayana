@@ -35,6 +35,9 @@ class VayanaApp : Application() {
     @Inject lateinit var readingTimeWidgetUpdater: ReadingTimeWidgetUpdater
     @Inject lateinit var physicalReadingTimerNotification: PhysicalReadingTimerNotification
     @Inject lateinit var appDataUsageHistory: com.vayana.feature.settings.AppDataUsageHistory
+    @Inject lateinit var settingsRepository: com.vayana.core.datastore.settings.SettingsRepository
+    @Inject lateinit var localDeviceName: com.vayana.core.database.repository.LocalDeviceName
+    @Inject lateinit var sessionDeviceBackfill: com.vayana.core.sync.history.SessionDeviceBackfill
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
 
     override fun attachBaseContext(base: Context) {
@@ -43,6 +46,10 @@ class VayanaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Reading sessions are stamped with this device's sync name, for per-device statistics.
+        applicationScope.launch {
+            settingsRepository.snapshot.collect { localDeviceName.value = it.kindleDeviceName.trim().ifBlank { null } }
+        }
         phoneWearSync.start()
         crashReporter.install()
         reminderScheduler.start()
@@ -58,6 +65,11 @@ class VayanaApp : Application() {
             delay(StorageMaintenanceDelayMillis)
             runCatchingCancellable { storageMaintenance.runIfDue() }
         }
+        // Once per sync repository: name the devices of reading sessions from before sessions recorded one.
+        applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            delay(SessionDeviceBackfillDelayMillis)
+            runCatchingCancellable { sessionDeviceBackfill.runIfNeeded() }
+        }
         // Saves the app's daily Wi-Fi and mobile use on this device before Android ages its own history out.
         applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             delay(StorageMaintenanceDelayMillis)
@@ -67,3 +79,5 @@ class VayanaApp : Application() {
 }
 
 private const val StorageMaintenanceDelayMillis = 15_000L
+/** After launch has settled and the launch-time sync has had its turn. */
+private const val SessionDeviceBackfillDelayMillis = 60_000L

@@ -17,6 +17,7 @@ class CompanionReadingRepository @Inject constructor(
     private val books: BookDao,
     private val sessions: ReadingSessionDao,
     private val tombstones: TombstoneDao,
+    private val localDeviceName: LocalDeviceName = LocalDeviceName(),
 ) {
     suspend fun importSession(
         bookSyncId: String, sessionId: String, startedAt: Long, endedAt: Long, seconds: Long,
@@ -77,7 +78,8 @@ class CompanionReadingRepository @Inject constructor(
             startedAt, currentPage, startPage, book.pageEstimate, pageCount)
         sessions.insertIgnore(ReadingSessionEntity(syncId = sessionId, bookId = book.id,
             startedAt = startedAt, endedAt = endedAt, durationSeconds = effectiveSeconds,
-            startPage = startPage, endPage = endPage, activeIntervals = effective?.let(ReadingIntervals::encode)))
+            startPage = startPage, endPage = endPage, activeIntervals = effective?.let(ReadingIntervals::encode),
+            deviceName = localDeviceName.value))
         val percent = pageCount?.let { endPage.toFloat() / it } ?: book.readingPercent
         books.update(book.copy(
             readingPercent = if (updateProgress) percent else book.readingPercent,

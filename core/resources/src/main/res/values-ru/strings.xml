@@ -806,6 +806,16 @@
     <string name="statistics_genres_title">Теги</string>
     <string name="statistics_genres_support">Теги книг по времени чтения</string>
     <string name="statistics_genres_row_value">Книг: %1$d · %2$s</string>
+    <string name="statistics_devices_title">Устройства</string>
+    <string name="statistics_devices_most_used">Чаще всего: %1$s · %2$d%% времени чтения</string>
+    <string name="statistics_devices_row_value">%1$s · %2$d%%</string>
+    <plurals name="statistics_devices_row_detail">
+        <item quantity="one">%1$d сеанс · последнее чтение %2$s</item>
+        <item quantity="few">%1$d сеанса · последнее чтение %2$s</item>
+        <item quantity="many">%1$d сеансов · последнее чтение %2$s</item>
+        <item quantity="other">%1$d сеанса · последнее чтение %2$s</item>
+    </plurals>
+    <string name="statistics_devices_unattributed">Не учтено %1$s чтения до начала учёта по устройствам.</string>
     <string name="statistics_vocabulary_growth_title">Рост словаря</string>
     <string name="statistics_vocabulary_growth_mastered">Освоено %1$d%%</string>
     <string name="statistics_vocabulary_growth_support">Новые сохранённые слова за 8 недель</string>
@@ -1917,6 +1927,7 @@
     <string name="data_usage_kind_full">Полная синхронизация</string>
     <string name="data_usage_kind_background">Фоновая синхронизация</string>
     <string name="data_usage_kind_launch_check">Проверка при запуске</string>
+    <string name="data_usage_kind_history">История устройств</string>
     <string name="data_usage_network_other">Другая сеть</string>
     <string name="data_usage_network_none">Нет сети</string>
     <string name="data_usage_sync_row">%1$s · %2$s · ↑ %3$s ↓ %4$s</string>

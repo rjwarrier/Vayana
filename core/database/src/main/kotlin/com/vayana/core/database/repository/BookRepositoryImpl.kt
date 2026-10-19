@@ -39,6 +39,7 @@ class BookRepositoryImpl @Inject constructor(
     private val readingSessionDao: ReadingSessionDao,
     private val vocabularyCardDao: VocabularyCardDao,
     private val pendingCloudDeletionDao: PendingCloudDeletionDao,
+    private val localDeviceName: LocalDeviceName = LocalDeviceName(),
 ) : BookRepository {
     private val _remoteReadingProgressApplied = MutableSharedFlow<RemoteReadingProgressApplied>(
         extraBufferCapacity = RemoteProgressEventBufferCapacity,
@@ -297,6 +298,7 @@ class BookRepositoryImpl @Inject constructor(
             val inserted = readingSessionDao.insertIgnore(com.vayana.core.database.entity.ReadingSessionEntity(
                 syncId = syncId, bookId = id, startedAt = startedAt, endedAt = endedAt,
                 durationSeconds = durationSeconds, startPage = startPage, endPage = endPage, activeIntervals = activeIntervals,
+                deviceName = localDeviceName.value,
             ))
             if (inserted == -1L) return@withTransaction
             val total = pageCount ?: book.pageEstimate

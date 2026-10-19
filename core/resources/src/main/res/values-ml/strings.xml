@@ -788,6 +788,14 @@
     <string name="statistics_genres_title">മുദ്രകൾ</string>
     <string name="statistics_genres_support">വായനാസമയം അനുസരിച്ച് ക്രമീകരിച്ച പുസ്തക മുദ്രകൾ</string>
     <string name="statistics_genres_row_value">%1$d പുസ്തകങ്ങൾ · %2$s</string>
+    <string name="statistics_devices_title">ഉപകരണങ്ങൾ</string>
+    <string name="statistics_devices_most_used">ഏറ്റവും കൂടുതൽ ഉപയോഗിച്ചത്: %1$s · വായനാസമയത്തിന്റെ %2$d%%</string>
+    <string name="statistics_devices_row_value">%1$s · %2$d%%</string>
+    <plurals name="statistics_devices_row_detail">
+        <item quantity="one">%1$d വായനാവേള · അവസാനം വായിച്ചത് %2$s</item>
+        <item quantity="other">%1$d വായനാവേളകൾ · അവസാനം വായിച്ചത് %2$s</item>
+    </plurals>
+    <string name="statistics_devices_unattributed">ഉപകരണം രേഖപ്പെടുത്തിത്തുടങ്ങുന്നതിനു മുമ്പുള്ള %1$s വായന ഇതിൽ ഉൾപ്പെടുന്നില്ല.</string>
     <string name="statistics_vocabulary_growth_title">പദസമ്പത്തിന്റെ വളർച്ച</string>
     <string name="statistics_vocabulary_growth_mastered">%1$d%% ഹൃദിസ്ഥമാക്കി</string>
     <string name="statistics_vocabulary_growth_support">കഴിഞ്ഞ 8 ആഴ്ചയിൽ സൂക്ഷിച്ച പുതിയ വാക്കുകൾ</string>
@@ -1877,6 +1885,7 @@
     <string name="data_usage_kind_full">പൂർണ്ണ സമന്വയം</string>
     <string name="data_usage_kind_background">പശ്ചാത്തല സമന്വയം</string>
     <string name="data_usage_kind_launch_check">തുറക്കുമ്പോഴുള്ള പരിശോധന</string>
+    <string name="data_usage_kind_history">ഉപകരണ ചരിത്രം</string>
     <string name="data_usage_network_other">മറ്റ് നെറ്റ്‌വർക്ക്</string>
     <string name="data_usage_network_none">നെറ്റ്‌വർക്കില്ല</string>
     <string name="data_usage_sync_row">%1$s · %2$s · ↑ %3$s ↓ %4$s</string>

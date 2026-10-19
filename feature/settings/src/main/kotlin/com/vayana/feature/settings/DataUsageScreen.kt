@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.RocketLaunch
 import androidx.compose.material.icons.outlined.SignalCellularAlt
 import androidx.compose.material.icons.outlined.Sync
@@ -340,6 +341,7 @@ private fun SyncRow(entry: SyncDataUsageEntry) {
         SyncKind.FULL -> R.string.data_usage_kind_full to Icons.Outlined.CloudSync
         SyncKind.BACKGROUND -> R.string.data_usage_kind_background to Icons.Outlined.Sync
         SyncKind.LAUNCH_CHECK -> R.string.data_usage_kind_launch_check to Icons.Outlined.RocketLaunch
+        SyncKind.HISTORY -> R.string.data_usage_kind_history to Icons.Outlined.History
     }
     val network = stringResource(
         when (entry.network) {

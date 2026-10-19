@@ -67,6 +67,10 @@ interface ReadingSessionDao {
     @Query("UPDATE reading_sessions SET startPage = :startPage, endPage = :endPage WHERE syncId = :syncId")
     suspend fun updatePages(syncId: String, startPage: Int, endPage: Int): Int
 
+    /** Names the recording device of a session that has none yet; a known device is never overwritten. */
+    @Query("UPDATE reading_sessions SET deviceName = :deviceName WHERE syncId = :syncId AND deviceName IS NULL")
+    suspend fun fillDeviceName(syncId: String, deviceName: String): Int
+
     @Query("DELETE FROM reading_sessions WHERE bookId = :bookId")
     suspend fun deleteForBook(bookId: Long)
 

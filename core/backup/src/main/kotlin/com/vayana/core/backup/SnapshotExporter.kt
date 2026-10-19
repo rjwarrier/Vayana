@@ -196,6 +196,7 @@ class SnapshotExporter @Inject constructor(
             startPage = startPage,
             endPage = endPage,
             activeIntervals = activeIntervals,
+            deviceName = deviceName,
         )
     }
 

@@ -788,6 +788,14 @@
     <string name="statistics_genres_title">குறிச்சொற்கள்</string>
     <string name="statistics_genres_support">வாசிப்பு நேரப்படி வரிசைப்படுத்திய நூல் குறிச்சொற்கள்</string>
     <string name="statistics_genres_row_value">%1$d நூல்கள் · %2$s</string>
+    <string name="statistics_devices_title">சாதனங்கள்</string>
+    <string name="statistics_devices_most_used">அதிகம் பயன்படுத்தியது: %1$s · வாசிப்பு நேரத்தில் %2$d%%</string>
+    <string name="statistics_devices_row_value">%1$s · %2$d%%</string>
+    <plurals name="statistics_devices_row_detail">
+        <item quantity="one">%1$d அமர்வு · கடைசியாக வாசித்தது %2$s</item>
+        <item quantity="other">%1$d அமர்வுகள் · கடைசியாக வாசித்தது %2$s</item>
+    </plurals>
+    <string name="statistics_devices_unattributed">சாதனப் பதிவு தொடங்கும் முன் வாசித்த %1$s இதில் சேர்க்கப்படவில்லை.</string>
     <string name="statistics_vocabulary_growth_title">சொல்வள வளர்ச்சி</string>
     <string name="statistics_vocabulary_growth_mastered">%1$d%% தேர்ச்சி</string>
     <string name="statistics_vocabulary_growth_support">கடந்த 8 வாரங்களில் சேமித்த புதிய சொற்கள்</string>
@@ -1877,6 +1885,7 @@
     <string name="data_usage_kind_full">முழு ஒத்திசைவு</string>
     <string name="data_usage_kind_background">பின்னணி ஒத்திசைவு</string>
     <string name="data_usage_kind_launch_check">திறக்கும்போது சரிபார்ப்பு</string>
+    <string name="data_usage_kind_history">சாதன வரலாறு</string>
     <string name="data_usage_network_other">பிற நெட்வொர்க்</string>
     <string name="data_usage_network_none">நெட்வொர்க் இல்லை</string>
     <string name="data_usage_sync_row">%1$s · %2$s · ↑ %3$s ↓ %4$s</string>

@@ -70,6 +70,7 @@ fun parsePortableReadingSessions(jsonText: String): List<PortableReadingSession>
                     durationSeconds = durationSeconds,
                     activeIntervals = intervals,
                     bookFileHash = obj.optSnapshotBoundedString("bookFileHash", MaxSnapshotFileHashChars),
+                    deviceName = obj.optSnapshotBoundedString("deviceName", MaxSnapshotDeviceNameChars),
                     startPage = if (obj.has("startPage") && !obj.isNull("startPage")) obj.optInt("startPage", -1).takeIf { it >= 0 } else null,
                     endPage = if (obj.has("endPage") && !obj.isNull("endPage")) obj.optInt("endPage", -1).takeIf { it >= 0 } else null,
                 ),
@@ -222,6 +223,7 @@ private const val MaxSnapshotTextChars = 16_384
 private const val MaxSnapshotWordChars = 120
 private const val MaxSnapshotWriterOriginChars = 120
 private const val MaxSnapshotFileHashChars = 256
+private const val MaxSnapshotDeviceNameChars = 200
 private const val MaxSnapshotPathChars = 240
 const val PortableSnapshotLatestPath = "vayana/snapshot-latest.json"
 const val CurrentPortableSnapshotSliceVersion = 1
@@ -623,6 +625,7 @@ private fun PortableReadingSession.toJson(): JSONObject =
         .put("endPage", endPage)
         .put("activeIntervals", activeIntervals)
         .put("bookFileHash", bookFileHash)
+        .put("deviceName", deviceName)
 
 private fun PortableVocabularyCard.toJson(): JSONObject =
     JSONObject()

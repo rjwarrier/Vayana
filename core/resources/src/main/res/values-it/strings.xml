@@ -797,6 +797,15 @@
     <string name="statistics_genres_title">Tag</string>
     <string name="statistics_genres_support">Tag dei libri ordinati per tempo di lettura</string>
     <string name="statistics_genres_row_value">%1$d libri · %2$s</string>
+    <string name="statistics_devices_title">Dispositivi</string>
+    <string name="statistics_devices_most_used">Più usato: %1$s · %2$d%% del tempo di lettura</string>
+    <string name="statistics_devices_row_value">%1$s · %2$d%%</string>
+    <plurals name="statistics_devices_row_detail">
+        <item quantity="one">%1$d sessione · ultima lettura %2$s</item>
+        <item quantity="many">%1$d sessioni · ultima lettura %2$s</item>
+        <item quantity="other">%1$d sessioni · ultima lettura %2$s</item>
+    </plurals>
+    <string name="statistics_devices_unattributed">Esclusi %1$s di lettura precedenti alla registrazione per dispositivo.</string>
     <string name="statistics_vocabulary_growth_title">Crescita del vocabolario</string>
     <string name="statistics_vocabulary_growth_mastered">%1$d%% padroneggiate</string>
     <string name="statistics_vocabulary_growth_support">Nuove parole salvate, ultime 8 settimane</string>
@@ -1897,6 +1906,7 @@
     <string name="data_usage_kind_full">Sincronizzazione completa</string>
     <string name="data_usage_kind_background">Sincronizzazione in background</string>
     <string name="data_usage_kind_launch_check">Controllo all\'avvio</string>
+    <string name="data_usage_kind_history">Cronologia dispositivi</string>
     <string name="data_usage_network_other">Altra rete</string>
     <string name="data_usage_network_none">Nessuna rete</string>
     <string name="data_usage_sync_row">%1$s · %2$s · ↑ %3$s ↓ %4$s</string>

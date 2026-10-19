@@ -132,6 +132,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:diagnostics"))
     implementation(project(":core:homelibrary"))
+    implementation(project(":core:sync"))
 
     implementation(project(":feature:library"))
     implementation(project(":feature:notes"))

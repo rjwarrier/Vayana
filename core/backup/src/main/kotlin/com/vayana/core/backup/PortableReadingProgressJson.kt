@@ -312,6 +312,10 @@ private fun JSONObject.mergeReadingSessions(readingSessions: List<PortableReadin
                     existing.put("activeIntervals", session.activeIntervals)
                     enriched = true
                 }
+                if (existing.isNull("deviceName") && session.deviceName != null) {
+                    existing.put("deviceName", session.deviceName)
+                    enriched = true
+                }
                 if (enriched) added += 1
                 return@forEach
             }
@@ -327,6 +331,7 @@ private fun JSONObject.mergeReadingSessions(readingSessions: List<PortableReadin
                 .put("endPage", session.endPage)
                 .put("activeIntervals", session.activeIntervals)
                 .put("bookFileHash", session.bookFileHash)
+                .put("deviceName", session.deviceName)
         val destination = index ?: sessions.length()
         sessions.put(destination, incoming)
         existingSessionIndices[session.syncId] = destination

@@ -132,6 +132,8 @@ data class PortableReadingSession(
     val endPage: Int? = null,
     val activeIntervals: String? = null,
     val bookFileHash: String? = null,
+    /** Sync name of the device that recorded it; absent for sessions from before devices were recorded. */
+    val deviceName: String? = null,
 )
 
 data class PortableVocabularyCard(

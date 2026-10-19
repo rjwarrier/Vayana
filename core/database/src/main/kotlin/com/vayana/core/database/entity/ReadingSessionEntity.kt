@@ -33,4 +33,6 @@ data class ReadingSessionEntity(
     val startPage: Int? = null,
     val endPage: Int? = null,
     val activeIntervals: String? = null,
+    /** Sync device name of the device that recorded it; null for sessions from before devices were recorded. */
+    val deviceName: String? = null,
 )

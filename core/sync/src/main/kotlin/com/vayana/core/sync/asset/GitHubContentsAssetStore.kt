@@ -417,6 +417,57 @@ class GitHubContentsAssetStore(
             ?: throw GitHubAssetStoreException("GitHub metadata download failed", HttpURLConnection.HTTP_NOT_FOUND, path)
     }
 
+    /**
+     * One page of the commits that changed the latest snapshot pointer, newest first, through the GraphQL API: each
+     * with its author (the publishing device's name) and the blob ids of the pointer and of every slice file then in
+     * the repository. GraphQL reports a missing slice folder (snapshots older than slices) as a partial error; the
+     * page's data is still used.
+     */
+    suspend fun snapshotHistoryPage(cursor: String?, pageSize: Int): GitHubSnapshotHistoryPage = withContext(dispatcher) {
+        require(pageSize in 1..100)
+        val variables = org.json.JSONObject()
+            .put("owner", repository.owner)
+            .put("name", repository.name)
+            .put("branch", "refs/heads/${repository.branch}")
+            .put("first", pageSize)
+            .put("cursor", cursor ?: org.json.JSONObject.NULL)
+        val body = org.json.JSONObject().put("query", SnapshotHistoryQuery).put("variables", variables).toString()
+        var response: GitHubHttpResponse? = null
+        for (attempt in 0 until MaxReadAttempts) {
+            response = try {
+                execute(GitHubHttpRequest("POST", graphQlUrl(), jsonHeaders(), body.toByteArray(Charsets.UTF_8),
+                    maxResponseBytes = MaxSyncDocumentBytes))
+            } catch (exception: IOException) {
+                if (attempt == MaxReadAttempts - 1) throw exception
+                delay(readRetryDelayMillis(attempt))
+                continue
+            }
+            // A gateway timeout means the page was too heavy to answer: the caller asks again for fewer commits.
+            if (response.statusCode !in RetryableReadStatusCodes || response.statusCode in GraphQlTimeoutStatusCodes) break
+            if (attempt < MaxReadAttempts - 1) delay(response.retryDelayMillis(attempt))
+        }
+        val result = checkNotNull(response)
+        if (result.statusCode != HttpURLConnection.HTTP_OK) {
+            throw GitHubAssetStoreException("GitHub history lookup failed", result.statusCode, result.safeBodyText())
+        }
+        parseSnapshotHistoryPage(result.bodyText())
+    }
+
+    /** The bytes of a blob by id (for history reads; current documents go through [getSyncDocument]). */
+    suspend fun getBlob(sha: String): ByteArray = withContext(dispatcher) {
+        val response = executeRead(GitHubHttpRequest("GET", blobUrl(sha), rawBlobHeaders(), maxResponseBytes = MaxSyncDocumentBytes))
+        if (response.statusCode != HttpURLConnection.HTTP_OK) {
+            throw GitHubAssetStoreException("GitHub blob download failed", response.statusCode, response.safeBodyText())
+        }
+        response.body
+    }
+
+    private fun graphQlUrl(): String {
+        val base = repository.apiBaseUrl.trimEnd('/')
+        // GitHub Enterprise serves REST at /api/v3 and GraphQL at /api/graphql; github.com at /graphql.
+        return if (base.endsWith("/api/v3")) base.removeSuffix("/v3") + "/graphql" else "$base/graphql"
+    }
+
     suspend fun testConnection(): GitHubConnectionTestResult = withContext(dispatcher) {
         val response = executeRead(
             GitHubHttpRequest(
@@ -1064,6 +1115,8 @@ private const val SlowDownloadGraceMillis = 20_000L
 private const val MinDownloadBytesPerSecond = 8 * 1024L
 private const val MaxPutAttempts = 3
 private const val MaxReadAttempts = 3
+/** GraphQL answers these when a query took too long; retrying the same query rarely helps. */
+val GraphQlTimeoutStatusCodes = setOf(502, 504)
 private const val InitialReadRetryDelayMillis = 200L
 private const val MaxRetryAfterMillis = 2_000L
 private const val MaxEncryptedAssetBytes = 80 * 1024 * 1024

@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 40
+
+Adds nullable `reading_sessions.deviceName`: the sync device name (Settings › device name) of the device that
+recorded the session, for the per-device reading time in Statistics. Carried in portable snapshots and progress
+sync as an optional `deviceName` on each reading session. Migration 39→40 adds the column; existing sessions keep
+null (device unknown), so their JSON and slice hashes are unchanged.
+
 ## Version 39
 
 No schema changes. Migration 38→39 bumps every `sync_slice_versions` counter. Slices published before version 38

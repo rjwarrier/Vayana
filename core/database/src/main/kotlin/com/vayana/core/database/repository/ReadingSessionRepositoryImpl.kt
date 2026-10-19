@@ -19,6 +19,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     private val bookDao: BookDao,
     private val bookAliasDao: BookAliasDao,
     private val tombstoneDao: TombstoneDao,
+    private val localDeviceName: LocalDeviceName = LocalDeviceName(),
 ) : ReadingSessionRepository {
 
     override fun observeAll(): Flow<List<ReadingSession>> =
@@ -53,6 +54,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 startedAt = startedAt,
                 endedAt = endedAt,
                 durationSeconds = durationSeconds,
+                deviceName = localDeviceName.value,
             ),
         )
     }
@@ -72,7 +74,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 readingSessionDao.update(existing.copy(endedAt = endedAt, durationSeconds = durationSeconds))
             } else {
                 readingSessionDao.insert(ReadingSessionEntity(syncId = syncId, bookId = bookId,
-                    startedAt = startedAt, endedAt = endedAt, durationSeconds = durationSeconds))
+                    startedAt = startedAt, endedAt = endedAt, durationSeconds = durationSeconds,
+                    deviceName = localDeviceName.value))
             }
             val addedSeconds = durationSeconds - (existing?.durationSeconds ?: 0L)
             bookDao.update(book.copy(
@@ -122,6 +125,10 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         deleted
     }
 
+    override suspend fun fillDeviceNames(deviceNamesBySyncId: Map<String, String>): Int = database.withTransaction {
+        deviceNamesBySyncId.entries.sumOf { (syncId, name) -> readingSessionDao.fillDeviceName(syncId, name) }
+    }
+
     override suspend fun mergeCloudSession(record: CloudReadingSessionRecord): ReadingSessionMergeResult {
         if (record.syncId.isBlank() || record.bookSyncId.isBlank()) return ReadingSessionMergeResult.SKIPPED
         if (record.startedAt <= 0L || record.endedAt < record.startedAt || (record.durationSeconds < 0L || (record.durationSeconds == 0L && record.activeIntervals != ""))) {
@@ -151,6 +158,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 startPage = record.startPage?.takeIf { it >= 0 },
                 endPage = record.endPage?.takeIf { it >= 0 },
                 activeIntervals = record.activeIntervals,
+                deviceName = record.deviceName ?: existing?.deviceName,
             )
             val result = when {
                 existing == null -> {
@@ -168,6 +176,9 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                     readingSessionDao.update(existing.copy(activeIntervals = record.activeIntervals))
                     ReadingSessionMergeResult.UPDATED
                 }
+                // Another device learned which device recorded an older session (history backfill).
+                existing.deviceName == null && record.deviceName != null &&
+                    readingSessionDao.fillDeviceName(existing.syncId, record.deviceName) == 1 -> ReadingSessionMergeResult.UPDATED
                 else -> ReadingSessionMergeResult.SKIPPED
             }
             // A max of per-device book totals loses independent offline reading. The merged session
@@ -189,4 +200,5 @@ private fun ReadingSessionEntity.toDomain(): ReadingSession = ReadingSession(
     startPage = startPage,
     endPage = endPage,
     activeIntervals = activeIntervals,
+    deviceName = deviceName,
 )

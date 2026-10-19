@@ -16,7 +16,7 @@ import org.json.JSONObject
 /** GitHub requests a sync made and their payload bytes. */
 data class GitHubTransferStats(val requests: Int, val downBytes: Long, val upBytes: Long)
 
-enum class SyncKind { FULL, BACKGROUND, LAUNCH_CHECK }
+enum class SyncKind { FULL, BACKGROUND, LAUNCH_CHECK, HISTORY }
 
 /** The network a transfer went over. Mobile is metered cellular data; Other covers Ethernet, VPN-only and the rest. */
 enum class DataNetwork { WIFI, MOBILE, OTHER, NONE }

@@ -92,6 +92,14 @@ data class VocabularyGrowth(
     val weeklyNewCards: List<Int>,
 )
 
+/** Reading time recorded on one synced device (by its sync device name). */
+data class DeviceStat(
+    val name: String,
+    val totalSeconds: Long,
+    val sessionCount: Int,
+    val lastReadAt: Long,
+)
+
 data class StatisticsSummary(
     val readingRecords: List<Book> = emptyList(),
     val totalBooks: Int = 0,
@@ -128,6 +136,10 @@ data class StatisticsSummary(
     val topAuthor: AuthorStat? = null,
     val topSeries: SeriesProgress? = null,
     val vocabularyGrowth: VocabularyGrowth? = null,
+    /** Most reading time first; empty unless sessions name at least two devices (GitHub sync across devices). */
+    val deviceStats: List<DeviceStat> = emptyList(),
+    /** Counted reading time from sessions recorded before devices were, so not in [deviceStats]. */
+    val unattributedDeviceSeconds: Long = 0L,
 )
 
 @HiltViewModel
@@ -366,6 +378,7 @@ private fun List<Book>.readingSummary(
     }
     val recentWeekMinutes = (0 until 7).sumOf { daysAgo -> ((secondsByDate[today.minusDays(daysAgo.toLong())] ?: 0L) / 60L).toInt() }
     val yearInBooks = yearInBooks(today, zone, yearlyGoalBooks)
+    val deviceStats = deviceStats(countedSessions)
     return StatisticsSummary(
         readingRecords = filter { it.startedReadingAt != null || it.finishedReadingAt != null ||
             it.readingPercent > 0f || it.totalReadingSeconds > 0L || it.lastReadAt != null }
@@ -392,8 +405,19 @@ private fun List<Book>.readingSummary(
         uniqueAuthorCount = mapNotNull { it.author?.trim()?.lowercase()?.ifBlank { null } }.distinct().size,
         topAuthor = topAuthor(),
         topSeries = topSeries(finishedThreshold),
+        deviceStats = deviceStats,
+        unattributedDeviceSeconds = if (deviceStats.isEmpty()) 0L
+            else countedSessions.filter { it.deviceName == null }.sumOf { it.durationSeconds },
     )
 }
+
+internal fun deviceStats(sessions: List<ReadingSession>): List<DeviceStat> = sessions
+    .filter { it.deviceName != null }
+    .groupBy { it.deviceName!! }
+    .map { (name, own) -> DeviceStat(name, own.sumOf { it.durationSeconds }, own.size, own.maxOf { it.endedAt }) }
+    .takeIf { it.size >= 2 }
+    ?.sortedByDescending { it.totalSeconds }
+    .orEmpty()
 
 /**
  * "At this pace, you'll finish X in about N days": extrapolates the book's own historical

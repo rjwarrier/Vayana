@@ -14,6 +14,7 @@ data class CloudReadingSessionRecord(
     val endPage: Int? = null,
     val activeIntervals: String? = null,
     val bookFileHash: String? = null,
+    val deviceName: String? = null,
 )
 
 enum class ReadingSessionMergeResult {
@@ -51,4 +52,7 @@ interface ReadingSessionRepository {
 
     /** Removes one session, for a synced reading-stats reset. Returns how many rows went (0 or 1). */
     suspend fun deleteBySyncId(syncId: String): Int
+
+    /** Records which device recorded each session (by syncId) where none is known yet; returns sessions named. */
+    suspend fun fillDeviceNames(deviceNamesBySyncId: Map<String, String>): Int
 }

@@ -73,6 +73,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.theme.LocalFloatingNavigationInset
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
+import android.text.format.DateUtils
 import android.text.format.Formatter
 import java.time.LocalDate
 import com.vayana.core.designsystem.theme.asAppDate
@@ -207,6 +208,9 @@ private fun StatisticsDashboard(
             item {
                 ReadingHabitsCard(habits = habits)
             }
+        }
+        if (summary.deviceStats.isNotEmpty()) {
+            item { DevicesCard(summary.deviceStats, summary.unattributedDeviceSeconds) }
         }
         if (summary.dailyGoalMinutes > 0) {
             item {
@@ -761,19 +765,69 @@ private fun GenreBreakdownCard(genres: List<GenreStat>) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             genres.forEach { genre ->
-                GenreRow(genre = genre, maxSeconds = maxSeconds, modifier = Modifier.padding(top = Spacing.md))
+                BarRow(
+                    label = genre.name,
+                    value = stringResource(R.string.statistics_genres_row_value, genre.bookCount, formatSessionDuration(genre.totalSeconds)),
+                    fraction = genre.totalSeconds.toFloat() / maxSeconds,
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
+            }
+        }
+    }
+}
+
+/** Reading time per synced device: the most used first, each with its share, sessions and when it was last read on. */
+@Composable
+private fun DevicesCard(devices: List<DeviceStat>, unattributedSeconds: Long) {
+    val totalSeconds = devices.sumOf { it.totalSeconds }.coerceAtLeast(1L)
+    val maxSeconds = devices.first().totalSeconds.coerceAtLeast(1L)
+    val share = { device: DeviceStat -> (device.totalSeconds * 100 / totalSeconds).toInt() }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = StatsCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.padding(StatsCardPadding)) {
+            Text(text = stringResource(R.string.statistics_devices_title), style = statsCardTitle)
+            Text(
+                text = stringResource(R.string.statistics_devices_most_used, devices.first().name, share(devices.first())),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            devices.forEach { device ->
+                BarRow(
+                    label = device.name,
+                    value = stringResource(R.string.statistics_devices_row_value, formatSessionDuration(device.totalSeconds), share(device)),
+                    fraction = device.totalSeconds.toFloat() / maxSeconds,
+                    detail = pluralStringResource(
+                        R.plurals.statistics_devices_row_detail,
+                        device.sessionCount,
+                        device.sessionCount,
+                        DateUtils.getRelativeTimeSpanString(device.lastReadAt).toString(),
+                    ),
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
+            }
+            if (unattributedSeconds > 0L) {
+                Text(
+                    text = stringResource(R.string.statistics_devices_unattributed, formatSessionDuration(unattributedSeconds)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun GenreRow(genre: GenreStat, maxSeconds: Long, modifier: Modifier = Modifier) {
+private fun BarRow(label: String, value: String, fraction: Float, modifier: Modifier = Modifier, detail: String? = null) {
     Column(modifier = modifier) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = genre.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).padding(end = Spacing.sm))
             Text(
-                text = stringResource(R.string.statistics_genres_row_value, genre.bookCount, formatSessionDuration(genre.totalSeconds)),
+                text = value,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -788,10 +842,18 @@ private fun GenreRow(genre: GenreStat, maxSeconds: Long, modifier: Modifier = Mo
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth((genre.totalSeconds.toFloat() / maxSeconds).coerceIn(0.04f, 1f))
+                    .fillMaxWidth(fraction.coerceIn(0.04f, 1f))
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(Radii.full))
                     .background(MaterialTheme.colorScheme.primary),
+            )
+        }
+        detail?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
             )
         }
     }
