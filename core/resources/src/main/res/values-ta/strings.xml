@@ -323,7 +323,10 @@
     <string name="library_edit_metadata_series_number_label">நூல் எண்</string>
     <string name="library_edit_metadata_series_number_taken">இந்த எண் இந்தத் தொடரில் ஏற்கெனவே உள்ளது.</string>
     <string name="library_edit_metadata_tags_label">குறிச்சொற்கள்</string>
-    <string name="library_edit_metadata_tags_supporting">குறிச்சொற்களைக் காற்புள்ளியால் பிரியுங்கள்</string>
+    <string name="library_edit_metadata_tags_supporting">சேர்க்க Enter அழுத்துங்கள். காற்புள்ளிகள் பலவற்றை ஒரே நேரத்தில் சேர்க்கும்.</string>
+    <string name="library_edit_metadata_tag_add">குறிச்சொல் சேர்</string>
+    <string name="library_edit_metadata_tag_remove">%1$s நீக்கு</string>
+    <string name="library_edit_metadata_tags_clear">அனைத்தையும் நீக்கு</string>
     <string name="library_edit_metadata_description_label">விவரணை</string>
     <string name="library_edit_metadata_save">சேமி</string>
     <string name="library_edit_metadata_cancel">ரத்துசெய்</string>

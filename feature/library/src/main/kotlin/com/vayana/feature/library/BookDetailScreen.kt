@@ -174,8 +174,6 @@ fun BookDetailRoute(
     val goodreadsImport by viewModel.goodreadsImport.collectAsStateWithLifecycle()
     val highlightCount by remember(bookId) { viewModel.observeAnnotationCount(bookId) }
         .collectAsStateWithLifecycle(initialValue = null)
-    val communityQuoteCount by remember(bookId) { viewModel.observeCommunityQuoteCount(bookId) }
-        .collectAsStateWithLifecycle(initialValue = null)
     val pendingLaunchProgressChange by viewModel.pendingLaunchProgressChange.collectAsStateWithLifecycle()
     var syncReadingProgressRunning by remember { mutableStateOf(false) }
     var progressChangePrompt by remember { mutableStateOf<BookProgressChange?>(null) }
@@ -294,7 +292,6 @@ fun BookDetailRoute(
             onBack()
         },
         highlightCount = highlightCount,
-        communityQuoteCount = communityQuoteCount,
     )
 }
 
@@ -382,7 +379,6 @@ private fun BookDetailScreen(
     onDeleteBook: () -> Unit,
     onDeletePermanently: () -> Unit,
     highlightCount: Int?,
-    communityQuoteCount: Int?,
     goodreadsImport: GoodreadsImportState,
     onImportGoodreads: (String) -> Unit,
     onImportGoodreadsCapture: (GoodreadsBookMetadata, List<ParsedQuote>?) -> Unit,
@@ -749,7 +745,12 @@ private fun BookDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(Paddings.screenHorizontal),
+                contentPadding = PaddingValues(
+                    start = Paddings.screenHorizontal,
+                    end = Paddings.screenHorizontal,
+                    bottom = Paddings.screenHorizontal,
+                    top = Spacing.xs,
+                ),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
                 verticalItemSpacing = Spacing.lg,
             ) {
@@ -847,7 +848,6 @@ private fun BookDetailScreen(
                                 }
                                 GoodreadsInfoLine(
                                     book = book,
-                                    communityQuoteCount = communityQuoteCount,
                                     modifier = Modifier.padding(top = Spacing.sm),
                                 )
                             }

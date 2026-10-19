@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -190,6 +192,15 @@ internal fun BulkBooksDialog(books: List<Book>, shelves: List<Shelf>, onAction: 
         } } }, confirmButton = { TextButton(onClick = { chooseShelf = false }) { Text(stringResource(R.string.tools_cancel)) } })
 }
 
+@Composable
+private fun finishByPlanText(plan: FinishByPlan): String = when (plan.unit) {
+    PlanUnit.PAGES -> stringResource(R.string.tools_plan_pages, plan.amount, plan.days)
+    PlanUnit.MINUTES -> stringResource(R.string.tools_plan_minutes, plan.amount, plan.days)
+    PlanUnit.PERCENT -> stringResource(R.string.tools_plan_percent, plan.amount, plan.days)
+    PlanUnit.FINISHED -> stringResource(R.string.tools_plan_finished)
+    PlanUnit.OVERDUE -> stringResource(R.string.tools_plan_overdue)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FinishByCard(
@@ -210,15 +221,8 @@ internal fun FinishByCard(
     val body: @Composable () -> Unit = {
         target?.let { date ->
             Text(stringResource(R.string.tools_plan_date, date.asAppDate()), style = MaterialTheme.typography.bodyLarge)
-            val plan = finishByPlan(book, date)
             Text(
-                when (plan.unit) {
-                    PlanUnit.PAGES -> stringResource(R.string.tools_plan_pages, plan.amount, plan.days)
-                    PlanUnit.MINUTES -> stringResource(R.string.tools_plan_minutes, plan.amount, plan.days)
-                    PlanUnit.PERCENT -> stringResource(R.string.tools_plan_percent, plan.amount, plan.days)
-                    PlanUnit.FINISHED -> stringResource(R.string.tools_plan_finished)
-                    PlanUnit.OVERDUE -> stringResource(R.string.tools_plan_overdue)
-                },
+                finishByPlanText(finishByPlan(book, date)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -251,8 +255,40 @@ internal fun FinishByCard(
             }
         }
     } else {
-        // The same card as Book details' other sections, rather than an outlined one of its own.
-        BookDetailSection(icon = Icons.Outlined.Event, title = stringResource(R.string.tools_finish_by)) { body() }
+        // Book details' section card, kept compact: the date is the headline, the pace sits under it, and changing or
+        // clearing it are icon buttons in the header instead of a row of buttons of their own.
+        BookDetailSection(
+            icon = Icons.Outlined.Event,
+            title = stringResource(R.string.tools_finish_by),
+            action = target?.let {
+                {
+                    Row {
+                        IconButton(enabled = !busy, onClick = { picker = true }) {
+                            Icon(Icons.Outlined.Edit, contentDescription = stringResource(R.string.tools_change_target))
+                        }
+                        IconButton(enabled = !busy, onClick = { save(null) }) {
+                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.tools_clear_target))
+                        }
+                    }
+                }
+            },
+        ) {
+            if (target == null) {
+                FilledTonalButton(enabled = !busy, onClick = { picker = true }, shape = Radii.buttonShape) {
+                    Text(stringResource(R.string.tools_set_target))
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    Text(target.asAppDate(), style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        finishByPlanText(finishByPlan(book, target)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (error) Text(stringResource(R.string.tools_failed), color = MaterialTheme.colorScheme.error)
+        }
     }
     if (picker) {
         val dateState = rememberDatePickerState(initialSelectedDateMillis = (target ?: LocalDate.now()).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())

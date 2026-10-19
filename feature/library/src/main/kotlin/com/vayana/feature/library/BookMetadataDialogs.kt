@@ -1,5 +1,23 @@
 package com.vayana.feature.library
 
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import com.vayana.core.designsystem.tokens.Paddings
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.vayana.core.database.model.MaxBookTagChars
+import com.vayana.core.database.model.MaxBookTags
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -55,8 +73,6 @@ import com.vayana.core.designsystem.dialog.ExpressiveDialogSurface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -104,10 +120,11 @@ internal fun EditMetadataDialog(
     var author by remember(book.id) { mutableStateOf(book.author.orEmpty()) }
     var series by remember(book.id) { mutableStateOf(book.series.orEmpty()) }
     var seriesNumber by remember(book.id) { mutableStateOf(book.seriesNumber.orEmpty()) }
-    var tagsCsv by remember(book.id) { mutableStateOf(book.tagsCsv.orEmpty().take(MaxBookTagsInputChars)) }
+    var tags by remember(book.id) { mutableStateOf(book.tags()) }
+    var tagInput by remember(book.id) { mutableStateOf("") }
     val authorSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.author } }
     val seriesSuggestions = remember(libraryBooks) { libraryBooks.metadataSuggestions { it.series } }
-    val tagSuggestions = remember(libraryBooks) { libraryBooks.flatMap { it.tags() }.distinctSortedIgnoreCase() }
+    val libraryTags = remember(libraryBooks) { libraryBooks.tagsByUse() }
     val duplicateSeriesNumber = remember(book.id, libraryBooks, series, seriesNumber) {
         libraryBooks.hasSeriesNumberCollision(
             currentBookId = book.id,
@@ -123,57 +140,54 @@ internal fun EditMetadataDialog(
         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
     )
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = Sizes.contentMaxWidth),
-            shape = RoundedCornerShape(Radii.extraLargeIncreased),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = Elevations.shadowLarge,
-        ) {
+    val save = { onSave(title, author, series, seriesNumber, tags.withTypedTags(tagInput).toTagsCsv()) }
+
+    // A full-screen editor (Material's full-screen dialog): the form gets the whole screen and the keyboard, with
+    // close and Save in the top bar, instead of a card squeezed between the system bars.
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.library_edit_metadata_cancel))
+                        }
+                    },
+                    title = {
+                        Column {
+                            Text(stringResource(R.string.library_edit_metadata_title), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                text = book.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = save, enabled = canSave) {
+                            Text(stringResource(R.string.library_edit_metadata_save))
+                        }
+                    },
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) { padding ->
             Column(
                 modifier = Modifier
-                    .padding(Spacing.lg)
+                    .fillMaxSize()
+                    .padding(padding)
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md)
+                    .widthIn(max = Sizes.contentMaxWidth)
                     .vayanaAnimateContentSize(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(Radii.large),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        tonalElevation = Elevations.level1,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.padding(Spacing.md),
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.library_edit_metadata_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = book.title,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -250,39 +264,14 @@ internal fun EditMetadataDialog(
                     }
                 }
 
-                TagSuggestionField(
-                    value = tagsCsv,
-                    onValueChange = { tagsCsv = it.take(MaxBookTagsInputChars) },
-                    suggestions = tagSuggestions,
+                TagEditor(
+                    tags = tags,
+                    onTagsChange = { tags = it },
+                    input = tagInput,
+                    onInputChange = { tagInput = it },
+                    libraryTags = libraryTags,
                     textFieldColors = textFieldColors,
                 )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.xs),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FilledTonalButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(Radii.full),
-                    ) {
-                        Text(stringResource(R.string.library_edit_metadata_cancel))
-                    }
-                    Button(
-                        onClick = { onSave(title, author, series, seriesNumber, tagsCsv) },
-                        enabled = canSave,
-                        shape = RoundedCornerShape(Radii.full),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = Spacing.xs),
-                        )
-                        Text(stringResource(R.string.library_edit_metadata_save))
-                    }
-                }
             }
         }
     }
@@ -465,25 +454,75 @@ private fun MetadataSuggestionField(
     }
 }
 
+/**
+ * Tags as chips that wrap onto new lines, removed with a tap, plus a field that adds what's typed on Enter or at each
+ * comma (so a pasted list adds every tag). Library tags not on the book are offered below it: those matching what's
+ * typed, or the most used ones while the field is empty.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TagSuggestionField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    suggestions: List<String>,
+private fun TagEditor(
+    tags: List<String>,
+    onTagsChange: (List<String>) -> Unit,
+    input: String,
+    onInputChange: (String) -> Unit,
+    libraryTags: List<String>,
     textFieldColors: androidx.compose.material3.TextFieldColors,
     modifier: Modifier = Modifier,
 ) {
-    val focusRequester = remember { FocusRequester() }
-    val matches = remember(value, suggestions) { suggestions.matchingTagSuggestions(value) }
-
-    Column(modifier = modifier.fillMaxWidth()) {
+    val suggestions = remember(tags, input, libraryTags) { libraryTags.suggestedTags(tags, input) }
+    fun add(typed: String) {
+        onTagsChange(tags.withTypedTags(typed))
+        onInputChange("")
+    }
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.library_edit_metadata_tags_label),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            if (tags.size > 1) {
+                TextButton(onClick = { onTagsChange(emptyList()) }) {
+                    Text(stringResource(R.string.library_edit_metadata_tags_clear))
+                }
+            }
+        }
+        if (tags.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                tags.forEach { tag ->
+                    val remove = stringResource(R.string.library_edit_metadata_tag_remove, tag)
+                    InputChip(
+                        selected = false,
+                        onClick = { onTagsChange(tags - tag) },
+                        label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = remove,
+                                modifier = Modifier.size(InputChipDefaults.IconSize),
+                            )
+                        },
+                        modifier = Modifier.semantics { contentDescription = remove },
+                    )
+                }
+            }
+        }
         OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            label = { Text(stringResource(R.string.library_edit_metadata_tags_label)) },
+            value = input,
+            onValueChange = { text ->
+                if (',' in text) {
+                    onTagsChange(tags.withTypedTags(text.substringBeforeLast(',')))
+                    onInputChange(text.substringAfterLast(',').trimStart())
+                } else {
+                    onInputChange(text.take(MaxBookTagChars))
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.library_edit_metadata_tag_add)) },
             supportingText = { Text(stringResource(R.string.library_edit_metadata_tags_supporting)) },
             singleLine = true,
             shape = RoundedCornerShape(Radii.medium),
@@ -496,49 +535,75 @@ private fun TagSuggestionField(
                 )
             },
             trailingIcon = {
-                if (value.isNotEmpty()) {
-                    IconButton(onClick = {
-                        onValueChange("")
-                        focusRequester.requestFocus()
-                    }) {
+                if (input.isNotBlank()) {
+                    IconButton(onClick = { add(input) }) {
                         Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = stringResource(R.string.input_clear_content_description),
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = stringResource(R.string.library_edit_metadata_tag_add),
                         )
                     }
                 }
             },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (input.isNotBlank()) add(input) }),
         )
-
-        if (matches.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(top = Spacing.xs),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        if (suggestions.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                matches.take(6).forEach { suggestion ->
+                suggestions.forEach { suggestion ->
                     SuggestionChip(
-                        onClick = {
-                            onValueChange(value.withCurrentTagSuggestion(suggestion))
-                            focusRequester.requestFocus()
-                        },
-                        label = {
-                            Text(
-                                text = suggestion,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.labelSmall,
+                        onClick = { add(suggestion) },
+                        label = { Text(suggestion, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(SuggestionChipDefaults.IconSize),
                             )
                         },
-                        shape = RoundedCornerShape(Radii.full),
                     )
                 }
             }
         }
     }
+}
+
+/** Adds [typed] (one tag, or several separated by commas), skipping ones already there in any case, up to the cap. */
+internal fun List<String>.withTypedTags(typed: String): List<String> =
+    (this + typed.tags()).distinctBy { it.metadataKey() }.take(MaxBookTags)
+
+/** Tags as stored, kept within the field's length limit by dropping whole tags from the end. */
+internal fun List<String>.toTagsCsv(): String {
+    val kept = ArrayList<String>(size)
+    var length = 0
+    for (tag in this) {
+        val added = tag.length + if (kept.isEmpty()) 0 else 2
+        if (length + added > MaxBookTagsInputChars) break
+        kept += tag
+        length += added
+    }
+    return kept.joinToString(", ")
+}
+
+/** Every tag in the library, most used first (then alphabetical), each once whatever its case. */
+internal fun List<Book>.tagsByUse(): List<String> =
+    flatMap { it.tags() }
+        .groupBy { it.metadataKey() }
+        .values
+        .sortedWith(compareByDescending<List<String>> { it.size }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.first() })
+        .map { it.first() }
+
+/** Library tags not on the book: ones containing [input], or the most used ones while nothing is typed. */
+internal fun List<String>.suggestedTags(tags: List<String>, input: String): List<String> {
+    val taken = tags.mapTo(HashSet()) { it.metadataKey() }
+    val query = input.normalizedBookTag()
+    return asSequence()
+        .filter { it.metadataKey() !in taken }
+        .filter { query.isEmpty() || (it.contains(query, ignoreCase = true) && !it.equals(query, ignoreCase = true)) }
+        .take(TagSuggestionLimit)
+        .toList()
 }
 
 /**
@@ -661,35 +726,6 @@ private fun List<String>.matchingMetadataSuggestions(value: String): List<String
     }.filterNot { suggestion ->
         suggestion.equals(query, ignoreCase = true)
     }.take(MetadataSuggestionLimit)
-}
-
-private fun List<String>.matchingTagSuggestions(value: String): List<String> {
-    val existingTags = value.tags().map { it.metadataKey() }.toSet()
-    val query = value.substringAfterLast(',').normalizedBookTag()
-    if (query.isEmpty()) return emptyList()
-    return filter { suggestion ->
-        suggestion.contains(query, ignoreCase = true) &&
-            suggestion.metadataKey() !in existingTags &&
-            !suggestion.equals(query, ignoreCase = true)
-    }.take(TagSuggestionLimit)
-}
-
-private fun List<String>.distinctSortedIgnoreCase(): List<String> =
-    map { it.normalizedBookTag() }
-        .filter { it.isNotEmpty() }
-        .distinctBy { it.metadataKey() }
-        .sortedWith(String.CASE_INSENSITIVE_ORDER)
-
-private fun String.withCurrentTagSuggestion(suggestion: String): String {
-    val before = substringBeforeLast(',', missingDelimiterValue = "")
-    val prefix = before.trim().takeIf { it.isNotEmpty() }
-    val cleanSuggestion = suggestion.normalizedBookTag()
-    if (cleanSuggestion.isBlank()) return this
-    return if (contains(',') && prefix != null) {
-        "$prefix, $cleanSuggestion, "
-    } else {
-        "$cleanSuggestion, "
-    }
 }
 
 private fun List<Book>.hasSeriesNumberCollision(currentBookId: Long, series: String, seriesNumber: String): Boolean {

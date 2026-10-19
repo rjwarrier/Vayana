@@ -325,7 +325,10 @@
     <string name="library_edit_metadata_series_number_label">Numéro du tome</string>
     <string name="library_edit_metadata_series_number_taken">Ce numéro est déjà utilisé dans cette série.</string>
     <string name="library_edit_metadata_tags_label">Tags</string>
-    <string name="library_edit_metadata_tags_supporting">Séparez les tags par des virgules</string>
+    <string name="library_edit_metadata_tags_supporting">Appuyez sur Entrée pour ajouter. Les virgules en ajoutent plusieurs à la fois.</string>
+    <string name="library_edit_metadata_tag_add">Ajouter une étiquette</string>
+    <string name="library_edit_metadata_tag_remove">Retirer %1$s</string>
+    <string name="library_edit_metadata_tags_clear">Tout retirer</string>
     <string name="library_edit_metadata_description_label">Description</string>
     <string name="library_edit_metadata_save">Enregistrer</string>
     <string name="library_edit_metadata_cancel">Annuler</string>

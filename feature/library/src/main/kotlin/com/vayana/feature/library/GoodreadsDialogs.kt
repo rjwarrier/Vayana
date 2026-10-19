@@ -69,12 +69,12 @@ import com.vayana.core.resources.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-/** Goodreads rating, original year, and imported community-quote count under the series line. */
+/** Goodreads rating and original year under the series line; quote counts live in the Notes action. */
 @Composable
-internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: Modifier = Modifier) {
+internal fun GoodreadsInfoLine(book: Book, modifier: Modifier = Modifier) {
     val rating = book.goodreadsRating
     val year = book.originalPublicationYear?.let { stringResource(R.string.library_goodreads_first_published, it) }
-    if (rating == null && year == null && book.goodreadsUrl == null && (communityQuoteCount ?: 0) == 0) return
+    if (rating == null && year == null && book.goodreadsUrl == null) return
     val uriHandler = LocalUriHandler.current
     val url = book.goodreadsUrl?.takeIf { it.isNotBlank() }
     Column(modifier = modifier) {
@@ -153,21 +153,6 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
                 modifier = (if (rating == null) Modifier else Modifier.padding(top = Spacing.xs))
                     .then(if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier),
             )
-        }
-        communityQuoteCount?.let { count ->
-            Surface(
-                modifier = Modifier.padding(top = Spacing.sm).height(GoodreadsChipHeight),
-                shape = RoundedCornerShape(Radii.small),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = Spacing.md)) {
-                    Text(
-                        text = pluralStringResource(R.plurals.library_community_quotes_count, count, count),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
         }
     }
 }

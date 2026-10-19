@@ -325,7 +325,10 @@
     <string name="library_edit_metadata_series_number_label">Número del libro</string>
     <string name="library_edit_metadata_series_number_taken">Ese número ya se usa en esta serie.</string>
     <string name="library_edit_metadata_tags_label">Etiquetas</string>
-    <string name="library_edit_metadata_tags_supporting">Separa las etiquetas con comas</string>
+    <string name="library_edit_metadata_tags_supporting">Pulsa Intro para añadir. Las comas añaden varias a la vez.</string>
+    <string name="library_edit_metadata_tag_add">Añadir una etiqueta</string>
+    <string name="library_edit_metadata_tag_remove">Quitar %1$s</string>
+    <string name="library_edit_metadata_tags_clear">Quitar todas</string>
     <string name="library_edit_metadata_description_label">Descripción</string>
     <string name="library_edit_metadata_save">Guardar</string>
     <string name="library_edit_metadata_cancel">Cancelar</string>

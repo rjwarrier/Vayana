@@ -325,7 +325,10 @@
     <string name="library_edit_metadata_series_number_label">Número do livro</string>
     <string name="library_edit_metadata_series_number_taken">Esse número já é usado nesta série.</string>
     <string name="library_edit_metadata_tags_label">Tags</string>
-    <string name="library_edit_metadata_tags_supporting">Separe as tags com vírgulas</string>
+    <string name="library_edit_metadata_tags_supporting">Pressione Enter para adicionar. Vírgulas adicionam várias de uma vez.</string>
+    <string name="library_edit_metadata_tag_add">Adicionar uma tag</string>
+    <string name="library_edit_metadata_tag_remove">Remover %1$s</string>
+    <string name="library_edit_metadata_tags_clear">Remover todas</string>
     <string name="library_edit_metadata_description_label">Descrição</string>
     <string name="library_edit_metadata_save">Salvar</string>
     <string name="library_edit_metadata_cancel">Cancelar</string>

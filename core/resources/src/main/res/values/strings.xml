@@ -341,7 +341,10 @@
     <string name="library_edit_metadata_series_number_label">Book number</string>
     <string name="library_edit_metadata_series_number_taken">Book number already used in this series.</string>
     <string name="library_edit_metadata_tags_label">Tags</string>
-    <string name="library_edit_metadata_tags_supporting">Separate tags with commas</string>
+    <string name="library_edit_metadata_tags_supporting">Press Enter to add. Commas add several at once.</string>
+    <string name="library_edit_metadata_tag_add">Add a tag</string>
+    <string name="library_edit_metadata_tag_remove">Remove %1$s</string>
+    <string name="library_edit_metadata_tags_clear">Clear all</string>
     <string name="library_edit_metadata_description_label">Description</string>
     <string name="library_edit_metadata_save">Save</string>
     <string name="library_edit_metadata_cancel">Cancel</string>

@@ -325,7 +325,10 @@
     <string name="library_edit_metadata_series_number_label">Numero del libro</string>
     <string name="library_edit_metadata_series_number_taken">Numero già usato in questa serie.</string>
     <string name="library_edit_metadata_tags_label">Tag</string>
-    <string name="library_edit_metadata_tags_supporting">Separa i tag con virgole</string>
+    <string name="library_edit_metadata_tags_supporting">Premi Invio per aggiungere. Le virgole ne aggiungono più di uno insieme.</string>
+    <string name="library_edit_metadata_tag_add">Aggiungi un tag</string>
+    <string name="library_edit_metadata_tag_remove">Rimuovi %1$s</string>
+    <string name="library_edit_metadata_tags_clear">Rimuovi tutti</string>
     <string name="library_edit_metadata_description_label">Descrizione</string>
     <string name="library_edit_metadata_save">Salva</string>
     <string name="library_edit_metadata_cancel">Annulla</string>

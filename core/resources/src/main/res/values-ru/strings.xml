@@ -327,7 +327,10 @@
     <string name="library_edit_metadata_series_number_label">Номер книги</string>
     <string name="library_edit_metadata_series_number_taken">Этот номер уже используется в серии.</string>
     <string name="library_edit_metadata_tags_label">Теги</string>
-    <string name="library_edit_metadata_tags_supporting">Разделяйте теги запятыми</string>
+    <string name="library_edit_metadata_tags_supporting">Нажмите Enter, чтобы добавить. Запятые добавляют несколько сразу.</string>
+    <string name="library_edit_metadata_tag_add">Добавить тег</string>
+    <string name="library_edit_metadata_tag_remove">Удалить %1$s</string>
+    <string name="library_edit_metadata_tags_clear">Удалить все</string>
     <string name="library_edit_metadata_description_label">Описание</string>
     <string name="library_edit_metadata_save">Сохранить</string>
     <string name="library_edit_metadata_cancel">Отмена</string>

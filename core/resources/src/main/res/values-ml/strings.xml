@@ -323,7 +323,10 @@
     <string name="library_edit_metadata_series_number_label">പുസ്തക നമ്പർ</string>
     <string name="library_edit_metadata_series_number_taken">ഈ നമ്പർ ഈ പരമ്പരയിൽ ഇതിനകം ഉപയോഗിച്ചിട്ടുണ്ട്.</string>
     <string name="library_edit_metadata_tags_label">മുദ്രകൾ</string>
-    <string name="library_edit_metadata_tags_supporting">മുദ്രകൾ കോമ കൊണ്ട് വേർതിരിക്കുക</string>
+    <string name="library_edit_metadata_tags_supporting">ചേർക്കാൻ Enter അമർത്തുക. കോമകൾ ഒന്നിലധികം ഒരുമിച്ച് ചേർക്കും.</string>
+    <string name="library_edit_metadata_tag_add">ടാഗ് ചേർക്കുക</string>
+    <string name="library_edit_metadata_tag_remove">%1$s നീക്കം ചെയ്യുക</string>
+    <string name="library_edit_metadata_tags_clear">എല്ലാം നീക്കുക</string>
     <string name="library_edit_metadata_description_label">വിവരണം</string>
     <string name="library_edit_metadata_save">സൂക്ഷിക്കുക</string>
     <string name="library_edit_metadata_cancel">റദ്ദാക്കുക</string>

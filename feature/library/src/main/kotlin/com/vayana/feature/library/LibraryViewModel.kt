@@ -747,9 +747,6 @@ class LibraryViewModel @Inject constructor(
 
     fun observeAnnotationCount(bookId: Long): Flow<Int> = annotationRepository.observeCountForBook(bookId)
 
-    fun observeCommunityQuoteCount(bookId: Long): Flow<Int> =
-        annotationRepository.observeCommunityQuoteCountForBook(bookId)
-
     val recentlyDeletedBooks: StateFlow<List<Book>> = bookRepository.observeDeleted()
         .withAbsolutePaths()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -1904,7 +1901,6 @@ class LibraryViewModel @Inject constructor(
             }
         }.sumOf { it.await() }
     }
-
 
     private suspend fun mergeCloudShelves(snapshotJson: String): GenericSyncMergeSummary =
         runCatchingCancellable {
@@ -3208,7 +3204,6 @@ internal fun gutenbergBookIdFromFileName(fileName: String): Long? =
 private val GutenbergFileName = Regex("pg(\\d+)(?:-images)?\\.epub", RegexOption.IGNORE_CASE)
 
 
-
 private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>, bookFileHashesByLocalId: Map<Long, String>): PortableReadingSession? {
     val bookSyncId = bookSyncIdsByLocalId[bookId] ?: return null
     return PortableReadingSession(
@@ -3273,7 +3268,6 @@ private fun PortableAnnotation.toRecord(): AnnotationRecord? {
         isDeleted = isDeleted,
     )
 }
-
 
 private fun PortableShelf.toRecord(): CloudShelfRecord = CloudShelfRecord(
     syncId = syncId,
@@ -3360,7 +3354,6 @@ private fun GitHubSyncConfig.assetStore(): GitHubContentsAssetStore =
 
 private fun GitHubSyncConfig.launchReadingProgressSyncTarget(): String =
     listOf(owner, repository, branch, deviceSnapshotPath).joinToString("/")
-
 
 private fun DiagnosticsLogStore.recordLaunchProgressCheck(
     bookId: Long?,

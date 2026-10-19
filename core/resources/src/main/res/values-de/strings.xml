@@ -323,7 +323,10 @@
     <string name="library_edit_metadata_series_number_label">Bandnummer</string>
     <string name="library_edit_metadata_series_number_taken">Diese Bandnummer wird in der Reihe schon verwendet.</string>
     <string name="library_edit_metadata_tags_label">Tags</string>
-    <string name="library_edit_metadata_tags_supporting">Tags durch Kommas trennen</string>
+    <string name="library_edit_metadata_tags_supporting">Mit Enter hinzufügen. Kommas fügen mehrere auf einmal hinzu.</string>
+    <string name="library_edit_metadata_tag_add">Tag hinzufügen</string>
+    <string name="library_edit_metadata_tag_remove">%1$s entfernen</string>
+    <string name="library_edit_metadata_tags_clear">Alle entfernen</string>
     <string name="library_edit_metadata_description_label">Beschreibung</string>
     <string name="library_edit_metadata_save">Speichern</string>
     <string name="library_edit_metadata_cancel">Abbrechen</string>
