@@ -12,6 +12,9 @@ object Sizes {
     val touchTarget = 48.dp
     val touchTargetEink = 56.dp
 
+    /** Material 3's small button height, for a compact row of actions. */
+    val buttonSmall = 40.dp
+
     val fab = 64.dp
     val floatingNavFab = 72.dp
     val fabLarge = 76.dp

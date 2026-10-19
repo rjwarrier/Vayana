@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import androidx.compose.material3.AssistChipDefaults
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -85,12 +86,12 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
                 Box(modifier = Modifier.height(Sizes.touchTarget), contentAlignment = Alignment.Center) {
                     Surface(
                         modifier = Modifier.height(GoodreadsChipHeight),
-                        shape = RoundedCornerShape(Radii.full),
+                        shape = RoundedCornerShape(Radii.small),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                            modifier = Modifier.padding(horizontal = Spacing.md),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -105,7 +106,7 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
                                     if (url == null) R.string.library_goodreads_rating_chip else R.string.library_goodreads_rating_value,
                                     value,
                                 ),
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelLarge,
                             )
                         }
                     }
@@ -119,19 +120,19 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
                     ) {
                         Surface(
                             modifier = Modifier.height(GoodreadsChipHeight),
-                            shape = RoundedCornerShape(Radii.full),
+                            shape = RoundedCornerShape(Radii.small),
                             color = MaterialTheme.colorScheme.surface,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outline),
+                            border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant),
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = Spacing.sm),
+                                modifier = Modifier.padding(horizontal = Spacing.md),
                                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
                                     text = stringResource(R.string.library_goodreads_view),
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelLarge,
                                 )
                                 Icon(
                                     imageVector = Icons.Outlined.OpenInNew,
@@ -155,22 +156,23 @@ internal fun GoodreadsInfoLine(book: Book, communityQuoteCount: Int?, modifier: 
         }
         communityQuoteCount?.let { count ->
             Surface(
-                modifier = Modifier.padding(top = Spacing.sm),
-                shape = RoundedCornerShape(Radii.full),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(top = Spacing.sm).height(GoodreadsChipHeight),
+                shape = RoundedCornerShape(Radii.small),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
-                Text(
-                    text = pluralStringResource(R.plurals.library_community_quotes_count, count, count),
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                )
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = Spacing.md)) {
+                    Text(
+                        text = pluralStringResource(R.plurals.library_community_quotes_count, count, count),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
             }
         }
     }
 }
 
-private val GoodreadsChipHeight = 32.dp
+private val GoodreadsChipHeight = AssistChipDefaults.Height
 
 /** Keeps the screen on while [active], so a long Goodreads import isn't left waiting behind a dark screen. */
 @Composable

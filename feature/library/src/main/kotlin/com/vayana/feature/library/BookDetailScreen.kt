@@ -1,5 +1,8 @@
 package com.vayana.feature.library
 
+import androidx.compose.foundation.BorderStroke
+import com.vayana.core.designsystem.tokens.Strokes
+import androidx.compose.material3.AssistChipDefaults
 import com.vayana.core.database.model.hasStartedReading
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,6 +21,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -56,12 +61,13 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
@@ -97,6 +103,7 @@ import androidx.compose.ui.res.stringResource
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
 import com.vayana.core.designsystem.theme.DisplayProfile
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Size
@@ -766,14 +773,16 @@ private fun BookDetailScreen(
                             ),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        if (!isOwnedPhysicalReading) BookDispositionControl(book)
+                        if (!isOwnedPhysicalReading) BookDispositionControl(book, asChip = true)
                         // Cover on the left, identity (title, author, series, Goodreads) beside it; cover editing
                         // lives in its own dialog so the top of the screen stays compact.
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            // Edit sits on the cover's corner rather than in a row of its own under it, so the
+                            // header is only as tall as the cover and nothing is left empty beside a chip.
+                            Box {
                                 BookCover(
                                     book = book,
                                     modifier = Modifier
@@ -786,25 +795,23 @@ private fun BookDetailScreen(
                                         .size(width = Sizes.coverWidthDetail, height = Sizes.coverWidthDetail / Sizes.coverAspectRatio)
                                         .clickable { showCoverPreview = true },
                                 )
-                                if (!book.isHomeLibrary) AssistChip(
+                                if (!book.isHomeLibrary) FilledTonalIconButton(
                                     onClick = { showEditCoverDialog = true },
-                                    label = { Text(stringResource(R.string.library_edit_cover), style = MaterialTheme.typography.labelMedium) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Edit,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(AssistChipDefaults.IconSize),
-                                        )
-                                    },
-                                    modifier = Modifier.padding(top = Spacing.sm),
-                                    shape = RoundedCornerShape(Radii.full),
-                                    colors = AssistChipDefaults.assistChipColors(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(Spacing.xs)
+                                        .size(Sizes.iconLarge),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
                                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                        labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        leadingIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                                     ),
-                                    border = null,
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = stringResource(R.string.library_edit_cover),
+                                        modifier = Modifier.size(Sizes.iconSmall),
+                                    )
+                                }
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -1389,66 +1396,65 @@ private fun BookQuickActions(
     onOpenNotes: (() -> Unit)?,
     onShare: () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    val queued = book.readNextAddedAt != null
+    val actions = buildList {
         if (book.format == BookFormat.PHYSICAL && state != BookReadingState.FINISHED) {
-            BookQuickAction(
+            add(QuickAction(
                 icon = Icons.Outlined.AutoStories,
                 label = stringResource(if (state == BookReadingState.NOT_STARTED)
                     R.string.physical_mark_reading else R.string.physical_read_today),
                 onClick = onMarkPhysicalReading,
                 enabled = !physicalStatusBusy,
-                modifier = Modifier.weight(1f),
-            )
+            ))
         }
         if (onMarkReading != null) {
-            BookQuickAction(
-                icon = Icons.Outlined.AutoStories,
-                label = stringResource(R.string.physical_mark_reading),
-                onClick = onMarkReading,
-                modifier = Modifier.weight(1f),
-            )
+            add(QuickAction(Icons.Outlined.AutoStories, stringResource(R.string.physical_mark_reading), onMarkReading))
         }
-        val queued = book.readNextAddedAt != null
         if (onReadAgain != null && !queued) {
-            BookQuickAction(
-                icon = Icons.Outlined.Replay,
-                label = stringResource(R.string.library_read_again),
-                onClick = onReadAgain,
-                modifier = Modifier.weight(1f),
-            )
+            add(QuickAction(Icons.Outlined.Replay, stringResource(R.string.library_read_again), onReadAgain))
         } else if (!book.format.isOffline && (state == BookReadingState.NOT_STARTED || queued)) {
-            BookQuickAction(
+            add(QuickAction(
                 icon = if (queued) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.PlaylistAdd,
                 label = stringResource(if (queued) R.string.library_quick_read_next_queued else R.string.library_quick_read_next),
-                selected = queued,
                 onClick = onToggleReadNext,
-                modifier = Modifier.weight(1f),
-            )
+                selected = queued,
+            ))
         }
         if (state == BookReadingState.READING) {
-            BookQuickAction(
-                icon = Icons.Outlined.TaskAlt,
-                label = stringResource(R.string.library_quick_mark_finished),
-                onClick = onMarkFinished,
-                modifier = Modifier.weight(1f),
-            )
+            add(QuickAction(Icons.Outlined.TaskAlt, stringResource(R.string.library_quick_mark_finished), onMarkFinished))
         }
         if (onOpenNotes != null && notesCount > 0) {
+            add(QuickAction(Icons.AutoMirrored.Outlined.Notes,
+                pluralStringResource(R.plurals.library_quick_notes, notesCount, notesCount), onOpenNotes))
+        }
+        add(QuickAction(Icons.Outlined.Share, stringResource(R.string.library_quick_share), onShare))
+    }
+    // One connected button group: rounded outer ends, tight inner corners, so the actions read as a set.
+    Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(QuickActionGap),
+    ) {
+        actions.forEachIndexed { index, action ->
+            val start = if (index == 0) Radii.full else Radii.extraSmall
+            val end = if (index == actions.lastIndex) Radii.full else Radii.extraSmall
             BookQuickAction(
-                icon = Icons.AutoMirrored.Outlined.Notes,
-                label = pluralStringResource(R.plurals.library_quick_notes, notesCount, notesCount),
-                onClick = onOpenNotes,
-                modifier = Modifier.weight(1f),
+                action = action,
+                shape = RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
-        BookQuickAction(
-            icon = Icons.Outlined.Share,
-            label = stringResource(R.string.library_quick_share),
-            onClick = onShare,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
+
+private data class QuickAction(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit,
+    val selected: Boolean = false,
+    val enabled: Boolean = true,
+)
+
+private val QuickActionGap = Spacing.xs / 2
 
 /**
  * Marked finished (by hand or an import) while its place is still short of the end, so clearing the finish date takes
@@ -1458,44 +1464,39 @@ private fun BookQuickActions(
 internal fun Book.canMarkReading(): Boolean = finishedReadingAt != null && (format.isOffline || readingPercent < 1f)
 
 @Composable
-private fun BookQuickAction(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    selected: Boolean = false,
-    enabled: Boolean = true,
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(Radii.large))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = Spacing.sm),
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun BookQuickAction(action: QuickAction, shape: Shape, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val content = if (action.selected) colors.onSecondaryContainer else colors.onSurface
+    Surface(
+        onClick = action.onClick,
+        enabled = action.enabled,
+        shape = shape,
+        color = if (action.selected) colors.secondaryContainer else colors.surfaceContainerHigh,
+        contentColor = if (action.enabled) content else content.copy(alpha = DisabledContentAlpha),
+        modifier = modifier.heightIn(min = Sizes.buttonSmall),
     ) {
-        Surface(
-            shape = CircleShape,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = icon,
+                imageVector = action.icon,
                 contentDescription = null,
-                modifier = Modifier
-                    .padding(Spacing.md)
-                    .size(Sizes.icon),
+                tint = if (action.selected) LocalContentColor.current else colors.primary,
+                modifier = Modifier.size(Sizes.iconSmall),
+            )
+            Text(
+                text = action.label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
     }
 }
+
+private const val DisabledContentAlpha = 0.38f
 
 /** Format and where the reader is with the book, e.g. "EPUB · 18% read". */
 @Composable
@@ -1725,16 +1726,17 @@ private fun BookTagsRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         tags.forEach { tag ->
+            // Read-only, so styled as an M3 suggestion chip without the click: 32dp, small corners, outlined.
             Surface(
-                shape = RoundedCornerShape(Radii.full),
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.height(AssistChipDefaults.Height),
+                shape = RoundedCornerShape(Radii.small),
+                color = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                border = BorderStroke(Strokes.outline, MaterialTheme.colorScheme.outlineVariant),
             ) {
-                Text(
-                    text = tag,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                )
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = Spacing.md)) {
+                    Text(text = tag, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }

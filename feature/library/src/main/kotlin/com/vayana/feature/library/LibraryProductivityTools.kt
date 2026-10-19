@@ -207,47 +207,30 @@ internal fun FinishByCard(
         try { onChange(date); picker = false } catch (e: CancellationException) { throw e }
         catch (_: Exception) { error = true } finally { busy = false }
     } }
-    val content: @Composable () -> Unit = {
-        Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Icon(Icons.Outlined.Event, contentDescription = null)
-                Text(stringResource(R.string.tools_finish_by), style = MaterialTheme.typography.titleMedium)
-            }
-            target?.let { date ->
-                Text(stringResource(R.string.tools_plan_date, date.asAppDate()))
-                val plan = finishByPlan(book, date)
-                Text(when (plan.unit) {
+    val body: @Composable () -> Unit = {
+        target?.let { date ->
+            Text(stringResource(R.string.tools_plan_date, date.asAppDate()), style = MaterialTheme.typography.bodyLarge)
+            val plan = finishByPlan(book, date)
+            Text(
+                when (plan.unit) {
                     PlanUnit.PAGES -> stringResource(R.string.tools_plan_pages, plan.amount, plan.days)
                     PlanUnit.MINUTES -> stringResource(R.string.tools_plan_minutes, plan.amount, plan.days)
                     PlanUnit.PERCENT -> stringResource(R.string.tools_plan_percent, plan.amount, plan.days)
                     PlanUnit.FINISHED -> stringResource(R.string.tools_plan_finished)
                     PlanUnit.OVERDUE -> stringResource(R.string.tools_plan_overdue)
-                })
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (error) Text(stringResource(R.string.tools_failed), color = MaterialTheme.colorScheme.error)
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            FilledTonalButton(enabled = !busy, onClick = { picker = true }, shape = Radii.buttonShape) {
+                Text(stringResource(if (target == null) R.string.tools_set_target else R.string.tools_change_target))
             }
-            if (error) Text(stringResource(R.string.tools_failed), color = MaterialTheme.colorScheme.error)
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                FilledTonalButton(
-                    enabled = !busy,
-                    onClick = { picker = true },
-                    shape = Radii.buttonShape,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                ) {
-                    Text(stringResource(if (target == null) R.string.tools_set_target else R.string.tools_change_target))
-                }
-                if (target != null) {
-                    OutlinedButton(
-                        enabled = !busy,
-                        onClick = { save(null) },
-                        shape = Radii.buttonShape,
-                    ) {
-                        Text(stringResource(R.string.tools_clear_target))
-                    }
+            if (target != null) {
+                TextButton(enabled = !busy, onClick = { save(null) }, shape = Radii.buttonShape) {
+                    Text(stringResource(R.string.tools_clear_target))
                 }
             }
         }
@@ -258,10 +241,18 @@ internal fun FinishByCard(
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            content = content,
-        )
+        ) {
+            Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Icon(Icons.Outlined.Event, contentDescription = null)
+                    Text(stringResource(R.string.tools_finish_by), style = MaterialTheme.typography.titleMedium)
+                }
+                body()
+            }
+        }
     } else {
-        OutlinedCard(Modifier.fillMaxWidth()) { content() }
+        // The same card as Book details' other sections, rather than an outlined one of its own.
+        BookDetailSection(icon = Icons.Outlined.Event, title = stringResource(R.string.tools_finish_by)) { body() }
     }
     if (picker) {
         val dateState = rememberDatePickerState(initialSelectedDateMillis = (target ?: LocalDate.now()).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
