@@ -119,7 +119,9 @@ internal fun todayLibraryState(all: List<Book>, plans: Map<String, LocalDate>, g
     var current: Book? = null
     val dailyPlans = ArrayList<Pair<Book, FinishByPlan>>(3)
     for (book in all) {
-        if (book.readingDisposition != "ACTIVE" || book.finishedReadingAt != null || !(book.readingPercent < 1f)) continue
+        // A book read again after its finish date (marked finished early, or by an import) is being read now.
+        val finished = book.finishedReadingAt?.let { finishedAt -> (book.lastReadAt ?: 0L) <= finishedAt } == true
+        if (book.readingDisposition != "ACTIVE" || finished || !(book.readingPercent < 1f)) continue
         if (book.hasLocalReadableSource() && book.hasStartedReading() &&
             (current == null || (book.lastReadAt ?: 0L) > (current.lastReadAt ?: 0L))) current = book
         if (dailyPlans.size < 3) plans[book.syncId]?.let { dailyPlans += book to finishByPlan(book, it, date) }

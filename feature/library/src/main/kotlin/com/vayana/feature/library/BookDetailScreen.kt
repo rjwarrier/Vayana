@@ -861,6 +861,8 @@ private fun BookDetailScreen(
                                 }
                             },
                             physicalStatusBusy = physicalStatusBusy,
+                            onMarkReading = book.takeIf { it.canMarkReading() }
+                                ?.let { { onUpdateReadingDates(it.startedReadingAt, null) } },
                             onReadAgain = onReadFromStart
                                 ?.takeIf { book.hasLocalReadableSource() && book.finishedLongAgo(System.currentTimeMillis()) }
                                 ?.let { read -> { read(book.id) } },
@@ -1379,6 +1381,8 @@ private fun BookQuickActions(
     notesCount: Int,
     onToggleReadNext: () -> Unit,
     onMarkFinished: () -> Unit,
+    /** Set for a finished book that can go back to Reading by dropping its finish date (see [canMarkReading]). */
+    onMarkReading: (() -> Unit)?,
     /** Set for a book finished long enough ago to be worth reading again; it takes Read next's place. */
     onReadAgain: (() -> Unit)?,
     onOpenNotes: (() -> Unit)?,
@@ -1392,6 +1396,14 @@ private fun BookQuickActions(
                     R.string.physical_mark_reading else R.string.physical_read_today),
                 onClick = onMarkPhysicalReading,
                 enabled = !physicalStatusBusy,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (onMarkReading != null) {
+            BookQuickAction(
+                icon = Icons.Outlined.AutoStories,
+                label = stringResource(R.string.physical_mark_reading),
+                onClick = onMarkReading,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -1436,6 +1448,13 @@ private fun BookQuickActions(
         )
     }
 }
+
+/**
+ * Marked finished (by hand or an import) while its place is still short of the end, so clearing the finish date takes
+ * it back to Reading at that place. A book read to its last page stays finished; Read again starts it over.
+ * Books read outside the app have no reader position, and clearing their date resets a last-page book to the start.
+ */
+internal fun Book.canMarkReading(): Boolean = finishedReadingAt != null && (format.isOffline || readingPercent < 1f)
 
 @Composable
 private fun BookQuickAction(

@@ -105,6 +105,9 @@ class ReadingFeaturesTest {
         assertEquals(current, state.current)
         assertEquals(20, state.goal)
         assertEquals(listOf(1L, 2L, 3L), state.plans.map { it.first.id })
+        // Marked finished early, then read again: it's the book being read now.
+        val reread = current.copy(id=13, syncId="reread", finishedReadingAt=800, lastReadAt=1200)
+        assertEquals(reread, todayLibraryState(library + reread, emptyMap(), 20, date).current)
     }
 
     @Test fun queueCapacityReorderingAndPinsSurviveReload() = runBlocking {
