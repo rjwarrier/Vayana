@@ -326,12 +326,14 @@ private fun FreeDictCatalogDialog(
                     }
                     is CatalogState.Loaded -> {
                         val mine = remember { setOf(Locale.getDefault().isO3Language, "eng") }
-                        val offers = remember(catalog, query) {
+                        // Named and sorted once; each keystroke only filters.
+                        val named = remember(catalog) {
                             catalog.offers
                                 .map { offer -> offer to "${languageDisplayName(offer.wordLanguage)} ${languageDisplayName(offer.meaningLanguage)}" }
-                                .filter { (_, names) -> query.isBlank() || names.contains(query.trim(), ignoreCase = true) }
                                 .sortedWith(compareBy({ (offer, _) -> -(listOf(offer.wordLanguage, offer.meaningLanguage).count { it in mine }) }, { it.second }))
-                                .map { it.first }
+                        }
+                        val offers = remember(named, query) {
+                            named.filter { (_, names) -> query.isBlank() || names.contains(query.trim(), ignoreCase = true) }.map { it.first }
                         }
                         LazyColumn(modifier = Modifier.heightIn(max = Sizes.contentMaxWidth), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             items(offers, key = { it.name }) { offer ->

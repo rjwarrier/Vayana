@@ -40,26 +40,30 @@ internal class SqliteDictionary(file: File, private val fallbackAttribution: Str
         val candidates = lookupForms(rawWord)
             .flatMap { form -> if (wordLanguage == English) listOf(form) + inflectionStems(form) else listOf(form) }
             .map(::lookupKey).distinct()
-        for (key in candidates) {
-            val senses = mutableListOf<DictionarySense>()
-            var headword: String? = null
-            database.rawQuery("SELECT headword, pos, defs FROM entries WHERE key = ? ORDER BY rowid LIMIT $MaxEntries", arrayOf(key)).use { cursor ->
-                while (cursor.moveToNext()) {
-                    headword = headword ?: cursor.getString(0)
-                    val pos = runCatching { PartOfSpeech.valueOf(cursor.getString(1)) }.getOrDefault(PartOfSpeech.UNKNOWN)
-                    cursor.getString(2).split(DefinitionSeparator).forEach { senses += DictionarySense(pos, it) }
-                }
-            }
-            if (senses.isNotEmpty()) {
-                return DictionaryEntry(
-                    headword = headword ?: key,
-                    senses = senses.distinct().take(MaxSenses),
-                    attribution = attribution,
-                    meaningLanguage = meaningLanguage.takeIf { it != wordLanguage },
-                )
+        // One query for every spelling, then the most literal one that has rows wins (a selection fires a lookup in
+        // each installed dictionary, and there are about ten spellings).
+        if (candidates.isEmpty()) return null
+        val placeholders = candidates.joinToString(",") { "?" }
+        val rows = HashMap<String, MutableList<Pair<String, DictionarySense>>>()
+        database.rawQuery(
+            "SELECT key, headword, pos, defs FROM entries WHERE key IN ($placeholders) ORDER BY rowid LIMIT ${MaxEntries * candidates.size}",
+            candidates.toTypedArray(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val forKey = rows.getOrPut(cursor.getString(0)) { mutableListOf() }
+                if (forKey.size >= MaxSenses) continue
+                val pos = runCatching { PartOfSpeech.valueOf(cursor.getString(2)) }.getOrDefault(PartOfSpeech.UNKNOWN)
+                cursor.getString(3).split(DefinitionSeparator).forEach { forKey += cursor.getString(1) to DictionarySense(pos, it) }
             }
         }
-        return null
+        val key = candidates.firstOrNull { rows[it].orEmpty().isNotEmpty() } ?: return null
+        val found = rows.getValue(key)
+        return DictionaryEntry(
+            headword = found.first().first,
+            senses = found.map { it.second }.distinct().take(MaxSenses),
+            attribution = attribution,
+            meaningLanguage = meaningLanguage.takeIf { it != wordLanguage },
+        )
     }
 
     fun close() = database.close()

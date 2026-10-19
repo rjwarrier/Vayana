@@ -64,6 +64,13 @@ internal class OfflineDictionaryRepository @Inject constructor(
         val meaningLanguage: String = English,
         val progress: Float? = null,
     ) {
+        /** Measured once per slot (a state change makes a new one), not on every progress publish. */
+        val sizeBytes: Long by lazy {
+            if (state != DictionaryPackState.Installed) 0L
+            else if (file.isDirectory) file.listFiles()?.sumOf { it.length() } ?: 0L
+            else file.length()
+        }
+
         val installed: Boolean get() = state == DictionaryPackState.Installed
         val monolingual: Boolean get() = wordLanguage == meaningLanguage
     }
@@ -232,11 +239,17 @@ internal class OfflineDictionaryRepository @Inject constructor(
             val previous = slots.firstOrNull { it.id == id }
             val job = currentCoroutineContext().job
             update(Slot(id, kind, file, DictionaryPackState.Installing, name, wordLanguage, meaningLanguage, progress = 0f))
+            var shownPercent = 0
             try {
                 failUnless(file.parentFile?.let { it.isDirectory || it.mkdirs() } == true, R.string.dictionary_error_prepare_storage)
                 build(staging) { fraction ->
                     job.ensureActive()
-                    update(Slot(id, kind, file, DictionaryPackState.Installing, name, wordLanguage, meaningLanguage, progress = fraction.coerceIn(0f, 1f)))
+                    // Downloads report every 64 KB and builds every few thousand entries: publish whole percents only.
+                    val percent = (fraction.coerceIn(0f, 1f) * 100).toInt()
+                    if (percent != shownPercent) {
+                        shownPercent = percent
+                        update(Slot(id, kind, file, DictionaryPackState.Installing, name, wordLanguage, meaningLanguage, progress = percent / 100f))
+                    }
                 }
                 closeDictionary(id)
                 file.delete()
@@ -431,7 +444,7 @@ internal class OfflineDictionaryRepository @Inject constructor(
             wordLanguage = slot.wordLanguage,
             meaningLanguage = slot.meaningLanguage,
             state = slot.state,
-            sizeBytes = if (slot.kind == DictionaryKind.WORDNET) packDirectory.listFiles()?.sumOf { it.length() } ?: 0L else slot.file.length(),
+            sizeBytes = slot.sizeBytes,
             progress = slot.progress,
         )
     }

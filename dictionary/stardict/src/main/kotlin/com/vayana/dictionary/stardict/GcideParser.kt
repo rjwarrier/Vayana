@@ -149,8 +149,8 @@ internal object GcideParser {
     private const val MaxSensesPerEntry = 12
     private const val MinLetterFiles = 20
     private const val MaxLetterFileBytes = 32L * 1024 * 1024
-    private val AccentMarks = mapOf("acute" to "́", "grave" to "̀", "cir" to "̂", "circ" to "̂",
-        "um" to "̈", "uml" to "̈", "til" to "̃", "tilde" to "̃", "ced" to "̧", "ring" to "̊")
+    private val AccentMarks = mapOf("acute" to "\u0301", "grave" to "\u0300", "cir" to "\u0302", "circ" to "\u0302",
+        "um" to "\u0308", "uml" to "\u0308", "til" to "\u0303", "tilde" to "\u0303", "ced" to "\u0327", "ring" to "\u030A")
     private val MarkSuffixes = listOf("mac", "cr", "dot", "dd", "sl", "ac", "br")
     private val Entities = mapOf(
         "ae" to "æ", "AE" to "Æ", "oe" to "œ", "OE" to "Œ", "ldquo" to "“", "rdquo" to "”", "lsquo" to "‘", "rsquo" to "’",

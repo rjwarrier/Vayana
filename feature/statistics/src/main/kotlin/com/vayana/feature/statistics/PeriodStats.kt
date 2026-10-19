@@ -53,7 +53,9 @@ internal fun periodStats(
     zone: ZoneId,
 ): PeriodStats {
     val counted = sessions.filter { it.durationSeconds >= MinCountedSessionSeconds }
-    fun ReadingSession.date(): LocalDate = Instant.ofEpochMilli(startedAt).atZone(zone).toLocalDate()
+    // Each session's day is asked for up to five times below; the zone conversion is the costly part.
+    val days = HashMap<Long, LocalDate>(sessions.size * 2)
+    fun ReadingSession.date(): LocalDate = days.getOrPut(startedAt) { Instant.ofEpochMilli(startedAt).atZone(zone).toLocalDate() }
     val firstActivity = counted.minOfOrNull { it.date() } ?: today
     val start = when (period) {
         StatsPeriod.WEEK -> today.startOfWeek(firstDayOfWeek)

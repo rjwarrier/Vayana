@@ -119,9 +119,18 @@ private val ArchaicVerbs = mapOf(
 )
 
 /** "mal" → "Malayalam" (in [locale]): dictionaries carry ISO 639-3 codes, Locale names ISO 639-1 ones best. */
-fun languageDisplayName(iso3: String, locale: java.util.Locale = java.util.Locale.getDefault()): String {
-    val code = java.util.Locale.getISOLanguages().firstOrNull { two ->
-        runCatching { java.util.Locale(two).isO3Language }.getOrNull() == iso3
-    } ?: iso3
-    return java.util.Locale(code).getDisplayLanguage(locale).replaceFirstChar { it.titlecase(locale) }.ifBlank { iso3 }
+fun languageDisplayName(iso3: String, locale: java.util.Locale = java.util.Locale.getDefault()): String =
+    DisplayNames.getOrPut("$iso3|${locale.toLanguageTag()}") {
+        val code = TwoLetterCodes[iso3] ?: iso3
+        java.util.Locale(code).getDisplayLanguage(locale).replaceFirstChar { it.titlecase(locale) }.ifBlank { iso3 }
+    }
+
+/** ISO 639-3 → 639-1, built once: finding it means constructing a Locale for each of ~190 languages. */
+private val TwoLetterCodes: Map<String, String> by lazy {
+    java.util.Locale.getISOLanguages().mapNotNull { two ->
+        runCatching { java.util.Locale(two).isO3Language }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { it to two }
+    }.toMap()
 }
+
+/** Catalog search and lookup cards ask for the same few names on every recomposition. */
+private val DisplayNames = java.util.concurrent.ConcurrentHashMap<String, String>()
