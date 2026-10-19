@@ -41,27 +41,21 @@ Vayana lo hace sin exigir una cuenta de Vayana ni mostrar anuncios mientras lees
 
 <a id="latest-source-updates"></a>
 
-## Últimas novedades del código fuente
+## Novedades de 0.93
 
 La versión 0.93 incluye una pantalla de **Estadísticas** rediseñada (semana, mes, año y todo, comparados con el periodo anterior, gráfico de barras o de líneas, cuándo lees, libros más leídos, tiempo de lectura por dispositivo sincronizado y tiempo escuchado frente a leído), **varios diccionarios sin conexión** elegidos según el idioma del libro (Open English WordNet, GCIDE, Olam inglés→malayalam, más de 300 diccionarios bilingües de FreeDict o tus propios archivos StarDict) y una pantalla **Aprender** que solo guarda las consultas intencionadas de palabras reales y muestra sus significados. Consulta los [cambios desde v0.92](docs/releases/v0.93.md).
 
-El código actual incluye una [aplicación complementaria para Wear OS](docs/WEAR_OS.md) para leer libros físicos: temporizadores sin conexión, seguimiento de páginas, controles compartidos entre teléfono y reloj, objetivos de lectura, una tarjeta y una complicación para la esfera. Las correcciones recientes de sincronización conservan el tiempo de lectura entre dispositivos y gestionan de forma segura los retrocesos del reloj.
-
 La versión **v0.93** incluye APK firmados para teléfono y Wear OS. Instala `Vayana-v0.93.apk` en el teléfono y `Vayana-WearOS-v0.93.apk` en el reloj; consulta la [configuración de Wear OS](docs/WEAR_OS.md#install-and-build). El reloj registra sesiones de lectura de libros físicos; no muestra libros EPUB ni PDF.
 
-<a id="highlights-in-087"></a>
+## Lo más destacado
 
-## Lo más destacado de 0.87
-
-- Lee libros [**EPUB**](docs/USER_GUIDE.es.md#reading-epub-books) y [**PDF**](docs/USER_GUIDE.es.md#reading-pdf-books), con índices PDF, selección de texto, anotaciones, consultas al diccionario, zoom y controles de visualización por libro.
-- Busca y descarga libros de dominio público mediante [**Project Gutenberg**](docs/USER_GUIDE.es.md#download-free-books-from-project-gutenberg), o conecta [**catálogos OPDS**](docs/USER_GUIDE.es.md#connect-an-opds-catalog) como Calibre, Calibre-Web y Standard Ebooks.
-- Mantén una biblioteca única para libros digitales, [sin archivo digital, físicos y prestados](docs/USER_GUIDE.es.md#offline-physical-borrowed-and-other-books), con recordatorios de devolución y una copia opcional de solo lectura de [**Home Library**](docs/USER_GUIDE.es.md#home-library-mirror).
-- [Consulta y traduce palabras o frases](docs/USER_GUIDE.es.md#dictionary-translation-and-vocabulary) en el idioma del libro mediante el diccionario sin conexión, Wiktionary, Wikipedia o herramientas de traducción.
-- Retoma la lectura, controla la lectura en voz alta y consulta el tiempo de lectura de siete días desde [**widgets y accesos directos de la pantalla de inicio**](docs/USER_GUIDE.es.md#widgets-and-app-shortcuts) configurables.
-- Registra cierres inesperados y fallos de sincronización en la pantalla [**Diagnóstico**](docs/USER_GUIDE.es.md#diagnostics-and-support), diseñada teniendo en cuenta la privacidad, y comparte un informe con datos sensibles ocultos con el desarrollador.
-- Usa Vayana en [inglés, español, portugués, ruso, alemán, francés, italiano, malayalam o tamil](docs/USER_GUIDE.es.md#settings-and-languages).
-
-<a id="screenshots"></a>
+- **[Un verdadero modo E‑Ink](docs/USER_GUIDE.es.md#e-ink-and-accessibility):** sin animaciones, con teclas físicas de página, pantallas de la aplicación por páginas, refrescos completos periódicos y una paleta monocromática o en color pensada para pantallas E‑Ink.
+- **[Una lectura que se convierte en aprendizaje](docs/USER_GUIDE.es.md#dictionary-translation-and-vocabulary):** toca dos veces una palabra para ver definiciones sin conexión de diccionarios elegidos según el idioma del libro, también con su significado en tu idioma; conserva las palabras que de verdad querías consultar, repásalas con repetición espaciada y expórtalas a Anki.
+- **[Sincronización a tu manera](docs/USER_GUIDE.es.md#github-sync):** sin cuenta de Vayana. Posiciones, sesiones, notas, libros y portadas se sincronizan mediante un repositorio de GitHub que es tuyo, con libros y portadas cifrados con tu frase de contraseña.
+- **[Una biblioteca para cada libro](docs/USER_GUIDE.es.md#offline-physical-borrowed-and-other-books):** EPUB y PDF junto a libros físicos, prestados y audiolibros, con seguimiento de páginas, recordatorios de devolución y una [aplicación complementaria para Wear OS](docs/WEAR_OS.md) que mide la lectura en papel desde la muñeca.
+- **[Estadísticas que dicen algo](docs/USER_GUIDE.es.md#statistics-and-goals):** cómo se compara esta semana, este mes o este año con el anterior, cuándo lees, a qué libros dedicaste tu tiempo, cuánto escuchaste y en qué dispositivo.
+- **[Lectura en voz alta que sigue el texto](docs/USER_GUIDE.es.md#read-aloud):** frase por frase con las palabras marcadas, pausas naturales, pronunciaciones por libro y una escucha que sigue contando con la pantalla apagada.
+- **[Libros gratuitos integrados](docs/USER_GUIDE.es.md#adding-books):** descarga desde Project Gutenberg o tus catálogos OPDS (Calibre, Calibre-Web, Standard Ebooks) y completa los libros con datos y citas de Goodreads.
 
 ## Capturas de pantalla
 
@@ -127,7 +121,9 @@ E‑Ink es un perfil de pantalla propio, no un simple filtro de color:
 - La síntesis de voz de Android lee frase por frase y avanza entre capítulos.
 - Las palabras o frases pronunciadas se marcan directamente en el texto.
 - Inicia la reproducción desde un pasaje seleccionado; toca cualquier parte del lector para pausar.
-- Elige el motor TTS instalado, la voz, la velocidad y el tono.
+- Elige el motor TTS instalado, la voz, la velocidad y el tono, y enséñale cómo pronunciar nombres y palabras en cada libro.
+- Pausas naturales entre frases, párrafos y escenas; los números, las fechas y los números romanos se leen como se pretende.
+- La lectura sigue con la pantalla apagada y cuenta como tiempo de lectura.
 - Usa un temporizador de apagado, gestión del foco de audio, controles de auriculares/Bluetooth, controles en la pantalla de bloqueo y acciones de notificación.
 
 <a id="sync-without-a-proprietary-service"></a>
@@ -139,10 +135,11 @@ Usa un repositorio de GitHub bajo tu control para sincronizar:
 - Posición de lectura, sesiones y fechas de lectura
 - Libros, portadas y metadatos de la biblioteca
 - Resaltados, notas, estanterías y Próximas lecturas
-- Vocabulario y ajustes portables
+- Vocabulario, palabras consultadas y ajustes portables
+- Libros de Home Library y sus datos de lectura
 - Eliminaciones y restauraciones entre dispositivos
 
-Los archivos de libros y portadas se cifran con AES-GCM usando tu frase de contraseña antes de subirse. La sincronización ligera del progreso puede ejecutarse mientras lees, y los mensajes de conflicto identifican la posición más reciente junto con la hora de sincronización y el nombre del dispositivo. La propia configuración de sincronización se puede exportar como un archivo de transferencia cifrado para otro dispositivo.
+Los archivos de libros y portadas se cifran con AES-GCM usando tu frase de contraseña antes de subirse. La sincronización ligera del progreso puede ejecutarse mientras lees, y los mensajes de conflicto identifican la posición más reciente junto con la hora de sincronización y el nombre del dispositivo. La propia configuración de sincronización se puede exportar como un archivo de transferencia cifrado para otro dispositivo. Solo se sube lo que ha cambiado: una sincronización sin novedades tarda alrededor de un segundo, y **Ajustes → Ayuda e información → Uso de datos** muestra lo que envió y recibió cada sincronización.
 
 Sigue la [guía paso a paso de sincronización con GitHub](docs/GITHUB_SYNC_SETUP.md) para crear un repositorio privado, configurar un token con los permisos mínimos, conectar el primer dispositivo y añadir otros de forma segura.
 
@@ -163,12 +160,14 @@ Sigue la [guía paso a paso de sincronización con GitHub](docs/GITHUB_SYNC_SETU
 | [**Anotaciones**](docs/USER_GUIDE.es.md#highlights-notes-bookmarks-and-quotes) | Resaltados, subrayados, marcadores, notas, etiquetas de anotaciones, combinación de resaltados superpuestos, ventanas de notas al pie y regreso directo al pasaje |
 | [**Notas y citas**](docs/USER_GUIDE.es.md#notes-library) | Vistas de Notas globales y por libro, importación de `My Clippings.txt` de Kindle, exportación Markdown, importación de citas de Goodreads e imágenes de tarjetas de citas para compartir |
 | [**Diccionario y traducción**](docs/USER_GUIDE.es.md#dictionary-translation-and-vocabulary) | Varios diccionarios sin conexión (WordNet, GCIDE, Olam inglés→malayalam, más de 300 diccionarios bilingües de FreeDict, importación StarDict) elegidos según el idioma del libro, con significados en tu idioma; búsqueda de frases, alternativas Wiktionary/Wikipedia, traducción, vocabulario guardado, palabras de Aprender con significados, palabras del capítulo, repaso espaciado, registro de palabras conocidas y exportación Anki/Markdown |
-| [**Lectura en voz alta**](docs/USER_GUIDE.es.md#read-aloud) | TTS de Android que sigue las frases, avanza de capítulo, comienza desde la selección y ofrece temporizador, controles de voz/velocidad/tono, foco de audio, auriculares/Bluetooth y notificaciones; escuchar cuenta como tiempo de lectura, incluso con la pantalla apagada |
-| [**Búsqueda**](docs/USER_GUIDE.es.md#search) | Búsqueda rápida de texto completo en libros, metadatos, texto resaltado, notas y nombres de capítulos, con coincidencias por prefijo y búsquedas recientes |
+| [**Lectura en voz alta**](docs/USER_GUIDE.es.md#read-aloud) | TTS de Android que sigue las frases, avanza de capítulo, comienza desde la selección y ofrece pausas naturales, pronunciaciones por libro, temporizador, controles de voz/velocidad/tono, foco de audio, auriculares/Bluetooth y notificaciones; escuchar cuenta como tiempo de lectura, incluso con la pantalla apagada |
+| [**Búsqueda**](docs/USER_GUIDE.es.md#search) | Búsqueda de texto completo en el texto de los libros, metadatos, resaltados, notas y capítulos; frases exactas entre comillas, resultados por libro o estantería, coincidencia por prefijo y búsquedas recientes |
 | [**Estadísticas**](docs/USER_GUIDE.es.md#statistics-and-goals) | Vistas de semana, mes, año y todo comparadas con el periodo anterior, gráficos de barras o de líneas, cuándo lees (hora del día, día de la semana, duración de sesión), libros más leídos, tiempo de lectura por dispositivo sincronizado, tiempo escuchado frente a leído, rachas, objetivos diarios/anuales, libros terminados, actividad por fecha, historial por libro y almacenamiento usado en el dispositivo |
+| [**Complemento para Wear OS**](docs/USER_GUIDE.es.md#wear-os-companion) | Temporizadores sin conexión y seguimiento de páginas de libros físicos en el reloj, controles de temporizador compartidos entre teléfono y reloj, objetivos de lectura, una tarjeta y una complicación para la esfera |
 | [**Widgets y accesos directos**](docs/USER_GUIDE.es.md#widgets-and-app-shortcuts) | Continuar leyendo con reproducción/pausa de lectura en voz alta, gráfico adaptable de siete días de tiempo de lectura y accesos directos a destinos principales de la biblioteca |
 | [**Copias de seguridad**](docs/USER_GUIDE.es.md#backup-and-restore) | Copias/restauración manuales mediante ZIP portable y copias automáticas en una carpeta elegida, con frecuencia diaria, semanal o cada 30 días y controles de conservación |
 | [**Diagnóstico**](docs/USER_GUIDE.es.md#diagnostics-and-support) | Historial local de cierres inesperados y sincronización, detalles del entorno, ocultación de datos sensibles, copiar/compartir y acceso al soporte del desarrollador con un toque |
+| [**Privacidad y datos**](docs/USER_GUIDE.es.md#privacy-and-online-services) | Una pantalla de Privacidad y datos que muestra dónde están tus datos, qué sale del dispositivo y el estado de seguridad del dispositivo; Uso de datos con el tráfico Wi‑Fi/móvil de la aplicación y lo que envió cada sincronización |
 | [**Idiomas**](docs/USER_GUIDE.es.md#settings-and-languages) | Selección de idioma dentro de la aplicación: inglés, español, portugués, ruso, alemán, francés, italiano, malayalam y tamil |
 | [**Apariencia**](docs/USER_GUIDE.es.md#settings-and-languages) | Material 3, modos sistema/claro/oscuro, negro puro, color Material You opcional, perfiles Estándar/E‑Ink, controles de movimiento y navegación adaptable a teléfonos/tabletas |
 
@@ -203,7 +202,7 @@ SHA-256 del certificado de la versión
 ## Alcance actual
 
 - **Formatos de libros electrónicos legibles:** [EPUB](docs/USER_GUIDE.es.md#reading-epub-books) y [PDF](docs/USER_GUIDE.es.md#reading-pdf-books). Los PDF escaneados sin capa de texto permiten visualizar, ampliar y añadir marcadores, pero no seleccionar texto. Los [libros físicos](docs/USER_GUIDE.es.md#offline-physical-borrowed-and-other-books) se pueden registrar sin archivo.
-- **Acceso en línea:** La lectura básica, notas, diccionario y estadísticas funcionan localmente. [Project Gutenberg](docs/USER_GUIDE.es.md#download-free-books-from-project-gutenberg), [OPDS](docs/USER_GUIDE.es.md#connect-an-opds-catalog), Goodreads, búsqueda de portadas, traducción, consultas a Wiktionary/Wikipedia y [sincronización con GitHub](docs/USER_GUIDE.es.md#github-sync) necesitan Internet cuando se usan; el texto seleccionado solo se envía al proveedor cuando eliges esa acción. Consulta la [guía de privacidad y servicios en línea](docs/USER_GUIDE.es.md#privacy-and-online-services).
+- **Acceso en línea:** La lectura básica, notas, diccionario y estadísticas funcionan localmente. [Project Gutenberg](docs/USER_GUIDE.es.md#download-free-books-from-project-gutenberg), [OPDS](docs/USER_GUIDE.es.md#connect-an-opds-catalog), Goodreads, búsqueda de portadas, traducción, consultas a Wiktionary/Wikipedia, las descargas de diccionarios y la [sincronización con GitHub](docs/USER_GUIDE.es.md#github-sync) necesitan Internet cuando se usan; el texto seleccionado solo se envía al proveedor cuando eliges esa acción. Consulta la [guía de privacidad y servicios en línea](docs/USER_GUIDE.es.md#privacy-and-online-services).
 - **Actualización E‑Ink:** Se ha implementado el [comportamiento E‑Ink portable](docs/USER_GUIDE.es.md#e-ink-display-profile). Aún no se integran modos de actualización específicos del fabricante, como los SDK de Onyx/Boox.
 - **Historial en la nube:** Los archivos cifrados eliminados permanentemente pueden permanecer en commits anteriores del repositorio de sincronización, ya que el historial de Git es inmutable salvo que se reescriba. Consulta las [limitaciones actuales](docs/USER_GUIDE.es.md#current-limitations).
 
@@ -276,7 +275,7 @@ reader/engine-web/      Motor EPUB basado en Foliate y puente WebView
 format/epub/            Metadatos EPUB e importación
 format/pdf/             Metadatos PDF, representación y texto
 format/convert/         Conversión compartida de documentos
-dictionary/             API de diccionario, implementación StarDict incluida y consultas en línea
+dictionary/             API de diccionario, diccionarios sin conexión (WordNet, GCIDE, Olam, FreeDict/StarDict) y consultas en línea
 build-logic/            Convenciones compartidas de compilación Android y Kotlin
 ```
 
