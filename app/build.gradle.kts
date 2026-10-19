@@ -35,8 +35,8 @@ android {
 
     defaultConfig {
         applicationId = "com.vayana.app"
-        versionCode = 4
-        versionName = "0.92"
+        versionCode = 5
+        versionName = "0.93"
         // ARM phones and tablets, plus 64-bit x86 (emulators, Chromebooks). 32-bit x86 Android devices are gone;
         // its copy of ML Kit's native code was 1.3 MB.
         ndk {

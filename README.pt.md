@@ -13,14 +13,14 @@
   <p>
     <a href="https://github.com/rjwarrier/Vayana/releases/latest"><strong>Baixar a versão mais recente</strong></a> ·
     <a href="https://ranjithj.in/vayana/"><strong>Site do Vayana</strong></a> ·
-    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.92">Notas da versão</a> ·
+    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.93">Notas da versão</a> ·
     <a href="docs/USER_GUIDE.pt.md">Guia do usuário</a> ·
     <a href="docs/FEATURES.md">Documentação de recursos</a> ·
     <a href="docs/GITHUB_SYNC_SETUP.md">Configurar a sincronização com o GitHub</a>
   </p>
 
   <p>
-    <img alt="Versão v0.92" src="https://img.shields.io/badge/release-v0.92-00695c?style=flat-square">
+    <img alt="Versão v0.93" src="https://img.shields.io/badge/release-v0.93-00695c?style=flat-square">
     <img alt="Android 8.0 ou mais recente" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
@@ -43,11 +43,11 @@ O Vayana faz isso sem exigir uma conta Vayana ou exibir anúncios durante a leit
 
 ## Atualizações mais recentes do código-fonte
 
-Desde a v0.92, o código também traz uma tela de **Estatísticas** redesenhada (semana, mês, ano e tudo, comparados ao período anterior, gráfico de barras ou de linha, quando você lê, livros mais lidos, tempo de leitura por dispositivo sincronizado e tempo ouvido versus lido), **vários dicionários off-line** escolhidos pelo idioma do livro (Open English WordNet, GCIDE, Olam inglês→malaiala, mais de 300 dicionários bilíngues do FreeDict ou seus próprios arquivos StarDict) e uma tela **Aprender** que guarda só as consultas intencionais de palavras reais e mostra seus significados. Veja as [mudanças ainda não lançadas](docs/releases/UNRELEASED.md).
+A versão 0.93 traz uma tela de **Estatísticas** redesenhada (semana, mês, ano e tudo, comparados ao período anterior, gráfico de barras ou de linha, quando você lê, livros mais lidos, tempo de leitura por dispositivo sincronizado e tempo ouvido versus lido), **vários dicionários off-line** escolhidos pelo idioma do livro (Open English WordNet, GCIDE, Olam inglês→malaiala, mais de 300 dicionários bilíngues do FreeDict ou seus próprios arquivos StarDict) e uma tela **Aprender** que guarda só as consultas intencionais de palavras reais e mostra seus significados. Veja as [mudanças desde a v0.92](docs/releases/v0.93.md).
 
-O código atual inclui um [aplicativo complementar para Wear OS](docs/WEAR_OS.md) para leitura de livros físicos: cronômetros off-line, acompanhamento de páginas, controles compartilhados entre celular e relógio, metas de leitura, um bloco e uma complicação para o mostrador. Correções recentes de sincronização preservam o tempo de leitura entre dispositivos e tratam com segurança os recuos do relógio do sistema. Veja as [mudanças desde a v0.90](docs/releases/v0.92.md).
+O código atual inclui um [aplicativo complementar para Wear OS](docs/WEAR_OS.md) para leitura de livros físicos: cronômetros off-line, acompanhamento de páginas, controles compartilhados entre celular e relógio, metas de leitura, um bloco e uma complicação para o mostrador. Correções recentes de sincronização preservam o tempo de leitura entre dispositivos e tratam com segurança os recuos do relógio do sistema.
 
-A versão **v0.92** inclui APKs assinados para celular e Wear OS. Instale `Vayana-v0.92.apk` no celular e `Vayana-WearOS-v0.92.apk` no relógio; veja a [configuração do Wear OS](docs/WEAR_OS.md#install-and-build). O relógio registra sessões de leitura de livros físicos; não exibe livros EPUB ou PDF.
+A versão **v0.93** inclui APKs assinados para celular e Wear OS. Instale `Vayana-v0.93.apk` no celular e `Vayana-WearOS-v0.93.apk` no relógio; veja a [configuração do Wear OS](docs/WEAR_OS.md#install-and-build). O relógio registra sessões de leitura de livros físicos; não exibe livros EPUB ou PDF.
 
 <a id="highlights-in-087"></a>
 
@@ -183,16 +183,16 @@ O Vayana é compatível com **Android 8.0 (API 26) ou mais recente**.
 Para conhecer o primeiro uso, veja o [guia de início rápido](docs/USER_GUIDE.pt.md#quick-start).
 
 1. Abra a [versão mais recente no GitHub](https://github.com/rjwarrier/Vayana/releases/latest).
-2. Baixe `Vayana-v0.92.apk`.
+2. Baixe `Vayana-v0.93.apk`.
 3. Se o Android solicitar, permita a instalação pelo navegador ou gerenciador de arquivos e abra o APK.
 
 O Android pode avisar que o aplicativo veio de fora do Google Play. Os arquivos da versão incluem um arquivo `.sha256` para verificar o download antes da instalação.
 
-Para a v0.92:
+Para a v0.93:
 
 ```text
 SHA-256 do APK
-AA74B8DA94DC319868DC69F1C01D4EBB3D965C0FA5AAD279CB36458972288914
+6C1F1F8517303367CCCACBD23909312718092268769AFAA731832FBB5B815197
 
 SHA-256 do certificado da versão
 53:2C:F4:07:D5:F0:D1:21:58:8A:5C:F1:6E:61:12:C8:F1:BB:3B:7E:D9:CF:F1:39:80:6A:7B:63:C6:43:96:C7
@@ -291,12 +291,12 @@ O aplicativo usa Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, Wor
 - [Índice da documentação](docs/README.md)
 - [Comportamento dos recursos e regras invariantes](docs/FEATURES.md)
 - [Configuração e uso do aplicativo Wear OS](docs/WEAR_OS.md)
-- [Mudanças desde a v0.90](docs/releases/v0.92.md)
+- [Mudanças desde a v0.92](docs/releases/v0.93.md)
 - [Configuração da sincronização com o GitHub](docs/GITHUB_SYNC_SETUP.md)
 - [Decisões de arquitetura e implementação](docs/DECISIONS.md)
 - [Histórico de alterações do banco de dados](docs/DATABASE_CHANGELOG.md)
 - [Projeto da sincronização com o GitHub](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
-- [Notas da versão v0.92](https://github.com/rjwarrier/Vayana/releases/tag/v0.92)
+- [Notas da versão v0.93](https://github.com/rjwarrier/Vayana/releases/tag/v0.93)
 - [Notas da versão v0.85](docs/releases/v0.85.md)
 
 <a id="feedback"></a>

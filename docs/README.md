@@ -5,9 +5,9 @@
 - **Translated user guides:** [Español](USER_GUIDE.es.md) · [Português (Brasil)](USER_GUIDE.pt.md) · [Français](USER_GUIDE.fr.md) · [Deutsch](USER_GUIDE.de.md)
 - [User guide](USER_GUIDE.md) — detailed help for installing, adding books, reading, notes, dictionaries, statistics, backup, sync, E-Ink, Diagnostics, privacy, and troubleshooting.
 - [Wear OS companion](WEAR_OS.md) — installation, offline reading, shared timer controls, goals and sync troubleshooting.
-- [Changes since v0.90](releases/v0.92.md) — summary of the phone and Wear OS release.
+- [Changes since v0.92](releases/v0.93.md) — summary of the phone and Wear OS release.
 - [GitHub sync setup](GITHUB_SYNC_SETUP.md) — step-by-step private repository and token setup.
-- [Vayana 0.92 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.92) — summary of the current release.
+- [Vayana 0.93 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.93) — summary of the current release.
 
 ## Feature and engineering references
 

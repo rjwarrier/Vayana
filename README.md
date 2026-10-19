@@ -15,7 +15,7 @@
     ·
     <a href="https://ranjithj.in/vayana/"><strong>Vayana website</strong></a>
     ·
-    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.92">Release notes</a>
+    <a href="https://github.com/rjwarrier/Vayana/releases/tag/v0.93">Release notes</a>
     ·
     <a href="docs/USER_GUIDE.md">User guide</a>
     ·
@@ -25,7 +25,7 @@
   </p>
 
   <p>
-    <img alt="Release v0.92" src="https://img.shields.io/badge/release-v0.92-00695c?style=flat-square">
+    <img alt="Release v0.93" src="https://img.shields.io/badge/release-v0.93-00695c?style=flat-square">
     <img alt="Android 8.0 and newer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
     <img alt="Material 3" src="https://img.shields.io/badge/Material-3-6750A4?style=flat-square&logo=materialdesign&logoColor=white">
@@ -48,11 +48,11 @@ Vayana does this without requiring a Vayana account or putting ads in the readin
 
 ## Latest source updates
 
-Since v0.92 the source also brings a redesigned **Statistics** screen (week, month, year and all-time views compared with the previous period, bar or line chart, when you read, most-read books, reading time per synced device and listened-versus-read time), **several offline dictionaries** chosen by the book's language (Open English WordNet, GCIDE, Olam English→Malayalam, 300+ FreeDict bilingual dictionaries or your own StarDict files), and a **Learn** screen that keeps only deliberate lookups of real words and shows their meanings. See the [unreleased changes](docs/releases/UNRELEASED.md).
+Version 0.93 brings a redesigned **Statistics** screen (week, month, year and all-time views compared with the previous period, bar or line chart, when you read, most-read books, reading time per synced device and listened-versus-read time), **several offline dictionaries** chosen by the book's language (Open English WordNet, GCIDE, Olam English→Malayalam, 300+ FreeDict bilingual dictionaries or your own StarDict files), and a **Learn** screen that keeps only deliberate lookups of real words and shows their meanings. See the [changes since v0.92](docs/releases/v0.93.md).
 
-The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely. See [changes since v0.90](docs/releases/v0.92.md).
+The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely.
 
-Release **v0.92** includes signed phone and Wear OS APKs. Install `Vayana-v0.92.apk` on the phone and `Vayana-WearOS-v0.92.apk` on the watch; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
+Release **v0.93** includes signed phone and Wear OS APKs. Install `Vayana-v0.93.apk` on the phone and `Vayana-WearOS-v0.93.apk` on the watch; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
 
 ## Highlights in 0.87
 
@@ -170,16 +170,16 @@ Vayana supports **Android 8.0 (API 26) and newer**.
 For a first-run walkthrough, see the [Quick start guide](docs/USER_GUIDE.md#quick-start).
 
 1. Open the [latest GitHub release](https://github.com/rjwarrier/Vayana/releases/latest).
-2. Download `Vayana-v0.92.apk`.
+2. Download `Vayana-v0.93.apk`.
 3. Allow installation from your browser or file manager if Android asks, then open the APK.
 
 Android may warn that the app came from outside Google Play. Release assets include a `.sha256` file so the download can be checked before installation.
 
-For v0.92:
+For v0.93:
 
 ```text
 APK SHA-256
-AA74B8DA94DC319868DC69F1C01D4EBB3D965C0FA5AAD279CB36458972288914
+6C1F1F8517303367CCCACBD23909312718092268769AFAA731832FBB5B815197
 
 Release certificate SHA-256
 53:2C:F4:07:D5:F0:D1:21:58:8A:5C:F1:6E:61:12:C8:F1:BB:3B:7E:D9:CF:F1:39:80:6A:7B:63:C6:43:96:C7
@@ -266,12 +266,12 @@ The app uses Kotlin, Jetpack Compose, Material 3, Room, DataStore, Hilt, WorkMan
 - [Documentation index](docs/README.md)
 - [Feature behavior and invariants](docs/FEATURES.md)
 - [Wear OS companion setup and use](docs/WEAR_OS.md)
-- [Changes since v0.90](docs/releases/v0.92.md)
+- [Changes since v0.92](docs/releases/v0.93.md)
 - [GitHub sync setup](docs/GITHUB_SYNC_SETUP.md)
 - [Architecture and implementation decisions](docs/DECISIONS.md)
 - [Database changelog](docs/DATABASE_CHANGELOG.md)
 - [GitHub sync design](docs/GITHUB_SYNC_IMPLEMENTATION_PLAN.md)
-- [v0.92 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.92)
+- [v0.93 release notes](https://github.com/rjwarrier/Vayana/releases/tag/v0.93)
 - [v0.85 release notes](docs/releases/v0.85.md)
 
 ## Feedback

@@ -13,8 +13,8 @@ android {
         // Data Layer requires the phone package identity and signing key.
         applicationId = "com.vayana.app"
         minSdk = 30
-        versionCode = 4
-        versionName = "0.92"
+        versionCode = 5
+        versionName = "0.93"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
