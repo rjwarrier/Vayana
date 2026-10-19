@@ -1,5 +1,16 @@
 package com.vayana.feature.library
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.outlined.BookmarkRemove
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import com.vayana.core.database.model.shownReadingPercent
+import com.vayana.core.designsystem.theme.VayanaLinearProgressIndicator
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -372,7 +383,20 @@ private fun ShelfDetailScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = {
+                    Column {
+                        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (books.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.library_shelves_book_count, books.size),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
+                // The app shell already applies the status-bar inset to this destination (as on Shelves).
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.notes_back_content_description))
@@ -390,8 +414,9 @@ private fun ShelfDetailScreen(
                 )
             }
         } else {
+            // Same cover size as the Library grid, so a shelf reads as a slice of it.
             PagedLazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = Sizes.coverWidthMin),
+                columns = GridCells.Adaptive(minSize = Sizes.libraryGridCoverWidthMin),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = Paddings.screenHorizontal,
@@ -400,30 +425,60 @@ private fun ShelfDetailScreen(
                     bottom = innerPadding.calculateBottomPadding() + Spacing.xl + LocalFloatingNavigationInset.current,
                 ),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.lg),
             ) {
                 items(books, key = { it.id }) { book ->
-                    Column(
-                        modifier = Modifier.clickable { onBookClick(book.id) },
-                    ) {
-                        BookCover(book = book, modifier = Modifier.fillMaxWidth())
-                        Text(
-                            text = book.title,
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = Spacing.xs),
-                        )
-                        IconButton(onClick = { onRemoveFromShelf(book.id) }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Delete,
-                                contentDescription = stringResource(R.string.library_shelves_remove_book),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
+                    ShelfBookCell(
+                        book = book,
+                        onClick = { onBookClick(book.id) },
+                        onRemove = { onRemoveFromShelf(book.id) },
+                    )
                 }
             }
+        }
+    }
+}
+
+/**
+ * A book on a shelf: cover, two-line title and reading progress, like the Library grid. Removing it from the shelf
+ * is a long-press menu (and an accessibility action), not a red delete icon under every cover: it only takes the
+ * book off this shelf.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ShelfBookCell(book: Book, onClick: () -> Unit, onRemove: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val removeLabel = stringResource(R.string.library_shelves_remove_book)
+    Box {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(Radii.small))
+                .combinedClickable(onClick = onClick, onLongClick = { menu = true })
+                .semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }) },
+        ) {
+            BookCover(book = book, modifier = Modifier.fillMaxWidth())
+            Text(
+                text = book.title,
+                style = MaterialTheme.typography.labelLarge,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            if (book.shownReadingPercent > 0f) {
+                VayanaLinearProgressIndicator(
+                    progress = { book.shownReadingPercent },
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                    strokeCap = StrokeCap.Round,
+                )
+            }
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(removeLabel) },
+                leadingIcon = { Icon(Icons.Outlined.BookmarkRemove, contentDescription = null) },
+                onClick = { menu = false; onRemove() },
+            )
         }
     }
 }
