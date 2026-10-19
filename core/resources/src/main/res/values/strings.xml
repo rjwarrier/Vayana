@@ -856,6 +856,8 @@
     <string name="learn_words_last_seen">Last looked up %1$s</string>
     <string name="learn_words_count">%1$d</string>
     <string name="learn_words_remove">Remove %1$s</string>
+    <string name="learn_words_dictionary_needed">Install the English dictionary from a book’s word lookup to see meanings here.</string>
+    <string name="learn_words_example">“%1$s”</string>
     <string name="learn_words_hide_known">Hide known words (%1$d)</string>
 
     <string name="statistics_overview_title">At a glance</string>

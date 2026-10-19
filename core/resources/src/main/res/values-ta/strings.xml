@@ -756,6 +756,8 @@
     <string name="learn_words_last_seen">கடைசியாகத் தேடியது %1$s</string>
     <string name="learn_words_count">%1$d</string>
     <string name="learn_words_remove">%1$s ஐ நீக்கு</string>
+    <string name="learn_words_dictionary_needed">இங்கே பொருள்களைப் பார்க்க, ஒரு நூலின் சொல் தேடலில் இருந்து ஆங்கில அகராதியை நிறுவுங்கள்.</string>
+    <string name="learn_words_example">“%1$s”</string>
     <string name="learn_words_hide_known">தெரிந்த சொற்களை மறை (%1$d)</string>
 
     <string name="statistics_overview_title">ஒரு பார்வையில்</string>

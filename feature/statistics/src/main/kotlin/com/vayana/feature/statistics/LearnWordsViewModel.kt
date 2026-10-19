@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import com.vayana.core.common.runCatchingCancellable
+import com.vayana.dictionary.api.DictionaryEntry
+import com.vayana.dictionary.api.DictionaryPackState
+import com.vayana.dictionary.api.DictionaryRepository
 import kotlinx.coroutines.launch
 
 data class LearnWordsSummary(
@@ -25,11 +30,55 @@ data class LearnWordsSummary(
     val hiddenKnownCount: Int = 0,
 )
 
+/** A word's meaning in the offline dictionary, fetched when its row is opened. */
+sealed interface WordMeaning {
+    data object Loading : WordMeaning
+    data class Found(val entry: DictionaryEntry) : WordMeaning
+    data object NotFound : WordMeaning
+    data object NeedsDictionary : WordMeaning
+}
+
 @HiltViewModel
 class LearnWordsViewModel @Inject constructor(
     private val wordLookupStatRepository: WordLookupStatRepository,
     vocabularyCardRepository: VocabularyCardRepository,
+    private val dictionaryRepository: DictionaryRepository,
 ) : ViewModel() {
+    private val _meanings = MutableStateFlow<Map<String, WordMeaning>>(emptyMap())
+    val meanings: StateFlow<Map<String, WordMeaning>> = _meanings
+
+    /**
+     * Words saved before only dictionary words counted (names, typos, foreign words): checked once each against the
+     * offline dictionary and removed, on every device, when it has no entry.
+     */
+    private val checkedWords = HashSet<String>()
+
+    init {
+        viewModelScope.launch {
+            wordLookupStatRepository.observeAllAggregated(LearnWordsLimit).collect { words ->
+                if (dictionaryRepository.englishPackState.value !is DictionaryPackState.Installed) return@collect
+                words.map { it.word }.filter(checkedWords::add).forEach { word ->
+                    val missing = runCatchingCancellable { dictionaryRepository.lookupEnglish(word) == null }.getOrDefault(false)
+                    if (missing) wordLookupStatRepository.removeWord(word)
+                }
+            }
+        }
+    }
+
+    /** Looks [word] up once; reviewing here doesn't count as another lookup. */
+    fun loadMeaning(word: String) {
+        if (_meanings.value[word].let { it != null && it != WordMeaning.NeedsDictionary }) return
+        if (dictionaryRepository.englishPackState.value !is DictionaryPackState.Installed) {
+            _meanings.update { it + (word to WordMeaning.NeedsDictionary) }
+            return
+        }
+        _meanings.update { it + (word to WordMeaning.Loading) }
+        viewModelScope.launch {
+            val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(word) }.getOrNull()
+            _meanings.update { it + (word to (entry?.let(WordMeaning::Found) ?: WordMeaning.NotFound)) }
+        }
+    }
+
     private val hideKnown = MutableStateFlow(true)
 
     val summary: StateFlow<LearnWordsSummary> = combine(

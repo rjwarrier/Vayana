@@ -774,6 +774,8 @@
     <string name="learn_words_last_seen">Последний поиск %1$s</string>
     <string name="learn_words_count">%1$d</string>
     <string name="learn_words_remove">Убрать %1$s</string>
+    <string name="learn_words_dictionary_needed">Установите английский словарь через поиск слова в книге, чтобы видеть значения здесь.</string>
+    <string name="learn_words_example">«%1$s»</string>
     <string name="learn_words_hide_known">Скрыть известные слова (%1$d)</string>
 
     <string name="statistics_overview_title">Кратко</string>

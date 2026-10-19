@@ -1889,23 +1889,29 @@ class ReaderViewModel @Inject constructor(
      * The single word whose definition card is showing, and since when. It counts toward Learn words only when the
      * lookup looks meant: the card stayed up a moment ([IntentionalLookupMillis]) and the word was then let go as it
      * was. The first word of a highlight-to-be shows its card too; growing into a phrase or becoming a highlight
-     * discards it. Reading it online, saving it or tapping a synonym counts at once.
+     * discards it. Reading it online, saving it or tapping a synonym counts at once. Either way only a word the
+     * offline dictionary has an entry for is counted: Learn words lists things to learn, not names or typos.
      */
     private var lookupCandidate: LookupCandidate? = null
 
-    private data class LookupCandidate(val word: String, val shownAt: Long)
+    private data class LookupCandidate(val word: String, val shownAt: Long, val found: Boolean = false, val wanted: Boolean = false)
 
     private fun settleLookupCandidate(nextSelection: String?) {
         val candidate = lookupCandidate ?: return
         val next = nextSelection?.trim().orEmpty()
         if (next.equals(candidate.word, ignoreCase = true)) return
         lookupCandidate = null
-        if (next.contains(candidate.word, ignoreCase = true)) return
+        if (next.contains(candidate.word, ignoreCase = true) || !candidate.found) return
         if (System.currentTimeMillis() - candidate.shownAt >= IntentionalLookupMillis) countLookup(candidate.word)
     }
 
+    /** Counts the showing word as soon as the dictionary has found it (at once if it already has). */
     private fun countLookupNow() {
         val candidate = lookupCandidate ?: return
+        if (!candidate.found) {
+            lookupCandidate = candidate.copy(wanted = true)
+            return
+        }
         lookupCandidate = null
         countLookup(candidate.word)
     }
@@ -1945,6 +1951,10 @@ class ReaderViewModel @Inject constructor(
                     throwable.uiText(R.string.reader_error_dictionary_lookup_failed),
                 )
                 return@launch
+            }
+            if (entry != null) lookupCandidate?.takeIf { it.word == word }?.let { candidate ->
+                lookupCandidate = candidate.copy(found = true)
+                if (candidate.wanted) countLookupNow()
             }
             _dictionaryLookup.value = if (entry == null) {
                 DictionaryLookupState.NotFound(word)

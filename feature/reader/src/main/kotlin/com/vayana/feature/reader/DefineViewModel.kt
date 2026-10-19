@@ -67,8 +67,9 @@ class DefineViewModel @Inject constructor(
         }
         job = viewModelScope.launch {
             _lookup.value = DictionaryLookupState.LookingUp(word)
-            wordLookupStatRepository.recordLookup(word, settingsRepository.snapshot.first().lookupWriterOrigin())
             val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(word) }.getOrNull()
+            // Only words with a dictionary entry go to Learn words.
+            if (entry != null) wordLookupStatRepository.recordLookup(word, settingsRepository.snapshot.first().lookupWriterOrigin())
             _lookup.value = if (entry == null) {
                 DictionaryLookupState.NotFound(word)
             } else {

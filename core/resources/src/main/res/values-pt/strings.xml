@@ -765,6 +765,8 @@
     <string name="learn_words_last_seen">Última pesquisa %1$s</string>
     <string name="learn_words_count">%1$d</string>
     <string name="learn_words_remove">Remover %1$s</string>
+    <string name="learn_words_dictionary_needed">Instale o dicionário de inglês pela consulta de palavras de um livro para ver os significados aqui.</string>
+    <string name="learn_words_example">“%1$s”</string>
     <string name="learn_words_hide_known">Ocultar palavras conhecidas (%1$d)</string>
 
     <string name="statistics_overview_title">Visão geral</string>
