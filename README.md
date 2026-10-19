@@ -46,23 +46,21 @@ Most reading apps stop at displaying a book. Vayana treats reading as a connecte
 
 Vayana does this without requiring a Vayana account or putting ads in the reading experience. Your library is local by default. Optional online features—such as [Goodreads enrichment](docs/USER_GUIDE.md#book-details-and-reading-status) and [self-managed GitHub sync](docs/USER_GUIDE.md#github-sync)—remain under your control.
 
-## Latest source updates
+## What's new in 0.93
 
 Version 0.93 brings a redesigned **Statistics** screen (week, month, year and all-time views compared with the previous period, bar or line chart, when you read, most-read books, reading time per synced device and listened-versus-read time), **several offline dictionaries** chosen by the book's language (Open English WordNet, GCIDE, Olam English→Malayalam, 300+ FreeDict bilingual dictionaries or your own StarDict files), and a **Learn** screen that keeps only deliberate lookups of real words and shows their meanings. See the [changes since v0.92](docs/releases/v0.93.md).
 
-The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely.
-
 Release **v0.93** includes signed phone and Wear OS APKs. Install `Vayana-v0.93.apk` on the phone and `Vayana-WearOS-v0.93.apk` on the watch; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
 
-## Highlights in 0.87
+## Highlights
 
-- Read [**EPUB**](docs/USER_GUIDE.md#reading-epub-books) and [**PDF**](docs/USER_GUIDE.md#reading-pdf-books) books, including PDF outlines, text selection, annotations, dictionary lookup, zoom and per-book display controls.
-- Find and download public-domain books through [**Project Gutenberg**](docs/USER_GUIDE.md#download-free-books-from-project-gutenberg), or connect [**OPDS catalogs**](docs/USER_GUIDE.md#connect-an-opds-catalog) such as Calibre, Calibre-Web and Standard Ebooks.
-- Keep one reading library for digital, [offline, physical and borrowed books](docs/USER_GUIDE.md#offline-physical-borrowed-and-other-books), with due-date reminders and an optional read-only [**Home Library** mirror](docs/USER_GUIDE.md#home-library-mirror).
-- [Look up and translate words or phrases](docs/USER_GUIDE.md#dictionary-translation-and-vocabulary) in the book's language using the offline dictionary, Wiktionary, Wikipedia or translation tools.
-- Resume reading, control read-aloud and review seven-day reading time from configurable [**home-screen widgets and shortcuts**](docs/USER_GUIDE.md#widgets-and-app-shortcuts).
-- Capture crashes and sync failures in a privacy-aware [**Diagnostics** screen](docs/USER_GUIDE.md#diagnostics-and-support), then share a sanitized report with the developer.
-- Use Vayana in [English, Spanish, Portuguese, Russian, German, French, Italian, Malayalam or Tamil](docs/USER_GUIDE.md#settings-and-languages).
+- **[A real E‑Ink mode](docs/USER_GUIDE.md#e-ink-and-accessibility):** no animation, hardware page keys, paged app screens, timed clean refreshes and a monochrome or colour palette made for E‑Ink panels.
+- **[Reading that becomes learning](docs/USER_GUIDE.md#dictionary-translation-and-vocabulary):** double-tap a word for offline definitions from dictionaries chosen by the book's language, with its meaning in your language too; keep the words you meant to look up, review them with spaced repetition and export them to Anki.
+- **[Sync on your own terms](docs/USER_GUIDE.md#github-sync):** no Vayana account. Positions, sessions, notes, books and covers sync through a GitHub repository you own, with books and covers encrypted by your passphrase.
+- **[One library for every book](docs/USER_GUIDE.md#offline-physical-borrowed-and-other-books):** EPUB and PDF alongside physical, borrowed and audiobooks, with page tracking, return reminders and a [Wear OS companion](docs/WEAR_OS.md) that times paper reading from your wrist.
+- **[Statistics that tell you something](docs/USER_GUIDE.md#statistics-and-goals):** how this week, month or year compares with the last, when you read, which books took your time, how much you listened, and on which device.
+- **[Read aloud that follows the text](docs/USER_GUIDE.md#read-aloud):** sentence-by-sentence speech with the spoken words marked, natural pauses, per-book pronunciations, and listening that keeps counting with the screen off.
+- **[Free books built in](docs/USER_GUIDE.md#adding-books):** download from Project Gutenberg or your OPDS catalogs (Calibre, Calibre-Web, Standard Ebooks), and enrich books with Goodreads details and quotes.
 
 ## Screenshots
 
@@ -120,7 +118,9 @@ E‑Ink is a first-class display profile rather than a colour filter:
 - Android text-to-speech reads sentence by sentence and advances through chapters.
 - Spoken words or sentences are marked directly in the text.
 - Start playback from a selected passage; tap anywhere in the reader to pause.
-- Choose the installed TTS engine, voice, speed and pitch.
+- Choose the installed TTS engine, voice, speed and pitch, and teach it how to say names and words in each book.
+- Natural pauses between sentences, paragraphs and scenes; numbers, dates and Roman numerals are read the way they're meant.
+- Listening keeps playing, and counts as reading time, with the screen off.
 - Use a sleep timer, audio-focus handling, headset/Bluetooth controls, lock-screen controls and notification actions.
 
 ### [Sync without a proprietary service](docs/USER_GUIDE.md#github-sync)
@@ -130,10 +130,11 @@ Use a GitHub repository you control to synchronize:
 - Reading position, sessions and reading dates
 - Books, covers and library metadata
 - Highlights, notes, shelves and Read Next
-- Vocabulary and portable settings
+- Vocabulary, looked-up words and portable settings
+- Home Library books and their reading data
 - Deletions and restores across devices
 
-Book and cover assets are encrypted with AES-GCM using your passphrase before upload. Lightweight progress sync can run while reading, and conflict messages identify the newer position with its sync time and device name. The sync setup itself can be exported as an encrypted transfer file for another device.
+Book and cover assets are encrypted with AES-GCM using your passphrase before upload. Lightweight progress sync can run while reading, and conflict messages identify the newer position with its sync time and device name. The sync setup itself can be exported as an encrypted transfer file for another device. Only changed data is uploaded, so a sync with nothing new takes about a second, and **Settings → Help & About → Data usage** shows what each sync sent and received.
 
 Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to create a private repository, configure a least-privilege token, connect the first device, and add more devices safely.
 
@@ -152,12 +153,14 @@ Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to 
 | [**Annotations**](docs/USER_GUIDE.md#highlights-notes-bookmarks-and-quotes) | Highlights, underlines, bookmarks, notes, annotation tags, overlapping-highlight merge, footnote popups and direct navigation back to a passage |
 | [**Notes and quotes**](docs/USER_GUIDE.md#notes-library) | Global and per-book Notes views, Kindle `My Clippings.txt` import, Markdown export, Goodreads quote import and shareable quote-card images |
 | [**Dictionary and translation**](docs/USER_GUIDE.md#dictionary-translation-and-vocabulary) | Several offline dictionaries (WordNet, GCIDE, Olam English→Malayalam, FreeDict's 300+ bilingual dictionaries, StarDict import) chosen by the book's language, with meanings in your language; phrase search, Wiktionary/Wikipedia fallback, translation, saved vocabulary, Learn words with meanings, chapter words, spaced review, known-word tracking and Anki/Markdown export |
-| [**Read aloud**](docs/USER_GUIDE.md#read-aloud) | Sentence-following Android TTS with chapter advance, selection start, sleep timer, voice/speed/pitch controls, audio focus, headset/Bluetooth and notification controls; listening counts as reading time, even with the screen off |
-| [**Search**](docs/USER_GUIDE.md#search) | Fast full-text search across books, metadata, highlighted text, notes and chapter names, with prefix matching and recent searches |
+| [**Read aloud**](docs/USER_GUIDE.md#read-aloud) | Sentence-following Android TTS with chapter advance, selection start, natural pauses, per-book pronunciations, sleep timer, voice/speed/pitch controls, audio focus, headset/Bluetooth and notification controls; listening counts as reading time, even with the screen off |
+| [**Search**](docs/USER_GUIDE.md#search) | Full-text search across book text, metadata, highlights, notes and chapter names; exact phrases in quotes, results scoped by book or shelf, prefix matching and recent searches |
 | [**Statistics**](docs/USER_GUIDE.md#statistics-and-goals) | Week, month, year and all-time views compared with the previous period, bar or line charts, when you read (time of day, weekday, session length), most-read books, reading time per synced device, listened-versus-read time, streaks, daily/yearly goals, finished books, date-based activity, book-level reading history and storage used on the device |
+| [**Wear OS companion**](docs/USER_GUIDE.md#wear-os-companion) | Offline timers and page tracking for physical books on the watch, shared phone/watch timer controls, reading goals, a tile and a watch-face complication |
 | [**Widgets and shortcuts**](docs/USER_GUIDE.md#widgets-and-app-shortcuts) | Continue Reading with read-aloud play/pause, a responsive seven-day reading-time chart and shortcuts into key library destinations |
 | [**Backup**](docs/USER_GUIDE.md#backup-and-restore) | Manual portable ZIP backup/restore and automatic backups to a selected folder with daily, weekly or 30-day schedules and retention controls |
 | [**Diagnostics**](docs/USER_GUIDE.md#diagnostics-and-support) | Local crash and sync history, environment details, sensitive-data sanitization, copy/share actions and a one-tap developer support path |
+| [**Privacy and data**](docs/USER_GUIDE.md#privacy-and-online-services) | A Privacy & data screen showing where your data lives, what leaves the device and the device's security status; Data usage with app Wi-Fi/mobile traffic and what each sync sent |
 | [**Languages**](docs/USER_GUIDE.md#settings-and-languages) | In-app language selection for English, Spanish, Portuguese, Russian, German, French, Italian, Malayalam and Tamil |
 | [**Appearance**](docs/USER_GUIDE.md#settings-and-languages) | Material 3, system/light/dark modes, true black, optional Material You colour, Standard/E‑Ink profiles, motion controls and adaptive phone/tablet navigation |
 
@@ -188,7 +191,7 @@ Release certificate SHA-256
 ## Current scope
 
 - **Readable ebook formats:** [EPUB](docs/USER_GUIDE.md#reading-epub-books) and [PDF](docs/USER_GUIDE.md#reading-pdf-books). Scanned PDFs without a text layer support viewing, zoom and bookmarks, but not text selection. [Physical books](docs/USER_GUIDE.md#offline-physical-borrowed-and-other-books) can be tracked without a file.
-- **Online access:** Core reading, notes, dictionary and statistics work locally. [Project Gutenberg](docs/USER_GUIDE.md#download-free-books-from-project-gutenberg), [OPDS](docs/USER_GUIDE.md#connect-an-opds-catalog), Goodreads enrichment, cover browsing, translation, Wiktionary/Wikipedia lookups and [GitHub sync](docs/USER_GUIDE.md#github-sync) require internet access when used; selected text is sent to an online provider only when you choose that action. See the [privacy and online-services guide](docs/USER_GUIDE.md#privacy-and-online-services).
+- **Online access:** Core reading, notes, dictionary and statistics work locally. [Project Gutenberg](docs/USER_GUIDE.md#download-free-books-from-project-gutenberg), [OPDS](docs/USER_GUIDE.md#connect-an-opds-catalog), Goodreads enrichment, cover browsing, translation, Wiktionary/Wikipedia lookups, dictionary downloads and [GitHub sync](docs/USER_GUIDE.md#github-sync) require internet access when used; selected text is sent to an online provider only when you choose that action. See the [privacy and online-services guide](docs/USER_GUIDE.md#privacy-and-online-services).
 - **E‑Ink refresh:** [Portable E‑Ink behavior](docs/USER_GUIDE.md#e-ink-display-profile) is implemented. Vendor-specific refresh modes such as Onyx/Boox SDK modes are not yet integrated.
 - **Cloud history:** Permanently deleted encrypted files may remain in older commits of the GitHub sync repository because Git history is immutable unless rewritten. See [current limitations](docs/USER_GUIDE.md#current-limitations).
 
@@ -253,7 +256,7 @@ reader/engine-web/      Foliate-based EPUB engine and WebView bridge
 format/epub/            EPUB metadata and import support
 format/pdf/             PDF metadata, rendering and text support
 format/convert/         Shared document conversion support
-dictionary/             Dictionary API, bundled StarDict implementation and online lookup
+dictionary/             Dictionary API, offline dictionaries (WordNet, GCIDE, Olam, FreeDict/StarDict) and online lookup
 build-logic/            Shared Android and Kotlin build conventions
 ```
 
