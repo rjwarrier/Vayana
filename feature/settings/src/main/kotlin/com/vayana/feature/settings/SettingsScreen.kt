@@ -806,6 +806,11 @@ private fun SettingsGroupDetail(
         }
         if (group == SettingsGroup.READER_TEXT) {
             item {
+                SettingsContentContainer { DictionariesCard() }
+            }
+        }
+        if (group == SettingsGroup.READER_TEXT) {
+            item {
                 SettingsContentContainer {
                     ReaderCustomFontsCard(
                         fonts = settings.readerImportedFonts,

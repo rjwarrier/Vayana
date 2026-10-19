@@ -1510,6 +1510,20 @@
     <string name="dictionary_error_open_file">Не удалось открыть выбранный файл словаря</string>
     <string name="dictionary_error_finish_install">Не удалось завершить установку словаря</string>
     <string name="dictionary_error_finish_install_no_restore">Не удалось завершить установку словаря и восстановить прежний</string>
+    <string name="dictionary_error_download_failed">Не удалось скачать словарь. Проверьте подключение и попробуйте снова.</string>
+    <string name="dictionary_error_not_gcide">Это не словарь GCIDE</string>
+    <string name="settings_dictionaries_title">Словари</string>
+    <string name="settings_dictionaries_subtitle">Поиск слов использует их офлайн, в этом порядке</string>
+    <string name="dictionary_wordnet_name">Open English WordNet</string>
+    <string name="dictionary_wordnet_about">Современные определения с примерами · CC BY 4.0</string>
+    <string name="dictionary_gcide_name">GCIDE (Вебстер 1913 г.)</string>
+    <string name="dictionary_gcide_about">Устаревшие и книжные слова, а также обычные вроде «unless» · GNU GPL</string>
+    <string name="dictionary_state_installed">Установлен · %1$s</string>
+    <string name="dictionary_state_installing">Установка… %1$d%%</string>
+    <string name="dictionary_state_failed">Не удалось установить</string>
+    <string name="dictionary_state_not_installed">Не установлен</string>
+    <string name="dictionary_action_download">Скачать (%1$s)</string>
+    <string name="dictionary_action_move_up">Сначала %1$s</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Книга не найдена</string>

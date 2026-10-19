@@ -1,6 +1,8 @@
 package com.vayana.dictionary.stardict
 
 import com.vayana.dictionary.api.DictionaryEntry
+import com.vayana.dictionary.api.inflectionStems
+import com.vayana.dictionary.api.lookupForms
 import com.vayana.dictionary.api.DictionarySense
 import com.vayana.dictionary.api.PartOfSpeech
 import java.io.File
@@ -32,10 +34,10 @@ internal class WordNetDictionary(private val directory: File) {
         synchronized(resultCache) {
             if (resultCache.containsKey(query)) return resultCache[query]
         }
-        val candidates = buildList {
-            add(query)
-            addAll(exceptions[query].orEmpty())
-            addAll(simpleStems(query))
+        // Every spelling worth trying (possessive, contraction, archaic ending, accents folded), each with its
+        // irregular and regular inflections back to a WordNet lemma.
+        val candidates = lookupForms(rawWord).map { it.replace(' ', '_') }.flatMap { form ->
+            listOf(form) + exceptions[form].orEmpty() + inflectionStems(form)
         }.distinct()
 
         for (candidate in candidates) {
@@ -169,45 +171,6 @@ internal class WordNetDictionary(private val directory: File) {
                     put(fields.first(), (existing + fields.drop(1)).distinct())
                 }
             }
-        }
-    }
-
-    private fun simpleStems(word: String): List<String> = buildList {
-        if (word.length > 4 && word.endsWith("ies")) add(word.dropLast(3) + "y")
-        if (word.length > 4 && word.endsWith("ied")) add(word.dropLast(3) + "y")
-        listOf("ses" to "s", "xes" to "x", "zes" to "z", "ches" to "ch", "shes" to "sh")
-            .forEach { (suffix, replacement) ->
-                if (word.length > suffix.length + 1 && word.endsWith(suffix)) {
-                    add(word.dropLast(suffix.length) + replacement)
-                }
-            }
-        if (word.length > 4 && word.endsWith("men")) add(word.dropLast(3) + "man")
-        if (word.length > 3 && word.endsWith("es")) {
-            add(word.dropLast(2))
-            add(word.dropLast(1))
-        }
-        if (word.length > 2 && word.endsWith('s') && !word.endsWith("ss")) add(word.dropLast(1))
-        if (word.length > 5 && word.endsWith("ing")) {
-            add(word.dropLast(3))
-            add(word.dropLast(3) + "e")
-            val stem = word.dropLast(3)
-            if (stem.length > 2 && stem.last() == stem[stem.lastIndex - 1]) add(stem.dropLast(1))
-        }
-        if (word.length > 4 && word.endsWith("ed")) {
-            add(word.dropLast(2))
-            add(word.dropLast(1))
-            val stem = word.dropLast(2)
-            if (stem.length > 2 && stem.last() == stem[stem.lastIndex - 1]) add(stem.dropLast(1))
-        }
-        if (word.length > 4 && word.endsWith("ier")) add(word.dropLast(3) + "y")
-        if (word.length > 4 && word.endsWith("er")) {
-            add(word.dropLast(2))
-            add(word.dropLast(1))
-        }
-        if (word.length > 5 && word.endsWith("iest")) add(word.dropLast(4) + "y")
-        if (word.length > 5 && word.endsWith("est")) {
-            add(word.dropLast(3))
-            add(word.dropLast(2))
         }
     }
 

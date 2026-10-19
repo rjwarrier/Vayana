@@ -1476,6 +1476,20 @@
     <string name="dictionary_error_open_file">തിരഞ്ഞെടുത്ത നിഘണ്ടു ഫയൽ തുറക്കാനായില്ല</string>
     <string name="dictionary_error_finish_install">നിഘണ്ടു സ്ഥാപിക്കൽ പൂർത്തിയാക്കാനായില്ല</string>
     <string name="dictionary_error_finish_install_no_restore">നിഘണ്ടു സ്ഥാപിക്കൽ പൂർത്തിയാക്കാനോ പഴയത് വീണ്ടെടുക്കാനോ ആയില്ല</string>
+    <string name="dictionary_error_download_failed">നിഘണ്ടു ഡൗൺലോഡ് ചെയ്യാനായില്ല. കണക്ഷൻ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക.</string>
+    <string name="dictionary_error_not_gcide">ഇതൊരു GCIDE നിഘണ്ടു അല്ല</string>
+    <string name="settings_dictionaries_title">നിഘണ്ടുക്കൾ</string>
+    <string name="settings_dictionaries_subtitle">വാക്ക് തിരയൽ ഇവ ഓഫ്‌ലൈനായി ഈ ക്രമത്തിൽ ഉപയോഗിക്കുന്നു</string>
+    <string name="dictionary_wordnet_name">Open English WordNet</string>
+    <string name="dictionary_wordnet_about">ഉദാഹരണങ്ങളോടെ ആധുനിക നിർവചനങ്ങൾ · CC BY 4.0</string>
+    <string name="dictionary_gcide_name">GCIDE (വെബ്‌സ്റ്റർ 1913)</string>
+    <string name="dictionary_gcide_about">പഴയതും സാഹിത്യപരവുമായ വാക്കുകൾ, “unless” പോലുള്ള സാധാരണ വാക്കുകളും · GNU GPL</string>
+    <string name="dictionary_state_installed">ഇൻസ്റ്റാൾ ചെയ്തു · %1$s</string>
+    <string name="dictionary_state_installing">ഇൻസ്റ്റാൾ ചെയ്യുന്നു… %1$d%%</string>
+    <string name="dictionary_state_failed">ഇൻസ്റ്റാൾ പരാജയപ്പെട്ടു</string>
+    <string name="dictionary_state_not_installed">ഇൻസ്റ്റാൾ ചെയ്തിട്ടില്ല</string>
+    <string name="dictionary_action_download">%1$s ഡൗൺലോഡ് ചെയ്യുക</string>
+    <string name="dictionary_action_move_up">%1$s ആദ്യം നോക്കുക</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">പുസ്തകം കണ്ടെത്തിയില്ല</string>

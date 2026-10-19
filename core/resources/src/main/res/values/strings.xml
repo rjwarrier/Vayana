@@ -1718,6 +1718,20 @@
     <string name="dictionary_error_open_file">The selected dictionary file could not be opened</string>
     <string name="dictionary_error_finish_install">Could not finish installing the dictionary</string>
     <string name="dictionary_error_finish_install_no_restore">Could not finish installing the dictionary and could not restore the previous one</string>
+    <string name="dictionary_error_download_failed">Couldn’t download the dictionary. Check your connection and try again.</string>
+    <string name="dictionary_error_not_gcide">This download isn’t a GCIDE dictionary</string>
+    <string name="settings_dictionaries_title">Dictionaries</string>
+    <string name="settings_dictionaries_subtitle">Word lookups use these offline, trying them in this order</string>
+    <string name="dictionary_wordnet_name">Open English WordNet</string>
+    <string name="dictionary_wordnet_about">Modern definitions with examples · CC BY 4.0</string>
+    <string name="dictionary_gcide_name">GCIDE (Webster’s 1913)</string>
+    <string name="dictionary_gcide_about">Older and literary words, plus everyday words like “unless” · GNU GPL</string>
+    <string name="dictionary_state_installed">Installed · %1$s</string>
+    <string name="dictionary_state_installing">Installing… %1$d%%</string>
+    <string name="dictionary_state_failed">Install failed</string>
+    <string name="dictionary_state_not_installed">Not installed</string>
+    <string name="dictionary_action_download">Download %1$s</string>
+    <string name="dictionary_action_move_up">Try %1$s first</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Book not found</string>

@@ -20,6 +20,7 @@ dependencies {
     implementation(project(":core:filesystem"))
     implementation(project(":core:homelibrary"))
     implementation(project(":core:sync"))
+    implementation(project(":dictionary:api"))
     implementation(libs.room.runtime)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.documentfile)

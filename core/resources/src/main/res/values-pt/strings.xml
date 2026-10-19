@@ -1493,6 +1493,20 @@
     <string name="dictionary_error_open_file">Não foi possível abrir o arquivo de dicionário selecionado</string>
     <string name="dictionary_error_finish_install">Não foi possível concluir a instalação do dicionário</string>
     <string name="dictionary_error_finish_install_no_restore">Não foi possível concluir a instalação do dicionário nem restaurar o anterior</string>
+    <string name="dictionary_error_download_failed">Não foi possível baixar o dicionário. Verifique a conexão e tente de novo.</string>
+    <string name="dictionary_error_not_gcide">Este download não é um dicionário GCIDE</string>
+    <string name="settings_dictionaries_title">Dicionários</string>
+    <string name="settings_dictionaries_subtitle">As consultas de palavras usam estes offline, nesta ordem</string>
+    <string name="dictionary_wordnet_name">Open English WordNet</string>
+    <string name="dictionary_wordnet_about">Definições modernas com exemplos · CC BY 4.0</string>
+    <string name="dictionary_gcide_name">GCIDE (Webster de 1913)</string>
+    <string name="dictionary_gcide_about">Palavras antigas e literárias, e palavras comuns como “unless” · GNU GPL</string>
+    <string name="dictionary_state_installed">Instalado · %1$s</string>
+    <string name="dictionary_state_installing">Instalando… %1$d%%</string>
+    <string name="dictionary_state_failed">Falha na instalação</string>
+    <string name="dictionary_state_not_installed">Não instalado</string>
+    <string name="dictionary_action_download">Baixar %1$s</string>
+    <string name="dictionary_action_move_up">Tentar %1$s primeiro</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Livro não encontrado</string>

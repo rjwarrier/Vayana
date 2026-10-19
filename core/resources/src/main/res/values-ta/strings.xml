@@ -1476,6 +1476,20 @@
     <string name="dictionary_error_open_file">தேர்ந்தெடுத்த அகராதிக் கோப்பைத் திறக்க முடியவில்லை</string>
     <string name="dictionary_error_finish_install">அகராதி நிறுவலை முடிக்க முடியவில்லை</string>
     <string name="dictionary_error_finish_install_no_restore">அகராதி நிறுவலை முடிக்கவோ முந்தையதை மீட்டெடுக்கவோ முடியவில்லை</string>
+    <string name="dictionary_error_download_failed">அகராதியைப் பதிவிறக்க முடியவில்லை. இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.</string>
+    <string name="dictionary_error_not_gcide">இது GCIDE அகராதி அல்ல</string>
+    <string name="settings_dictionaries_title">அகராதிகள்</string>
+    <string name="settings_dictionaries_subtitle">சொல் தேடல் இவற்றை இணையமின்றி இந்த வரிசையில் பயன்படுத்தும்</string>
+    <string name="dictionary_wordnet_name">Open English WordNet</string>
+    <string name="dictionary_wordnet_about">எடுத்துக்காட்டுகளுடன் நவீன வரையறைகள் · CC BY 4.0</string>
+    <string name="dictionary_gcide_name">GCIDE (வெப்ஸ்டர் 1913)</string>
+    <string name="dictionary_gcide_about">பழைய, இலக்கியச் சொற்கள், “unless” போன்ற அன்றாடச் சொற்களும் · GNU GPL</string>
+    <string name="dictionary_state_installed">நிறுவப்பட்டது · %1$s</string>
+    <string name="dictionary_state_installing">நிறுவுகிறது… %1$d%%</string>
+    <string name="dictionary_state_failed">நிறுவல் தோல்வி</string>
+    <string name="dictionary_state_not_installed">நிறுவப்படவில்லை</string>
+    <string name="dictionary_action_download">%1$s பதிவிறக்கு</string>
+    <string name="dictionary_action_move_up">%1$s ஐ முதலில் பார்</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">நூல் கிடைக்கவில்லை</string>

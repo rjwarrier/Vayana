@@ -1493,6 +1493,20 @@
     <string name="dictionary_error_open_file">Le fichier de dictionnaire sélectionné n\'a pas pu être ouvert</string>
     <string name="dictionary_error_finish_install">Impossible de terminer l\'installation du dictionnaire</string>
     <string name="dictionary_error_finish_install_no_restore">Impossible de terminer l\'installation du dictionnaire ni de restaurer le précédent</string>
+    <string name="dictionary_error_download_failed">Impossible de télécharger le dictionnaire. Vérifiez la connexion et réessayez.</string>
+    <string name="dictionary_error_not_gcide">Ce téléchargement n’est pas un dictionnaire GCIDE</string>
+    <string name="settings_dictionaries_title">Dictionnaires</string>
+    <string name="settings_dictionaries_subtitle">La recherche de mots les utilise hors ligne, dans cet ordre</string>
+    <string name="dictionary_wordnet_name">Open English WordNet</string>
+    <string name="dictionary_wordnet_about">Définitions modernes avec exemples · CC BY 4.0</string>
+    <string name="dictionary_gcide_name">GCIDE (Webster 1913)</string>
+    <string name="dictionary_gcide_about">Mots anciens et littéraires, et mots courants comme « unless » · GNU GPL</string>
+    <string name="dictionary_state_installed">Installé · %1$s</string>
+    <string name="dictionary_state_installing">Installation… %1$d %%</string>
+    <string name="dictionary_state_failed">Échec de l’installation</string>
+    <string name="dictionary_state_not_installed">Non installé</string>
+    <string name="dictionary_action_download">Télécharger %1$s</string>
+    <string name="dictionary_action_move_up">Essayer %1$s en premier</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Livre introuvable</string>
