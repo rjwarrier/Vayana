@@ -33,10 +33,27 @@ fun lookupForms(rawWord: String): List<String> {
     return forms.toList()
 }
 
-/** "é" → "e", "æ" → "ae": dictionaries often list the plain spelling only. */
+/**
+ * "é" → "e", "æ" → "ae": dictionaries often list the plain spelling only. Only marks on Latin letters (and the
+ * Cyrillic stress accent) go: in Malayalam, Tamil or Hindi the combining signs are vowels, part of the word.
+ */
 fun foldAccents(text: String): String {
     val ligatures = text.replace("æ", "ae").replace("œ", "oe").replace("Æ", "Ae").replace("Œ", "Oe")
-    return Normalizer.normalize(ligatures, Normalizer.Form.NFD).replace(CombiningMarks, "")
+    val decomposed = Normalizer.normalize(ligatures, Normalizer.Form.NFD)
+    val out = StringBuilder(decomposed.length)
+    var base: Char? = null
+    for (char in decomposed) {
+        val mark = Character.getType(char) == Character.NON_SPACING_MARK.toInt()
+        if (!mark) {
+            base = char
+            out.append(char)
+            continue
+        }
+        val script = base?.let { Character.UnicodeScript.of(it.code) }
+        val fold = script == Character.UnicodeScript.LATIN || (script == Character.UnicodeScript.CYRILLIC && char == CyrillicStress)
+        if (!fold) out.append(char)
+    }
+    return Normalizer.normalize(out.toString(), Normalizer.Form.NFC)
 }
 
 /** Regular English inflections back to their dictionary form; each dictionary checks which candidates it has. */
@@ -88,8 +105,8 @@ private fun archaicVerb(word: String): List<String>? {
     }
 }
 
+private const val CyrillicStress = '\u0301'
 private val EdgePunctuation = charArrayOf('“', '”', '"', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '—', '–')
-private val CombiningMarks = Regex("\\p{Mn}+")
 private val ContractionSuffixes = listOf("n't", "'ll", "'re", "'ve", "'d", "'m")
 private val Contractions = mapOf(
     "can't" to "can", "cannot" to "can", "won't" to "will", "shan't" to "shall", "ain't" to "be",
@@ -100,3 +117,11 @@ private val ArchaicVerbs = mapOf(
     "dost" to "do", "doth" to "do", "didst" to "do", "canst" to "can", "couldst" to "could", "wouldst" to "would",
     "shouldst" to "should", "shalt" to "shall", "wilt" to "will", "mayst" to "may", "mightst" to "might",
 )
+
+/** "mal" → "Malayalam" (in [locale]): dictionaries carry ISO 639-3 codes, Locale names ISO 639-1 ones best. */
+fun languageDisplayName(iso3: String, locale: java.util.Locale = java.util.Locale.getDefault()): String {
+    val code = java.util.Locale.getISOLanguages().firstOrNull { two ->
+        runCatching { java.util.Locale(two).isO3Language }.getOrNull() == iso3
+    } ?: iso3
+    return java.util.Locale(code).getDisplayLanguage(locale).replaceFirstChar { it.titlecase(locale) }.ifBlank { iso3 }
+}

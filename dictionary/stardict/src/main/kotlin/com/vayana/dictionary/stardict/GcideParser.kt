@@ -1,12 +1,8 @@
 package com.vayana.dictionary.stardict
 
 import com.vayana.dictionary.api.PartOfSpeech
-import com.vayana.dictionary.api.foldAccents
 import java.text.Normalizer
 import java.util.Locale
-
-/** One GCIDE headword's senses, as stored: [key] is the lower-case, accent-folded spelling lookups match on. */
-internal data class GcideEntry(val key: String, val headword: String, val partOfSpeech: PartOfSpeech, val definitions: List<String>)
 
 /**
  * Reads GCIDE's CIDE.A…Z files: paragraphs (`<p>…</p>`) where one starting with `<ent>` opens an entry (several
@@ -17,14 +13,14 @@ internal data class GcideEntry(val key: String, val headword: String, val partOf
  * Plain index scanning, no regular expressions: Android's regex engine took minutes per letter file on the phone.
  */
 internal object GcideParser {
-    fun parse(text: String): List<GcideEntry> {
-        val entries = mutableListOf<GcideEntry>()
+    fun parse(text: String): List<PackEntry> {
+        val entries = mutableListOf<PackEntry>()
         var headwords = emptyList<String>()
         var partOfSpeech = PartOfSpeech.UNKNOWN
         var definitions = mutableListOf<String>()
         fun flush() {
             if (definitions.isNotEmpty()) headwords.forEach { headword ->
-                entries += GcideEntry(key(headword), headword, partOfSpeech, definitions.toList())
+                entries += PackEntry(lookupKey(headword), headword, partOfSpeech, definitions.toList())
             }
         }
         var position = 0
@@ -50,7 +46,34 @@ internal object GcideParser {
         return entries
     }
 
-    fun key(headword: String): String = foldAccents(headword).lowercase(Locale.ROOT).trim()
+    /**
+     * Builds the GCIDE lookup file from GNU's gcide ZIP (its CIDE.A…Z files), reporting 0..1 as letters are done.
+     * Throws IllegalArgumentException when the ZIP holds no CIDE files.
+     */
+    fun build(zip: java.io.File, destination: java.io.File, onProgress: (Float) -> Unit) {
+        java.util.zip.ZipFile(zip).use { archive ->
+            val letters = archive.entries().asSequence()
+                .filter { !it.isDirectory && it.name.substringAfterLast('/').let { n -> n.length == 6 && n.startsWith("CIDE.") } && it.size <= MaxLetterFileBytes }
+                .sortedBy { it.name }
+                .toList()
+            require(letters.size >= MinLetterFiles) { "Not a GCIDE archive" }
+            val version = letters.first().name.substringBefore('/').removePrefix("gcide-").takeIf { it.isNotBlank() && it.length <= 16 }.orEmpty()
+            SqlitePackWriter(destination).use { writer ->
+                writer.meta(SqliteDictionary.MetaName, "GCIDE")
+                writer.meta(SqliteDictionary.MetaVersion, version)
+                writer.meta(SqliteDictionary.MetaWordLanguage, SqliteDictionary.English)
+                writer.meta(SqliteDictionary.MetaAttribution, "GCIDE $version · GPL".replace("  ", " "))
+                letters.forEachIndexed { index, letter ->
+                    // Mostly ASCII markup; two files carry stray Latin-1 bytes, which ISO-8859-1 always reads.
+                    val text = archive.getInputStream(letter).use { String(it.readBytes(), Charsets.ISO_8859_1) }
+                    parse(text).forEach(writer::add)
+                    onProgress((index + 1f) / (letters.size + 1))
+                }
+                writer.finish()
+            }
+            onProgress(1f)
+        }
+    }
 
     /** The raw contents of each `<tag>…</tag>` between [from] and [to]. */
     private fun elements(text: String, from: Int, to: Int, tag: String, limit: Int = Int.MAX_VALUE): List<String> {
@@ -124,6 +147,8 @@ internal object GcideParser {
     }
 
     private const val MaxSensesPerEntry = 12
+    private const val MinLetterFiles = 20
+    private const val MaxLetterFileBytes = 32L * 1024 * 1024
     private val AccentMarks = mapOf("acute" to "́", "grave" to "̀", "cir" to "̂", "circ" to "̂",
         "um" to "̈", "uml" to "̈", "til" to "̃", "tilde" to "̃", "ced" to "̧", "ring" to "̊")
     private val MarkSuffixes = listOf("mac", "cr", "dot", "dd", "sl", "ac", "br")

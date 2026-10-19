@@ -1524,6 +1524,26 @@
     <string name="dictionary_state_not_installed">Не установлен</string>
     <string name="dictionary_action_download">Скачать (%1$s)</string>
     <string name="dictionary_action_move_up">Сначала %1$s</string>
+    <string name="dictionary_error_not_dictionary">Vayana не может прочитать этот файл как словарь</string>
+    <string name="dictionary_error_checksum">Загрузка повреждена. Попробуйте снова.</string>
+    <string name="reader_dictionary_also_in">На языке: %1$s</string>
+    <string name="dictionary_olam_name">Olam (английский → малаялам)</string>
+    <string name="dictionary_olam_about">Значения английских слов на малаялам · ODbL</string>
+    <string name="dictionary_freedict_about">Двуязычный словарь FreeDict</string>
+    <string name="dictionary_imported_name">Ваш словарь</string>
+    <string name="dictionary_language_pair">%1$s → %2$s</string>
+    <string name="dictionary_action_get_more">Другие словари</string>
+    <string name="dictionary_action_import">Импорт файла StarDict</string>
+    <string name="dictionary_import_confirm">Импортировать</string>
+    <string name="dictionary_catalog_title">Словари FreeDict</string>
+    <string name="dictionary_catalog_subtitle">Бесплатные двуязычные словари. Ваши языки — первыми.</string>
+    <string name="dictionary_catalog_search">Поиск языка</string>
+    <string name="dictionary_catalog_retry">Повторить</string>
+    <string name="dictionary_catalog_details">Слов: %1$d · %2$s</string>
+    <string name="dictionary_catalog_installed">Установлен</string>
+    <string name="dictionary_import_title">Импорт словаря StarDict</string>
+    <string name="dictionary_import_word_language">Язык слов</string>
+    <string name="dictionary_import_meaning_language">Язык значений</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Книга не найдена</string>

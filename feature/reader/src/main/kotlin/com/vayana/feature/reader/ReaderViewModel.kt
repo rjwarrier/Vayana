@@ -1153,11 +1153,12 @@ class ReaderViewModel @Inject constructor(
             val knownWords = cardsByWord.filterValues { it.known }.keys
             val candidates = unusualWordCandidates(engine.chapterWordCounts(MinUnusualWordLength), knownWords)
             // One hop to IO for all lookups, stopping as soon as there are enough words.
+            val bookLanguage = (uiState.value as? ReaderUiState.Loaded)?.bookLanguage
             val words = withContext(dispatchers.io) {
                 buildList<ChapterWord> {
                     for (candidate in candidates) {
                         if (size >= MaxChapterWords) break
-                        val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(candidate) }.getOrNull() ?: continue
+                        val entry = runCatchingCancellable { dictionaryRepository.lookup(candidate, bookLanguage) }.getOrNull() ?: continue
                         val definition = entry.senses.firstOrNull()?.definition ?: continue
                         if (any { it.word.equals(entry.headword, ignoreCase = true) }) continue
                         add(ChapterWord(word = entry.headword, definition = definition, saved = entry.headword.lowercase() in cardsByWord))
@@ -1942,7 +1943,7 @@ class ReaderViewModel @Inject constructor(
         dictionaryLookupJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.LookingUp(word)
             val entry = try {
-                dictionaryRepository.lookupEnglish(word)
+                dictionaryRepository.lookup(word, (uiState.value as? ReaderUiState.Loaded)?.bookLanguage)
             } catch (throwable: CancellationException) {
                 throw throwable
             } catch (throwable: Throwable) {

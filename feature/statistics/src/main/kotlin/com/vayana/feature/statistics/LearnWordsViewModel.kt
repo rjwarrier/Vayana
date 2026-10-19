@@ -58,7 +58,7 @@ class LearnWordsViewModel @Inject constructor(
             wordLookupStatRepository.observeAllAggregated(LearnWordsLimit).collect { words ->
                 if (dictionaryRepository.englishPackState.value !is DictionaryPackState.Installed) return@collect
                 words.map { it.word }.filter(checkedWords::add).forEach { word ->
-                    val missing = runCatchingCancellable { dictionaryRepository.lookupEnglish(word) == null }.getOrDefault(false)
+                    val missing = runCatchingCancellable { dictionaryRepository.lookup(word) == null }.getOrDefault(false)
                     if (missing) wordLookupStatRepository.removeWord(word)
                 }
             }
@@ -74,7 +74,7 @@ class LearnWordsViewModel @Inject constructor(
         }
         _meanings.update { it + (word to WordMeaning.Loading) }
         viewModelScope.launch {
-            val entry = runCatchingCancellable { dictionaryRepository.lookupEnglish(word) }.getOrNull()
+            val entry = runCatchingCancellable { dictionaryRepository.lookup(word) }.getOrNull()
             _meanings.update { it + (word to (entry?.let(WordMeaning::Found) ?: WordMeaning.NotFound)) }
         }
     }

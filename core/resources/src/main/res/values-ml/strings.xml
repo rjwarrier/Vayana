@@ -1490,6 +1490,26 @@
     <string name="dictionary_state_not_installed">ഇൻസ്റ്റാൾ ചെയ്തിട്ടില്ല</string>
     <string name="dictionary_action_download">%1$s ഡൗൺലോഡ് ചെയ്യുക</string>
     <string name="dictionary_action_move_up">%1$s ആദ്യം നോക്കുക</string>
+    <string name="dictionary_error_not_dictionary">Vayana-യ്ക്ക് വായിക്കാവുന്ന നിഘണ്ടു അല്ല ഈ ഫയൽ</string>
+    <string name="dictionary_error_checksum">ഡൗൺലോഡ് കേടായി. വീണ്ടും ശ്രമിക്കുക.</string>
+    <string name="reader_dictionary_also_in">%1$s-ൽ</string>
+    <string name="dictionary_olam_name">ഓളം (ഇംഗ്ലീഷ് → മലയാളം)</string>
+    <string name="dictionary_olam_about">ഇംഗ്ലീഷ് വാക്കുകളുടെ മലയാളം അർത്ഥങ്ങൾ · ODbL</string>
+    <string name="dictionary_freedict_about">FreeDict-ൽ നിന്നുള്ള ദ്വിഭാഷാ നിഘണ്ടു</string>
+    <string name="dictionary_imported_name">നിങ്ങളുടെ നിഘണ്ടു</string>
+    <string name="dictionary_language_pair">%1$s → %2$s</string>
+    <string name="dictionary_action_get_more">കൂടുതൽ നിഘണ്ടുക്കൾ</string>
+    <string name="dictionary_action_import">StarDict ഫയൽ ഇമ്പോർട്ട് ചെയ്യുക</string>
+    <string name="dictionary_import_confirm">ഇമ്പോർട്ട്</string>
+    <string name="dictionary_catalog_title">FreeDict നിഘണ്ടുക്കൾ</string>
+    <string name="dictionary_catalog_subtitle">സൗജന്യ ദ്വിഭാഷാ നിഘണ്ടുക്കൾ. നിങ്ങളുടെ ഭാഷകൾ ആദ്യം.</string>
+    <string name="dictionary_catalog_search">ഭാഷ തിരയുക</string>
+    <string name="dictionary_catalog_retry">വീണ്ടും ശ്രമിക്കുക</string>
+    <string name="dictionary_catalog_details">%1$d വാക്കുകൾ · %2$s</string>
+    <string name="dictionary_catalog_installed">ഇൻസ്റ്റാൾ ചെയ്തു</string>
+    <string name="dictionary_import_title">StarDict നിഘണ്ടു ഇമ്പോർട്ട് ചെയ്യുക</string>
+    <string name="dictionary_import_word_language">വാക്കുകളുടെ ഭാഷ</string>
+    <string name="dictionary_import_meaning_language">അർത്ഥങ്ങളുടെ ഭാഷ</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">പുസ്തകം കണ്ടെത്തിയില്ല</string>

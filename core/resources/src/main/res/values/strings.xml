@@ -1732,6 +1732,26 @@
     <string name="dictionary_state_not_installed">Not installed</string>
     <string name="dictionary_action_download">Download %1$s</string>
     <string name="dictionary_action_move_up">Try %1$s first</string>
+    <string name="dictionary_error_not_dictionary">This file isn’t a dictionary Vayana can read</string>
+    <string name="dictionary_error_checksum">The download was damaged. Try again.</string>
+    <string name="reader_dictionary_also_in">In %1$s</string>
+    <string name="dictionary_olam_name">Olam (English → Malayalam)</string>
+    <string name="dictionary_olam_about">Malayalam meanings of English words · ODbL</string>
+    <string name="dictionary_freedict_about">Bilingual dictionary from FreeDict</string>
+    <string name="dictionary_imported_name">Your dictionary</string>
+    <string name="dictionary_language_pair">%1$s → %2$s</string>
+    <string name="dictionary_action_get_more">Get more dictionaries</string>
+    <string name="dictionary_action_import">Import StarDict file</string>
+    <string name="dictionary_import_confirm">Import</string>
+    <string name="dictionary_catalog_title">FreeDict dictionaries</string>
+    <string name="dictionary_catalog_subtitle">Free bilingual dictionaries. Your languages are listed first.</string>
+    <string name="dictionary_catalog_search">Search languages</string>
+    <string name="dictionary_catalog_retry">Try again</string>
+    <string name="dictionary_catalog_details">%1$d words · %2$s</string>
+    <string name="dictionary_catalog_installed">Installed</string>
+    <string name="dictionary_import_title">Import a StarDict dictionary</string>
+    <string name="dictionary_import_word_language">Words are in</string>
+    <string name="dictionary_import_meaning_language">Meanings are in</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Book not found</string>

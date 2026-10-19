@@ -75,6 +75,7 @@ import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.resources.R
 import com.vayana.dictionary.api.DictionaryEntry
+import com.vayana.dictionary.api.languageDisplayName
 import com.vayana.dictionary.api.DictionarySense
 import com.vayana.dictionary.api.OnlineDictionarySource
 import com.vayana.dictionary.api.PartOfSpeech
@@ -424,6 +425,18 @@ private fun DictionaryEntryContent(
     entry.senses.take(MaxDisplayedDictionarySenses).forEach { sense ->
         DictionarySenseContent(sense = sense, headword = entry.headword, onLookupWord = onLookupWord)
     }
+    // The word's meaning in other installed languages (Malayalam from Olam, German from FreeDict…).
+    entry.alsoIn.forEach { other ->
+        Text(
+            text = stringResource(R.string.reader_dictionary_also_in, languageDisplayName(other.meaningLanguage ?: return@forEach)),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = Spacing.md),
+        )
+        other.senses.take(MaxDisplayedOtherLanguageSenses).forEach { sense ->
+            DictionarySenseContent(sense = sense, headword = other.headword, onLookupWord = onLookupWord)
+        }
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End),
@@ -473,7 +486,7 @@ private fun DictionaryEntryContent(
     }
     // On its own line: the licence must stay whole, and beside the actions it wrapped into a cramped block.
     Text(
-        text = entry.attribution,
+        text = (listOf(entry.attribution) + entry.alsoIn.map { it.attribution }).filter { it.isNotBlank() }.distinct().joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -630,4 +643,5 @@ internal fun DictionaryLookupState.wordOrNull(): String? = when (this) {
 }
 
 private const val MaxDisplayedDictionarySenses = 3
+private const val MaxDisplayedOtherLanguageSenses = 3
 private const val DictionaryCardMaximumHeightFraction = 0.58f

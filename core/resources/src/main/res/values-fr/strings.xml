@@ -1507,6 +1507,26 @@
     <string name="dictionary_state_not_installed">Non installé</string>
     <string name="dictionary_action_download">Télécharger %1$s</string>
     <string name="dictionary_action_move_up">Essayer %1$s en premier</string>
+    <string name="dictionary_error_not_dictionary">Ce fichier n’est pas un dictionnaire lisible par Vayana</string>
+    <string name="dictionary_error_checksum">Le téléchargement est endommagé. Réessayez.</string>
+    <string name="reader_dictionary_also_in">En %1$s</string>
+    <string name="dictionary_olam_name">Olam (anglais → malayalam)</string>
+    <string name="dictionary_olam_about">Sens en malayalam de mots anglais · ODbL</string>
+    <string name="dictionary_freedict_about">Dictionnaire bilingue de FreeDict</string>
+    <string name="dictionary_imported_name">Votre dictionnaire</string>
+    <string name="dictionary_language_pair">%1$s → %2$s</string>
+    <string name="dictionary_action_get_more">Plus de dictionnaires</string>
+    <string name="dictionary_action_import">Importer un fichier StarDict</string>
+    <string name="dictionary_import_confirm">Importer</string>
+    <string name="dictionary_catalog_title">Dictionnaires FreeDict</string>
+    <string name="dictionary_catalog_subtitle">Dictionnaires bilingues gratuits. Vos langues apparaissent en premier.</string>
+    <string name="dictionary_catalog_search">Rechercher une langue</string>
+    <string name="dictionary_catalog_retry">Réessayer</string>
+    <string name="dictionary_catalog_details">%1$d mots · %2$s</string>
+    <string name="dictionary_catalog_installed">Installé</string>
+    <string name="dictionary_import_title">Importer un dictionnaire StarDict</string>
+    <string name="dictionary_import_word_language">Langue des mots</string>
+    <string name="dictionary_import_meaning_language">Langue des définitions</string>
 
     <!-- Reader errors and sync status -->
     <string name="reader_error_book_not_found">Livre introuvable</string>

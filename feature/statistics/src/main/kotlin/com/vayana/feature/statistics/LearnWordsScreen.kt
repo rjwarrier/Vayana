@@ -34,6 +34,7 @@ import com.vayana.core.designsystem.component.VayanaLoadingIndicator
 import com.vayana.core.designsystem.theme.vayanaAnimateContentSize
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.dictionary.api.PartOfSpeech
+import com.vayana.dictionary.api.languageDisplayName
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -261,7 +262,16 @@ private fun WordMeaningContent(word: String, meaning: WordMeaning?) {
             null, WordMeaning.Loading -> VayanaLoadingIndicator(modifier = Modifier.size(Sizes.iconLarge))
             WordMeaning.NotFound -> MeaningNote(stringResource(R.string.reader_dictionary_not_found, word))
             WordMeaning.NeedsDictionary -> MeaningNote(stringResource(R.string.learn_words_dictionary_needed))
-            is WordMeaning.Found -> meaning.entry.senses.take(MaxSensesShown).forEach { sense ->
+            is WordMeaning.Found -> (meaning.entry.senses.take(MaxSensesShown).map { null to it } +
+                meaning.entry.alsoIn.flatMap { other -> other.senses.take(2).mapIndexed { i, sense -> (if (i == 0) other.meaningLanguage else null) to sense } }
+            ).forEach { (otherLanguage, sense) ->
+                otherLanguage?.let {
+                    Text(
+                        text = stringResource(R.string.reader_dictionary_also_in, languageDisplayName(it)),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Column {
                     sense.partOfSpeech.shortLabel()?.let { label ->
                         Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
