@@ -48,6 +48,8 @@ Vayana does this without requiring a Vayana account or putting ads in the readin
 
 ## Latest source updates
 
+Since v0.92 the source also brings a redesigned **Statistics** screen (week, month, year and all-time views compared with the previous period, bar or line chart, when you read, most-read books, reading time per synced device and listened-versus-read time), **several offline dictionaries** chosen by the book's language (Open English WordNet, GCIDE, Olam English→Malayalam, 300+ FreeDict bilingual dictionaries or your own StarDict files), and a **Learn** screen that keeps only deliberate lookups of real words and shows their meanings. See the [unreleased changes](docs/releases/UNRELEASED.md).
+
 The current source includes a [Wear OS companion](docs/WEAR_OS.md) for physical-book reading: offline timers, page tracking, shared phone/watch timer controls, reading goals, a tile and a watch-face complication. Recent sync fixes preserve cross-device reading time and handle clock rollback safely. See [changes since v0.90](docs/releases/v0.92.md).
 
 Release **v0.92** includes signed phone and Wear OS APKs. Install `Vayana-v0.92.apk` on the phone and `Vayana-WearOS-v0.92.apk` on the watch; see [Wear OS setup](docs/WEAR_OS.md#install-and-build). The watch app tracks physical reading sessions; it does not render EPUB or PDF books.
@@ -105,7 +107,8 @@ E‑Ink is a first-class display profile rather than a colour filter:
 
 ### [Reading that becomes learning](docs/USER_GUIDE.md#dictionary-translation-and-vocabulary)
 
-- Double-tap a word for the bundled offline dictionary; words it lacks can be looked up on Wiktionary or Wikipedia with a tap.
+- Double-tap a word for an offline definition. Vayana picks dictionaries by the book's language and can add the meaning in your language: install Open English WordNet, GCIDE (Webster's 1913), Olam English→Malayalam, any of FreeDict's 300+ bilingual dictionaries or your own StarDict file. Words still missing can be looked up on Wiktionary or Wikipedia with a tap.
+- Only deliberate lookups of real dictionary words go to **Learn**; tap a word there to see its meaning, or remove it.
 - Save looked-up words directly to a spaced-review deck.
 - Discover unusual words from the current chapter with definitions.
 - Export vocabulary to Anki-compatible CSV or readable Markdown.
@@ -148,10 +151,10 @@ Follow the [step-by-step GitHub sync setup guide](docs/GITHUB_SYNC_SETUP.md) to 
 | [**Typography**](docs/USER_GUIDE.md#typography-and-page-appearance) | Font family and size, line height, custom fonts, alignment, hyphenation, bolder text and optional bionic reading |
 | [**Annotations**](docs/USER_GUIDE.md#highlights-notes-bookmarks-and-quotes) | Highlights, underlines, bookmarks, notes, annotation tags, overlapping-highlight merge, footnote popups and direct navigation back to a passage |
 | [**Notes and quotes**](docs/USER_GUIDE.md#notes-library) | Global and per-book Notes views, Kindle `My Clippings.txt` import, Markdown export, Goodreads quote import and shareable quote-card images |
-| [**Dictionary and translation**](docs/USER_GUIDE.md#dictionary-translation-and-vocabulary) | Book-language-aware offline lookup, phrase search, Wiktionary/Wikipedia fallback, translation, saved vocabulary, chapter words, spaced review, known-word tracking and Anki/Markdown export |
-| [**Read aloud**](docs/USER_GUIDE.md#read-aloud) | Sentence-following Android TTS with chapter advance, selection start, sleep timer, voice/speed/pitch controls, audio focus, headset/Bluetooth and notification controls |
+| [**Dictionary and translation**](docs/USER_GUIDE.md#dictionary-translation-and-vocabulary) | Several offline dictionaries (WordNet, GCIDE, Olam English→Malayalam, FreeDict's 300+ bilingual dictionaries, StarDict import) chosen by the book's language, with meanings in your language; phrase search, Wiktionary/Wikipedia fallback, translation, saved vocabulary, Learn words with meanings, chapter words, spaced review, known-word tracking and Anki/Markdown export |
+| [**Read aloud**](docs/USER_GUIDE.md#read-aloud) | Sentence-following Android TTS with chapter advance, selection start, sleep timer, voice/speed/pitch controls, audio focus, headset/Bluetooth and notification controls; listening counts as reading time, even with the screen off |
 | [**Search**](docs/USER_GUIDE.md#search) | Fast full-text search across books, metadata, highlighted text, notes and chapter names, with prefix matching and recent searches |
-| [**Statistics**](docs/USER_GUIDE.md#statistics-and-goals) | Reading time and sessions, streaks, daily/yearly goals, finished books, date-based activity, book-level reading history and storage used on the device (books, covers, notes and quotes, dictionary, cache; largest/smallest book, per format) |
+| [**Statistics**](docs/USER_GUIDE.md#statistics-and-goals) | Week, month, year and all-time views compared with the previous period, bar or line charts, when you read (time of day, weekday, session length), most-read books, reading time per synced device, listened-versus-read time, streaks, daily/yearly goals, finished books, date-based activity, book-level reading history and storage used on the device |
 | [**Widgets and shortcuts**](docs/USER_GUIDE.md#widgets-and-app-shortcuts) | Continue Reading with read-aloud play/pause, a responsive seven-day reading-time chart and shortcuts into key library destinations |
 | [**Backup**](docs/USER_GUIDE.md#backup-and-restore) | Manual portable ZIP backup/restore and automatic backups to a selected folder with daily, weekly or 30-day schedules and retention controls |
 | [**Diagnostics**](docs/USER_GUIDE.md#diagnostics-and-support) | Local crash and sync history, environment details, sensitive-data sanitization, copy/share actions and a one-tap developer support path |

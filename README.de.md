@@ -43,6 +43,8 @@ Vayana verlangt dafür weder ein Vayana-Konto noch zeigt es Werbung beim Lesen. 
 
 ## Neueste Änderungen im Quellcode
 
+Seit v0.92 bringt der Quellcode außerdem eine neu gestaltete **Statistik** (Woche, Monat, Jahr und Gesamt im Vergleich mit dem vorigen Zeitraum, Balken- oder Liniendiagramm, wann du liest, meistgelesene Bücher, Lesezeit pro synchronisiertem Gerät sowie gehörte und gelesene Zeit), **mehrere Offline-Wörterbücher**, die nach der Sprache des Buches gewählt werden (Open English WordNet, GCIDE, Olam Englisch→Malayalam, über 300 zweisprachige FreeDict-Wörterbücher oder eigene StarDict-Dateien), und einen Bereich **Lernen**, der nur bewusst nachgeschlagene echte Wörter behält und ihre Bedeutungen zeigt. Siehe die [noch nicht veröffentlichten Änderungen](docs/releases/UNRELEASED.md).
+
 Der aktuelle Quellcode enthält eine [Wear-OS-Begleit-App](docs/WEAR_OS.md) für gedruckte Bücher: Offline-Lesezeitmesser, Seitenverfolgung, gemeinsame Steuerung auf Smartphone und Uhr, Leseziele, eine Kachel und eine Zifferblatt-Komplikation. Neuere Synchronisierungskorrekturen bewahren die Lesezeit geräteübergreifend und behandeln rückwärts verstellte Uhren sicher. Siehe [Änderungen seit v0.90](docs/releases/v0.92.md).
 
 Version **v0.92** enthält signierte APKs für Smartphone und Wear OS. Installiere `Vayana-v0.92.apk` auf dem Smartphone und `Vayana-WearOS-v0.92.apk` auf der Uhr; siehe [Wear-OS-Einrichtung](docs/WEAR_OS.md#install-and-build). Die Uhr erfasst Lesesitzungen für gedruckte Bücher; sie zeigt keine EPUB- oder PDF-Bücher an.
@@ -110,7 +112,8 @@ E‑Ink ist ein eigenständiges Anzeigeprofil statt eines bloßen Farbfilters:
 
 ### [Lesen, das zum Lernen wird](docs/USER_GUIDE.de.md#dictionary-translation-and-vocabulary)
 
-- Tippe zweimal auf ein Wort, um das mitgelieferte Offline-Wörterbuch zu öffnen; fehlende Wörter lassen sich mit einem Tippen in Wiktionary oder Wikipedia nachschlagen.
+- Tippe zweimal auf ein Wort für eine Offline-Definition. Vayana wählt Wörterbücher nach der Sprache des Buches und kann die Bedeutung in deiner Sprache ergänzen: Installiere Open English WordNet, GCIDE (Webster 1913), Olam Englisch→Malayalam, eines von über 300 zweisprachigen FreeDict-Wörterbüchern oder deine eigene StarDict-Datei. Fehlende Wörter lassen sich mit einem Tippen in Wiktionary oder Wikipedia nachschlagen.
+- Nur bewusst nachgeschlagene echte Wörterbuchwörter landen in **Lernen**; tippe dort auf ein Wort, um seine Bedeutung zu sehen, oder entferne es.
 - Speichere nachgeschlagene Wörter direkt in einer Sammlung zum Wiederholen in zeitlichen Abständen.
 - Entdecke ungewöhnliche Wörter im aktuellen Kapitel mit ihren Definitionen.
 - Exportiere Vokabeln als Anki-kompatible CSV oder lesbares Markdown.
@@ -159,10 +162,10 @@ Folge der [Schritt-für-Schritt-Anleitung zur GitHub-Synchronisierung](docs/GITH
 | [**Typografie**](docs/USER_GUIDE.de.md#typography-and-page-appearance) | Schriftfamilie und -größe, Zeilenhöhe, eigene Schriften, Ausrichtung, Silbentrennung, kräftigerer Text und optionales bionisches Lesen |
 | [**Anmerkungen**](docs/USER_GUIDE.de.md#highlights-notes-bookmarks-and-quotes) | Markierungen, Unterstreichungen, Lesezeichen, Notizen, Anmerkungs-Tags, Zusammenführen überlappender Markierungen, Fußnoten-Pop-ups und direkter Sprung zur Textstelle |
 | [**Notizen und Zitate**](docs/USER_GUIDE.de.md#notes-library) | Globale und buchbezogene Notizansichten, Kindle-Import von `My Clippings.txt`, Markdown-Export, Goodreads-Zitatimport und teilbare Zitatkarten als Bilder |
-| [**Wörterbuch und Übersetzung**](docs/USER_GUIDE.de.md#dictionary-translation-and-vocabulary) | Offline-Nachschlagen nach Buchsprache, Wendungssuche, Wiktionary/Wikipedia als Alternative, Übersetzung, gespeicherte Vokabeln, Kapitelwörter, Wiederholung in Abständen, bekannte Wörter und Anki-/Markdown-Export |
-| [**Vorlesen**](docs/USER_GUIDE.de.md#read-aloud) | Satzbegleitende Android-TTS mit Kapitelwechsel, Start an der Auswahl, Abschalttimer, Stimme/Geschwindigkeit/Tonhöhe, Audiofokus, Kopfhörer/Bluetooth und Benachrichtigungssteuerung |
+| [**Wörterbuch und Übersetzung**](docs/USER_GUIDE.de.md#dictionary-translation-and-vocabulary) | Mehrere Offline-Wörterbücher (WordNet, GCIDE, Olam Englisch→Malayalam, über 300 zweisprachige FreeDict-Wörterbücher, StarDict-Import), gewählt nach der Sprache des Buches, mit Bedeutungen in deiner Sprache; Wendungssuche, Wiktionary/Wikipedia als Alternative, Übersetzung, gespeicherte Vokabeln, Lernwörter mit Bedeutungen, Kapitelwörter, Wiederholung in Abständen, bekannte Wörter und Anki-/Markdown-Export |
+| [**Vorlesen**](docs/USER_GUIDE.de.md#read-aloud) | Satzbegleitende Android-TTS mit Kapitelwechsel, Start an der Auswahl, Abschalttimer, Stimme/Geschwindigkeit/Tonhöhe, Audiofokus, Kopfhörer/Bluetooth und Benachrichtigungssteuerung; Zuhören zählt als Lesezeit, auch bei ausgeschaltetem Bildschirm |
 | [**Suche**](docs/USER_GUIDE.de.md#search) | Schnelle Volltextsuche in Büchern, Metadaten, markiertem Text, Notizen und Kapitelnamen mit Präfixsuche und letzten Suchanfragen |
-| [**Statistiken**](docs/USER_GUIDE.de.md#statistics-and-goals) | Lesezeit und Sitzungen, Leseserien, tägliche/jährliche Ziele, gelesene Bücher, Aktivität nach Datum, Verlauf pro Buch und Speicherverbrauch (Bücher, Cover, Notizen/Zitate, Wörterbuch, Cache; größtes/kleinstes Buch und pro Format) |
+| [**Statistiken**](docs/USER_GUIDE.de.md#statistics-and-goals) | Woche, Monat, Jahr und Gesamt im Vergleich mit dem vorigen Zeitraum, Balken- oder Liniendiagramme, wann du liest (Tageszeit, Wochentag, Sitzungslänge), meistgelesene Bücher, Lesezeit pro synchronisiertem Gerät, gehörte und gelesene Zeit, Leseserien, tägliche/jährliche Ziele, gelesene Bücher, Aktivität nach Datum, Verlauf pro Buch und Speicherverbrauch auf dem Gerät |
 | [**Widgets und Verknüpfungen**](docs/USER_GUIDE.de.md#widgets-and-app-shortcuts) | Weiterlesen mit Vorlesen/Wiedergabepause, anpassbares Sieben-Tage-Lesezeitdiagramm und Verknüpfungen zu wichtigen Bibliotheksbereichen |
 | [**Sicherung**](docs/USER_GUIDE.de.md#backup-and-restore) | Manuelle Sicherung/Wiederherstellung als übertragbares ZIP und automatische Sicherungen in einem gewählten Ordner, täglich, wöchentlich oder alle 30 Tage, mit Aufbewahrungseinstellungen |
 | [**Diagnose**](docs/USER_GUIDE.de.md#diagnostics-and-support) | Lokaler Absturz- und Synchronisierungsverlauf, Umgebungsdetails, Bereinigung sensibler Daten, Kopieren/Teilen und Entwickler-Support mit einem Tippen |
