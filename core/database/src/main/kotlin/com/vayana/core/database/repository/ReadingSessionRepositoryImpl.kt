@@ -59,7 +59,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun recordCheckpoint(bookId: Long, syncId: String, startedAt: Long, endedAt: Long, durationSeconds: Long) {
+    override suspend fun recordCheckpoint(bookId: Long, syncId: String, startedAt: Long, endedAt: Long, durationSeconds: Long, listenedSeconds: Long) {
+        val listened = listenedSeconds.coerceIn(0L, durationSeconds.coerceAtLeast(0L))
         // Called from fire-and-forget app-scope launches: invalid input is dropped, never thrown.
         if (syncId.isBlank() || startedAt <= 0 || endedAt < startedAt || durationSeconds <= 0) return
         database.withTransaction {
@@ -71,11 +72,12 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             if (existing != null) {
                 if (existing.bookId != bookId || existing.startedAt != startedAt) return@withTransaction
                 if (durationSeconds <= existing.durationSeconds || endedAt < existing.endedAt) return@withTransaction
-                readingSessionDao.update(existing.copy(endedAt = endedAt, durationSeconds = durationSeconds))
+                readingSessionDao.update(existing.copy(endedAt = endedAt, durationSeconds = durationSeconds,
+                    listenedSeconds = maxOf(existing.listenedSeconds, listened)))
             } else {
                 readingSessionDao.insert(ReadingSessionEntity(syncId = syncId, bookId = bookId,
                     startedAt = startedAt, endedAt = endedAt, durationSeconds = durationSeconds,
-                    deviceName = localDeviceName.value))
+                    deviceName = localDeviceName.value, listenedSeconds = listened))
             }
             val addedSeconds = durationSeconds - (existing?.durationSeconds ?: 0L)
             bookDao.update(book.copy(
@@ -159,6 +161,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 endPage = record.endPage?.takeIf { it >= 0 },
                 activeIntervals = record.activeIntervals,
                 deviceName = record.deviceName ?: existing?.deviceName,
+                listenedSeconds = record.listenedSeconds.coerceIn(0L, record.durationSeconds.coerceAtLeast(0L)),
             )
             val result = when {
                 existing == null -> {
@@ -201,4 +204,5 @@ private fun ReadingSessionEntity.toDomain(): ReadingSession = ReadingSession(
     endPage = endPage,
     activeIntervals = activeIntervals,
     deviceName = deviceName,
+    listenedSeconds = listenedSeconds,
 )

@@ -1,6 +1,18 @@
 package com.vayana.feature.statistics
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import com.vayana.core.designsystem.tokens.Strokes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -81,7 +93,7 @@ internal fun PeriodSelector(selected: StatsPeriod, onSelect: (StatsPeriod) -> Un
 
 /** The selected period: time read in large type, how it compares, and a bar per day or month. Tap a bar for its time. */
 @Composable
-internal fun PeriodHeroCard(stats: PeriodStats) {
+internal fun PeriodHeroCard(stats: PeriodStats, lineChart: Boolean, onLineChartChange: (Boolean) -> Unit) {
     var selected by remember(stats.period) { mutableStateOf<PeriodBucket?>(null) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -90,10 +102,14 @@ internal fun PeriodHeroCard(stats: PeriodStats) {
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
         Column(modifier = Modifier.padding(StatsCardPadding)) {
-            Text(
-                text = selected?.let { bucket -> bucketLabel(bucket, stats.bucketsAreMonths) } ?: stringResource(stats.period.titleRes()),
-                style = MaterialTheme.typography.labelLarge,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = selected?.let { bucket -> bucketLabel(bucket, stats.bucketsAreMonths) } ?: stringResource(stats.period.titleRes()),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                ChartStyleChip(lineChart, onLineChartChange)
+            }
             Text(
                 text = formatDuration(selected?.seconds ?: stats.totalSeconds),
                 style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
@@ -112,8 +128,37 @@ internal fun PeriodHeroCard(stats: PeriodStats) {
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = Spacing.md),
             )
-            PeriodBars(stats, selected, onSelect = { bucket -> selected = bucket.takeUnless { it == selected } },
+            PeriodChart(stats, lineChart, selected, onSelect = { bucket -> selected = bucket.takeUnless { it == selected } },
                 modifier = Modifier.padding(top = Spacing.lg))
+        }
+    }
+}
+
+/** Offers the other chart: a line icon while bars show, a bar icon while the line shows. */
+@Composable
+private fun ChartStyleChip(lineChart: Boolean, onLineChartChange: (Boolean) -> Unit) {
+    val switchLabel = stringResource(if (lineChart) R.string.statistics_chart_show_bars else R.string.statistics_chart_show_line)
+    Surface(
+        onClick = { onLineChartChange(!lineChart) },
+        shape = RoundedCornerShape(Radii.full),
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = ChipBackgroundAlpha),
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = Modifier.semantics { contentDescription = switchLabel },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Icon(
+                imageVector = if (lineChart) Icons.Outlined.BarChart else Icons.AutoMirrored.Outlined.ShowChart,
+                contentDescription = null,
+                modifier = Modifier.size(Sizes.iconSmall),
+            )
+            Text(
+                text = stringResource(if (lineChart) R.string.statistics_chart_bars else R.string.statistics_chart_line),
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
     }
 }
@@ -152,13 +197,19 @@ private fun ComparisonChip(differenceSeconds: Long, period: StatsPeriod, modifie
 }
 
 @Composable
-private fun PeriodBars(stats: PeriodStats, selected: PeriodBucket?, onSelect: (PeriodBucket) -> Unit, modifier: Modifier = Modifier) {
+private fun PeriodChart(
+    stats: PeriodStats,
+    lineChart: Boolean,
+    selected: PeriodBucket?,
+    onSelect: (PeriodBucket) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val buckets = stats.buckets
     val max = buckets.maxOfOrNull { it.seconds }?.coerceAtLeast(1L) ?: 1L
     val locale = LocalLocale.current.platformLocale
     val today = remember { java.time.LocalDate.now() }
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
+        if (lineChart) PeriodLine(stats, selected, onSelect, today) else Row(
             modifier = Modifier.fillMaxWidth().height(Sizes.chartBarMaxHeight),
             horizontalArrangement = Arrangement.spacedBy(if (buckets.size > 12) Paddings.heatmapCellGap else Spacing.xs),
             verticalAlignment = Alignment.Bottom,
@@ -213,6 +264,57 @@ private fun PeriodBars(stats: PeriodStats, selected: PeriodBucket?, onSelect: (P
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+    }
+}
+
+/**
+ * The period as a line through each day's or month's time, a dot on each, the current one (or the tapped one) larger;
+ * the area under the line is lightly filled. Days still ahead are left off. Points sit over the same columns as the
+ * bar labels, so the labels row serves both charts.
+ */
+@Composable
+private fun PeriodLine(stats: PeriodStats, selected: PeriodBucket?, onSelect: (PeriodBucket) -> Unit, today: java.time.LocalDate) {
+    val buckets = stats.buckets
+    val max = buckets.maxOfOrNull { it.seconds }?.coerceAtLeast(1L) ?: 1L
+    val ink = MaterialTheme.colorScheme.onPrimaryContainer
+    val shown = buckets.indexOfLast { !it.isFuture } + 1
+    val highlighted = selected?.let(buckets::indexOf)?.takeIf { it >= 0 } ?: buckets.indexOfFirst { bucket ->
+        if (stats.bucketsAreMonths) bucket.start.year == today.year && bucket.start.month == today.month else bucket.start == today
+    }
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(Sizes.chartBarMaxHeight)
+            .pointerInput(buckets) {
+                detectTapGestures { offset ->
+                    val index = (offset.x / size.width * buckets.size).toInt().coerceIn(0, buckets.lastIndex)
+                    if (index < shown) onSelect(buckets[index])
+                }
+            },
+    ) {
+        if (shown == 0) return@Canvas
+        val dot = Strokes.emphasis.toPx() * 2
+        val top = dot * 2
+        val bottom = size.height - dot
+        val step = size.width / buckets.size
+        val points = (0 until shown).map { index ->
+            Offset(step * (index + 0.5f), bottom - (bottom - top) * buckets[index].seconds / max.toFloat())
+        }
+        val line = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            points.drop(1).forEach { lineTo(it.x, it.y) }
+        }
+        val area = Path().apply {
+            addPath(line)
+            lineTo(points.last().x, bottom)
+            lineTo(points.first().x, bottom)
+            close()
+        }
+        drawPath(area, ink.copy(alpha = EmptyBarAlpha))
+        drawPath(line, ink, style = Stroke(width = Strokes.emphasis.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        points.forEachIndexed { index, point ->
+            drawCircle(ink, radius = if (index == highlighted) dot * 1.5f else dot, center = point)
         }
     }
 }
@@ -331,6 +433,36 @@ internal fun ReadingRhythmCard(stats: PeriodStats) {
     }
 }
 
+/** How the period's time splits between reading by eye and listening to read aloud. */
+@Composable
+internal fun ListenedReadCard(totalSeconds: Long, listenedSeconds: Long) {
+    val readSeconds = (totalSeconds - listenedSeconds).coerceAtLeast(0L)
+    val colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+    Surface(modifier = Modifier.fillMaxWidth(), shape = StatsCardShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Column(modifier = Modifier.padding(StatsCardPadding)) {
+            Text(text = stringResource(R.string.statistics_listen_title), style = statsCardTitle)
+            Text(
+                text = stringResource(R.string.statistics_listen_share, (listenedSeconds * 100 / totalSeconds.coerceAtLeast(1L)).toInt()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            StackedShareBar(shares = listOf(readSeconds, listenedSeconds), colors = colors, modifier = Modifier.padding(top = Spacing.md))
+            listOf(R.string.statistics_listen_read to readSeconds, R.string.statistics_listen_listened to listenedSeconds)
+                .forEachIndexed { index, (label, seconds) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        LegendDot(colors[index])
+                        Text(text = stringResource(label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(text = formatDuration(seconds), style = MaterialTheme.typography.titleSmall)
+                    }
+                }
+        }
+    }
+}
+
 /** The books the period's time went to, most first. */
 @Composable
 internal fun TopBooksCard(books: List<BookTime>, onOpenBook: (Long) -> Unit) {
@@ -435,5 +567,6 @@ private fun TimeOfDay.icon(): ImageVector = when (this) {
 private const val InactiveBarAlpha = 0.45f
 private const val EmptyBarAlpha = 0.12f
 private const val FutureBarAlpha = 0.06f
+private const val ChipBackgroundAlpha = 0.12f
 private const val ChipDownAlpha = 0.7f
 private const val MinBarFraction = 0.04f

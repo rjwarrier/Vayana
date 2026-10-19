@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class LearnWordsSummary(
     /** The words to list: every looked-up word, or all but the known ones when [hideKnown]. */
@@ -26,7 +27,7 @@ data class LearnWordsSummary(
 
 @HiltViewModel
 class LearnWordsViewModel @Inject constructor(
-    wordLookupStatRepository: WordLookupStatRepository,
+    private val wordLookupStatRepository: WordLookupStatRepository,
     vocabularyCardRepository: VocabularyCardRepository,
 ) : ViewModel() {
     private val hideKnown = MutableStateFlow(true)
@@ -50,6 +51,11 @@ class LearnWordsViewModel @Inject constructor(
 
     fun setHideKnown(hide: Boolean) {
         hideKnown.value = hide
+    }
+
+    /** A slip of the finger, not a word to learn: gone from this list on every synced device. */
+    fun removeWord(word: String) {
+        viewModelScope.launch { wordLookupStatRepository.removeWord(word) }
     }
 }
 

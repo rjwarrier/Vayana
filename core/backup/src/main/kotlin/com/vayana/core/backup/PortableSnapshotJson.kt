@@ -71,6 +71,7 @@ fun parsePortableReadingSessions(jsonText: String): List<PortableReadingSession>
                     activeIntervals = intervals,
                     bookFileHash = obj.optSnapshotBoundedString("bookFileHash", MaxSnapshotFileHashChars),
                     deviceName = obj.optSnapshotBoundedString("deviceName", MaxSnapshotDeviceNameChars),
+                    listenedSeconds = obj.optLong("listenedSeconds", 0L).coerceIn(0L, durationSeconds),
                     startPage = if (obj.has("startPage") && !obj.isNull("startPage")) obj.optInt("startPage", -1).takeIf { it >= 0 } else null,
                     endPage = if (obj.has("endPage") && !obj.isNull("endPage")) obj.optInt("endPage", -1).takeIf { it >= 0 } else null,
                 ),
@@ -626,6 +627,8 @@ private fun PortableReadingSession.toJson(): JSONObject =
         .put("activeIntervals", activeIntervals)
         .put("bookFileHash", bookFileHash)
         .put("deviceName", deviceName)
+        // Left out at 0, so sessions with no listening keep the bytes (and slice hashes) they had before.
+        .apply { if (listenedSeconds > 0L) put("listenedSeconds", listenedSeconds) }
 
 private fun PortableVocabularyCard.toJson(): JSONObject =
     JSONObject()

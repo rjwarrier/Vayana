@@ -86,7 +86,7 @@ class SyncSliceVersionsTest {
     @Test
     fun mergingACounterThatIsNoNewerWritesNothing() = runBlocking {
         // Robolectric's SQLite is 3.22 (as on Android 8–10): this also proves no upsert syntax is needed.
-        val counters = WordLookupStatRepositoryImpl(database.wordLookupStatDao())
+        val counters = WordLookupStatRepositoryImpl(database.wordLookupStatDao(), database, database.tombstoneDao())
         val counter = CloudWordLookupCounter(word = "Serendipity", writerOrigin = "phone", count = 3, lastLookedUpAt = 100)
         assertEquals(WordLookupCounterMergeResult.MERGED, counters.mergeCloudCounter(counter))
         val before = versions()

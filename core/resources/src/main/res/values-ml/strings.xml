@@ -755,6 +755,7 @@
     <string name="learn_words_total_value">%1$d</string>
     <string name="learn_words_last_seen">അവസാനം തിരഞ്ഞത് %1$s</string>
     <string name="learn_words_count">%1$d</string>
+    <string name="learn_words_remove">%1$s നീക്കുക</string>
     <string name="learn_words_hide_known">അറിയാവുന്ന വാക്കുകൾ മറയ്ക്കുക (%1$d)</string>
 
     <string name="statistics_overview_title">ഒറ്റനോട്ടത്തിൽ</string>
@@ -818,6 +819,14 @@
     <string name="statistics_time_evening">വൈകുന്നേരം</string>
     <string name="statistics_time_night">രാത്രി</string>
     <string name="statistics_top_books_title">ഏറ്റവും കൂടുതൽ വായിച്ചത്</string>
+    <string name="statistics_listen_title">കേട്ടതും വായിച്ചതും</string>
+    <string name="statistics_listen_share">നിങ്ങളുടെ സമയത്തിന്റെ %1$d%% ഉറക്കെ വായന</string>
+    <string name="statistics_listen_read">വായിച്ചത്</string>
+    <string name="statistics_listen_listened">കേട്ടത്</string>
+    <string name="statistics_chart_line">രേഖ</string>
+    <string name="statistics_chart_bars">ബാറുകൾ</string>
+    <string name="statistics_chart_show_line">രേഖാചിത്രം കാണിക്കുക</string>
+    <string name="statistics_chart_show_bars">ബാർ ചിത്രം കാണിക്കുക</string>
     <plurals name="statistics_period_sessions">
         <item quantity="one">%1$d വായനാവേള</item>
         <item quantity="other">%1$d വായനാവേളകൾ</item>

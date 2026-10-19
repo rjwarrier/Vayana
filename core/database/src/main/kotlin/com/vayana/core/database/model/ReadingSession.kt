@@ -16,4 +16,5 @@ data class ReadingSession(
     val endPage: Int? = null,
     val activeIntervals: String? = null,
     val deviceName: String? = null,
+    val listenedSeconds: Long = 0L,
 )

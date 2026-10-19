@@ -16,7 +16,8 @@ class PeriodStatsTest {
 
     private fun session(day: LocalDate, hour: Int, minutes: Long, bookId: Long = 1, device: String? = null): ReadingSession {
         val start = day.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
-        return ReadingSession(0, "s-$day-$hour-$bookId", bookId, start, start + minutes * 60_000, minutes * 60, deviceName = device)
+        return ReadingSession(0, "s-$day-$hour-$bookId", bookId, start, start + minutes * 60_000, minutes * 60, deviceName = device,
+            listenedSeconds = if (hour >= 21) minutes * 30 else 0L)
     }
 
     private fun book(id: Long, finishedOn: LocalDate? = null) = Book(id = id, syncId = "b$id", title = "Book $id", author = null,
@@ -35,6 +36,7 @@ class PeriodStatsTest {
         )
         val stats = periodStats(StatsPeriod.WEEK, sessions, listOf(book(1, finishedOn = today), book(2)), DayOfWeek.MONDAY, today, zone)
         assertEquals(50L * 60, stats.totalSeconds)
+        assertEquals(10L * 60, stats.listenedSeconds) // half of the night session was read aloud
         assertEquals(15L * 60, stats.previousSeconds)
         assertEquals(2, stats.sessionCount)
         assertEquals(2, stats.activeDays)
@@ -49,13 +51,14 @@ class PeriodStatsTest {
     }
 
     @Test
-    fun yearHasTwelveMonthsAndAllTimeStartsAtTheFirstMonthRead() {
+    fun yearHasTwelveMonthsAndAllTimeShowsAtLeastTheLastTwelve() {
         val sessions = listOf(session(LocalDate.of(2026, 9, 3), 18, 60), session(today, 18, 30))
         val year = periodStats(StatsPeriod.YEAR, sessions, emptyList(), DayOfWeek.MONDAY, today, zone)
         assertEquals(12, year.buckets.size)
         assertEquals(listOf(60L * 60, 30L * 60), year.buckets.filter { it.seconds > 0 }.map { it.seconds })
         val all = periodStats(StatsPeriod.ALL, sessions, emptyList(), DayOfWeek.MONDAY, today, zone)
-        assertEquals(listOf(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1)), all.buckets.map { it.start })
+        assertEquals((0L..11L).map { LocalDate.of(2025, 11, 1).plusMonths(it) }, all.buckets.map { it.start })
+        assertEquals(listOf(60L * 60, 30L * 60), all.buckets.takeLast(2).map { it.seconds })
         assertEquals(null, all.previousSeconds)
         assertEquals(90L * 60, all.totalSeconds)
     }

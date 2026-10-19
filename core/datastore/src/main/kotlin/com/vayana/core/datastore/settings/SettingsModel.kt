@@ -144,6 +144,7 @@ data class SettingsSnapshot(
     val widgetProgressStyle: WidgetProgressStyle = WidgetProgressStyle.FLAT,
     /** Every widget's thin outline. */
     val widgetBorder: Boolean = true,
+    val statisticsLineChart: Boolean = false,
     val widgetChartStyle: WidgetChartStyle = WidgetChartStyle.LINE,
     val widgetChartAxisLabels: Boolean = true,
     /** The reading-time widget's grid lines, as a percentage of their full strength. */
@@ -753,6 +754,14 @@ object SettingsRegistry {
             ChoiceOption(WidgetProgressStyle.SQUIGGLY, R.string.widget_progress_squiggly),
         ),
     )
+    /** The Statistics hero draws a line instead of bars. Switched by the chip on the hero card. */
+    val StatisticsLineChart: BooleanSetting = BooleanSetting(
+        key = "statistics.line_chart",
+        defaultValue = false,
+        titleRes = R.string.statistics_chart_show_line,
+        subtitleRes = null,
+        group = SettingsGroup.APPEARANCE,
+    )
     /** Every widget's thin outline. Set on the widget configure screen. */
     val WidgetBorder: BooleanSetting = BooleanSetting(
         key = "widgets.border",
@@ -1002,6 +1011,7 @@ object SettingsRegistry {
         WidgetProgressBar,
         WidgetBorder,
         WidgetChart,
+        StatisticsLineChart,
         WidgetChartAxisLabels,
         WidgetChartGridOpacity,
         WidgetChartDays,

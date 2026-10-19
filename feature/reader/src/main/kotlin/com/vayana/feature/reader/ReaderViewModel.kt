@@ -504,6 +504,8 @@ class ReaderViewModel @Inject constructor(
                             }
                         }
                         lookupSelection(event.selection?.selectedText)
+                        // A double-tapped word is a lookup by intent.
+                        if (event.selection?.isWordLookup == true) countLookupNow()
                         maybeAutoMarkSelection(event.selection)
                     }
                     is com.vayana.reader.api.EngineEvent.AnnotationTapped -> {
@@ -529,6 +531,7 @@ class ReaderViewModel @Inject constructor(
                             )
                         }
                         if (event.annotationId != null) {
+                            settleLookupCandidate(nextSelection = null)
                             dictionaryLookupJob?.cancel()
                             pendingDictionaryWord = null
                             _dictionaryLookup.value = DictionaryLookupState.Hidden
@@ -1078,11 +1081,13 @@ class ReaderViewModel @Inject constructor(
     /** Re-runs a dictionary lookup for an arbitrary word (e.g. tapping a synonym), independent of any live selection. */
     fun lookupWord(word: String) {
         lookupSelection(word)
+        countLookupNow()
     }
 
     /** Looks the word the dictionary card is showing up on [source]; only ever on the reader's tap, as it goes online. */
     fun lookupOnline(source: OnlineDictionarySource) {
         val word = currentLookupWord() ?: return
+        countLookupNow()
         dictionaryLookupJob?.cancel()
         dictionaryLookupJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.Online(word, source, OnlineLookupStatus.LOOKING_UP)
@@ -1112,6 +1117,7 @@ class ReaderViewModel @Inject constructor(
         val definition = entry.senses.firstOrNull()?.definition ?: return
         val state = uiState.value as? ReaderUiState.Loaded
         val sentence = state?.selection?.selectedText?.takeIf { it.isNotBlank() && !it.equals(entry.headword, ignoreCase = true) }
+        countLookupNow()
         viewModelScope.launch {
             vocabularyCardRepository.save(
                 word = entry.headword,
@@ -1303,6 +1309,7 @@ class ReaderViewModel @Inject constructor(
     fun clearSelection() {
         val engine = boundEngine ?: return
         viewModelScope.launch {
+            settleLookupCandidate(nextSelection = null)
             engine.clearSelection()
             dictionaryLookupJob?.cancel()
             pendingDictionaryWord = null
@@ -1499,6 +1506,21 @@ class ReaderViewModel @Inject constructor(
                 }
         }
         viewModelScope.launch {
+            // Listening is timed while the voice plays, screen on or off; when it stops with the reader in the
+            // background, the session pauses as leaving the reader would have.
+            readAloud.map { it.playing }.distinctUntilChanged().drop(1).collect { playing ->
+                val now = System.currentTimeMillis()
+                persistReadingTime(readingTimeTracker.setListening(now, playing))
+                if (playing) {
+                    startReadingTimeTicker()
+                } else if (!readerResumed) {
+                    persistReadingTime(readingTimeTracker.pause(now), syncAfterSave = true)
+                    trackingJob?.cancel()
+                    trackingJob = null
+                }
+            }
+        }
+        viewModelScope.launch {
             ReadAloudNotificationCommands.commands.collect { command ->
                 when (command) {
                     ReadAloudCommand.PLAY -> readAloudPlayer.play()
@@ -1526,6 +1548,7 @@ class ReaderViewModel @Inject constructor(
                         startedAt = session.startedAt,
                         endedAt = session.endedAt,
                         durationSeconds = session.durationSeconds,
+                        listenedSeconds = session.listenedSeconds,
                     )
                 }
             }
@@ -1549,8 +1572,11 @@ class ReaderViewModel @Inject constructor(
         readerResumed = false
         paceTracker.reset()
         persistReadingTime(readingTimeTracker.pause(System.currentTimeMillis()), syncAfterSave = true)
-        trackingJob?.cancel()
-        trackingJob = null
+        // Read aloud playing on with the screen off is still reading time: its ticker keeps saving it.
+        if (!readingTimeTracker.isListening) {
+            trackingJob?.cancel()
+            trackingJob = null
+        }
         flushPendingLocatorWrite()
         resumeProgressSyncGate.onPause(bookOpen)
     }
@@ -1741,7 +1767,8 @@ class ReaderViewModel @Inject constructor(
     private suspend fun persistReadingTimeNow(update: ReadingTimeUpdate) {
         _activeReadingSessionSeconds.value = update.activeSessionSeconds
         update.checkpoint?.let { session ->
-            readingSessionRepository.recordCheckpoint(bookId, session.syncId, session.startedAt, session.endedAt, session.durationSeconds)
+            readingSessionRepository.recordCheckpoint(bookId, session.syncId, session.startedAt, session.endedAt, session.durationSeconds,
+                session.listenedSeconds)
         }
     }
 
@@ -1751,7 +1778,10 @@ class ReaderViewModel @Inject constructor(
         // viewModelScope's Job is already cancelled by the time onCleared() runs (androidx.lifecycle.ViewModel.clear()
         // closes it before invoking onCleared()), so a viewModelScope.launch here would never run its body. Use the
         // process-lifetime applicationScope instead so this final flush actually reaches the database.
-        val finalUpdate = readingTimeTracker.pause(System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        settleLookupCandidate(nextSelection = null)
+        readingTimeTracker.setListening(now, listening = false)
+        val finalUpdate = readingTimeTracker.pause(now)
         ReadingSessionContinuationStore.put(bookId, readingTimeTracker)
         if (finalUpdate.checkpoint != null) {
             persistReadingTime(finalUpdate, syncAfterSave = true)
@@ -1844,6 +1874,7 @@ class ReaderViewModel @Inject constructor(
                     readerNote = readerNote?.takeIf { it.isNotBlank() },
                 )
             }
+            lookupCandidate = null
             engine.clearSelection()
             dictionaryLookupJob?.cancel()
             pendingDictionaryWord = null
@@ -1854,7 +1885,40 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The single word whose definition card is showing, and since when. It counts toward Learn words only when the
+     * lookup looks meant: the card stayed up a moment ([IntentionalLookupMillis]) and the word was then let go as it
+     * was. The first word of a highlight-to-be shows its card too; growing into a phrase or becoming a highlight
+     * discards it. Reading it online, saving it or tapping a synonym counts at once.
+     */
+    private var lookupCandidate: LookupCandidate? = null
+
+    private data class LookupCandidate(val word: String, val shownAt: Long)
+
+    private fun settleLookupCandidate(nextSelection: String?) {
+        val candidate = lookupCandidate ?: return
+        val next = nextSelection?.trim().orEmpty()
+        if (next.equals(candidate.word, ignoreCase = true)) return
+        lookupCandidate = null
+        if (next.contains(candidate.word, ignoreCase = true)) return
+        if (System.currentTimeMillis() - candidate.shownAt >= IntentionalLookupMillis) countLookup(candidate.word)
+    }
+
+    private fun countLookupNow() {
+        val candidate = lookupCandidate ?: return
+        lookupCandidate = null
+        countLookup(candidate.word)
+    }
+
+    private fun countLookup(word: String) {
+        // Outlives the reader: the word is usually let go as the reader closes or the page turns.
+        applicationScope.launch {
+            wordLookupStatRepository.recordLookup(word, settingsRepository.snapshot.first().lookupWriterOrigin())
+        }
+    }
+
     private fun lookupSelection(selectedText: String?) {
+        settleLookupCandidate(selectedText)
         dictionaryLookupJob?.cancel()
         val word = selectedText?.toDictionaryWord()
         if (word == null) {
@@ -1868,9 +1932,9 @@ class ReaderViewModel @Inject constructor(
             _dictionaryLookup.value = DictionaryLookupState.PackRequired(word)
             return
         }
+        if (lookupCandidate?.word != word) lookupCandidate = LookupCandidate(word, System.currentTimeMillis())
         dictionaryLookupJob = viewModelScope.launch {
             _dictionaryLookup.value = DictionaryLookupState.LookingUp(word)
-            wordLookupStatRepository.recordLookup(word, settingsRepository.snapshot.first().lookupWriterOrigin())
             val entry = try {
                 dictionaryRepository.lookupEnglish(word)
             } catch (throwable: CancellationException) {
@@ -2043,6 +2107,8 @@ private const val MaxLookupPhraseWords = 6
 private const val MaxLookupPhraseChars = 80
 private const val MaxRawPhraseCharsFactor = 2
 
+/** How long a word's definition must stay up before letting it go counts as a lookup. */
+private const val IntentionalLookupMillis = 1_500L
 private const val SpeechInteractionIntervalMillis = 30_000L
 private const val MaxChapterWords = 25
 

@@ -13,6 +13,21 @@ class ReadingTimeTrackerTest {
     )
 
     @Test
+    fun listeningCountsWithTheScreenOffAndIsKeptApart() {
+        tracker.interact(0L) // 60 s of reading by eye
+        tracker.setListening(60_000L, listening = true)
+        tracker.pause(120_000L) // screen off: read aloud plays on
+        val listening = tracker.flush(1_260_000L) // 20 minutes of listening, past the idle timeout
+        assertEquals(1260L, tracker.elapsedSeconds)
+        assertEquals(1200L, listening.checkpoint?.listenedSeconds)
+        tracker.setListening(1_260_000L, listening = false)
+        tracker.pause(1_260_000L)
+        // Paused after the voice stopped: no more time, and the session ends as an idle pause would.
+        val done = tracker.flush(1_260_000L + 61_000L)
+        assertEquals(CompletedReadingSession(0L, 1_260_000L, 1260L, 1200L), done.session)
+    }
+
+    @Test
     fun idleTimeStopsAtDeadlineEvenWhenTheTickerIsLate() {
         tracker.interact(0L)
         assertEquals(10L, tracker.flush(10_000L).addedSeconds)

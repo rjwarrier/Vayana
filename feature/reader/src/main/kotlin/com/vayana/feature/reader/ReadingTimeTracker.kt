@@ -2,7 +2,11 @@ package com.vayana.feature.reader
 
 import java.util.UUID
 
-/** One reading session; elapsed time advances only after reader input and stops at idle/pause. */
+/**
+ * One reading session; elapsed time advances only after reader input and stops at idle/pause. Listening to read aloud
+ * is reading time too, with no idle timeout and even while the reader is paused (screen off); that part is also kept
+ * as [listenedSeconds].
+ */
 internal class ReadingTimeTracker(
     private val idleTimeoutMillis: Long,
     private val continuationGraceMillis: Long,
@@ -13,9 +17,17 @@ internal class ReadingTimeTracker(
     private var activeMillis = 0L
     private var suspendedAt: Long? = null
     private var syncId = ""
+    private var listeningSince: Long? = null
+    private var listenedMillis = 0L
 
     val elapsedSeconds: Long
         get() = activeMillis / 1000L
+
+    val listenedSeconds: Long
+        get() = listenedMillis / 1000L
+
+    val isListening: Boolean
+        get() = listeningSince != null
 
     val isTimingActive: Boolean
         get() = startedAt != null && suspendedAt == null
@@ -30,7 +42,22 @@ internal class ReadingTimeTracker(
         accountedUntil = now
         lastInteractionAt = now
         activeMillis = 0L
+        listenedMillis = 0L
         suspendedAt = null
+    }
+
+    /** Read aloud started or stopped playing. Starting resumes (or starts) the session like an interaction. */
+    fun setListening(now: Long, listening: Boolean): ReadingTimeUpdate {
+        if (listening == isListening) return flush(now)
+        return if (listening) {
+            interact(now).also { listeningSince = now }
+        } else {
+            // The idle countdown starts when the voice stops, not at the last touch before it.
+            flush(now).also {
+                listeningSince = null
+                lastInteractionAt = now
+            }
+        }
     }
 
     fun interact(now: Long): ReadingTimeUpdate {
@@ -58,9 +85,13 @@ internal class ReadingTimeTracker(
                 activeSessionSeconds = elapsedSeconds, checkpoint = checkpoint(suspended))
         }
         val start = startedAt ?: return ReadingTimeUpdate()
-        val deadline = lastInteractionAt + idleTimeoutMillis
+        val listenFrom = listeningSince
+        val deadline = if (listenFrom != null) Long.MAX_VALUE else lastInteractionAt + idleTimeoutMillis
         val end = minOf(now, deadline)
         val seconds = ((end - accountedUntil) / 1000L).coerceAtLeast(0L)
+        if (listenFrom != null) {
+            listenedMillis += ((end - maxOf(accountedUntil, listenFrom)) / 1000L).coerceIn(0L, seconds) * 1000L
+        }
         accountedUntil += seconds * 1000L
         activeMillis += seconds * 1000L
         val saved = checkpoint(end)
@@ -70,7 +101,8 @@ internal class ReadingTimeTracker(
 
     fun pause(now: Long): ReadingTimeUpdate {
         val update = flush(now)
-        if (startedAt != null && suspendedAt == null) suspendedAt = now
+        // Read aloud keeps playing with the screen off, and keeps counting.
+        if (startedAt != null && suspendedAt == null && listeningSince == null) suspendedAt = now
         return update
     }
 
@@ -83,14 +115,17 @@ internal class ReadingTimeTracker(
     private fun complete(endedAt: Long): ReadingTimeUpdate {
         val start = startedAt ?: return ReadingTimeUpdate()
         val seconds = elapsedSeconds
+        val listened = listenedSeconds
         val saved = checkpoint(endedAt)
         startedAt = null
         accountedUntil = 0L
         lastInteractionAt = 0L
         activeMillis = 0L
+        listenedMillis = 0L
+        listeningSince = null
         suspendedAt = null
         return ReadingTimeUpdate(
-            session = if (seconds > 0L) CompletedReadingSession(start, endedAt, seconds) else null,
+            session = if (seconds > 0L) CompletedReadingSession(start, endedAt, seconds, listened) else null,
             activeSessionSeconds = 0L,
             checkpoint = saved,
         )
@@ -99,7 +134,11 @@ internal class ReadingTimeTracker(
     private fun checkpoint(endedAt: Long): ReadingTimeCheckpoint? {
         val start = startedAt ?: return null
         // Wall clock can move backward mid-session; a checkpoint must never end before it starts.
-        return if (elapsedSeconds > 0) ReadingTimeCheckpoint(syncId, start, maxOf(endedAt, start), elapsedSeconds) else null
+        return if (elapsedSeconds > 0) {
+            ReadingTimeCheckpoint(syncId, start, maxOf(endedAt, start), elapsedSeconds, listenedSeconds)
+        } else {
+            null
+        }
     }
 }
 
@@ -115,6 +154,7 @@ internal data class CompletedReadingSession(
     val startedAt: Long,
     val endedAt: Long,
     val durationSeconds: Long,
+    val listenedSeconds: Long = 0L,
 )
 
 internal data class ReadingTimeUpdate(
@@ -130,6 +170,7 @@ internal data class ReadingTimeCheckpoint(
     val startedAt: Long,
     val endedAt: Long,
     val durationSeconds: Long,
+    val listenedSeconds: Long = 0L,
 )
 
 internal object ReadingSessionContinuationStore {

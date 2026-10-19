@@ -764,6 +764,7 @@
     <string name="learn_words_total_value">%1$d</string>
     <string name="learn_words_last_seen">Ultima ricerca %1$s</string>
     <string name="learn_words_count">%1$d</string>
+    <string name="learn_words_remove">Rimuovi %1$s</string>
     <string name="learn_words_hide_known">Nascondi parole conosciute (%1$d)</string>
 
     <string name="statistics_overview_title">In breve</string>
@@ -827,6 +828,14 @@
     <string name="statistics_time_evening">Sera</string>
     <string name="statistics_time_night">Notte</string>
     <string name="statistics_top_books_title">I più letti</string>
+    <string name="statistics_listen_title">Ascoltato e letto</string>
+    <string name="statistics_listen_share">Il %1$d%% del tuo tempo è stato lettura ad alta voce</string>
+    <string name="statistics_listen_read">Letto</string>
+    <string name="statistics_listen_listened">Ascoltato</string>
+    <string name="statistics_chart_line">Linee</string>
+    <string name="statistics_chart_bars">Barre</string>
+    <string name="statistics_chart_show_line">Mostra grafico a linee</string>
+    <string name="statistics_chart_show_bars">Mostra grafico a barre</string>
     <plurals name="statistics_period_sessions">
         <item quantity="one">%1$d sessione</item>
         <item quantity="many">%1$d sessioni</item>

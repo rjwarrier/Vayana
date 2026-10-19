@@ -23,4 +23,10 @@ interface WordLookupStatRepository {
     suspend fun getAllForSync(): List<CloudWordLookupCounter>
     suspend fun recordLookup(word: String, writerOrigin: String = LegacyWriterOrigin)
     suspend fun mergeCloudCounter(counter: CloudWordLookupCounter): WordLookupCounterMergeResult
+
+    /** Removes [word] from Learn words here and, through a synced tombstone, on every device. */
+    suspend fun removeWord(word: String)
+
+    /** Applies another device's removal: counters last looked up by [removedAt] go. */
+    suspend fun applyRemoval(word: String, removedAt: Long): Int
 }

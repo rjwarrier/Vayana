@@ -134,6 +134,8 @@ data class PortableReadingSession(
     val bookFileHash: String? = null,
     /** Sync name of the device that recorded it; absent for sessions from before devices were recorded. */
     val deviceName: String? = null,
+    /** Seconds of [durationSeconds] spent listening to read aloud; absent (0) in older snapshots. */
+    val listenedSeconds: Long = 0L,
 )
 
 data class PortableVocabularyCard(

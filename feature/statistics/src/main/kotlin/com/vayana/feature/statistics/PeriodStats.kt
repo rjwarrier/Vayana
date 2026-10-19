@@ -22,6 +22,8 @@ data class BookTime(val book: Book, val seconds: Long)
 data class PeriodStats(
     val period: StatsPeriod,
     val totalSeconds: Long = 0L,
+    /** The part of [totalSeconds] spent listening to read aloud. */
+    val listenedSeconds: Long = 0L,
     /** Reading in the previous period up to the same point (Monday–Wednesday last week, say); null for all time. */
     val previousSeconds: Long? = null,
     val sessionCount: Int = 0,
@@ -57,7 +59,8 @@ internal fun periodStats(
         StatsPeriod.WEEK -> today.startOfWeek(firstDayOfWeek)
         StatsPeriod.MONTH -> today.withDayOfMonth(1)
         StatsPeriod.YEAR -> today.withDayOfYear(1)
-        StatsPeriod.ALL -> firstActivity.withDayOfMonth(1).coerceAtMost(today.withDayOfMonth(1))
+        // At least the last twelve months, empty ones included, so a young library still gets a year-shaped chart.
+        StatsPeriod.ALL -> firstActivity.withDayOfMonth(1).coerceAtMost(today.withDayOfMonth(1).minusMonths(11))
     }
     val inPeriod = counted.filter { it.date() in start..today }
     val previousSeconds = when (period) {
@@ -104,6 +107,7 @@ internal fun periodStats(
     return PeriodStats(
         period = period,
         totalSeconds = inPeriod.sumOf { it.durationSeconds },
+        listenedSeconds = inPeriod.sumOf { it.listenedSeconds.coerceIn(0L, it.durationSeconds) },
         previousSeconds = previousSeconds,
         sessionCount = inPeriod.size,
         activeDays = secondsByDate.size,

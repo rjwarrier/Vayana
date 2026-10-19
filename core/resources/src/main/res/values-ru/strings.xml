@@ -773,6 +773,7 @@
     <string name="learn_words_total_value">%1$d</string>
     <string name="learn_words_last_seen">Последний поиск %1$s</string>
     <string name="learn_words_count">%1$d</string>
+    <string name="learn_words_remove">Убрать %1$s</string>
     <string name="learn_words_hide_known">Скрыть известные слова (%1$d)</string>
 
     <string name="statistics_overview_title">Кратко</string>
@@ -836,6 +837,14 @@
     <string name="statistics_time_evening">Вечер</string>
     <string name="statistics_time_night">Ночь</string>
     <string name="statistics_top_books_title">Больше всего читали</string>
+    <string name="statistics_listen_title">Слушали и читали</string>
+    <string name="statistics_listen_share">%1$d%% времени — чтение вслух</string>
+    <string name="statistics_listen_read">Читали</string>
+    <string name="statistics_listen_listened">Слушали</string>
+    <string name="statistics_chart_line">Линия</string>
+    <string name="statistics_chart_bars">Столбцы</string>
+    <string name="statistics_chart_show_line">Показать линейный график</string>
+    <string name="statistics_chart_show_bars">Показать столбчатую диаграмму</string>
     <plurals name="statistics_period_sessions">
         <item quantity="one">%1$d сеанс</item>
         <item quantity="few">%1$d сеанса</item>

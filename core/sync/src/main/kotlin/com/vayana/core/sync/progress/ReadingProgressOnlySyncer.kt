@@ -17,6 +17,7 @@ import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.model.ReadingSession
 import com.vayana.core.database.repository.BookRepository
 import com.vayana.core.database.repository.TombstoneEntityType
+import com.vayana.core.database.repository.wordOfLookupTombstone
 import com.vayana.core.database.repository.WordLookupStatRepository
 import com.vayana.core.database.repository.WordLookupCounterMergeResult
 import com.vayana.core.database.repository.ReadingSessionRepository
@@ -394,6 +395,10 @@ class ReadingProgressOnlySyncer @Inject constructor(
                     TombstoneEntityType.READING_SESSION.value -> {
                         readingSessionRepository.deleteBySyncId(tombstone.syncId)
                     }
+                    TombstoneEntityType.WORD_LOOKUP.value -> {
+                        val word = wordOfLookupTombstone(tombstone.syncId) ?: return@runCatchingCancellable 0
+                        wordLookupStatRepository.applyRemoval(word, tombstone.deletedAt)
+                    }
                     TombstoneEntityType.READING_PROGRESS_RESET.value -> {
                         val bookSyncId = bookSyncIdOfReadingProgressReset(tombstone.syncId) ?: return@runCatchingCancellable 0
                         bookRepository.applyReadingStatsReset(bookSyncId, resetAt = tombstone.deletedAt)
@@ -466,6 +471,7 @@ private fun ReadingSession.toPortable(bookSyncIdsByLocalId: Map<Long, String>, b
         endPage = endPage,
         activeIntervals = activeIntervals,
         deviceName = deviceName,
+        listenedSeconds = listenedSeconds,
     )
 }
 
@@ -480,6 +486,7 @@ private fun PortableReadingSession.toRecord(): CloudReadingSessionRecord = Cloud
     endPage = endPage,
     activeIntervals = activeIntervals,
     deviceName = deviceName,
+    listenedSeconds = listenedSeconds,
 )
 
 private fun PortableWordLookupCounter.toRecord(): CloudWordLookupCounter = CloudWordLookupCounter(

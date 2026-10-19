@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.FilterChip
@@ -67,13 +68,23 @@ fun LearnWordsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         if (summary.uniqueWords == 0) {
             LearnWordsEmptyState(contentPadding = innerPadding)
         } else {
-            LearnWordsList(contentPadding = innerPadding, summary = summary, onHideKnownChange = viewModel::setHideKnown)
+            LearnWordsList(
+                contentPadding = innerPadding,
+                summary = summary,
+                onHideKnownChange = viewModel::setHideKnown,
+                onRemoveWord = viewModel::removeWord,
+            )
         }
     }
 }
 
 @Composable
-private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSummary, onHideKnownChange: (Boolean) -> Unit) {
+private fun LearnWordsList(
+    contentPadding: PaddingValues,
+    summary: LearnWordsSummary,
+    onHideKnownChange: (Boolean) -> Unit,
+    onRemoveWord: (String) -> Unit,
+) {
     PagedLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -88,7 +99,7 @@ private fun LearnWordsList(contentPadding: PaddingValues, summary: LearnWordsSum
             LearnWordsHeader(summary = summary, onHideKnownChange = onHideKnownChange)
         }
         items(summary.words, key = { it.word }) { word ->
-            WordLookupRow(word = word)
+            WordLookupRow(word = word, onRemove = { onRemoveWord(word.word) }, modifier = Modifier.animateItem())
         }
     }
 }
@@ -156,9 +167,9 @@ private fun LearnWordsMetric(title: String, value: String, modifier: Modifier = 
 }
 
 @Composable
-private fun WordLookupRow(word: WordLookupStat) {
+private fun WordLookupRow(word: WordLookupStat, onRemove: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radii.medium),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
@@ -190,6 +201,13 @@ private fun WordLookupRow(word: WordLookupStat) {
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.learn_words_remove, word.word),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

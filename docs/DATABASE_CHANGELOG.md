@@ -2,6 +2,13 @@
 
 Every bump to `DATABASE_VERSION` (`core/database/.../VayanaDatabase.kt`) gets an entry here and a real Room `Migration`.
 
+## Version 41
+
+Adds `reading_sessions.listenedSeconds` (INTEGER NOT NULL DEFAULT 0): the part of a session's `durationSeconds`
+spent listening to read aloud, including with the screen off, for the listened-vs-read split in Statistics. Carried
+in portable snapshots and progress sync as an optional `listenedSeconds`, written only when above 0 so existing
+session JSON and slice hashes are unchanged. Migration 40→41 adds the column; existing sessions read 0.
+
 ## Version 40
 
 Adds nullable `reading_sessions.deviceName`: the sync device name (Settings › device name) of the device that

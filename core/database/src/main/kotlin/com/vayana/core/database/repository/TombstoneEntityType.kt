@@ -23,6 +23,9 @@ enum class TombstoneEntityType(val value: String) {
      * Progress merges treat it as local progress at that moment, so older synced progress can't restore the stats.
      */
     READING_PROGRESS_RESET("reading_progress_reset"),
+
+    /** A word removed from Learn words on every device, keyed by [wordLookupTombstoneId]: lookups up to then. */
+    WORD_LOOKUP("word_lookup"),
     ;
 
     companion object {
@@ -39,6 +42,15 @@ fun bookSyncIdOfReadingProgressReset(tombstoneSyncId: String): String? =
     tombstoneSyncId.takeIf { it.startsWith(ReadingProgressResetPrefix) }
         ?.removePrefix(ReadingProgressResetPrefix)
         ?.takeIf { it.isNotBlank() }
+
+private const val WordLookupPrefix = "word:"
+
+/** Lookup words are stored lowercase, so one tombstone covers every spelling and every device's counter. */
+fun wordLookupTombstoneId(word: String): String = "$WordLookupPrefix${word.trim().lowercase()}"
+
+/** The word a [TombstoneEntityType.WORD_LOOKUP] tombstone removes, or null if [tombstoneSyncId] isn't one. */
+fun wordOfLookupTombstone(tombstoneSyncId: String): String? =
+    tombstoneSyncId.takeIf { it.startsWith(WordLookupPrefix) }?.removePrefix(WordLookupPrefix)?.takeIf { it.isNotBlank() }
 
 private const val BookPurgePrefix = "purge:"
 
@@ -60,4 +72,5 @@ fun isBookDeletion(entityType: String): Boolean = TombstoneEntityType.fromValue(
 private val BookDeletionTombstoneTypes = setOf(TombstoneEntityType.BOOK, TombstoneEntityType.BOOK_PURGE)
 
 private val ReadingProgressSyncTombstoneTypes =
-    setOf(TombstoneEntityType.READING_SESSION, TombstoneEntityType.READING_PROGRESS_RESET) + BookDeletionTombstoneTypes
+    setOf(TombstoneEntityType.READING_SESSION, TombstoneEntityType.READING_PROGRESS_RESET, TombstoneEntityType.WORD_LOOKUP) +
+        BookDeletionTombstoneTypes

@@ -51,6 +51,10 @@ interface WordLookupStatDao {
     )
     suspend fun raiseCounter(word: String, writerOrigin: String, count: Int, lastLookedUpAt: Long): Int
 
+    /** Every device's counter for [word] last looked up by [before]; a later lookup is a fresh one and stays. */
+    @Query("DELETE FROM word_lookup_stats WHERE word = :word AND lastLookedUpAt <= :before")
+    suspend fun deleteWord(word: String, before: Long): Int
+
     @Query("SELECT * FROM word_lookup_stats ORDER BY word COLLATE NOCASE ASC, writerOrigin ASC")
     suspend fun getAllForSync(): List<WordLookupStatEntity>
 }

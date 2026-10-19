@@ -755,6 +755,7 @@
     <string name="learn_words_total_value">%1$d</string>
     <string name="learn_words_last_seen">கடைசியாகத் தேடியது %1$s</string>
     <string name="learn_words_count">%1$d</string>
+    <string name="learn_words_remove">%1$s ஐ நீக்கு</string>
     <string name="learn_words_hide_known">தெரிந்த சொற்களை மறை (%1$d)</string>
 
     <string name="statistics_overview_title">ஒரு பார்வையில்</string>
@@ -818,6 +819,14 @@
     <string name="statistics_time_evening">மாலை</string>
     <string name="statistics_time_night">இரவு</string>
     <string name="statistics_top_books_title">அதிகம் வாசித்தவை</string>
+    <string name="statistics_listen_title">கேட்டதும் வாசித்ததும்</string>
+    <string name="statistics_listen_share">உங்கள் நேரத்தில் %1$d%% உரக்க வாசிப்பு</string>
+    <string name="statistics_listen_read">வாசித்தது</string>
+    <string name="statistics_listen_listened">கேட்டது</string>
+    <string name="statistics_chart_line">கோடு</string>
+    <string name="statistics_chart_bars">பட்டைகள்</string>
+    <string name="statistics_chart_show_line">கோட்டு வரைபடம் காட்டு</string>
+    <string name="statistics_chart_show_bars">பட்டை வரைபடம் காட்டு</string>
     <plurals name="statistics_period_sessions">
         <item quantity="one">%1$d அமர்வு</item>
         <item quantity="other">%1$d அமர்வுகள்</item>

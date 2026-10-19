@@ -1,5 +1,6 @@
 package com.vayana.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -35,4 +36,6 @@ data class ReadingSessionEntity(
     val activeIntervals: String? = null,
     /** Sync device name of the device that recorded it; null for sessions from before devices were recorded. */
     val deviceName: String? = null,
+    /** The part of [durationSeconds] spent listening to read aloud; 0 for sessions from before this was recorded. */
+    @ColumnInfo(defaultValue = "0") val listenedSeconds: Long = 0L,
 )

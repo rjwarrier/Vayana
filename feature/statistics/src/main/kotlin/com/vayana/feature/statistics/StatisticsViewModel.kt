@@ -15,7 +15,9 @@ import com.vayana.core.database.repository.HighlightReviewRepository
 import com.vayana.core.database.repository.ReadingSessionRepository
 import com.vayana.core.database.repository.VocabularyCardRepository
 import com.vayana.core.database.repository.WordLookupStatRepository
+import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsRepository
+import kotlinx.coroutines.launch
 import com.vayana.core.filesystem.StorageRoots
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -144,7 +146,7 @@ class StatisticsViewModel @Inject constructor(
     annotationRepository: AnnotationRepository,
     wordLookupStatRepository: WordLookupStatRepository,
     readingSessionRepository: ReadingSessionRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     vocabularyCardRepository: VocabularyCardRepository,
     highlightReviewRepository: HighlightReviewRepository,
     storageRoots: StorageRoots,
@@ -209,6 +211,15 @@ class StatisticsViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsSummary())
+
+    /** Line or bars in the hero chart; kept in settings so it survives restarts. */
+    val lineChart: StateFlow<Boolean> = settingsRepository.snapshot.map { it.statisticsLineChart }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setLineChart(line: Boolean) {
+        viewModelScope.launch { settingsRepository.update(SettingsRegistry.StatisticsLineChart, line) }
+    }
 
     private val _period = MutableStateFlow(StatsPeriod.WEEK)
     val period: StateFlow<StatsPeriod> = _period

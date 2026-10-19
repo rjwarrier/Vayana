@@ -96,6 +96,7 @@ fun StatisticsRoute(
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val period by viewModel.period.collectAsStateWithLifecycle()
     val periodStats by viewModel.periodStats.collectAsStateWithLifecycle()
+    val lineChart by viewModel.lineChart.collectAsStateWithLifecycle()
     val vocabularyCardCount by viewModel.vocabularyCardCount.collectAsStateWithLifecycle()
     val vocabularyDueCount by viewModel.vocabularyDueCount.collectAsStateWithLifecycle()
     val highlightsDue by viewModel.highlightsDue.collectAsStateWithLifecycle()
@@ -127,6 +128,8 @@ fun StatisticsRoute(
                 contentPadding = innerPadding,
                 summary = summary,
                 periodStats = periodStats,
+                lineChart = lineChart,
+                onLineChartChange = viewModel::setLineChart,
                 vocabularyCardCount = vocabularyCardCount,
                 vocabularyDueCount = vocabularyDueCount,
                 highlightsDue = highlightsDue,
@@ -146,6 +149,8 @@ private fun StatisticsDashboard(
     contentPadding: PaddingValues,
     summary: StatisticsSummary,
     periodStats: PeriodStats,
+    lineChart: Boolean,
+    onLineChartChange: (Boolean) -> Unit,
     vocabularyCardCount: Int,
     vocabularyDueCount: Int,
     highlightsDue: List<Annotation>,
@@ -169,12 +174,15 @@ private fun StatisticsDashboard(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalItemSpacing = Spacing.md,
     ) {
-        item(key = "hero", span = StaggeredGridItemSpan.FullLine) { PeriodHeroCard(periodStats) }
+        item(key = "hero", span = StaggeredGridItemSpan.FullLine) { PeriodHeroCard(periodStats, lineChart, onLineChartChange) }
 
         section(R.string.statistics_section_reading)
         item(key = "streak") { StreakGoalCard(summary.currentStreakDays, summary.todayReadingMinutes, summary.dailyGoalMinutes) }
         if (periodStats.totalSeconds > 0L) {
             item(key = "rhythm") { ReadingRhythmCard(periodStats) }
+        }
+        if (periodStats.listenedSeconds > 0L) {
+            item(key = "listened") { ListenedReadCard(periodStats.totalSeconds, periodStats.listenedSeconds) }
         }
         if (periodStats.topBooks.isNotEmpty()) {
             item(key = "top-books") { TopBooksCard(periodStats.topBooks, onOpenBook) }
@@ -484,7 +492,7 @@ private fun StorageCard(device: DeviceStorage?, books: LibraryStorage?) {
 
 /** One bar split into [shares] in [colors]; a sliver stays visible however small a share is. */
 @Composable
-private fun StackedShareBar(shares: List<Long>, colors: List<Color>, modifier: Modifier = Modifier) {
+internal fun StackedShareBar(shares: List<Long>, colors: List<Color>, modifier: Modifier = Modifier) {
     val total = shares.sum().coerceAtLeast(1L)
     Row(
         modifier = modifier
@@ -505,7 +513,7 @@ private fun StackedShareBar(shares: List<Long>, colors: List<Color>, modifier: M
 }
 
 @Composable
-private fun LegendDot(color: Color) {
+internal fun LegendDot(color: Color) {
     Box(
         modifier = Modifier
             .size(Sizes.iconSmall / 2)

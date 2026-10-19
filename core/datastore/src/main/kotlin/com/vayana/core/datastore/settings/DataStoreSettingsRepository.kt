@@ -242,6 +242,7 @@ internal fun Preferences.toSnapshot(): SettingsSnapshot {
         widgetCornerRadius = read(SettingsRegistry.WidgetCornerRadius),
         widgetProgressStyle = read(SettingsRegistry.WidgetProgressBar),
         widgetBorder = read(SettingsRegistry.WidgetBorder),
+        statisticsLineChart = read(SettingsRegistry.StatisticsLineChart),
         widgetChartStyle = read(SettingsRegistry.WidgetChart),
         widgetChartAxisLabels = read(SettingsRegistry.WidgetChartAxisLabels),
         widgetChartGridOpacity = read(SettingsRegistry.WidgetChartGridOpacity),

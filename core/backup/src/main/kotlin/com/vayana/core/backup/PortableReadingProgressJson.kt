@@ -332,6 +332,7 @@ private fun JSONObject.mergeReadingSessions(readingSessions: List<PortableReadin
                 .put("activeIntervals", session.activeIntervals)
                 .put("bookFileHash", session.bookFileHash)
                 .put("deviceName", session.deviceName)
+                .apply { if (session.listenedSeconds > 0L) put("listenedSeconds", session.listenedSeconds) }
         val destination = index ?: sessions.length()
         sessions.put(destination, incoming)
         existingSessionIndices[session.syncId] = destination
