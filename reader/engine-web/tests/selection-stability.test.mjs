@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom'
 import vm from 'node:vm'
 
 const paginator = await readFile(new URL('../src/main/assets/foliate/paginator.js', import.meta.url), 'utf8')
-const turnStart = paginator.indexOf('const touchEventHasSelection')
+const turnStart = paginator.indexOf('const selectionIsBackward')
 const turnEnd = paginator.indexOf('const setSelectionTo', turnStart)
 assert.ok(turnStart >= 0 && turnEnd > turnStart, 'selection page-turn policy not found')
 
@@ -16,7 +16,6 @@ vm.runInContext(
         `globalThis.selectionPageTurnAllowed = selectionPageTurnAllowed;\n` +
         `globalThis.selectionPageTurnRetreated = selectionPageTurnRetreated;\n` +
         `globalThis.selectionPageTurnIntent = selectionPageTurnIntent;\n` +
-        `globalThis.selectionPageEntryFocus = selectionPageEntryFocus;\n` +
         `globalThis.touchEventHasSelection = touchEventHasSelection;\n` +
         `globalThis.restoreTouchStartPosition = restoreTouchStartPosition;\n` +
         `globalThis.paginatedSelectionScrollCorrection = paginatedSelectionScrollCorrection`,
@@ -180,7 +179,7 @@ test('each additional page requires a deliberate retreat and renewed edge push',
 
     assert.equal(retreated({}), false, 'holding or advancing at the edge cannot turn another page')
     assert.equal(retreated({ direction: 0, focusNode: entryNode, focusOffset: 6 }), false,
-        'the automatic entry clamp is not fresh user intent')
+        'the focus the turn left behind is not fresh user intent')
     assert.equal(retreated({ direction: 0, focusNode: entryNode, focusOffset: 8 }), true,
         'moving back inside the new page rearms the next deliberate edge push')
 })
@@ -195,29 +194,109 @@ test('a later selection gesture starts a fresh page-turn session', () => {
     }), true)
 })
 
-test('a forward page turn selects only the first few words of the new page', () => {
-    const dom = new JSDOM('<p><span>one two</span> <em>three four</em> five six</p>')
+// Drives the paginator's drag-turn controller the way Android's native handle
+// does: every move rewrites the selection focus from outside, and the page turn
+// resolves either after the slide animation or at once (E-Ink, no animation).
+function nativeSelectionDrag({ turnDelayMillis }) {
+    const dom = new JSDOM('<body>' + Array.from({ length: 8 }, (_, i) => `<p>word${i} alpha beta gamma</p>`).join('') + '</body>')
     const doc = dom.window.document
-    const range = doc.createRange()
-    range.selectNodeContents(doc.querySelector('p'))
+    const text = [...doc.querySelectorAll('p')].map(p => p.firstChild)
+    const pageRange = (first, last) => {
+        const range = doc.createRange()
+        range.setStart(text[first], 0)
+        range.setEnd(text[last], text[last].length)
+        return range
+    }
+    const writes = []
+    const state = { anchorNode: text[1], anchorOffset: 2, focusNode: text[2], focusOffset: 3 }
+    const sel = {
+        rangeCount: 1,
+        type: 'Range',
+        isCollapsed: false,
+        get anchorNode() { return state.anchorNode },
+        get anchorOffset() { return state.anchorOffset },
+        get focusNode() { return state.focusNode },
+        get focusOffset() { return state.focusOffset },
+        getRangeAt: () => {
+            const range = doc.createRange()
+            range.setStart(state.anchorNode, state.anchorOffset)
+            range.setEnd(state.focusNode, state.focusOffset)
+            return range
+        },
+    }
+    for (const name of ['setBaseAndExtent', 'addRange', 'removeAllRanges', 'collapse', 'extend', 'modify'])
+        sel[name] = (...args) => writes.push([name, ...args])
 
-    const focus = turnContext.selectionPageEntryFocus(range, 1)
+    let clock = 0
+    let visible = pageRange(1, 2)
+    let page = 2
+    const turns = []
+    const context = vm.createContext({ document: doc, Range: dom.window.Range })
+    vm.runInContext(`${paginator.slice(turnStart, turnEnd)}
+globalThis.selectionPageTurner = selectionPageTurner`, context)
+    const turner = context.selectionPageTurner({
+        doc,
+        isLocked: () => false,
+        page: () => page,
+        pages: () => 12,
+        now: () => clock,
+        turn: direction => {
+            turns.push(direction)
+            page += direction
+            visible = direction > 0 ? pageRange(3, 4) : pageRange(1, 2)
+            return new Promise(resolve => setTimeout(resolve, turnDelayMillis))
+        },
+    })
+    // One native handle move: the focus lands where the finger is, then Blink fires selectionchange.
+    const move = (at, node, offset) => {
+        clock = at
+        state.focusNode = text[node]
+        state.focusOffset = offset
+        turner.check(visible, sel)
+    }
+    const settle = () => new Promise(resolve => setTimeout(resolve, turnDelayMillis + 10))
+    return { move, settle, turns, writes, state, text }
+}
 
-    assert.equal(focus.node.data, 'three four')
-    assert.equal(focus.offset, 5)
-})
+for (const [mode, turnDelayMillis] of [['animated', 30], ['E-Ink (no animation)', 0]]) {
+    test(`a handle dragged past the edge turns one page and keeps the native drag alive (${mode})`, async () => {
+        const drag = nativeSelectionDrag({ turnDelayMillis })
+        drag.move(0, 2, 5)
+        drag.move(100, 3, 2) // past the right edge: arms the turn
+        drag.move(900, 3, 6) // still pushing after the hold: turns
+        assert.deepEqual(drag.turns, [1])
 
-test('a backward page turn selects only the last few words of the new page', () => {
-    const dom = new JSDOM('<p><span>one two</span> <em>three four</em> five six</p>')
-    const doc = dom.window.document
-    const range = doc.createRange()
-    range.selectNodeContents(doc.querySelector('p'))
+        drag.move(910, 4, 1) // the finger keeps moving while the page changes
+        await drag.settle()
 
-    const focus = turnContext.selectionPageEntryFocus(range, -1)
+        // Holding the handle against the new page's edge must not page again.
+        drag.move(1_000, 5, 2)
+        drag.move(2_000, 5, 8)
+        drag.move(3_500, 5, 12)
+        assert.deepEqual(drag.turns, [1], 'one page per edge push')
 
-    assert.equal(focus.node.data, 'three four')
-    assert.equal(focus.offset, 6)
-})
+        // The focus is still wherever the finger put it, and the anchor never moved.
+        assert.equal(drag.state.focusNode, drag.text[5])
+        assert.equal(drag.state.focusOffset, 12)
+        assert.equal(drag.state.anchorNode, drag.text[1])
+        assert.equal(drag.state.anchorOffset, 2)
+        assert.deepEqual(drag.writes, [], 'a scripted selection change hides Android handles and ends the drag')
+    })
+
+    test(`after retreating into the new page a renewed edge push turns once more (${mode})`, async () => {
+        const drag = nativeSelectionDrag({ turnDelayMillis })
+        drag.move(0, 2, 5)
+        drag.move(100, 3, 2)
+        drag.move(900, 3, 6)
+        await drag.settle()
+        drag.move(1_000, 5, 4) // still past the edge
+        drag.move(1_100, 4, 7) // back inside the new page
+        drag.move(1_200, 5, 2) // edge again: arms
+        drag.move(2_200, 5, 9) // pushes on after the hold and the turn throttle
+        assert.deepEqual(drag.turns, [1, 1])
+        assert.deepEqual(drag.writes, [])
+    })
+}
 
 const bridge = await readFile(new URL('../src/main/assets/bridge.js', import.meta.url), 'utf8')
 const wireStart = bridge.indexOf('const SelectionDragSettleMillis')

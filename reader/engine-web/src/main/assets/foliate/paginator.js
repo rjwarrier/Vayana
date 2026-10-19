@@ -255,48 +255,110 @@ const selectionPageTurnAllowed = ({ lastTurn, direction, focusNode, focusOffset,
 
 // After entering a new page, holding the handle against the same edge must not
 // keep paging. A second turn requires a visible retreat into the new page first;
-// the exact programmatic entry focus does not count as user intent.
+// the focus the turn itself left behind does not count as user intent.
 const selectionPageTurnRetreated = ({ direction, entryFocus, focusNode, focusOffset }) =>
     direction === 0 && entryFocus &&
     (entryFocus.node !== focusNode || entryFocus.offset !== focusOffset)
 
-const SelectionPageEntryWords = 3
-
-// Returns a focus boundary a few words inside the page that has just appeared.
-// Keeping the original selection anchor and moving only its focus prevents a
-// page turn from swallowing the whole new page before the handle is moved.
-const selectionPageEntryFocus = (range, direction, wordCount = SelectionPageEntryWords) => {
-    const doc = range.startContainer.ownerDocument
-    const common = range.commonAncestorContainer
-    const root = common.nodeType === 3 ? common.parentNode : common
-    if (!root) return null
-    const nodes = []
-    const walker = doc.createTreeWalker(root, doc.defaultView.NodeFilter.SHOW_TEXT)
-    let node
-    while ((node = walker.nextNode())) {
-        if (range.intersectsNode(node)) nodes.push(node)
-    }
-    if (direction < 0) nodes.reverse()
-
-    let remaining = wordCount
-    for (const textNode of nodes) {
-        const start = textNode === range.startContainer ? range.startOffset : 0
-        const end = textNode === range.endContainer ? range.endOffset : textNode.length
-        const matches = [...textNode.data.slice(start, end).matchAll(/\S+/g)]
-        if (matches.length < remaining) {
-            remaining -= matches.length
-            continue
+// Turns the page while a selection handle is dragged past the visible edge.
+// It only ever reads the selection: a range set from script (setBaseAndExtent,
+// addRange) makes Blink stop reporting selection bounds, so Android hides its
+// native handles and the drag the finger is still holding ends, which drops the
+// selection mid-drag and leaves the focus behind the finger.
+const selectionPageTurner = ({ doc, isLocked, page, pages, turn, now = Date.now }) => {
+    let lastSelectionTurn = null
+    let pendingSelectionEdge = null
+    let selectionTurnInFlight = false
+    let selectionTurnNeedsRetreat = false
+    let selectionEntryFocus = null
+    const compareFocusToPendingEdge = sel => {
+        if (!pendingSelectionEdge) return 0
+        if (pendingSelectionEdge.focusNode === sel.focusNode) {
+            return Math.sign(sel.focusOffset - pendingSelectionEdge.focusOffset)
         }
-        if (direction > 0) {
-            const match = matches[remaining - 1]
-            return { node: textNode, offset: start + match.index + match[0].length }
+        try {
+            const previous = doc.createRange()
+            previous.setStart(pendingSelectionEdge.focusNode, pendingSelectionEdge.focusOffset)
+            previous.collapse(true)
+            const current = doc.createRange()
+            current.setStart(sel.focusNode, sel.focusOffset)
+            current.collapse(true)
+            return current.compareBoundaryPoints(Range.START_TO_START, previous)
+        } catch (_) {
+            return 0
         }
-        const match = matches[matches.length - remaining]
-        return { node: textNode, offset: start + match.index }
     }
-    return direction > 0
-        ? { node: range.endContainer, offset: range.endOffset }
-        : { node: range.startContainer, offset: range.startOffset }
+    const check = (range, sel) => {
+        if (!sel.rangeCount || sel.type !== 'Range') return
+        const selRange = sel.getRangeAt(0)
+        const backward = selectionIsBackward(sel)
+        const direction = selectionPageTurnDirection({
+            backward,
+            startsBeforePage: selRange.compareBoundaryPoints(Range.START_TO_START, range) < 0,
+            endsAfterPage: selRange.compareBoundaryPoints(Range.END_TO_END, range) > 0,
+            atSectionStart: page() <= 1,
+            atSectionEnd: page() >= pages() - 2,
+        })
+        if (selectionTurnInFlight || isLocked()) return
+        if (selectionTurnNeedsRetreat) {
+            if (selectionPageTurnRetreated({
+                direction,
+                entryFocus: selectionEntryFocus,
+                focusNode: sel.focusNode,
+                focusOffset: sel.focusOffset,
+            })) {
+                selectionTurnNeedsRetreat = false
+                selectionEntryFocus = null
+                pendingSelectionEdge = null
+            }
+            return
+        }
+        const time = now()
+        const focusOrder = compareFocusToPendingEdge(sel)
+        const intent = selectionPageTurnIntent({
+            pendingEdge: pendingSelectionEdge,
+            direction,
+            focusNode: sel.focusNode,
+            focusOffset: sel.focusOffset,
+            focusChanged: focusOrder !== 0,
+            focusMovedFurther: direction > 0 ? focusOrder > 0 : focusOrder < 0,
+            now: time,
+        })
+        pendingSelectionEdge = intent.pendingEdge
+        if (!intent.ready) return
+        if (!selectionPageTurnAllowed({
+            lastTurn: lastSelectionTurn,
+            direction,
+            focusNode: sel.focusNode,
+            focusOffset: sel.focusOffset,
+            now: time,
+        })) return
+        lastSelectionTurn = {
+            direction,
+            focusNode: sel.focusNode,
+            focusOffset: sel.focusOffset,
+            time,
+        }
+        pendingSelectionEdge = null
+        selectionTurnInFlight = true
+        selectionTurnNeedsRetreat = false
+        selectionEntryFocus = null
+        Promise.resolve(turn(direction)).then(() => {
+            // The native drag keeps moving the focus with the finger on the new
+            // page. Remember where the turn left it so that only a later move
+            // back into the page re-arms paging.
+            if (!sel.rangeCount) return
+            selectionEntryFocus = { node: sel.focusNode, offset: sel.focusOffset }
+            selectionTurnNeedsRetreat = true
+        }).finally(() => selectionTurnInFlight = false)
+    }
+    const begin = () => {
+        lastSelectionTurn = null
+        pendingSelectionEdge = null
+        selectionTurnNeedsRetreat = false
+        selectionEntryFocus = null
+    }
+    return { check, begin }
 }
 
 const setSelectionTo = (target, collapse) => {
@@ -768,115 +830,15 @@ export class Paginator extends HTMLElement {
             }
         })
         this.addEventListener('load', ({ detail: { doc } }) => {
-            let lastSelectionTurn = null
-            let pendingSelectionEdge = null
-            let selectionTurnInFlight = false
-            let selectionTurnNeedsRetreat = false
-            let selectionEntryFocus = null
-            const compareFocusToPendingEdge = sel => {
-                if (!pendingSelectionEdge) return 0
-                if (pendingSelectionEdge.focusNode === sel.focusNode) {
-                    return Math.sign(sel.focusOffset - pendingSelectionEdge.focusOffset)
-                }
-                try {
-                    const previous = doc.createRange()
-                    previous.setStart(pendingSelectionEdge.focusNode, pendingSelectionEdge.focusOffset)
-                    previous.collapse(true)
-                    const current = doc.createRange()
-                    current.setStart(sel.focusNode, sel.focusOffset)
-                    current.collapse(true)
-                    return current.compareBoundaryPoints(Range.START_TO_START, previous)
-                } catch (_) {
-                    return 0
-                }
-            }
-            const checkSelectionPageTurn = (range, sel) => {
-                if (!sel.rangeCount || sel.type !== 'Range') return
-                const selRange = sel.getRangeAt(0)
-                const backward = selectionIsBackward(sel)
-                const direction = selectionPageTurnDirection({
-                    backward,
-                    startsBeforePage: selRange.compareBoundaryPoints(Range.START_TO_START, range) < 0,
-                    endsAfterPage: selRange.compareBoundaryPoints(Range.END_TO_END, range) > 0,
-                    atSectionStart: this.page <= 1,
-                    atSectionEnd: this.page >= this.pages - 2,
-                })
-                if (selectionTurnInFlight || this.#locked) return
-                if (selectionTurnNeedsRetreat) {
-                    if (selectionPageTurnRetreated({
-                        direction,
-                        entryFocus: selectionEntryFocus,
-                        focusNode: sel.focusNode,
-                        focusOffset: sel.focusOffset,
-                    })) {
-                        selectionTurnNeedsRetreat = false
-                        selectionEntryFocus = null
-                        pendingSelectionEdge = null
-                    }
-                    return
-                }
-                const now = Date.now()
-                const focusOrder = compareFocusToPendingEdge(sel)
-                const intent = selectionPageTurnIntent({
-                    pendingEdge: pendingSelectionEdge,
-                    direction,
-                    focusNode: sel.focusNode,
-                    focusOffset: sel.focusOffset,
-                    focusChanged: focusOrder !== 0,
-                    focusMovedFurther: direction > 0 ? focusOrder > 0 : focusOrder < 0,
-                    now,
-                })
-                pendingSelectionEdge = intent.pendingEdge
-                if (!intent.ready) return
-                if (!selectionPageTurnAllowed({
-                    lastTurn: lastSelectionTurn,
-                    direction,
-                    focusNode: sel.focusNode,
-                    focusOffset: sel.focusOffset,
-                    now,
-                })) return
-                lastSelectionTurn = {
-                    direction,
-                    focusNode: sel.focusNode,
-                    focusOffset: sel.focusOffset,
-                    time: now,
-                }
-                pendingSelectionEdge = null
-                const anchorNode = sel.anchorNode
-                const anchorOffset = sel.anchorOffset
-                selectionTurnInFlight = true
-                selectionTurnNeedsRetreat = true
-                selectionEntryFocus = null
-                const turn = direction < 0 ? this.prev() : this.next()
-                Promise.resolve(turn).then(() => {
-                    if (!sel.rangeCount || sel.anchorNode !== anchorNode || sel.anchorOffset !== anchorOffset) {
-                        selectionTurnNeedsRetreat = false
-                        return
-                    }
-                    const entry = this.#lastVisibleRange &&
-                        selectionPageEntryFocus(this.#lastVisibleRange, direction)
-                    if (!entry) {
-                        selectionTurnNeedsRetreat = false
-                        return
-                    }
-                    selectionTurnNeedsRetreat = true
-                    selectionEntryFocus = entry
-                    try {
-                        sel.setBaseAndExtent(anchorNode, anchorOffset, entry.node, entry.offset)
-                    } catch (_) {
-                        selectionTurnNeedsRetreat = false
-                        selectionEntryFocus = null
-                    }
-                }).finally(() => selectionTurnInFlight = false)
-            }
-            const beginSelectionDrag = () => {
-                lastSelectionTurn = null
-                pendingSelectionEdge = null
-                selectionTurnNeedsRetreat = false
-                selectionEntryFocus = null
-            }
-            doc.addEventListener('pointerdown', beginSelectionDrag)
-            doc.addEventListener('touchstart', beginSelectionDrag, { passive: true })
+            const selectionTurner = selectionPageTurner({
+                doc,
+                isLocked: () => this.#locked,
+                page: () => this.page,
+                pages: () => this.pages,
+                turn: direction => direction < 0 ? this.prev() : this.next(),
+            })
+            doc.addEventListener('pointerdown', selectionTurner.begin)
+            doc.addEventListener('touchstart', selectionTurner.begin, { passive: true })
             let isKeyboardSelecting = false
             doc.addEventListener('keydown', () => isKeyboardSelecting = true)
             doc.addEventListener('keyup', () => isKeyboardSelecting = false)
@@ -892,7 +854,7 @@ export class Paginator extends HTMLElement {
                     const backward = selectionIsBackward(sel)
                     if (!backward) selRange.collapse()
                     this.#scrollToAnchor(selRange)
-                } else if (sel.type === 'Range') checkSelectionPageTurn(range, sel)
+                } else if (sel.type === 'Range') selectionTurner.check(range, sel)
             })
             doc.addEventListener('focusin', e => this.scrolled ? null :
                 // NOTE: `requestAnimationFrame` is needed in WebKit
