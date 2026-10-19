@@ -637,6 +637,8 @@
     <string name="share_quote_reset">പുനഃസജ്ജമാക്കുക</string>
     <string name="share_quote_font">ഉദ്ധരണിയുടെ ഫോണ്ട്</string>
     <string name="share_quote_title_font">പുസ്തകപ്പേരിന്റെ ഫോണ്ട്</string>
+    <string name="share_book_title_size">തലക്കെട്ടിന്റെ വലുപ്പം</string>
+    <string name="share_book_details_font">എഴുത്തുകാരന്റെയും കണക്കുകളുടെയും ഫോണ്ട്</string>
     <string name="share_quote_weight">കനം</string>
     <string name="share_quote_weight_light">നേർത്ത</string>
     <string name="share_quote_weight_regular">സാധാരണ</string>

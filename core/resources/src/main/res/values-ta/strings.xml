@@ -637,6 +637,8 @@
     <string name="share_quote_reset">மீட்டமை</string>
     <string name="share_quote_font">மேற்கோள் எழுத்துரு</string>
     <string name="share_quote_title_font">நூல் தலைப்பு எழுத்துரு</string>
+    <string name="share_book_title_size">தலைப்பு அளவு</string>
+    <string name="share_book_details_font">ஆசிரியர், புள்ளிவிவர எழுத்துரு</string>
     <string name="share_quote_weight">தடிமன்</string>
     <string name="share_quote_weight_light">மெல்லிய</string>
     <string name="share_quote_weight_regular">வழக்கமான</string>

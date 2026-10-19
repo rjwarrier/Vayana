@@ -645,6 +645,8 @@
     <string name="share_quote_reset">Ripristina</string>
     <string name="share_quote_font">Carattere della citazione</string>
     <string name="share_quote_title_font">Carattere del titolo</string>
+    <string name="share_book_title_size">Dimensione del titolo</string>
+    <string name="share_book_details_font">Carattere di autore e dati</string>
     <string name="share_quote_weight">Spessore</string>
     <string name="share_quote_weight_light">Sottile</string>
     <string name="share_quote_weight_regular">Normale</string>

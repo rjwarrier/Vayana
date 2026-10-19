@@ -645,6 +645,8 @@
     <string name="share_quote_reset">Restablecer</string>
     <string name="share_quote_font">Fuente de la cita</string>
     <string name="share_quote_title_font">Fuente del título</string>
+    <string name="share_book_title_size">Tamaño del título</string>
+    <string name="share_book_details_font">Fuente del autor y los datos</string>
     <string name="share_quote_weight">Grosor</string>
     <string name="share_quote_weight_light">Fina</string>
     <string name="share_quote_weight_regular">Normal</string>

@@ -655,6 +655,8 @@
     <string name="share_quote_reset">Reset</string>
     <string name="share_quote_font">Quote font</string>
     <string name="share_quote_title_font">Book title font</string>
+    <string name="share_book_title_size">Title size</string>
+    <string name="share_book_details_font">Author and stats font</string>
     <string name="share_quote_weight">Weight</string>
     <string name="share_quote_weight_light">Light</string>
     <string name="share_quote_weight_regular">Regular</string>

@@ -637,6 +637,8 @@
     <string name="share_quote_reset">Zurücksetzen</string>
     <string name="share_quote_font">Schrift des Zitats</string>
     <string name="share_quote_title_font">Schrift des Buchtitels</string>
+    <string name="share_book_title_size">Titelgröße</string>
+    <string name="share_book_details_font">Schrift für Autor und Werte</string>
     <string name="share_quote_weight">Stärke</string>
     <string name="share_quote_weight_light">Leicht</string>
     <string name="share_quote_weight_regular">Normal</string>

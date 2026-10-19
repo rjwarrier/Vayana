@@ -645,6 +645,8 @@
     <string name="share_quote_reset">Réinitialiser</string>
     <string name="share_quote_font">Police de la citation</string>
     <string name="share_quote_title_font">Police du titre</string>
+    <string name="share_book_title_size">Taille du titre</string>
+    <string name="share_book_details_font">Police de l’auteur et des stats</string>
     <string name="share_quote_weight">Graisse</string>
     <string name="share_quote_weight_light">Light</string>
     <string name="share_quote_weight_regular">Normal</string>

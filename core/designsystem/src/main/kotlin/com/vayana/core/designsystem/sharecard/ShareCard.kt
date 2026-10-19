@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -287,9 +289,10 @@ fun BookShareCard(
     progressFraction: Float? = null,
     yearlyGoalReadCount: Int? = null,
     yearlyGoalTarget: Int? = null,
+    style: BookCardStyle = BookCardStyle(),
     cover: @Composable () -> Unit,
 ) {
-    val colors = rememberShareCardColors(theme)
+    val colors = quoteCardColors(style.palette, theme)
     val content = BookShareContent(
         title = title,
         author = author?.takeIf { showAuthor && it.isNotBlank() },
@@ -309,11 +312,23 @@ fun BookShareCard(
             if (showRating && !ratingValue.isNullOrBlank()) add(BookShareStat(ratingValue, ratingLabel))
         },
         progressFraction = progressFraction?.takeIf { showProgress }?.coerceIn(0f, 1f),
+        titleStyle = { base ->
+            base.copy(
+                fontFamily = style.titleFont.family,
+                fontWeight = style.titleWeight.fontWeight,
+                fontStyle = if (style.titleItalic) FontStyle.Italic else FontStyle.Normal,
+                fontSize = base.fontSize * style.titleScale.coerceIn(MinTitleScale, MaxTitleScale),
+                lineHeight = base.lineHeight * style.titleScale.coerceIn(MinTitleScale, MaxTitleScale),
+            )
+        },
+        detailsStyle = { base -> base.copy(fontFamily = style.detailsFont.family) },
+        // A taller card has room for more of a long title.
+        lineScale = 1f / style.shape.ratio,
     )
     Box(
         modifier = modifier
             .width(Sizes.shareCardWidth)
-            .aspectRatio(1f)
+            .aspectRatio(style.shape.ratio)
             .background(colors.background),
     ) {
         if (layout == BookShareCardLayout.BACKDROP && showCover) {
@@ -337,9 +352,12 @@ fun BookShareCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ShareCardWordmark(tint = colors.accent, wordmark = watermark)
+                Spacer(modifier = Modifier.weight(1f))
                 if (yearlyGoalReadCount != null && yearlyGoalTarget != null && yearlyGoalTarget > 0) {
                     YearlyGoalBadge(yearlyGoalReadCount, yearlyGoalTarget, colors)
+                    if (style.showSeal) Spacer(modifier = Modifier.width(Spacing.sm))
                 }
+                if (style.showSeal) ShareCardSeal(colors.accent, style.sealScale)
             }
             val bodyModifier = Modifier.weight(1f)
             when (layout) {
@@ -392,11 +410,11 @@ private fun YearlyGoalBadge(readCount: Int, target: Int, colors: ShareCardColors
 }
 
 @Composable
-private fun ShareStat(value: String, label: String, colors: ShareCardColors, modifier: Modifier = Modifier) {
+private fun ShareStat(value: String, label: String, colors: ShareCardColors, valueStyle: TextStyle, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
             text = value,
-            style = ShareCardTypography.statValue,
+            style = valueStyle,
             color = colors.primaryText,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -423,13 +441,28 @@ private fun ClassicBookShareBody(
     cover: @Composable () -> Unit,
     modifier: Modifier,
 ) {
+    // A story-shaped card has height to spare: the cover moves above the details and grows, instead of leaving
+    // the card mostly empty around a small cover-and-text row.
+    val stacked = content.lineScale >= TallCardLineScale
+    val coverWidth = if (stacked) Sizes.shareCardCoverWidth * StackedCoverScale else Sizes.shareCardCoverWidth
     Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
+        if (stacked && showCover) {
+            Box(
+                modifier = Modifier
+                    .width(coverWidth)
+                    .height(coverWidth / Sizes.coverAspectRatio)
+                    .clip(RoundedCornerShape(Radii.small)),
+            ) {
+                cover()
+            }
+            Spacer(modifier = Modifier.height(Spacing.lg))
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (showCover) {
+            if (showCover && !stacked) {
                 Box(
                     modifier = Modifier
-                        .width(Sizes.shareCardCoverWidth)
-                        .height(Sizes.shareCardCoverWidth / Sizes.coverAspectRatio)
+                        .width(coverWidth)
+                        .height(coverWidth / Sizes.coverAspectRatio)
                         .clip(RoundedCornerShape(Radii.small)),
                 ) {
                     cover()
@@ -443,14 +476,14 @@ private fun ClassicBookShareBody(
                 }
                 Text(
                     text = content.title,
-                    style = ShareCardTypography.bookTitle,
+                    style = content.titleStyle(ShareCardTypography.bookTitle),
                     color = colors.primaryText,
-                    maxLines = if (showCover) 3 else 4,
+                    maxLines = content.lines(if (showCover) 3 else 4),
                     overflow = TextOverflow.Ellipsis,
                 )
                 content.author?.let {
                     Spacer(modifier = Modifier.height(Spacing.xs))
-                    Text(text = it, style = ShareCardTypography.bookAuthor, color = colors.mutedText)
+                    Text(text = it, style = content.detailsStyle(ShareCardTypography.bookAuthor), color = colors.mutedText)
                 }
                 content.series?.let {
                     Spacer(modifier = Modifier.height(Spacing.xs))
@@ -464,7 +497,7 @@ private fun ClassicBookShareBody(
         }
         if (content.stats.isNotEmpty()) {
             Spacer(modifier = Modifier.height(Spacing.lg))
-            ShareStatsRow(stats = content.stats, colors = colors, modifier = Modifier.fillMaxWidth())
+            ShareStatsRow(stats = content.stats, colors = colors, valueStyle = content.detailsStyle(ShareCardTypography.statValue), modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -502,17 +535,17 @@ private fun SpotlightBookShareBody(
         }
         Text(
             text = content.title,
-            style = ShareCardTypography.bookTitle,
+            style = content.titleStyle(ShareCardTypography.bookTitle),
             color = colors.primaryText,
             textAlign = TextAlign.Center,
-            maxLines = if (showCover) 2 else 4,
+            maxLines = content.lines(if (showCover) 2 else 4),
             overflow = TextOverflow.Ellipsis,
         )
         content.author?.let {
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
                 text = it,
-                style = ShareCardTypography.bookAuthor,
+                style = content.detailsStyle(ShareCardTypography.bookAuthor),
                 color = colors.mutedText,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -561,7 +594,7 @@ private fun MinimalBookShareBody(
         }
         Text(
             text = content.title,
-            style = ShareCardTypography.bookTitleLarge,
+            style = content.titleStyle(ShareCardTypography.bookTitleLarge),
             color = colors.primaryText,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -570,7 +603,7 @@ private fun MinimalBookShareBody(
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
                 text = it,
-                style = ShareCardTypography.bookAuthor,
+                style = content.detailsStyle(ShareCardTypography.bookAuthor),
                 color = colors.mutedText,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -600,7 +633,7 @@ private fun MinimalBookShareBody(
         }
         if (content.stats.isNotEmpty()) {
             Spacer(modifier = Modifier.height(Spacing.md))
-            ShareStatsRow(stats = content.stats, colors = colors, modifier = Modifier.fillMaxWidth())
+            ShareStatsRow(stats = content.stats, colors = colors, valueStyle = content.detailsStyle(ShareCardTypography.statValue), modifier = Modifier.fillMaxWidth())
         }
         if (content.tags.isNotEmpty()) {
             Spacer(modifier = Modifier.height(Spacing.sm))
@@ -610,10 +643,10 @@ private fun MinimalBookShareBody(
 }
 
 @Composable
-private fun ShareStatsRow(stats: List<BookShareStat>, colors: ShareCardColors, modifier: Modifier = Modifier) {
+private fun ShareStatsRow(stats: List<BookShareStat>, colors: ShareCardColors, valueStyle: TextStyle, modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         stats.forEach { stat ->
-            ShareStat(value = stat.value, label = stat.label, colors = colors, modifier = Modifier.weight(1f))
+            ShareStat(value = stat.value, label = stat.label, colors = colors, valueStyle = valueStyle, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -665,7 +698,33 @@ private data class BookShareContent(
     val tags: List<String>,
     val stats: List<BookShareStat>,
     val progressFraction: Float?,
+    val titleStyle: (TextStyle) -> TextStyle,
+    val detailsStyle: (TextStyle) -> TextStyle,
+    val lineScale: Float,
+) {
+    fun lines(base: Int): Int = (base * lineScale).roundToInt()
+}
+
+/**
+ * How a book card looks beyond what it shows: its colours and shape, the title's typeface, weight, slant and size,
+ * the typeface of the author and stats, and the reader's seal. The defaults are the card as it always was.
+ */
+data class BookCardStyle(
+    val palette: QuoteCardPalette = QuoteCardPalette.APP,
+    val shape: QuoteCardShape = QuoteCardShape.SQUARE,
+    val titleFont: QuoteCardFont = QuoteCardFont.SERIF,
+    val titleWeight: QuoteCardWeight = QuoteCardWeight.BOLD,
+    val titleItalic: Boolean = false,
+    val titleScale: Float = 1f,
+    val detailsFont: QuoteCardFont = QuoteCardFont.SERIF,
+    val showSeal: Boolean = true,
+    val sealScale: Float = 1f,
 )
+
+const val MinTitleScale = 0.7f
+private const val TallCardLineScale = 1.5f
+private const val StackedCoverScale = 1.6f
+const val MaxTitleScale = 1.4f
 
 enum class ShareCardTheme {
     LIGHT,

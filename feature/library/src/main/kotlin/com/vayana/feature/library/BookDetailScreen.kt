@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import com.vayana.core.designsystem.sharecard.BookCardStyle
+import com.vayana.core.designsystem.sharecard.ShareCardEditor
 import androidx.compose.foundation.BorderStroke
 import com.vayana.core.designsystem.tokens.Strokes
 import androidx.compose.material3.AssistChipDefaults
@@ -314,6 +316,8 @@ internal data class BookShareImageOptions(
     val showImportedDate: Boolean = false,
     val showTagline: Boolean = true,
     val showYearlyGoal: Boolean = false,
+    /** Colours, shape, type and seal: everything about the card's look rather than what it shows. */
+    val style: BookCardStyle = BookCardStyle(),
 ) {
     companion object {
         /**
@@ -420,6 +424,9 @@ private fun BookDetailScreen(
     var readNextSeriesBreakWarning by remember { mutableStateOf<ReadNextSeriesBreakWarning?>(null) }
     var actionsExpanded by remember { mutableStateOf(false) }
     var shareImageOptions by remember { mutableStateOf(BookShareImageOptions()) }
+    LaunchedEffect(shareImageOptions, showShareBookDialog) {
+        if (showShareBookDialog) BookShareOptionsStore.save(context, shareImageOptions)
+    }
     var shareImageBookTitle by rememberSaveable(book?.id, book?.title, book?.homeLibraryOriginalTitle) {
         mutableStateOf(book?.homeLibraryDisplayTitle.orEmpty())
     }
@@ -888,7 +895,7 @@ private fun BookDetailScreen(
                             },
                             onOpenNotes = onOpenNotes?.let { open -> { open(book.id) } },
                             onShare = {
-                                shareImageOptions = BookShareImageOptions.forState(book.readingState(), shareImageOptions)
+                                shareImageOptions = BookShareImageOptions.forState(book.readingState(), BookShareOptionsStore.load(context))
                                 showShareBookDialog = true
                             },
                         )
@@ -1305,22 +1312,17 @@ private fun BookDetailScreen(
         val yearlyGoalReadCount = remember(libraryBooks, book, yearlyBooksGoal) {
             yearlyBookShareProgress(libraryBooks, book, yearlyBooksGoal)?.readCount
         }
-        ShareCardDialog(
-            onDismiss = { showShareBookDialog = false },
-            onShareText = {
-                context.shareTextWithChooser(
-                    book.toShareText(context),
-                    shareBookTitle,
-                )
-                showShareBookDialog = false
-            },
-            chooserTitle = stringResource(R.string.share_card_image_chooser_title),
-            shareTextLabel = stringResource(R.string.share_card_share_text),
-            shareImageLabel = stringResource(R.string.share_card_share_image),
-            shareImageFileName = book.shareFileBaseName(),
+        ShareCardEditor(
             title = shareBookTitle,
-            options = {
-                BookShareImageOptionsPanel(
+            shape = shareImageOptions.style.shape,
+            tabs = BookShareTabs.map { stringResource(it) },
+            onDismiss = { showShareBookDialog = false },
+            onReset = { shareImageOptions = BookShareImageOptions.forState(book.readingState(), BookShareImageOptions()) },
+            onShareText = { context.shareTextWithChooser(book.toShareText(context), shareBookTitle) },
+            shareImageFileName = book.shareFileBaseName(),
+            tabContent = { tab ->
+                BookShareTab(
+                    tab = tab,
                     options = shareImageOptions,
                     bookTitle = shareImageBookTitle,
                     onBookTitleChange = { shareImageBookTitle = it },
@@ -1334,7 +1336,7 @@ private fun BookDetailScreen(
                     catalogTitle = book.title,
                 )
             },
-        ) {
+            card = {
             BookShareCard(
                 title = shareImageBookTitle.trim().ifBlank { book.homeLibraryDisplayTitle },
                 author = book.author,
@@ -1366,11 +1368,13 @@ private fun BookDetailScreen(
                 progressFraction = shareStats.progressFraction,
                 yearlyGoalReadCount = yearlyGoalReadCount.takeIf { shareImageOptions.showYearlyGoal },
                 yearlyGoalTarget = yearlyBooksGoal.takeIf { shareImageOptions.showYearlyGoal && it > 0 },
+                style = shareImageOptions.style,
             ) {
                 // Fill whatever box the layout gives the cover, including Backdrop's full square.
                 BookCover(book = book, modifier = Modifier.fillMaxSize())
             }
-        }
+            },
+        )
     }
 }
 

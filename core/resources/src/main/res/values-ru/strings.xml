@@ -653,6 +653,8 @@
     <string name="share_quote_reset">Сбросить</string>
     <string name="share_quote_font">Шрифт цитаты</string>
     <string name="share_quote_title_font">Шрифт названия</string>
+    <string name="share_book_title_size">Размер названия</string>
+    <string name="share_book_details_font">Шрифт автора и статистики</string>
     <string name="share_quote_weight">Насыщенность</string>
     <string name="share_quote_weight_light">Тонкий</string>
     <string name="share_quote_weight_regular">Обычный</string>

@@ -182,20 +182,84 @@ fun QuoteShareDialog(
 ) {
     val seriesLabel = shareSeriesLabel(series, seriesNumber)
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val exportLayer = rememberGraphicsLayer()
-    var capturing by remember { mutableStateOf(false) }
     val textChooserTitle = stringResource(R.string.share_card_share_text)
-    val imageChooserTitle = stringResource(R.string.share_card_image_chooser_title)
     val citationPattern = stringResource(R.string.quote_citation)
     // The last quote's look, kept across quotes and app restarts (QuoteShareOptionsStore).
     var options by remember { mutableStateOf(QuoteShareOptionsStore.load(context)) }
     LaunchedEffect(options) { QuoteShareOptionsStore.save(context, options) }
     var editedText by remember(text) { mutableStateOf(text) }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
     val sharedText = editedText.trim().ifEmpty { text.trim() }
     val availableCover = remember(coverPath) { coverPath?.takeIf { File(it).exists() } }
 
+    ShareCardEditor(
+        title = stringResource(R.string.share_quote_title),
+        shape = options.shape,
+        tabs = EditorTabs.map { stringResource(it) },
+        onDismiss = onDismiss,
+        onReset = { options = QuoteShareOptions(); editedText = text },
+        onShareText = {
+            context.shareText(QuoteCitation.format(sharedText, author, bookTitle, chapterTitle, citationPattern), textChooserTitle)
+        },
+        card = {
+            QuoteShareCard(
+                text = editedText,
+                author = author,
+                bookTitle = bookTitle,
+                series = seriesLabel,
+                coverPath = availableCover,
+                watermark = stringResource(R.string.share_card_watermark),
+                footerRight = stringResource(R.string.share_card_tagline),
+                options = options,
+            )
+        },
+    ) { tab ->
+        val change: (QuoteShareOptions) -> Unit = { options = it }
+        when (tab) {
+            0 -> QuoteTextTab(options, editedText, { editedText = it.take(MaxShareQuoteCharacters) }, change)
+            1 -> QuoteLayoutTab(options, hasCover = availableCover != null, change)
+            2 -> ShareCardPalettePicker(
+                palette = options.palette,
+                theme = options.theme,
+                onPaletteChange = { change(options.copy(palette = it)) },
+                onThemeChange = { change(options.copy(theme = it)) },
+            )
+            else -> QuoteIncludeTab(
+                options = options,
+                hasCover = availableCover != null,
+                hasBookTitle = !bookTitle.isNullOrBlank(),
+                hasAuthor = !author.isNullOrBlank(),
+                hasSeries = seriesLabel != null,
+                onOptionsChange = change,
+            )
+        }
+    }
+}
+
+/**
+ * A full-screen share-card editor: [card] previewed at the top (scaled to fit whatever its [shape]), [tabs] of
+ * appearance controls below it ([tabContent] draws the selected one), and Share text / Share image along the bottom.
+ * The shared image is the card recorded at the export size, never a screenshot of the preview.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ShareCardEditor(
+    title: String,
+    shape: QuoteCardShape,
+    tabs: List<String>,
+    onDismiss: () -> Unit,
+    onReset: () -> Unit,
+    onShareText: () -> Unit,
+    card: @Composable () -> Unit,
+    shareImageFileName: String? = null,
+    tabContent: @Composable (tab: Int) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val exportLayer = rememberGraphicsLayer()
+    var capturing by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val textChooserTitle = stringResource(R.string.share_card_share_text)
+    val imageChooserTitle = stringResource(R.string.share_card_image_chooser_title)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -208,11 +272,9 @@ fun QuoteShareDialog(
                             Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.share_quote_close))
                         }
                     },
-                    title = { Text(stringResource(R.string.share_quote_title)) },
+                    title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     actions = {
-                        TextButton(onClick = { options = QuoteShareOptions(); editedText = text }) {
-                            Text(stringResource(R.string.share_quote_reset))
-                        }
+                        TextButton(onClick = onReset) { Text(stringResource(R.string.share_quote_reset)) }
                     },
                 )
             },
@@ -225,16 +287,7 @@ fun QuoteShareDialog(
                             .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        OutlinedButton(
-                            onClick = {
-                                context.shareText(
-                                    QuoteCitation.format(sharedText, author, bookTitle, chapterTitle, citationPattern),
-                                    textChooserTitle,
-                                )
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
+                        OutlinedButton(onClick = { onShareText(); onDismiss() }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.AutoMirrored.Outlined.ShortText, null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(textChooserTitle, maxLines = 1)
@@ -244,7 +297,7 @@ fun QuoteShareDialog(
                                 capturing = true
                                 scope.launch {
                                     try {
-                                        exportLayer.shareCardImage(context, imageChooserTitle, null)
+                                        exportLayer.shareCardImage(context, imageChooserTitle, shareImageFileName)
                                         onDismiss()
                                     } finally {
                                         capturing = false
@@ -278,29 +331,19 @@ fun QuoteShareDialog(
                 val previewHeight = maxHeight * PreviewHeightFraction
                 val previewWidth = maxWidth - Paddings.screenHorizontal * 2
                 Column(Modifier.fillMaxSize()) {
-                    QuoteCardPreview(
-                        options = options,
+                    ShareCardPreview(
+                        shape = shape,
                         maxWidth = previewWidth,
                         maxHeight = previewHeight - Spacing.md * 2,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(previewHeight),
                         exportLayer = exportLayer,
-                    ) {
-                        QuoteShareCard(
-                            text = editedText,
-                            author = author,
-                            bookTitle = bookTitle,
-                            series = seriesLabel,
-                            coverPath = availableCover,
-                            watermark = stringResource(R.string.share_card_watermark),
-                            footerRight = stringResource(R.string.share_card_tagline),
-                            options = options,
-                        )
-                    }
-                    PrimaryTabRow(selectedTabIndex = tab) {
-                        EditorTabs.forEachIndexed { index, label ->
-                            Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) })
+                        card = card,
+                    )
+                    PrimaryTabRow(selectedTabIndex = tab.coerceAtMost(tabs.lastIndex)) {
+                        tabs.forEachIndexed { index, label ->
+                            Tab(selected = tab == index, onClick = { tab = index }, text = { Text(label, maxLines = 1) })
                         }
                     }
                     Column(
@@ -311,20 +354,7 @@ fun QuoteShareDialog(
                             .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        val change: (QuoteShareOptions) -> Unit = { options = it }
-                        when (tab) {
-                            0 -> QuoteTextTab(options, editedText, { editedText = it.take(MaxShareQuoteCharacters) }, change)
-                            1 -> QuoteLayoutTab(options, hasCover = availableCover != null, change)
-                            2 -> QuoteColorsTab(options, change)
-                            else -> QuoteIncludeTab(
-                                options = options,
-                                hasCover = availableCover != null,
-                                hasBookTitle = !bookTitle.isNullOrBlank(),
-                                hasAuthor = !author.isNullOrBlank(),
-                                hasSeries = seriesLabel != null,
-                                onOptionsChange = change,
-                            )
-                        }
+                        tabContent(tab)
                     }
                 }
             }
@@ -337,8 +367,8 @@ fun QuoteShareDialog(
  * the scale, so the shared image is always the full-size card whatever the preview's size.
  */
 @Composable
-private fun QuoteCardPreview(
-    options: QuoteShareOptions,
+private fun ShareCardPreview(
+    shape: QuoteCardShape,
     maxWidth: androidx.compose.ui.unit.Dp,
     maxHeight: androidx.compose.ui.unit.Dp,
     exportLayer: androidx.compose.ui.graphics.layer.GraphicsLayer,
@@ -346,7 +376,7 @@ private fun QuoteCardPreview(
     card: @Composable () -> Unit,
 ) {
     val cardWidth = Sizes.shareCardWidth
-    val cardHeight = cardWidth / options.shape.ratio
+    val cardHeight = cardWidth / shape.ratio
     val scale = min(maxWidth / cardWidth, maxHeight / cardHeight)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
@@ -375,7 +405,7 @@ private fun QuoteTextTab(
     ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_quote_text))
     OutlinedTextField(value = quoteText, onValueChange = onQuoteTextChange, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 6)
     ShareCardOptionsLabel(stringResource(R.string.share_quote_font))
-    FontChoiceRow(selected = options.font, onSelect = { onOptionsChange(options.copy(font = it)) }) {
+    ShareCardFontRow(selected = options.font, onSelect = { onOptionsChange(options.copy(font = it)) }) {
         ShareCardOptionChip(
             selected = options.italic,
             label = stringResource(R.string.share_quote_italic),
@@ -383,15 +413,10 @@ private fun QuoteTextTab(
         )
     }
     ShareCardOptionsLabel(stringResource(R.string.share_quote_weight))
-    ShareCardChoiceRow(
-        choices = QuoteCardWeight.entries,
-        selected = options.weight,
-        label = { stringResource(it.label) },
-        onSelect = { onOptionsChange(options.copy(weight = it)) },
-    )
+    ShareCardWeightRow(selected = options.weight, onSelect = { onOptionsChange(options.copy(weight = it)) })
     ShareCardOptionsLabel(stringResource(R.string.share_quote_title_font))
-    FontChoiceRow(selected = options.titleFont, onSelect = { onOptionsChange(options.copy(titleFont = it)) })
-    SliderRow(
+    ShareCardFontRow(selected = options.titleFont, onSelect = { onOptionsChange(options.copy(titleFont = it)) })
+    ShareCardSliderRow(
         label = stringResource(R.string.settings_reader_font_size_title),
         value = options.quoteFontScale,
         range = MinQuoteFontScale..MaxQuoteFontScale,
@@ -409,7 +434,7 @@ private fun QuoteTextTab(
 
 /** Serif / Sans / Mono, each label set in its own typeface, plus any [extra] chips on the same row. */
 @Composable
-private fun FontChoiceRow(selected: QuoteCardFont, onSelect: (QuoteCardFont) -> Unit, extra: @Composable () -> Unit = {}) {
+fun ShareCardFontRow(selected: QuoteCardFont, onSelect: (QuoteCardFont) -> Unit, extra: @Composable () -> Unit = {}) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         QuoteCardFont.entries.forEach { font ->
             FilterChip(
@@ -424,13 +449,7 @@ private fun FontChoiceRow(selected: QuoteCardFont, onSelect: (QuoteCardFont) -> 
 
 @Composable
 private fun QuoteLayoutTab(options: QuoteShareOptions, hasCover: Boolean, onOptionsChange: (QuoteShareOptions) -> Unit) {
-    ShareCardOptionsLabel(stringResource(R.string.share_quote_shape))
-    ShareCardChoiceRow(
-        choices = QuoteCardShape.entries,
-        selected = options.shape,
-        label = { stringResource(it.label) },
-        onSelect = { onOptionsChange(options.copy(shape = it)) },
-    )
+    ShareCardShapeRow(selected = options.shape, onSelect = { onOptionsChange(options.copy(shape = it)) })
     ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_layout))
     // Backdrop is nothing without the cover, so it is only offered with one, and picking it turns the cover on.
     val layouts = QuoteShareCardLayout.entries.filter { hasCover || it != QuoteShareCardLayout.BACKDROP }
@@ -445,7 +464,7 @@ private fun QuoteLayoutTab(options: QuoteShareOptions, hasCover: Boolean, onOpti
             )
         }
     }
-    SliderRow(
+    ShareCardSliderRow(
         label = stringResource(R.string.share_quote_gap),
         value = options.detailsGap,
         range = MinDetailsGap..MaxDetailsGap,
@@ -458,7 +477,7 @@ private fun QuoteLayoutTab(options: QuoteShareOptions, hasCover: Boolean, onOpti
         onClick = { onOptionsChange(options.copy(showDetailsDivider = !options.showDetailsDivider)) },
     )
     if (options.layout == QuoteShareCardLayout.BACKDROP) {
-        SliderRow(
+        ShareCardSliderRow(
             label = stringResource(R.string.share_card_image_options_cover_opacity),
             value = options.backdropOpacity,
             range = MinBackdropOpacity..MaxBackdropOpacity,
@@ -468,27 +487,61 @@ private fun QuoteLayoutTab(options: QuoteShareOptions, hasCover: Boolean, onOpti
     }
 }
 
+/** Light/Dark weight-style rows shared by both share-card editors. */
 @Composable
-private fun QuoteColorsTab(options: QuoteShareOptions, onOptionsChange: (QuoteShareOptions) -> Unit) {
+fun ShareCardWeightRow(selected: QuoteCardWeight, onSelect: (QuoteCardWeight) -> Unit) {
+    ShareCardChoiceRow(choices = QuoteCardWeight.entries, selected = selected, label = { stringResource(it.label) }, onSelect = onSelect)
+}
+
+@Composable
+fun ShareCardShapeRow(selected: QuoteCardShape, onSelect: (QuoteCardShape) -> Unit) {
+    ShareCardOptionsLabel(stringResource(R.string.share_quote_shape))
+    ShareCardChoiceRow(choices = QuoteCardShape.entries, selected = selected, label = { stringResource(it.label) }, onSelect = onSelect)
+}
+
+/** The palettes as swatches; the app's own colours add a Light/Dark choice (the fixed palettes are one of each). */
+@Composable
+fun ShareCardPalettePicker(
+    palette: QuoteCardPalette,
+    theme: ShareCardTheme,
+    onPaletteChange: (QuoteCardPalette) -> Unit,
+    onThemeChange: (ShareCardTheme) -> Unit,
+) {
     ShareCardOptionsLabel(stringResource(R.string.share_quote_colors))
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        QuoteCardPalette.entries.forEach { palette ->
-            val colors = quoteCardColors(palette, options.theme)
+        QuoteCardPalette.entries.forEach { choice ->
             PaletteSwatch(
-                colors = colors,
-                label = stringResource(palette.label),
-                selected = options.palette == palette,
-                onClick = { onOptionsChange(options.copy(palette = palette)) },
+                colors = quoteCardColors(choice, theme),
+                label = stringResource(choice.label),
+                selected = palette == choice,
+                onClick = { onPaletteChange(choice) },
             )
         }
     }
-    // The app's colours come in light and dark; the fixed palettes are one of each already.
-    if (options.palette == QuoteCardPalette.APP) {
-        ShareCardThemeRow(selected = options.theme, onSelect = { onOptionsChange(options.copy(theme = it)) })
+    if (palette == QuoteCardPalette.APP) ShareCardThemeRow(selected = theme, onSelect = onThemeChange)
+}
+
+/** The seal's chip and size slider (when one is set), then the card to add, crop or change it. */
+@Composable
+fun ShareCardSealControls(show: Boolean, scale: Float, onShowChange: (Boolean) -> Unit, onScaleChange: (Float) -> Unit) {
+    val context = LocalContext.current
+    val hasSeal = remember(ShareSeal.version) { ShareSeal.exists(context) }
+    if (hasSeal) {
+        ShareCardOptionChip(show, stringResource(R.string.share_quote_show_seal)) { onShowChange(!show) }
+        if (show) {
+            ShareCardSliderRow(
+                label = stringResource(R.string.share_quote_seal_size),
+                value = scale,
+                range = MinSealScale..MaxSealScale,
+                steps = SealScaleSteps,
+                onChange = onScaleChange,
+            )
+        }
     }
+    ShareSealCard()
 }
 
 @Composable
@@ -500,8 +553,6 @@ private fun QuoteIncludeTab(
     hasSeries: Boolean,
     onOptionsChange: (QuoteShareOptions) -> Unit,
 ) {
-    val context = LocalContext.current
-    val hasSeal = remember(ShareSeal.version) { ShareSeal.exists(context) }
     ShareCardOptionsLabel(stringResource(R.string.share_card_image_options_include))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         // Chips for what this quote lacks, or this layout never draws, are hidden rather than left doing nothing.
@@ -537,27 +588,18 @@ private fun QuoteIncludeTab(
         ShareCardOptionChip(options.showTagline, stringResource(R.string.share_card_image_options_tagline)) {
             onOptionsChange(options.copy(showTagline = !options.showTagline))
         }
-        if (hasSeal) {
-            ShareCardOptionChip(options.showSeal, stringResource(R.string.share_quote_show_seal)) {
-                onOptionsChange(options.copy(showSeal = !options.showSeal))
-            }
-        }
-    }
-    if (hasSeal && options.showSeal) {
-        SliderRow(
-            label = stringResource(R.string.share_quote_seal_size),
-            value = options.sealScale,
-            range = MinSealScale..MaxSealScale,
-            steps = SealScaleSteps,
-            onChange = { onOptionsChange(options.copy(sealScale = it)) },
-        )
     }
     Spacer(modifier = Modifier.height(Spacing.sm))
-    ShareSealCard()
+    ShareCardSealControls(
+        show = options.showSeal,
+        scale = options.sealScale,
+        onShowChange = { onOptionsChange(options.copy(showSeal = it)) },
+        onScaleChange = { onOptionsChange(options.copy(sealScale = it)) },
+    )
 }
 
 @Composable
-private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, steps: Int, onChange: (Float) -> Unit) {
+fun ShareCardSliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, steps: Int, onChange: (Float) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         ShareCardOptionsLabel(label)
         Text(
@@ -595,6 +637,12 @@ private fun PaletteSwatch(colors: ShareCardColors, label: String, selected: Bool
         }
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** The reader's seal at its chosen size, in [tint]; nothing when no seal is set. */
+@Composable
+internal fun ShareCardSeal(tint: Color, scale: Float) {
+    ShareSealImage(tint = tint, modifier = Modifier.size(Sizes.iconLarge * scale.coerceIn(MinSealScale, MaxSealScale)))
 }
 
 /** A quote/highlight/note as a shareable card in the shape, colours and type [options] ask for. */
@@ -650,12 +698,7 @@ fun QuoteShareCard(
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 ShareCardWordmark(tint = colors.accent, wordmark = watermark)
                 Spacer(modifier = Modifier.weight(1f))
-                if (options.showSeal) {
-                    ShareSealImage(
-                        tint = colors.accent,
-                        modifier = Modifier.size(Sizes.iconLarge * options.sealScale.coerceIn(MinSealScale, MaxSealScale)),
-                    )
-                }
+                if (options.showSeal) ShareCardSeal(colors.accent, options.sealScale)
             }
             val bodyModifier = Modifier.weight(1f)
             when (layout) {
@@ -946,14 +989,14 @@ private fun fixedColors(background: Color, text: Color, muted: Color, accent: Co
     divider = muted.copy(alpha = DividerAlpha),
 )
 
-private val QuoteCardFont.label: Int get() = when (this) {
+internal val QuoteCardFont.label: Int get() = when (this) {
     QuoteCardFont.SERIF -> R.string.share_quote_font_serif
     QuoteCardFont.SANS -> R.string.share_quote_font_sans
     QuoteCardFont.MONO -> R.string.share_quote_font_mono
 }
 
 /** Serif is the card's own Playfair Display; Sans and Mono are the app's bundled Inter and JetBrains Mono. */
-private val QuoteCardFont.family: FontFamily get() = when (this) {
+internal val QuoteCardFont.family: FontFamily get() = when (this) {
     QuoteCardFont.SERIF -> FontFamilies.Display
     QuoteCardFont.SANS -> FontFamilies.Ui
     QuoteCardFont.MONO -> FontFamilies.Mono
@@ -1006,8 +1049,8 @@ private const val MinQuoteFontScale = 0.7f
 private const val MaxQuoteFontScale = 1.4f
 private const val QuoteFontScaleSteps = 6
 private const val MaxShareQuoteCharacters = 2_000
-private const val MinBackdropOpacity = 0.1f
-private const val MaxBackdropOpacity = 0.6f
+internal const val MinBackdropOpacity = 0.1f
+internal const val MaxBackdropOpacity = 0.6f
 private const val DividerAlpha = 0.4f
 private const val MinDetailsGap = 0f
 private const val MaxDetailsGap = 3f
