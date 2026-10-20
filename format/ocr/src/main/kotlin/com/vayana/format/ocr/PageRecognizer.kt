@@ -17,8 +17,11 @@ data class RecognizedWord(
     val confidence: Float,
 )
 
-/** A page's words, line by line, in reading order, normalised (see [normalizeRecognizedText]). */
-data class RecognizedPage(val lines: List<List<RecognizedWord>>)
+/**
+ * A page's words, line by line, in reading order, normalised (see [normalizeRecognizedText]). [joinedLines] are the
+ * lines whose last word goes on as the next line's first (see [lineJoins]); known once the whole book is recognised.
+ */
+data class RecognizedPage(val lines: List<List<RecognizedWord>>, val joinedLines: Set<Int> = emptySet())
 
 /**
  * Recognises the text of PDF pages with Tesseract. [dataPath] holds a `tessdata` folder with the `<language>`

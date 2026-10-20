@@ -179,15 +179,21 @@ const recognizedPages = new Map()
 // page documents on screen with a text layer -> { page, viewport }, so newly recognised text can replace an empty one
 const textLayerDocs = new Map()
 const RecognizedFont = 'vayana-recognized'
+// Tesseract's word confidence (0-100) below which a recognised word is likely misread.
+const LowRecognitionConfidence = 50
 const hasText = content => Boolean(content?.items?.some(item => item.str?.trim()))
 
 // Each word is an item sized to its box, with a space item across the gap to the next word and a line end after the
 // last, as pdf.js extracts a text PDF. The baseline sits a fifth of the box above its foot, so with the font's 0.8
 // ascent and 0.2 descent the item covers the box exactly.
-const recognizedTextContent = (page, { lines }) => {
+// A line whose last word goes on as the next line's first (`joins`, see :format:ocr's lineJoins) ends without a line
+// break, so search and read aloud see the word whole; its span is marked for lookup (bridge.js selectWordAt), as is a
+// word Tesseract wasn't sure of, which lookup skips.
+const recognizedTextContent = (page, { lines, joins }) => {
     const [left0, , , top0] = page.view
+    const joined = new Set(joins ?? [])
     const items = []
-    for (const line of lines ?? []) line.forEach(([str, left, top, right, bottom], i) => {
+    for (const [lineIndex, line] of (lines ?? []).entries()) line.forEach(([str, left, top, right, bottom, confidence], i) => {
         const height = Math.max(1, bottom - top)
         const baseline = top0 - bottom + height * 0.2
         const item = (text, x, width, hasEOL) => ({
@@ -195,7 +201,10 @@ const recognizedTextContent = (page, { lines }) => {
             transform: [height, 0, 0, height, left0 + x, baseline],
         })
         const next = line[i + 1]
-        items.push(item(String(str), left, right - left, !next))
+        const word = item(String(str), left, right - left, !next && !joined.has(lineIndex))
+        if (confidence < LowRecognitionConfidence) word.lowConfidence = true
+        if (!next && joined.has(lineIndex)) word.joinsNext = true
+        items.push(word)
         if (next) items.push(item(' ', right, Math.max(0, next[1] - right), false))
     })
     return {
@@ -247,6 +256,12 @@ const finishTextLayer = container => {
 const buildTextLayer = async (doc, container, textContentSource, viewport) => {
     const textLayer = new pdfjsLib.TextLayer({ textContentSource, container, viewport })
     await textLayer.render()
+    // one span per text item, in order (pdf.js TextLayer#appendText)
+    const items = textContentSource?.items ?? []
+    textLayer.textDivs.forEach((span, index) => {
+        if (items[index]?.lowConfidence) span.dataset.lowConfidence = ''
+        if (items[index]?.joinsNext) span.dataset.joinsNext = ''
+    })
     finishTextLayer(container)
     return textLayer
 }

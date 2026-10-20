@@ -1713,16 +1713,32 @@ function selectWordAt(doc, x, y) {
     const caret = doc.caretRangeFromPoint?.(x, y)
     const node = caret?.startContainer
     if (!node || node.nodeType !== 3) return false
+    // A word recognised from a scan that Tesseract wasn't sure of would look up something that isn't there.
+    if (node.parentElement?.closest('[data-low-confidence]')) return false
     const range = doc.createRange()
     const bionicWord = node.parentElement?.closest(`.${BionicWordClass}`)
     if (bionicWord) {
         range.selectNodeContents(bionicWord)
     } else {
+        const words = segment => [...segmenterFor(doc, 'word').segment(segment)].filter(part => part.isWordLike)
         const word = [...segmenterFor(doc, 'word').segment(node.data)]
             .find(({ segment, index }) => caret.startOffset >= index && caret.startOffset < index + segment.length)
         if (!word?.isWordLike) return false
         range.setStart(node, word.index)
         range.setEnd(node, word.index + word.segment.length)
+        // A recognised word broken across a line end (see foliate/pdf.js recognizedTextContent) is looked up whole.
+        const span = node.parentElement
+        const next = span?.nextElementSibling?.firstChild
+        if (span?.dataset.joinsNext !== undefined && word.index + word.segment.length === node.data.length && next?.nodeType === 3) {
+            const first = words(next.data)[0]
+            if (first?.index === 0) range.setEnd(next, first.segment.length)
+        }
+        const previousSpan = span?.previousElementSibling
+        const previous = previousSpan?.lastChild
+        if (previousSpan?.dataset.joinsNext !== undefined && word.index === 0 && previous?.nodeType === 3) {
+            const last = words(previous.data).at(-1)
+            if (last && last.index + last.segment.length === previous.data.length) range.setStart(previous, last.index)
+        }
     }
     wordLookupSelection = true
     const selection = doc.getSelection()

@@ -31,7 +31,7 @@ class OcrStoreTest {
         val page = RecognizedPage(listOf(
             listOf(RecognizedWord("ചെന്നൈ", 50.4f, 50.88f, 75.12f, 60.48f, 91f), RecognizedWord("എന്ന", 80f, 51f, 99.5f, 60f, 87f)),
             listOf(RecognizedWord("2018", 50f, 70f, 70f, 80f, 64f)),
-        ))
+        ), joinedLines = setOf(0))
         store.save(book, 10, page, OcrModel.MalayalamFast.id)
         assertEquals(page, store.read(book, 10))
         assertEquals(setOf(10), store.savedPages(book))

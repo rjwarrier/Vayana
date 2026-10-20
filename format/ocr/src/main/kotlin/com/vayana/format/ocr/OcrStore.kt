@@ -22,6 +22,23 @@ class OcrStore(private val root: File) {
     fun read(book: String, pageIndex: Int): RecognizedPage? =
         pageFile(book, pageIndex)?.takeIf { it.isFile }?.let { runCatching { recognizedPageFromJson(JSONObject(it.readText())) }.getOrNull() }
 
+    /** The model a saved page was recognised with. */
+    fun model(book: String, pageIndex: Int): String? =
+        pageFile(book, pageIndex)?.takeIf { it.isFile }?.let { runCatching { JSONObject(it.readText()).optString("model") }.getOrNull() }
+
+    /** Works out which line ends fall inside a word across the whole book and saves it with each page that changed. */
+    fun saveLineJoins(book: String) {
+        val pages = savedPages(book).mapNotNull { index -> read(book, index)?.let { index to it } }.toMap()
+        for ((index, joins) in lineJoins(pages)) {
+            val page = pages.getValue(index)
+            if (page.joinedLines != joins) save(book, index, page.copy(joinedLines = joins), model(book, index).orEmpty())
+        }
+        bookDir(book)?.let { File(it, LineJoinsMarker).writeText("") }
+    }
+
+    /** Whether [saveLineJoins] has run since the book was last fully recognised. */
+    fun hasLineJoins(book: String): Boolean = bookDir(book)?.let { File(it, LineJoinsMarker).isFile } == true
+
     /** The page indexes saved so far. */
     fun savedPages(book: String): Set<Int> = bookDir(book)?.list().orEmpty()
         .mapNotNull { it.removeSuffix(".json").takeIf { name -> name != it }?.toIntOrNull() }
@@ -39,11 +56,13 @@ class OcrStore(private val root: File) {
 }
 
 /**
- * `{ "model": "mal-fast", "lines": [ [ ["word", left, top, right, bottom, confidence], ... ], ... ] }`, boxes in PDF
- * points from the page's top-left corner, words already normalised (see [normalizeRecognizedText]).
+ * `{ "model": "mal-fast", "lines": [ [ ["word", left, top, right, bottom, confidence], ... ], ... ], "joins": [2, 5] }`,
+ * boxes in PDF points from the page's top-left corner, words already normalised (see [normalizeRecognizedText]),
+ * `joins` the lines whose last word continues on the next line (see [lineJoins]).
  */
 fun RecognizedPage.toJson(model: String): JSONObject = JSONObject()
     .put("model", model)
+    .put("joins", JSONArray(joinedLines.sorted()))
     .put("lines", JSONArray(lines.map { line ->
         JSONArray(line.map { word ->
             JSONArray()
@@ -58,7 +77,8 @@ fun RecognizedPage.toJson(model: String): JSONObject = JSONObject()
 
 fun recognizedPageFromJson(json: JSONObject): RecognizedPage {
     val lines = json.getJSONArray("lines")
-    return RecognizedPage(List(lines.length()) { lineIndex ->
+    val joins = json.optJSONArray("joins")
+    return RecognizedPage(joinedLines = List(joins?.length() ?: 0) { joins!!.getInt(it) }.toSet(), lines = List(lines.length()) { lineIndex ->
         val words = lines.getJSONArray(lineIndex)
         List(words.length()) { wordIndex ->
             val word = words.getJSONArray(wordIndex)
@@ -86,3 +106,4 @@ fun pagesToRecognize(pages: List<Int>, saved: Set<Int>, startPage: Int): List<In
 private fun Float.rounded(): Double = Math.round(this * 100) / 100.0
 
 private val BookKeyPattern = Regex("[0-9a-f]{64}")
+private const val LineJoinsMarker = "lines-joined"

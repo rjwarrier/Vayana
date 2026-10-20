@@ -1281,13 +1281,18 @@ class ReaderViewModel @Inject constructor(
         recognitionJob = viewModelScope.launch {
             var lastRecognized = -1
             BookRecognition.progress(appContext, sha256).conflate().collect { progress ->
-                val (recognized, installed) = withContext(dispatchers.io) {
+                val (recognized, installed, joinsAdded) = withContext(dispatchers.io) {
                     val models = BookRecognition.models(appContext)
-                    BookRecognition.store(appContext).savedPages(sha256).size to OcrModel.entries.filter(models::isInstalled).toSet()
+                    val store = BookRecognition.store(appContext)
+                    val saved = store.savedPages(sha256).size
+                    // A book recognised before words broken across lines were joined gets its joins now, once.
+                    val addJoins = progress?.running != true && totalPages in 1..saved && !store.hasLineJoins(sha256)
+                    if (addJoins) store.saveLineJoins(sha256)
+                    Triple(saved, OcrModel.entries.filter(models::isInstalled).toSet(), addJoins)
                 }
                 _textRecognition.value = TextRecognitionUi(recognized, totalPages, progress?.running == true, installed)
                 // Pages on screen pick up their new text; at most every couple of seconds while the job runs.
-                if (lastRecognized >= 0 && recognized > lastRecognized) engine.refreshRecognizedText()
+                if (joinsAdded || lastRecognized >= 0 && recognized > lastRecognized) engine.refreshRecognizedText()
                 lastRecognized = recognized
                 delay(RecognitionRefreshMillis)
             }

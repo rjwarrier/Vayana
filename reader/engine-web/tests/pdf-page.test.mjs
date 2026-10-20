@@ -226,7 +226,7 @@ const pageDrawing = (globals = {}) => {
         AndroidBridge: { savePageImage: (book, name, data) => savedImages.push({ book, name, data }) },
         fetch: async () => ({ ok: false }),
         pdfjsLib: {
-            TextLayer: class { async render() {} update() {} },
+            TextLayer: class { textDivs = []; async render() {} update() {} },
             AnnotationLayer: class { async render() {} },
         },
         ...globals,
@@ -312,7 +312,7 @@ test('words recognised on a scanned page become pdf.js text items over their box
     const end = pdf.indexOf('const finishTextLayer', start)
     assert.ok(start >= 0 && end > start)
     const requested = []
-    const recognized = { lines: [[['ചെന്നൈ', 35.5, 145.5, 73.5, 151.5, 94], ['എന്ന', 80, 145, 100, 152, 90]], [['2018', 35, 160, 60, 168, 70]]] }
+    const recognized = { lines: [[['ചെന്നൈ', 35.5, 145.5, 73.5, 151.5, 94], ['എന്ന', 80, 145, 100, 152, 90]], [['2018', 35, 160, 60, 168, 41]], [['കിലോമീറ്ററു', 35, 175, 90, 183, 90]], [['കൾക്കു', 35, 190, 70, 198, 90]]], joins: [2] }
     const context = vm.createContext({
         Map, Math, String, Boolean,
         fetch: async url => {
@@ -335,8 +335,12 @@ test('words recognised on a scanned page become pdf.js text items over their box
 
     const content = await pageTextContent(page(4, []))
     assert.equal(requested[0], `/ocr/${'a'.repeat(64)}/3.json`)
-    assert.deepEqual(Array.from(content.items, item => item.str), ['ചെന്നൈ', ' ', 'എന്ന', '2018'])
-    assert.deepEqual(Array.from(content.items, item => item.hasEOL), [false, false, true, true])
+    assert.deepEqual(Array.from(content.items, item => item.str), ['ചെന്നൈ', ' ', 'എന്ന', '2018', 'കിലോമീറ്ററു', 'കൾക്കു'])
+    // a joined line (2) ends without a break, so the word reads whole across it, and its first half is marked
+    assert.deepEqual(Array.from(content.items, item => item.hasEOL), [false, false, true, true, false, true])
+    assert.deepEqual(Array.from(content.items, item => Boolean(item.joinsNext)), [false, false, false, false, true, false])
+    // a word Tesseract was unsure of (41) is marked; lookup skips it
+    assert.deepEqual(Array.from(content.items, item => Boolean(item.lowConfidence)), [false, false, false, true, false, false])
     const [first, space] = content.items
     // the item covers the word's box: left edge, width, and a baseline a fifth of the box above its foot
     assert.equal(first.transform[4], 35.5)

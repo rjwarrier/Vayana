@@ -141,7 +141,10 @@ class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : Co
         } finally {
             notification.cancel()
         }
-        if (isStopped) Result.retry() else Result.success(progressData(done.get(), pages.size))
+        if (isStopped) return@withContext Result.retry()
+        // The whole book is known now: words broken across lines can be told from separate ones.
+        store.saveLineJoins(book)
+        Result.success(progressData(done.get(), pages.size))
     }
 
     // Two engines where there is memory to spare: ~0.7 s a page instead of ~1.1 s on a recent phone.

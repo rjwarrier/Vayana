@@ -136,6 +136,12 @@ Total: about 4–5 days of work.
   (കിലോമീറ്ററു / കള്‍ക്കു). Read aloud and search treat a line end as a word break, so such words are read and
   matched in halves. Options: join when the joined form is a dictionary headword or either half isn't one (the
   offline dictionaries are available), or match search across line ends. Decide in phase 5 with real examples.
+  *Phase 5:* `lineJoins` uses the book itself as the word list (words in the middle of a line are whole) plus
+  Malayalam spelling (no word starts with a vowel sign, ം or a doubled consonant; a vowel letter always starts one;
+  a chillu, ം or ് usually ends one). On *Ram C/O Anandi* it joins 3,093 of 11,850 line ends, right in about
+  85–90% of three samples of 40 (vs ~60% with no joining); the misses are mostly compounds printed either way.
+  Joined words read and search whole, and double-tap looks up both halves together. Words Tesseract scored below
+  50 stay searchable but aren't looked up.
 - **Highlights depend on the recognised text.** Re-running recognition (another model) changes the text layer, and
   highlights made on it may no longer resolve. v1: keep the first result; offer re-running only with a warning that
   marks on that book may be lost.
