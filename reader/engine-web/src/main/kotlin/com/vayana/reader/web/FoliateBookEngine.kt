@@ -443,6 +443,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             hyphenationCss(style.hyphenation)?.let(::append)
             append(einkStyleCss(theme))
         }
+        // A PDF page doesn't fill the view; the space around it is the WebView's own background.
+        webView.setBackgroundColor(theme.backgroundColorArgb)
         // One trip across the bridge for the whole style.
         webView.evaluateJavascript(
             "window.VayanaReader.applyStyle(${JSONObject.quote(css)}, $margin);" +
