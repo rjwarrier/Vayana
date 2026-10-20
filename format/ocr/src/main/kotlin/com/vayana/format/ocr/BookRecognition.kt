@@ -42,7 +42,15 @@ object BookRecognition {
      * [startPage] outwards. A job already running for the book is left alone. Waits for Wi-Fi if the model must
      * be downloaded first.
      */
-    fun start(context: Context, pdf: File, book: String, model: OcrModel, startPage: Int, pages: IntArray? = null) {
+    fun start(
+        context: Context,
+        pdf: File,
+        book: String,
+        model: OcrModel,
+        startPage: Int,
+        pages: IntArray? = null,
+        title: String? = null,
+    ) {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
@@ -56,6 +64,7 @@ object BookRecognition {
                 KeyModel to model.id,
                 KeyStartPage to startPage,
                 KeyPages to pages,
+                KeyTitle to title,
             ))
             .addTag(Tag)
             .build()
@@ -85,6 +94,7 @@ object BookRecognition {
     internal const val KeyModel = "model"
     internal const val KeyStartPage = "startPage"
     internal const val KeyPages = "pages"
+    internal const val KeyTitle = "title"
     internal const val KeyDone = "done"
     internal const val KeyTotal = "total"
     private const val Tag = "vayana-ocr"
@@ -107,21 +117,29 @@ class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : Co
             ?: (0 until pageCount).toList()
         val queue = ConcurrentLinkedQueue(pagesToRecognize(pages, store.savedPages(book), inputData.getInt(BookRecognition.KeyStartPage, 0)))
         val done = AtomicInteger(pages.size - queue.size)
-        setProgress(progressData(done.get(), pages.size))
-        coroutineScope {
-            repeat(threadCount()) {
-                launch {
-                    PageRecognizer(models.dataPath, model.language).use { recognizer ->
-                        openRenderer(pdf) { renderer ->
-                            while (!isStopped) {
-                                val page = queue.poll() ?: break
-                                store.save(book, page, recognizer.recognize(renderer, page), model.id)
-                                setProgress(progressData(done.incrementAndGet(), pages.size))
+        val notification = RecognitionNotification(applicationContext, book, inputData.getString(BookRecognition.KeyTitle), id)
+        try {
+            setProgress(progressData(done.get(), pages.size))
+            notification.show(done.get(), pages.size)
+            coroutineScope {
+                repeat(threadCount()) {
+                    launch {
+                        PageRecognizer(models.dataPath, model.language).use { recognizer ->
+                            openRenderer(pdf) { renderer ->
+                                while (!isStopped) {
+                                    val page = queue.poll() ?: break
+                                    store.save(book, page, recognizer.recognize(renderer, page), model.id)
+                                    val count = done.incrementAndGet()
+                                    setProgress(progressData(count, pages.size))
+                                    notification.show(count, pages.size)
+                                }
                             }
                         }
                     }
                 }
             }
+        } finally {
+            notification.cancel()
         }
         if (isStopped) Result.retry() else Result.success(progressData(done.get(), pages.size))
     }

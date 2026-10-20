@@ -50,6 +50,8 @@ class BookRepositoryImpl @Inject constructor(
 
     override suspend fun referencedCoverPaths(): Set<String> = bookDao.referencedCoverPaths().toSet()
 
+    override suspend fun referencedFileHashes(): Set<String> = bookDao.referencedFileHashes().toSet()
+
     override fun observeAll(): Flow<List<Book>> =
         bookDao.observeAll().map { entities -> entities.map { it.toDomain() } }
 

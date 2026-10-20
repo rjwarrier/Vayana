@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ocr_notification_channel">உரை அடையாளம் காணல்</string>
+    <string name="ocr_notification_title">உரை அடையாளம் காணப்படுகிறது</string>
+    <string name="ocr_notification_progress">%1$s · %3$d பக்கங்களில் %2$d</string>
+    <string name="ocr_notification_stop">நிறுத்து</string>
+</resources>

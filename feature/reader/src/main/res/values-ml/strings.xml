@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">തുടങ്ങുക</string>
     <string name="read_aloud_notification_previous">മുൻ വാക്യം</string>
     <string name="read_aloud_notification_next">അടുത്ത വാക്യം</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">ടെക്സ്റ്റ് തിരിച്ചറിയൽ</string>
+    <string name="reader_ocr_section_scanned">ഈ പേജ് സ്കാൻ ചെയ്തതാണ്, തിരയാനോ തിരഞ്ഞെടുക്കാനോ ഉറക്കെ വായിക്കാനോ ഇതിൽ ടെക്സ്റ്റില്ല. അവ ഉപയോഗിക്കാൻ പുസ്തകത്തിലെ ടെക്സ്റ്റ് തിരിച്ചറിയുക.</string>
+    <string name="reader_ocr_running">ടെക്സ്റ്റ് തിരിച്ചറിയുന്നു: %2$d പേജുകളിൽ %1$d</string>
+    <string name="reader_ocr_done">%2$d പേജുകളിൽ %1$d എണ്ണത്തിൽ ടെക്സ്റ്റ് തിരിച്ചറിഞ്ഞു</string>
+    <string name="reader_ocr_start">ടെക്സ്റ്റ് തിരിച്ചറിയുക</string>
+    <string name="reader_ocr_continue">തുടരുക</string>
+    <string name="reader_ocr_stop">നിർത്തുക</string>
+    <string name="reader_ocr_remove">ടെക്സ്റ്റ് നീക്കുക</string>
+    <string name="reader_ocr_chip">സ്കാൻ ചെയ്ത പേജ് · ടെക്സ്റ്റ് തിരിച്ചറിയുക</string>
+    <string name="reader_ocr_chip_running">ടെക്സ്റ്റ് തിരിച്ചറിയുന്നു · %2$d-ൽ %1$d</string>
+    <string name="reader_ocr_chip_hide">മറയ്ക്കുക</string>
+    <string name="reader_ocr_dialog_title">ഈ പുസ്തകത്തിലെ ടെക്സ്റ്റ് തിരിച്ചറിയണോ?</string>
+    <string name="reader_ocr_dialog_body">സ്കാൻ ചെയ്ത പേജുകൾ Vayana ഈ ഫോണിൽ, പശ്ചാത്തലത്തിൽ വായിക്കും; അതോടെ അവ തിരയാനും തിരഞ്ഞെടുക്കാനും അർത്ഥം നോക്കാനും കേൾക്കാനും കഴിയും. ഏകദേശം %1$d മിനിറ്റ് എടുക്കും.</string>
+    <string name="reader_ocr_model_malayalam">മലയാളം</string>
+    <string name="reader_ocr_model_malayalam_subtitle">ഏറ്റവും വേഗത്തിൽ, മലയാളം മാത്രമുള്ള പുസ്തകങ്ങൾക്ക്.</string>
+    <string name="reader_ocr_model_mixed">മലയാളവും ഇംഗ്ലീഷും</string>
+    <string name="reader_ocr_model_mixed_subtitle">ഇംഗ്ലീഷ് വാക്കുകളോ അക്കങ്ങളോ ഉള്ള പുസ്തകങ്ങൾക്ക്.</string>
+    <string name="reader_ocr_download">ആദ്യതവണ Wi-Fi വഴി %1$s ഡൗൺലോഡ് ചെയ്യും.</string>
+    <string name="reader_ocr_installed">ഇതിനകം ഡൗൺലോഡ് ചെയ്തു.</string>
+    <string name="reader_ocr_dialog_start">തുടങ്ങുക</string>
+    <string name="reader_ocr_dialog_close">അടയ്ക്കുക</string>
 </resources>

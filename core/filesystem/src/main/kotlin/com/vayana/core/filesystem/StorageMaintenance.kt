@@ -34,6 +34,7 @@ class StorageMaintenance @Inject constructor(
         // Each task on its own: one failing (a file in use, a full disk) mustn't stop the others.
         runCatchingCancellable { deleteStaleShareCopies(now) }
         runCatchingCancellable { deleteUnusedCovers(now) }
+        runCatchingCancellable { deleteOrphanRecognizedText() }
         runCatchingCancellable { compactCovers() }
         runCatchingCancellable { deleteWebViewMetrics() }
         if (!preferences.getBoolean(BrowserCacheClearedKey, false)) {
@@ -64,6 +65,17 @@ class StorageMaintenance @Inject constructor(
             val unused = storageRoots.relativize(file).normalizedPath() !in referenced
             if (unused && now - file.lastModified() > DayMillis) file.delete()
         }
+    }
+
+    /**
+     * Text recognised from scanned PDFs (`files/ocr/<file sha256>/`, see :format:ocr's OcrStore) whose book is gone:
+     * permanently deleted, or its file replaced by another.
+     */
+    private suspend fun deleteOrphanRecognizedText() {
+        val folders = File(context.filesDir, RecognizedTextDirectoryName).listFiles()?.filter { it.isDirectory } ?: return
+        if (folders.isEmpty()) return
+        val referenced = bookRepository.referencedFileHashes()
+        folders.forEach { folder -> if (folder.name !in referenced) folder.deleteRecursively() }
     }
 
     /**
@@ -117,3 +129,5 @@ class StorageMaintenance @Inject constructor(
         val WeekMillis = TimeUnit.DAYS.toMillis(7)
     }
 }
+
+private const val RecognizedTextDirectoryName = "ocr"

@@ -109,6 +109,9 @@ sealed interface EngineEvent {
      */
     data class PageScrollableChanged(val scrollable: Boolean) : EngineEvent
 
+    /** Where the text of the PDF page on screen comes from; a scanned page has none until it is recognised. */
+    data class PageTextChanged(val pageIndex: Int, val source: PageTextSource) : EngineEvent
+
     /** A PDF cannot finish opening until the user supplies a password. */
     data class PdfPasswordRequired(val incorrect: Boolean) : EngineEvent
 
@@ -136,3 +139,6 @@ data class ReaderSelection(
     /** The word was selected by a double tap to look it up, not by the reader marking text. */
     val isWordLookup: Boolean = false,
 )
+
+/** Where a PDF page's text comes from: printed into the PDF, recognised from its scan, or not there (yet). */
+enum class PageTextSource { OWN, RECOGNIZED, NONE }

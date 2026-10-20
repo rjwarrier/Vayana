@@ -39,6 +39,9 @@ interface BookDao {
     )
     suspend fun referencedCoverPaths(): List<String>
 
+    @Query("SELECT DISTINCT fileHash FROM books WHERE fileHash IS NOT NULL")
+    suspend fun referencedFileHashes(): List<String>
+
     @Query("SELECT * FROM books WHERE isDeleted = 1 ORDER BY updatedAt DESC")
     fun observeDeleted(): Flow<List<BookEntity>>
 

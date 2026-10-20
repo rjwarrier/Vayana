@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ocr_notification_channel">ടെക്സ്റ്റ് തിരിച്ചറിയൽ</string>
+    <string name="ocr_notification_title">ടെക്സ്റ്റ് തിരിച്ചറിയുന്നു</string>
+    <string name="ocr_notification_progress">%1$s · %3$d പേജുകളിൽ %2$d</string>
+    <string name="ocr_notification_stop">നിർത്തുക</string>
+</resources>

@@ -24,6 +24,7 @@ import com.vayana.reader.api.Footnote
 import com.vayana.reader.api.FootnoteOpened
 import com.vayana.reader.api.Locator
 import com.vayana.reader.api.MergedRange
+import com.vayana.reader.api.PageTextSource
 import com.vayana.reader.api.SpeechChunk
 import com.vayana.reader.api.SpeechSentence
 import com.vayana.reader.api.NavTarget
@@ -738,6 +739,14 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             }
             "storyEnd" -> _events.tryEmit(EngineEvent.StoryEndReached)
             "pageScrollable" -> _events.tryEmit(EngineEvent.PageScrollableChanged(payload.optBoolean("scrollable")))
+            "pageText" -> {
+                val source = when (payload.optString("source")) {
+                    "own" -> PageTextSource.OWN
+                    "recognized" -> PageTextSource.RECOGNIZED
+                    else -> PageTextSource.NONE
+                }
+                _events.tryEmit(EngineEvent.PageTextChanged(payload.optInt("index"), source))
+            }
             "pdfPasswordRequired" -> {
                 waitingForPdfPassword = true
                 _events.tryEmit(EngineEvent.PdfPasswordRequired(payload.optBoolean("incorrect")))

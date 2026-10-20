@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">Reproducir</string>
     <string name="read_aloud_notification_previous">Frase anterior</string>
     <string name="read_aloud_notification_next">Frase siguiente</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">Reconocimiento de texto</string>
+    <string name="reader_ocr_section_scanned">Esta página es un escaneo, así que no tiene texto para buscar, seleccionar o leer en voz alta. Reconoce el texto del libro para usarlo.</string>
+    <string name="reader_ocr_running">Reconociendo texto: %1$d de %2$d páginas</string>
+    <string name="reader_ocr_done">Texto reconocido en %1$d de %2$d páginas</string>
+    <string name="reader_ocr_start">Reconocer texto</string>
+    <string name="reader_ocr_continue">Continuar</string>
+    <string name="reader_ocr_stop">Detener</string>
+    <string name="reader_ocr_remove">Quitar texto</string>
+    <string name="reader_ocr_chip">Página escaneada · Reconocer texto</string>
+    <string name="reader_ocr_chip_running">Reconociendo texto · %1$d de %2$d</string>
+    <string name="reader_ocr_chip_hide">Ocultar</string>
+    <string name="reader_ocr_dialog_title">¿Reconocer el texto de este libro?</string>
+    <string name="reader_ocr_dialog_body">Vayana lee las páginas escaneadas en este teléfono, en segundo plano, para que puedas buscarlas, seleccionarlas, consultarlas y escucharlas. Tarda unos %1$d min.</string>
+    <string name="reader_ocr_model_malayalam">Malayalam</string>
+    <string name="reader_ocr_model_malayalam_subtitle">La más rápida, para libros solo en malayalam.</string>
+    <string name="reader_ocr_model_mixed">Malayalam e inglés</string>
+    <string name="reader_ocr_model_mixed_subtitle">Para libros con palabras o números en inglés.</string>
+    <string name="reader_ocr_download">Descarga %1$s la primera vez, por wifi.</string>
+    <string name="reader_ocr_installed">Ya descargado.</string>
+    <string name="reader_ocr_dialog_start">Empezar</string>
+    <string name="reader_ocr_dialog_close">Cerrar</string>
 </resources>

@@ -562,6 +562,7 @@ async function open(bookUrl, lastLocatorCfi, savedPageCounts) {
             checkStoryEnd(section?.current)
             if (fixedLayout) {
                 onFixedLayoutRelocate(section?.current)
+                reportPageText(section?.current)
                 view.book.prefetchAround?.(section?.current)
             }
             if (hasOpened && !fixedLayout) {
@@ -3791,7 +3792,17 @@ async function searchFixedLayout(query, token) {
 
 // Text recognition has reached more pages of this scanned PDF (see foliate/pdf.js refreshRecognizedText).
 async function refreshRecognizedText() {
-    if (fixedLayout) await view?.book?.refreshRecognizedText?.()
+    if (!fixedLayout) return
+    await view?.book?.refreshRecognizedText?.()
+    reportPageText(currentFixedIndex())
+}
+
+// Whether the PDF page on screen has text of its own, recognised text, or none yet; the reader offers recognition.
+function reportPageText(index) {
+    if (!Number.isInteger(index)) return
+    view?.book?.pageTextSource?.(index)
+        .then(source => { if (currentFixedIndex() === index) post('pageText', { index, source }) })
+        .catch(() => {})
 }
 
 window.VayanaReader = { open, refreshRecognizedText, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, preparePageJump, cancelPageJump, goToPage, goToHref, providePdfPassword, pageThumbnail, setReaderControlsGesture, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }

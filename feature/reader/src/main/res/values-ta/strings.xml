@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">இயக்கு</string>
     <string name="read_aloud_notification_previous">முந்தைய வாக்கியம்</string>
     <string name="read_aloud_notification_next">அடுத்த வாக்கியம்</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">உரை அடையாளம் காணல்</string>
+    <string name="reader_ocr_section_scanned">இந்தப் பக்கம் ஒரு ஸ்கேன்; தேட, தேர்ந்தெடுக்க அல்லது உரக்கப் படிக்க இதில் உரை இல்லை. அவற்றைப் பயன்படுத்த நூலின் உரையை அடையாளம் காணுங்கள்.</string>
+    <string name="reader_ocr_running">உரை அடையாளம் காணப்படுகிறது: %2$d பக்கங்களில் %1$d</string>
+    <string name="reader_ocr_done">%2$d பக்கங்களில் %1$d பக்கங்களில் உரை அடையாளம் காணப்பட்டது</string>
+    <string name="reader_ocr_start">உரையை அடையாளம் காண்</string>
+    <string name="reader_ocr_continue">தொடர்</string>
+    <string name="reader_ocr_stop">நிறுத்து</string>
+    <string name="reader_ocr_remove">உரையை நீக்கு</string>
+    <string name="reader_ocr_chip">ஸ்கேன் செய்யப்பட்ட பக்கம் · உரையை அடையாளம் காண்</string>
+    <string name="reader_ocr_chip_running">உரை அடையாளம் காணப்படுகிறது · %2$dஇல் %1$d</string>
+    <string name="reader_ocr_chip_hide">மறை</string>
+    <string name="reader_ocr_dialog_title">இந்த நூலின் உரையை அடையாளம் காணவா?</string>
+    <string name="reader_ocr_dialog_body">ஸ்கேன் செய்யப்பட்ட பக்கங்களை Vayana இந்தக் கைப்பேசியில் பின்னணியில் படிக்கும்; அதன்பிறகு அவற்றைத் தேடலாம், தேர்ந்தெடுக்கலாம், பொருள் பார்க்கலாம், கேட்கலாம். சுமார் %1$d நிமிடம் ஆகும்.</string>
+    <string name="reader_ocr_model_malayalam">மலையாளம்</string>
+    <string name="reader_ocr_model_malayalam_subtitle">மிக வேகமானது, மலையாளத்தில் மட்டும் உள்ள நூல்களுக்கு.</string>
+    <string name="reader_ocr_model_mixed">மலையாளம் மற்றும் ஆங்கிலம்</string>
+    <string name="reader_ocr_model_mixed_subtitle">ஆங்கிலச் சொற்கள் அல்லது எண்கள் உள்ள நூல்களுக்கு.</string>
+    <string name="reader_ocr_download">முதல் முறை Wi-Fi வழியாக %1$s பதிவிறக்கும்.</string>
+    <string name="reader_ocr_installed">ஏற்கனவே பதிவிறக்கப்பட்டது.</string>
+    <string name="reader_ocr_dialog_start">தொடங்கு</string>
+    <string name="reader_ocr_dialog_close">மூடு</string>
 </resources>

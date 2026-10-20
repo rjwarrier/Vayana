@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">Play</string>
     <string name="read_aloud_notification_previous">Previous sentence</string>
     <string name="read_aloud_notification_next">Next sentence</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">Text recognition</string>
+    <string name="reader_ocr_section_scanned">This page is a scan, so it has no text to search, select or read aloud. Recognize the book’s text to use them.</string>
+    <string name="reader_ocr_running">Recognizing text: %1$d of %2$d pages</string>
+    <string name="reader_ocr_done">Text recognized on %1$d of %2$d pages</string>
+    <string name="reader_ocr_start">Recognize text</string>
+    <string name="reader_ocr_continue">Continue</string>
+    <string name="reader_ocr_stop">Stop</string>
+    <string name="reader_ocr_remove">Remove text</string>
+    <string name="reader_ocr_chip">Scanned page · Recognize text</string>
+    <string name="reader_ocr_chip_running">Recognizing text · %1$d of %2$d</string>
+    <string name="reader_ocr_chip_hide">Hide</string>
+    <string name="reader_ocr_dialog_title">Recognize this book’s text?</string>
+    <string name="reader_ocr_dialog_body">Vayana reads the scanned pages on this phone, in the background, so you can search, select, look up and listen to them. It takes about %1$d min.</string>
+    <string name="reader_ocr_model_malayalam">Malayalam</string>
+    <string name="reader_ocr_model_malayalam_subtitle">Fastest, for books only in Malayalam.</string>
+    <string name="reader_ocr_model_mixed">Malayalam and English</string>
+    <string name="reader_ocr_model_mixed_subtitle">For books with English words or numbers in them.</string>
+    <string name="reader_ocr_download">Downloads %1$s the first time, over Wi-Fi.</string>
+    <string name="reader_ocr_installed">Already downloaded.</string>
+    <string name="reader_ocr_dialog_start">Start</string>
+    <string name="reader_ocr_dialog_close">Close</string>
 </resources>

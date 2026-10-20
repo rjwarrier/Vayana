@@ -500,6 +500,12 @@ export const makePDF = async file => {
     }
     book.setPageColors = colors => { pageColors = colors }
     book.setPageImageBook = key => { pageImageBook = /^[0-9a-f]{64}$/.test(key ?? '') ? key : null }
+    // 'own' (a text PDF page), 'recognized' (a scanned page with recognised words) or 'none' (scanned, not yet)
+    book.pageTextSource = async index => {
+        const page = await pdf.getPage(index + 1)
+        if (hasText(await page.getTextContent())) return 'own'
+        return ocrKey && hasText(await recognizedText(page)) ? 'recognized' : 'none'
+    }
     // Recognition has done more pages: re-read their text, and give pages on screen that had none a text layer.
     book.refreshRecognizedText = async () => {
         if (!ocrKey) return

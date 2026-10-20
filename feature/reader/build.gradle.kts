@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":reader:engine-api"))
     implementation(project(":reader:engine-web"))
+    implementation(project(":format:ocr"))
     implementation(project(":core:database"))
     implementation(libs.room.ktx)
     implementation(project(":core:datastore"))

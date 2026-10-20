@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">Riproduci</string>
     <string name="read_aloud_notification_previous">Frase precedente</string>
     <string name="read_aloud_notification_next">Frase successiva</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">Riconoscimento del testo</string>
+    <string name="reader_ocr_section_scanned">Questa pagina è una scansione, quindi non ha testo da cercare, selezionare o leggere ad alta voce. Riconosci il testo del libro per farlo.</string>
+    <string name="reader_ocr_running">Riconoscimento del testo: %1$d di %2$d pagine</string>
+    <string name="reader_ocr_done">Testo riconosciuto su %1$d di %2$d pagine</string>
+    <string name="reader_ocr_start">Riconosci testo</string>
+    <string name="reader_ocr_continue">Continua</string>
+    <string name="reader_ocr_stop">Interrompi</string>
+    <string name="reader_ocr_remove">Rimuovi testo</string>
+    <string name="reader_ocr_chip">Pagina scansionata · Riconosci testo</string>
+    <string name="reader_ocr_chip_running">Riconoscimento del testo · %1$d di %2$d</string>
+    <string name="reader_ocr_chip_hide">Nascondi</string>
+    <string name="reader_ocr_dialog_title">Riconoscere il testo di questo libro?</string>
+    <string name="reader_ocr_dialog_body">Vayana legge le pagine scansionate su questo telefono, in background, così puoi cercarle, selezionarle, consultarle e ascoltarle. Ci vogliono circa %1$d min.</string>
+    <string name="reader_ocr_model_malayalam">Malayalam</string>
+    <string name="reader_ocr_model_malayalam_subtitle">Il più veloce, per libri solo in malayalam.</string>
+    <string name="reader_ocr_model_mixed">Malayalam e inglese</string>
+    <string name="reader_ocr_model_mixed_subtitle">Per libri con parole o numeri in inglese.</string>
+    <string name="reader_ocr_download">Scarica %1$s la prima volta, tramite Wi-Fi.</string>
+    <string name="reader_ocr_installed">Già scaricato.</string>
+    <string name="reader_ocr_dialog_start">Avvia</string>
+    <string name="reader_ocr_dialog_close">Chiudi</string>
 </resources>

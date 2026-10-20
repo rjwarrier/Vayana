@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">Reproduzir</string>
     <string name="read_aloud_notification_previous">Frase anterior</string>
     <string name="read_aloud_notification_next">Próxima frase</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">Reconhecimento de texto</string>
+    <string name="reader_ocr_section_scanned">Esta página é uma digitalização, então não tem texto para pesquisar, selecionar ou ler em voz alta. Reconheça o texto do livro para usar isso.</string>
+    <string name="reader_ocr_running">Reconhecendo texto: %1$d de %2$d páginas</string>
+    <string name="reader_ocr_done">Texto reconhecido em %1$d de %2$d páginas</string>
+    <string name="reader_ocr_start">Reconhecer texto</string>
+    <string name="reader_ocr_continue">Continuar</string>
+    <string name="reader_ocr_stop">Parar</string>
+    <string name="reader_ocr_remove">Remover texto</string>
+    <string name="reader_ocr_chip">Página digitalizada · Reconhecer texto</string>
+    <string name="reader_ocr_chip_running">Reconhecendo texto · %1$d de %2$d</string>
+    <string name="reader_ocr_chip_hide">Ocultar</string>
+    <string name="reader_ocr_dialog_title">Reconhecer o texto deste livro?</string>
+    <string name="reader_ocr_dialog_body">O Vayana lê as páginas digitalizadas neste telefone, em segundo plano, para que você possa pesquisá-las, selecioná-las, consultá-las e ouvi-las. Leva cerca de %1$d min.</string>
+    <string name="reader_ocr_model_malayalam">Malaiala</string>
+    <string name="reader_ocr_model_malayalam_subtitle">O mais rápido, para livros só em malaiala.</string>
+    <string name="reader_ocr_model_mixed">Malaiala e inglês</string>
+    <string name="reader_ocr_model_mixed_subtitle">Para livros com palavras ou números em inglês.</string>
+    <string name="reader_ocr_download">Baixa %1$s na primeira vez, por Wi-Fi.</string>
+    <string name="reader_ocr_installed">Já baixado.</string>
+    <string name="reader_ocr_dialog_start">Iniciar</string>
+    <string name="reader_ocr_dialog_close">Fechar</string>
 </resources>

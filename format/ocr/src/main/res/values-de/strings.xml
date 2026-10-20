@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ocr_notification_channel">Texterkennung</string>
+    <string name="ocr_notification_title">Text wird erkannt</string>
+    <string name="ocr_notification_progress">%1$s · %2$d von %3$d Seiten</string>
+    <string name="ocr_notification_stop">Stopp</string>
+</resources>

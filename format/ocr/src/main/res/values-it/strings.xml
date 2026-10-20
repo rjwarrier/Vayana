@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ocr_notification_channel">Riconoscimento del testo</string>
+    <string name="ocr_notification_title">Riconoscimento del testo</string>
+    <string name="ocr_notification_progress">%1$s · %2$d di %3$d pagine</string>
+    <string name="ocr_notification_stop">Interrompi</string>
+</resources>

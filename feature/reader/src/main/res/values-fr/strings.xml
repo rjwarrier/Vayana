@@ -8,4 +8,26 @@
     <string name="read_aloud_notification_play">Lecture</string>
     <string name="read_aloud_notification_previous">Phrase précédente</string>
     <string name="read_aloud_notification_next">Phrase suivante</string>
+    <!-- Text recognition for scanned PDFs (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_ocr_section_title">Reconnaissance du texte</string>
+    <string name="reader_ocr_section_scanned">Cette page est un scan : elle n’a pas de texte à rechercher, sélectionner ou lire à voix haute. Reconnaissez le texte du livre pour pouvoir le faire.</string>
+    <string name="reader_ocr_running">Reconnaissance du texte : %1$d pages sur %2$d</string>
+    <string name="reader_ocr_done">Texte reconnu sur %1$d pages sur %2$d</string>
+    <string name="reader_ocr_start">Reconnaître le texte</string>
+    <string name="reader_ocr_continue">Continuer</string>
+    <string name="reader_ocr_stop">Arrêter</string>
+    <string name="reader_ocr_remove">Supprimer le texte</string>
+    <string name="reader_ocr_chip">Page scannée · Reconnaître le texte</string>
+    <string name="reader_ocr_chip_running">Reconnaissance du texte · %1$d sur %2$d</string>
+    <string name="reader_ocr_chip_hide">Masquer</string>
+    <string name="reader_ocr_dialog_title">Reconnaître le texte de ce livre ?</string>
+    <string name="reader_ocr_dialog_body">Vayana lit les pages scannées sur ce téléphone, en arrière-plan, pour que vous puissiez les rechercher, les sélectionner, y chercher des mots et les écouter. Cela prend environ %1$d min.</string>
+    <string name="reader_ocr_model_malayalam">Malayalam</string>
+    <string name="reader_ocr_model_malayalam_subtitle">Le plus rapide, pour les livres uniquement en malayalam.</string>
+    <string name="reader_ocr_model_mixed">Malayalam et anglais</string>
+    <string name="reader_ocr_model_mixed_subtitle">Pour les livres contenant des mots ou des nombres en anglais.</string>
+    <string name="reader_ocr_download">Télécharge %1$s la première fois, en Wi-Fi.</string>
+    <string name="reader_ocr_installed">Déjà téléchargé.</string>
+    <string name="reader_ocr_dialog_start">Démarrer</string>
+    <string name="reader_ocr_dialog_close">Fermer</string>
 </resources>

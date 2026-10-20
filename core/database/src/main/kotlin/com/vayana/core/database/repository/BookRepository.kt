@@ -127,6 +127,9 @@ interface BookRepository {
     /** Root-relative paths of every cover file any book (deleted ones included) still uses. */
     suspend fun referencedCoverPaths(): Set<String>
 
+    /** SHA-256 of every book file any book (deleted ones included) has; text recognised from a scan is kept by it. */
+    suspend fun referencedFileHashes(): Set<String>
+
     /** The most recently read book that can open in the reader on this device, or null. */
     suspend fun lastReadOpenableBookId(): Long?
 

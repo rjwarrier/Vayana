@@ -62,6 +62,8 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import com.vayana.format.ocr.BookRecognition
+import com.vayana.format.ocr.OcrModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -69,6 +71,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -123,6 +126,8 @@ sealed interface ReaderUiState {
         val pageLabels: List<String> = emptyList(),
         /** The page is larger than the screen (zoomed or fit-width PDF): drags scroll it instead of edge swipes. */
         val pageScrollable: Boolean = false,
+        /** Where the PDF page on screen gets its text; null for EPUBs and until the page reports it. */
+        val pageText: com.vayana.reader.api.PageTextSource? = null,
         /** The book's declared language, so web lookups use that language's Wikipedia and Wiktionary entries. */
         val bookLanguage: String? = null,
     ) : ReaderUiState
@@ -150,6 +155,17 @@ internal fun HighlightCardState.isAnchoredTo(locator: Locator): Boolean {
 data class BookFinishedPrompt(val rating: Float, val saving: Boolean = false, val error: UiText? = null)
 
 data class PdfPasswordPrompt(val incorrect: Boolean)
+
+/**
+ * Text recognition of a scanned PDF (docs/SCANNED_PDF_TEXT_PLAN.md): [recognizedPages] of [totalPages] have text,
+ * [running] while the background job works, [installedModels] already downloaded.
+ */
+data class TextRecognitionUi(
+    val recognizedPages: Int,
+    val totalPages: Int,
+    val running: Boolean,
+    val installedModels: Set<OcrModel>,
+)
 
 data class PdfBookPreferences(
     val cropMargins: Boolean = true,
@@ -288,6 +304,12 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var boundEngine: BookEngine? = null
+
+    private val _textRecognition = MutableStateFlow<TextRecognitionUi?>(null)
+    val textRecognition: StateFlow<TextRecognitionUi?> = _textRecognition
+    // the open PDF and its SHA-256, which names the folder its recognised text is saved in
+    private var recognitionBook: Pair<java.io.File, String>? = null
+    private var recognitionJob: Job? = null
     private var bookOpen = false
 
     /** Bumped each time the reader must build a fresh engine because the WebView's renderer died. */
@@ -446,6 +468,8 @@ class ReaderViewModel @Inject constructor(
                         pageLabels = openBook.pageLabels,
                     )
                     observeAnnotations(engine)
+                    val sha256 = book.fileHash
+                    if (openBook.fixedLayout && sha256 != null) observeTextRecognition(engine, localFile, sha256, openBook.pageLabels.size)
                     showReturnRecap(previousReadAt)
                     if (!openTarget.isNullOrBlank()) {
                         engine.goTo(NavTarget.ToLocator(Locator(cfi = openTarget, href = null, progression = 0f, chapterTitle = null)))
@@ -548,6 +572,9 @@ class ReaderViewModel @Inject constructor(
                     com.vayana.reader.api.EngineEvent.RendererGone -> onRendererGone()
                     is com.vayana.reader.api.EngineEvent.PageScrollableChanged -> _uiState.update { current ->
                         if (current is ReaderUiState.Loaded) current.copy(pageScrollable = event.scrollable) else current
+                    }
+                    is com.vayana.reader.api.EngineEvent.PageTextChanged -> _uiState.update { current ->
+                        if (current is ReaderUiState.Loaded) current.copy(pageText = event.source) else current
                     }
                     is com.vayana.reader.api.EngineEvent.PdfPasswordRequired -> {
                         _pdfPasswordPrompt.value = PdfPasswordPrompt(event.incorrect)
@@ -1246,6 +1273,48 @@ class ReaderViewModel @Inject constructor(
             }
         }
         enqueueHighlightMutation { annotationRepository.update(underline) }
+    }
+
+    private fun observeTextRecognition(engine: BookEngine, pdf: java.io.File, sha256: String, totalPages: Int) {
+        recognitionBook = pdf to sha256
+        recognitionJob?.cancel()
+        recognitionJob = viewModelScope.launch {
+            var lastRecognized = -1
+            BookRecognition.progress(appContext, sha256).conflate().collect { progress ->
+                val (recognized, installed) = withContext(dispatchers.io) {
+                    val models = BookRecognition.models(appContext)
+                    BookRecognition.store(appContext).savedPages(sha256).size to OcrModel.entries.filter(models::isInstalled).toSet()
+                }
+                _textRecognition.value = TextRecognitionUi(recognized, totalPages, progress?.running == true, installed)
+                // Pages on screen pick up their new text; at most every couple of seconds while the job runs.
+                if (lastRecognized >= 0 && recognized > lastRecognized) engine.refreshRecognizedText()
+                lastRecognized = recognized
+                delay(RecognitionRefreshMillis)
+            }
+        }
+    }
+
+    /** Recognises the open scanned PDF's text in the background, from the page on screen outwards. */
+    fun startTextRecognition(model: OcrModel) {
+        val (pdf, sha256) = recognitionBook ?: return
+        val startPage = ((uiState.value as? ReaderUiState.Loaded)?.currentLocator?.currentPage ?: 1) - 1
+        val title = (uiState.value as? ReaderUiState.Loaded)?.bookTitle
+        BookRecognition.start(appContext, pdf, sha256, model, startPage.coerceAtLeast(0), title = title)
+    }
+
+    fun stopTextRecognition() {
+        val (_, sha256) = recognitionBook ?: return
+        BookRecognition.stop(appContext, sha256)
+    }
+
+    /** Stops recognition and deletes the text recognised so far; pages on screen keep theirs until reopened. */
+    fun removeRecognizedText() {
+        val (_, sha256) = recognitionBook ?: return
+        BookRecognition.stop(appContext, sha256)
+        viewModelScope.launch {
+            withContext(dispatchers.io) { BookRecognition.store(appContext).delete(sha256) }
+            _textRecognition.update { it?.copy(recognizedPages = 0, running = false) }
+        }
     }
 
     fun dismissActiveHighlight() {
@@ -2159,3 +2228,6 @@ internal fun readAloudProgressPercent(progression: Float?): Int? =
     progression?.times(100)?.roundToInt()?.coerceIn(0, 100)
 
 private const val FromStartKey = "fromStart"
+
+// How often pages on screen pick up newly recognised text while recognition runs.
+private const val RecognitionRefreshMillis = 2_000L

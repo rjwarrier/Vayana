@@ -251,7 +251,10 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val readerControlsRequest by viewModel.readerControlsRequest.collectAsStateWithLifecycle()
     val readingInfoRequest by viewModel.readingInfoRequest.collectAsStateWithLifecycle()
     var showPdfPageBrowser by rememberSaveable { mutableStateOf(false) }
-    val pdfPageControls = remember(viewModel, pdfBookPreferences?.rotationDegrees) {
+    val textRecognition by viewModel.textRecognition.collectAsStateWithLifecycle()
+    var showTextRecognitionDialog by rememberSaveable { mutableStateOf(false) }
+    val pageText = (uiState as? ReaderUiState.Loaded)?.pageText
+    val pdfPageControls = remember(viewModel, pdfBookPreferences?.rotationDegrees, textRecognition, pageText) {
         PdfPageControls(
             onCropMarginsChange = viewModel::updatePdfCropMargins,
             onFitWidthChange = viewModel::updatePdfFitWidth,
@@ -259,6 +262,13 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
             rotationDegrees = pdfBookPreferences?.rotationDegrees ?: 0,
             onRotateClockwise = viewModel::rotatePdfClockwise,
             onBrowsePages = { showPdfPageBrowser = true },
+            textRecognition = TextRecognitionControls(
+                state = textRecognition,
+                pageText = pageText,
+                onRecognize = { showTextRecognitionDialog = true },
+                onStop = viewModel::stopTextRecognition,
+                onRemove = viewModel::removeRecognizedText,
+            ),
         )
     }
     val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines, pronunciations) {
@@ -560,6 +570,15 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 viewModel.providePdfPassword(null)
                 onBack()
             },
+        )
+    }
+    val recognition = textRecognition
+    if (showTextRecognitionDialog && recognition != null) {
+        TextRecognitionDialog(
+            state = recognition,
+            onStart = viewModel::startTextRecognition,
+            onStop = viewModel::stopTextRecognition,
+            onDismiss = { showTextRecognitionDialog = false },
         )
     }
     if (showPdfPageBrowser) {
@@ -1412,6 +1431,15 @@ private fun ReaderScreen(
                     selectedPanel = ReaderPanel.CONTENTS
                     chromeVisible = true
                 },
+            )
+        }
+
+        if (readerDocumentReady && !chromeVisible) {
+            TextRecognitionChip(
+                controls = pdfPageControls.textRecognition,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = settings.readerFooterGapDp.dp + TextRecognitionChipLift),
             )
         }
 
@@ -3338,6 +3366,7 @@ internal class PdfPageControls(
     val rotationDegrees: Int,
     val onRotateClockwise: () -> Unit,
     val onBrowsePages: () -> Unit,
+    val textRecognition: TextRecognitionControls,
 )
 
 @Composable
@@ -3387,6 +3416,7 @@ private fun PdfPageSection(settings: SettingsSnapshot, controls: PdfPageControls
         FilledTonalButton(onClick = controls.onBrowsePages) {
             Text(stringResource(R.string.reader_pdf_browse_pages))
         }
+        TextRecognitionSection(controls.textRecognition)
     }
 }
 
@@ -3496,6 +3526,8 @@ private fun SettingsSnapshot.readerBackgroundColor(): Color = when {
 }
 
 private const val ReaderHudStandardAlpha = 0.9f
+// Above the footer's page number and settings button.
+private val TextRecognitionChipLift = 56.dp
 private const val SimilarReaderChromeColorDelta = 0.12f
 private const val StylePanelMaxScreenFraction = 0.3f
 private const val EnglishDictionaryDownloadUrl = "https://en-word.net/static/english-wordnet-2025.zip"
