@@ -413,7 +413,7 @@ class ReaderViewModel @Inject constructor(
                 return@launch
             }
 
-            val source = BookSource(localFile.absolutePath)
+            val source = BookSource(localFile.absolutePath, contentSha256 = book.fileHash)
             val savedLocator = book.lastLocator?.takeIf { it.isNotBlank() }
             val initialLocatorString = openTarget?.takeIf { it.isNotBlank() }
             val resumeLocator = initialLocatorString?.let {

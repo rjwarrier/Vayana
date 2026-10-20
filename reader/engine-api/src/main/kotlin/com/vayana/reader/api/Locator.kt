@@ -63,8 +63,11 @@ data class MergedRange(
     val merged: List<String>,
 )
 
-/** Source handed to [BookEngine.open] — a resolved local file path, never a domain `Book` (§0.5: no cross-layer coupling). */
-data class BookSource(val absoluteFilePath: String)
+/**
+ * Source handed to [BookEngine.open] — a resolved local file path, never a domain `Book` (§0.5: no cross-layer
+ * coupling). [contentSha256] is the file's SHA-256 when known: text recognised from a scanned PDF is saved under it.
+ */
+data class BookSource(val absoluteFilePath: String, val contentSha256: String? = null)
 
 sealed interface NavTarget {
     data class ToLocator(val locator: Locator) : NavTarget

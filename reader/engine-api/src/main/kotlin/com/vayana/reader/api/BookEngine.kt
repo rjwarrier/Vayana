@@ -22,6 +22,9 @@ interface BookEngine {
     suspend fun applyStyle(style: BookStyle, theme: ReadTheme)
     suspend fun renderAnnotations(annotations: List<ReaderAnnotation>)
     suspend fun clearSelection()
+
+    /** Text recognised in the open scanned PDF has reached more pages: pages on screen without text pick it up. */
+    suspend fun refreshRecognizedText() {}
     suspend fun search(query: String)
     suspend fun clearSearch()
     fun events(): Flow<EngineEvent>

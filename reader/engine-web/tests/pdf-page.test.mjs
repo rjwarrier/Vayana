@@ -242,7 +242,7 @@ const pageDrawing = (globals = {}) => {
         getViewport: ({ scale }) => ({ width: 100 * scale, height: 150 * scale }),
         render() { this.renders++; return { promise: Promise.resolve(), cancel() {} } },
         cleanup() { this.cleanups++ },
-        streamTextContent: async () => ({}),
+        getTextContent: async () => ({ items: [] }),
         getAnnotations: async () => [],
     })
     const fakeDoc = () => {
@@ -305,4 +305,48 @@ test('pages are drawn from their saved image, and saved after pdf.js draws them'
     await render(zoomed, fakeDoc(), 30)
     assert.equal(zoomed.renders, 1)
     assert.equal(savedImages.length, 1)
+})
+
+test('words recognised on a scanned page become pdf.js text items over their boxes, used only when the page has no text', async () => {
+    const start = pdf.indexOf('let ocrKey = null')
+    const end = pdf.indexOf('const finishTextLayer', start)
+    assert.ok(start >= 0 && end > start)
+    const requested = []
+    const recognized = { lines: [[['ചെന്നൈ', 35.5, 145.5, 73.5, 151.5, 94], ['എന്ന', 80, 145, 100, 152, 90]], [['2018', 35, 160, 60, 168, 70]]] }
+    const context = vm.createContext({
+        Map, Math, String, Boolean,
+        fetch: async url => {
+            requested.push(url)
+            return { ok: url.endsWith('/3.json'), json: async () => recognized }
+        },
+    })
+    vm.runInContext(`${pdf.slice(start, end)}; globalThis.api = { pageTextContent, setKey: key => { ocrKey = key } }`, context)
+    const { pageTextContent, setKey } = context.api
+    const page = (pageNumber, items) => ({ pageNumber, view: [0, 0, 356, 576], getTextContent: async () => ({ items, styles: {} }) })
+
+    // no key: the page's own (empty) text, nothing fetched
+    assert.equal((await pageTextContent(page(4, []))).items.length, 0)
+    assert.equal(requested.length, 0)
+
+    setKey('a'.repeat(64))
+    const own = await pageTextContent(page(4, [{ str: 'printed', hasEOL: false }]))
+    assert.equal(own.items[0].str, 'printed')
+    assert.equal(requested.length, 0)
+
+    const content = await pageTextContent(page(4, []))
+    assert.equal(requested[0], `/ocr/${'a'.repeat(64)}/3.json`)
+    assert.deepEqual(Array.from(content.items, item => item.str), ['ചെന്നൈ', ' ', 'എന്ന', '2018'])
+    assert.deepEqual(Array.from(content.items, item => item.hasEOL), [false, false, true, true])
+    const [first, space] = content.items
+    // the item covers the word's box: left edge, width, and a baseline a fifth of the box above its foot
+    assert.equal(first.transform[4], 35.5)
+    assert.equal(first.width, 38)
+    assert.equal(first.height, 6)
+    assert.ok(Math.abs(first.transform[5] - (576 - 151.5 + 6 * 0.2)) < 1e-9)
+    assert.equal(space.transform[4], 73.5)
+    assert.equal(space.width, 6.5)
+    assert.equal(content.styles[first.fontName].ascent, 0.8)
+
+    // a page not recognised yet keeps its own empty text
+    assert.equal((await pageTextContent(page(5, []))).items.length, 0)
 })

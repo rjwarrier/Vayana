@@ -454,6 +454,8 @@ function nativePdfFile(bookUrl) {
         name: info.name || 'current.pdf',
         type: info.type,
         size: info.size,
+        // the folder text recognised from this scanned PDF is saved in (see foliate/pdf.js pageTextContent)
+        ocrKey: /^[0-9a-f]{64}$/.test(info.ocrKey ?? '') ? info.ocrKey : null,
         slice: (begin = 0, end = info.size) => {
             const start = index(begin)
             const finish = Math.max(start, index(end))
@@ -3787,7 +3789,12 @@ async function searchFixedLayout(query, token) {
     if (token === searchToken) post('searchResults', { query, results })
 }
 
-window.VayanaReader = { open, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, preparePageJump, cancelPageJump, goToPage, goToHref, providePdfPassword, pageThumbnail, setReaderControlsGesture, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
+// Text recognition has reached more pages of this scanned PDF (see foliate/pdf.js refreshRecognizedText).
+async function refreshRecognizedText() {
+    if (fixedLayout) await view?.book?.refreshRecognizedText?.()
+}
+
+window.VayanaReader = { open, refreshRecognizedText, setPageColors, setPdfLayout, next, prev, goLeft, goRight, goToFraction, preparePageJump, cancelPageJump, goToPage, goToHref, providePdfPassword, pageThumbnail, setReaderControlsGesture, applyStyle, setBionicReading, setPageTurnAnimation, setInkMarks, renderAnnotations, clearSelection, search, clearSearch, startSpeech, nextSpeechChunk, markSpeech, stopSpeech, chapterWordCounts, mergeRanges }
 addEventListener('resize', () => {
     resetPageEstimate()
     applyReaderMargin(readerSideMarginPercent)

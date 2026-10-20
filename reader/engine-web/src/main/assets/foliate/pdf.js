@@ -170,6 +170,87 @@ const prerender = page => {
     return drawn
 }
 
+// Vayana: a scanned page has no text of its own; the words :format:ocr recognised on it (served at
+// /ocr/<file sha256>/<page index>.json, boxes in PDF points from the page's top-left corner) stand in for it as a
+// pdf.js TextContent, so search, selection, marks, lookup and read aloud work on scanned books too.
+let ocrKey = null
+// page index -> Promise<TextContent | null>; cleared when recognition has done more pages (refreshRecognizedText)
+const recognizedPages = new Map()
+// page documents on screen with a text layer -> { page, viewport }, so newly recognised text can replace an empty one
+const textLayerDocs = new Map()
+const RecognizedFont = 'vayana-recognized'
+const hasText = content => Boolean(content?.items?.some(item => item.str?.trim()))
+
+// Each word is an item sized to its box, with a space item across the gap to the next word and a line end after the
+// last, as pdf.js extracts a text PDF. The baseline sits a fifth of the box above its foot, so with the font's 0.8
+// ascent and 0.2 descent the item covers the box exactly.
+const recognizedTextContent = (page, { lines }) => {
+    const [left0, , , top0] = page.view
+    const items = []
+    for (const line of lines ?? []) line.forEach(([str, left, top, right, bottom], i) => {
+        const height = Math.max(1, bottom - top)
+        const baseline = top0 - bottom + height * 0.2
+        const item = (text, x, width, hasEOL) => ({
+            str: text, dir: 'ltr', width, height, fontName: RecognizedFont, hasEOL,
+            transform: [height, 0, 0, height, left0 + x, baseline],
+        })
+        const next = line[i + 1]
+        items.push(item(String(str), left, right - left, !next))
+        if (next) items.push(item(' ', right, Math.max(0, next[1] - right), false))
+    })
+    return {
+        items,
+        styles: { [RecognizedFont]: { fontFamily: 'sans-serif', ascent: 0.8, descent: -0.2, vertical: false } },
+        lang: null,
+    }
+}
+
+const recognizedText = page => {
+    const index = page.pageNumber - 1
+    if (!recognizedPages.has(index)) recognizedPages.set(index, fetch(`/ocr/${ocrKey}/${index}.json`, { cache: 'no-store' })
+        .then(response => response.ok ? response.json() : null)
+        .then(json => json ? recognizedTextContent(page, json) : null)
+        .catch(() => null))
+    return recognizedPages.get(index)
+}
+
+// The page's own text, or the text recognised on it when it has none.
+const pageTextContent = async page => {
+    const own = await page.getTextContent()
+    if (hasText(own) || !ocrKey) return own
+    return await recognizedText(page) ?? own
+}
+
+const finishTextLayer = container => {
+    // hide "offscreen" canvases appended to docuemnt when rendering text layer
+    // https://github.com/mozilla/pdf.js/blob/642b9a5ae67ef642b9a8808fd9efd447e8c350e2/web/pdf_viewer.css#L51-L58
+    for (const canvas of document.querySelectorAll('.hiddenCanvasElement'))
+        Object.assign(canvas.style, {
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '0',
+            height: '0',
+            display: 'none',
+        })
+
+    // fix text selection
+    // https://github.com/mozilla/pdf.js/blob/642b9a5ae67ef642b9a8808fd9efd447e8c350e2/web/text_layer_builder.js#L105-L107
+    const endOfContent = document.createElement('div')
+    endOfContent.className = 'endOfContent'
+    container.append(endOfContent)
+    // TODO: this only works in Firefox; see https://github.com/mozilla/pdf.js/pull/17923
+    container.onpointerdown = () => container.classList.add('selecting')
+    container.onpointerup = () => container.classList.remove('selecting')
+}
+
+const buildTextLayer = async (doc, container, textContentSource, viewport) => {
+    const textLayer = new pdfjsLib.TextLayer({ textContentSource, container, viewport })
+    await textLayer.render()
+    finishTextLayer(container)
+    return textLayer
+}
+
 const render = async (page, doc, zoom) => {
     lastZoom = zoom
     shownPages.set(page.pageNumber, page)
@@ -212,38 +293,12 @@ const render = async (page, doc, zoom) => {
         if (pageRenders.get(doc)?.generation !== generation) return
         textLayer.update({ viewport })
     } else {
-        const building = (async () => {
-            const textLayer = new pdfjsLib.TextLayer({
-                textContentSource: await page.streamTextContent(),
-                container, viewport,
-            })
-            await textLayer.render()
-            return textLayer
-        })()
+        const building = pageTextContent(page).then(content => buildTextLayer(doc, container, content, viewport))
         textLayers.set(doc, building)
         await building
-
-        // hide "offscreen" canvases appended to docuemnt when rendering text layer
-        // https://github.com/mozilla/pdf.js/blob/642b9a5ae67ef642b9a8808fd9efd447e8c350e2/web/pdf_viewer.css#L51-L58
-        for (const canvas of document.querySelectorAll('.hiddenCanvasElement'))
-            Object.assign(canvas.style, {
-                position: 'absolute',
-                top: '0',
-                left: '0',
-                width: '0',
-                height: '0',
-                display: 'none',
-            })
-
-        // fix text selection
-        // https://github.com/mozilla/pdf.js/blob/642b9a5ae67ef642b9a8808fd9efd447e8c350e2/web/text_layer_builder.js#L105-L107
-        const endOfContent = document.createElement('div')
-        endOfContent.className = 'endOfContent'
-        container.append(endOfContent)
-        // TODO: this only works in Firefox; see https://github.com/mozilla/pdf.js/pull/17923
-        container.onpointerdown = () => container.classList.add('selecting')
-        container.onpointerup = () => container.classList.remove('selecting')
     }
+    for (const shown of textLayerDocs.keys()) if (!shown.defaultView) textLayerDocs.delete(shown)
+    textLayerDocs.set(doc, { page, viewport })
 
     const div = doc.querySelector('.annotationLayer')
     div.replaceChildren()
@@ -281,6 +336,9 @@ const makeTOCItem = item => ({
 
 export const makePDF = async file => {
     pageRotationDegrees = 0
+    ocrKey = file.ocrKey ?? null
+    recognizedPages.clear()
+    textLayerDocs.clear()
     const transport = new pdfjsLib.PDFDataRangeTransport(file.size, [])
     transport.requestDataRange = (begin, end) => {
         file.slice(begin, end).arrayBuffer().then(chunk => {
@@ -433,7 +491,7 @@ export const makePDF = async file => {
     book.getPageText = index => {
         if (!pageTexts.has(index)) {
             const text = pdf.getPage(index + 1)
-                .then(page => page.getTextContent())
+                .then(pageTextContent)
                 .then(({ items }) => items.map(item => (item.str ?? '') + (item.hasEOL ? ' ' : '')).join(''))
             text.catch(() => pageTexts.delete(index))
             pageTexts.set(index, text)
@@ -442,6 +500,27 @@ export const makePDF = async file => {
     }
     book.setPageColors = colors => { pageColors = colors }
     book.setPageImageBook = key => { pageImageBook = /^[0-9a-f]{64}$/.test(key ?? '') ? key : null }
+    // Recognition has done more pages: re-read their text, and give pages on screen that had none a text layer.
+    book.refreshRecognizedText = async () => {
+        if (!ocrKey) return
+        recognizedPages.clear()
+        for (const [index, text] of pageTexts) if (!(await text.catch(() => ''))?.trim()) pageTexts.delete(index)
+        for (const [doc, { page, viewport }] of textLayerDocs) {
+            if (!doc.defaultView) {
+                textLayerDocs.delete(doc)
+                continue
+            }
+            if (hasText(await page.getTextContent())) continue
+            const content = await recognizedText(page)
+            if (!hasText(content) || !doc.defaultView) continue
+            const container = doc.querySelector('.textLayer')
+            container.replaceChildren()
+            const building = buildTextLayer(doc, container, content, viewport)
+            textLayers.set(doc, building)
+            await building
+            doc.dispatchEvent(new CustomEvent('vayana-page-rendered'))
+        }
+    }
     book.setPageRotation = degrees => {
         const normalized = ((Number(degrees) || 0) % 360 + 360) % 360
         pageRotationDegrees = [0, 90, 180, 270].includes(normalized) ? normalized : 0

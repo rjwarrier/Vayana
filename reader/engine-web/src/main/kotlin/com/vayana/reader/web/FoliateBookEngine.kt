@@ -55,6 +55,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val LogTag = "FoliateReader"
+private val Sha256Pattern = Regex("[0-9a-f]{64}")
+private val OcrPageNamePattern = Regex("[0-9]{1,6}\\.json")
 private const val ORIGIN = "https://appassets.androidplatform.net"
 private const val READER_HTML_URL = "$ORIGIN/assets/reader.html"
 private const val BOOK_URL = "$ORIGIN/book/current"
@@ -102,6 +104,9 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     @Volatile
     private var currentBookFile: File? = null
+    // The file's SHA-256: the folder its recognised text is saved in (see :format:ocr's OcrStore).
+    @Volatile
+    private var currentBookSha256: String? = null
     private var jsReady = false
     private var pendingOpen: Triple<String, String?, String>? = null
     private var openResult: CompletableDeferred<Result<OpenBook>>? = null
@@ -167,6 +172,13 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             WebResourceResponse(mimeType, null, 200, "OK", BookResourceHeaders, stream)
         }
         .addPathHandler("/fonts/") { path -> serveFont(path) }
+        // `<file sha256>/<page index>.json`: a scanned page's recognised words, saved by :format:ocr's OcrStore.
+        .addPathHandler("/ocr/") { path ->
+            val (book, name) = path.removePrefix("/ocr/").split('/').takeIf { it.size == 2 } ?: return@addPathHandler null
+            if (!Sha256Pattern.matches(book) || !OcrPageNamePattern.matches(name)) return@addPathHandler null
+            val file = File(File(File(appContext.filesDir, "ocr"), book), name).takeIf { it.isFile } ?: return@addPathHandler null
+            WebResourceResponse("application/json", "utf-8", 200, "OK", BookResourceHeaders, file.inputStream())
+        }
         // `<book key>/<page image name>`, saved by savePageImage below; see PdfPageImageCache.
         .addPathHandler("/page-cache/") { path ->
             val (book, name) = path.removePrefix("/page-cache/").split('/').takeIf { it.size == 2 } ?: return@addPathHandler null
@@ -331,6 +343,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         }
         closeBookZip()
         currentBookFile = bookFile
+        currentBookSha256 = source.contentSha256?.takeIf { Sha256Pattern.matches(it) }
         resources.clear()
         entryResources.clear()
         val deferred = CompletableDeferred<Result<OpenBook>>()
@@ -468,6 +481,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
 
     override suspend fun clearSelection() {
         webView.evaluateJavascript("window.VayanaReader.clearSelection()", null)
+    }
+
+    override suspend fun refreshRecognizedText() {
+        webView.evaluateJavascript("window.VayanaReader.refreshRecognizedText()", null)
     }
 
     override suspend fun search(query: String) {
@@ -612,6 +629,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 .put("name", file.name)
                 .put("type", file.readerMimeType())
                 .put("size", file.length())
+                .put("ocrKey", currentBookSha256 ?: JSONObject.NULL)
                 .toString()
         }
 
