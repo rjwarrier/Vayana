@@ -930,6 +930,15 @@ private fun ReaderScreen(
             else -> Unit
         }
     }
+    // While a highlight, selection or dictionary card shows, a gesture on the page only closes it; see the touch listener.
+    val selectionActive = (uiState as? ReaderUiState.Loaded)?.selection != null
+    val readerCardVisibleState = rememberUpdatedState(
+        activeHighlightCard != null || selectionActive || dictionaryLookup.wordOrNull() != null,
+    )
+    val onDismissReaderCardState = rememberUpdatedState<() -> Unit> {
+        if (activeHighlightCard != null) onDismissHighlight()
+        if (selectionActive || dictionaryLookup.wordOrNull() != null) onClearSelection()
+    }
     LaunchedEffect(readerControlsRequest) {
         if (readerControlsRequest > 0L) {
             chromeVisible = true
@@ -1263,7 +1272,15 @@ private fun ReaderScreen(
                         var swiping = false
                         // A second finger makes the gesture a pinch (PDF zoom), never a tap on the page.
                         var multiTouch = false
+                        var dismissingCard = false
                         setOnTouchListener { view, event ->
+                            // A card is showing: this whole gesture only closes it and never reaches the page, so it
+                            // can't also turn the page, look up a word, follow a link or toggle the controls.
+                            if (event.actionMasked == MotionEvent.ACTION_DOWN) dismissingCard = readerCardVisibleState.value
+                            if (dismissingCard) {
+                                if (event.actionMasked == MotionEvent.ACTION_UP) onDismissReaderCardState.value()
+                                return@setOnTouchListener true
+                            }
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> {
                                     downX = event.x
