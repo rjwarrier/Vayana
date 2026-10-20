@@ -41,8 +41,21 @@ function pdfRenderPixelRatio({
     return Math.max(0.1, Math.min(pixelRatio, areaLimit, dimensionLimit))
 }
 
-const adjacentPageIndexes = (index, total) => [index + 1, index - 1]
+// Two pages ahead, so turning pages quickly still finds them drawn, and the one behind.
+const adjacentPageIndexes = (index, total) => [index + 1, index + 2, index - 1]
     .filter(candidate => candidate >= 0 && candidate < total)
+
+// Vayana: the pages beside the one on screen, drawn ahead at its scale and colours, so a page turn copies a finished
+// canvas instead of decoding and painting the page then (a scanned page's full-resolution image takes ~0.4 s).
+// pageNumber -> { key, canvas: Promise<canvas | null>, task }; only the current page and its neighbours are kept.
+const prerendered = new Map()
+let lastZoom = null
+// The latest on-screen render, which drawing ahead waits for rather than competing with it.
+let drawing = Promise.resolve()
+// Drawing ahead holds a canvas per page kept; past a screenful of pixels (zoomed in) pages are drawn on demand only.
+// ponytail: fixed budget, scale it with the device's memory class if large tablets need ahead-drawing when zoomed.
+const MaxPrerenderPixels = 5_000_000
+const renderKey = scale => [scale, pageRotationDegrees, pageColors?.background, pageColors?.foreground].join('|')
 
 // Vayana: pdf.js draws a long page in slices paced by animation frames, and frames stop with the screen off or the app
 // in the background, which is when read aloud turns pages. Each slice here waits for a posted message instead: that
@@ -61,36 +74,73 @@ const renderWithoutFrames = task => {
     return task
 }
 
-const render = async (page, doc, zoom) => {
+const pageViewport = (page, zoom) => {
     const pageSize = page.getViewport({ scale: 1, rotation: page.rotate + pageRotationDegrees })
     const pixelRatio = pdfRenderPixelRatio({ width: pageSize.width, height: pageSize.height, zoom })
     const scale = zoom * pixelRatio
-    doc.documentElement.style.transform = `scale(${1 / pixelRatio})`
-    doc.documentElement.style.transformOrigin = 'top left'
-    doc.documentElement.style.setProperty('--scale-factor', scale)
     const viewport = page.getViewport({ scale, rotation: page.rotate + pageRotationDegrees })
-    const viewportMeta = doc.querySelector('meta[name="viewport"]')
-    if (viewportMeta) viewportMeta.content = `width=${pageSize.width}, height=${pageSize.height}`
+    return { pageSize, pixelRatio, scale, viewport }
+}
 
-    // the canvas must be in the `PDFDocument`'s `ownerDocument`
-    // (`globalThis.document` by default); that's where the fonts are loaded
+// the canvas must be in the `PDFDocument`'s `ownerDocument`
+// (`globalThis.document` by default); that's where the fonts are loaded
+const pageCanvas = viewport => {
     const canvas = document.createElement('canvas')
     canvas.height = viewport.height
     canvas.width = viewport.width
-    const canvasContext = canvas.getContext('2d')
+    return canvas
+}
+
+const startRender = (page, canvas, viewport) => renderWithoutFrames(page.render({
+    canvasContext: canvas.getContext('2d'),
+    viewport,
+    ...(pageColors ? { pageColors } : {}),
+}))
+
+const prerender = page => {
+    if (lastZoom == null) return null
+    const { scale, viewport } = pageViewport(page, lastZoom)
+    if (viewport.width * viewport.height > MaxPrerenderPixels) return null
+    const key = renderKey(scale)
+    const existing = prerendered.get(page.pageNumber)
+    if (existing?.key === key) return existing.canvas
+    const canvas = pageCanvas(viewport)
+    const task = startRender(page, canvas, viewport)
+    const drawn = task.promise.then(() => canvas, () => null)
+    prerendered.set(page.pageNumber, { key, canvas: drawn, task })
+    return drawn
+}
+
+const render = async (page, doc, zoom) => {
+    lastZoom = zoom
+    const { pageSize, pixelRatio, scale, viewport } = pageViewport(page, zoom)
+    doc.documentElement.style.transform = `scale(${1 / pixelRatio})`
+    doc.documentElement.style.transformOrigin = 'top left'
+    doc.documentElement.style.setProperty('--scale-factor', scale)
+    const viewportMeta = doc.querySelector('meta[name="viewport"]')
+    if (viewportMeta) viewportMeta.content = `width=${pageSize.width}, height=${pageSize.height}`
+
+    const canvas = pageCanvas(viewport)
     const previous = pageRenders.get(doc)
-    previous?.task.cancel()
+    previous?.task?.cancel()
     const generation = (previous?.generation ?? 0) + 1
-    const task = page.render({ canvasContext, viewport, ...(pageColors ? { pageColors } : {}) })
-    renderWithoutFrames(task)
-    pageRenders.set(doc, { generation, task })
-    try {
-        await task.promise
-    } catch (error) {
-        if (error?.name === 'RenderingCancelledException') return
-        throw error
-    }
+    pageRenders.set(doc, { generation, task: null })
+    const ahead = prerendered.get(page.pageNumber)
+    const drawnAhead = ahead?.key === renderKey(scale) ? await ahead.canvas : null
     if (pageRenders.get(doc)?.generation !== generation) return
+    if (drawnAhead) canvas.getContext('2d').drawImage(drawnAhead, 0, 0)
+    else {
+        const task = startRender(page, canvas, viewport)
+        pageRenders.set(doc, { generation, task })
+        drawing = task.promise.catch(() => {})
+        try {
+            await task.promise
+        } catch (error) {
+            if (error?.name === 'RenderingCancelledException') return
+            throw error
+        }
+        if (pageRenders.get(doc)?.generation !== generation) return
+    }
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
 
     // Vayana: build the text layer once per page document and rescale it on later renders (zoom, colours). Its text
@@ -243,10 +293,21 @@ export const makePDF = async file => {
         if (!Number.isInteger(index)) return
         const revision = ++prefetchRevision
         clearTimeout(prefetchTimer)
+        const neighbours = adjacentPageIndexes(index, pdf.numPages)
+        const keep = new Set([index, ...neighbours].map(candidate => candidate + 1))
+        for (const [pageNumber, { task }] of prerendered) {
+            if (keep.has(pageNumber)) continue
+            task.cancel()
+            prerendered.delete(pageNumber)
+        }
         prefetchTimer = setTimeout(async () => {
-            for (const candidate of adjacentPageIndexes(index, pdf.numPages)) {
+            await drawing
+            for (const candidate of neighbours) {
                 if (revision !== prefetchRevision) return
-                try { await loadPage(candidate) } catch (_) {}
+                try {
+                    await loadPage(candidate)
+                    await prerender(await pdf.getPage(candidate + 1))
+                } catch (_) {}
             }
         }, 200)
     }
@@ -314,6 +375,8 @@ export const makePDF = async file => {
         clearTimeout(prefetchTimer)
         cache.clear()
         thumbnailCache.clear()
+        prerendered.clear()
+        lastZoom = null
         return pdf.destroy()
     }
     return book

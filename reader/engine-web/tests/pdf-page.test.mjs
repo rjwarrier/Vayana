@@ -170,8 +170,8 @@ test('PDF warm-up prefers the next page and stays inside the book', () => {
     assert.ok(start >= 0 && end > start)
     const context = vm.createContext({})
     vm.runInContext(`${pdf.slice(start, end)}; globalThis.result = adjacentPageIndexes`, context)
-    assert.deepEqual(Array.from(context.result(4, 10)), [5, 3])
-    assert.deepEqual(Array.from(context.result(0, 10)), [1])
+    assert.deepEqual(Array.from(context.result(4, 10)), [5, 6, 3])
+    assert.deepEqual(Array.from(context.result(0, 10)), [1, 2])
     assert.deepEqual(Array.from(context.result(9, 10)), [8])
 })
 
@@ -204,4 +204,53 @@ test('PDF navigation metadata, previews, rotation and password callbacks are exp
     assert.match(bridge, /function goToPage\(pageIndex\)/)
     assert.match(bridge, /function providePdfPassword\(password\)/)
     assert.match(bridge, /rotationDegrees/)
+})
+
+test('a page drawn ahead is copied onto the screen, not rendered again', async () => {
+    const start = pdf.indexOf('let pageColors')
+    const end = pdf.indexOf('const renderPage', start)
+    assert.ok(start >= 0 && end > start)
+    const drawnImages = []
+    const canvas = () => ({ getContext: () => ({ drawImage: image => drawnImages.push(image) }) })
+    const context = vm.createContext({
+        Math, Map, WeakMap, Promise, devicePixelRatio: 2,
+        MessageChannel: class { port1 = {}; port2 = { postMessage() {} } },
+        document: { createElement: canvas, querySelectorAll: () => [] },
+        CustomEvent: class {},
+        pdfjsLib: {
+            TextLayer: class { async render() {} update() {} },
+            AnnotationLayer: class { async render() {} },
+        },
+    })
+    vm.runInContext(`${pdf.slice(start, end)}; globalThis.api = { render, prerender, setColors: c => { pageColors = c } }`, context)
+    const { render, prerender, setColors } = context.api
+    const fakePage = pageNumber => ({
+        pageNumber, rotate: 0, renders: 0,
+        getViewport: ({ scale }) => ({ width: 100 * scale, height: 150 * scale }),
+        render() { this.renders++; return { promise: Promise.resolve(), cancel() {} } },
+        streamTextContent: async () => ({}),
+        getAnnotations: async () => [],
+    })
+    const fakeDoc = () => {
+        const doc = { shown: null, documentElement: { style: { setProperty() {} } }, adoptNode: node => node, dispatchEvent() {} }
+        doc.querySelector = selector => selector === '#canvas' ? { replaceChildren: node => { doc.shown = node } }
+            : selector === '.textLayer' ? { append() {} }
+            : selector === '.annotationLayer' ? { replaceChildren() {} } : null
+        return doc
+    }
+
+    await render(fakePage(1), fakeDoc(), 1)
+    const next = fakePage(2)
+    const ahead = await prerender(next)
+    assert.equal(next.renders, 1)
+    const doc = fakeDoc()
+    await render(next, doc, 1)
+    assert.equal(next.renders, 1)
+    assert.equal(drawnImages.at(-1), ahead)
+    assert.ok(doc.shown)
+
+    // drawn in other colours: rendered afresh
+    setColors({ background: '#000000', foreground: '#FFFFFF' })
+    await render(next, fakeDoc(), 1)
+    assert.equal(next.renders, 2)
 })

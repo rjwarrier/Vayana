@@ -43,6 +43,10 @@ export class FixedLayout extends HTMLElement {
     #center
     #side
     #zoom
+    // Vayana: one page per screen (PDFs) only. The frames of the pages beside the one on screen are built ahead and
+    // kept hidden, and so is the page turned away from, so a page turn shows a loaded frame instead of creating and
+    // loading a new one. Section index -> Promise<frame | null>.
+    #ahead = new Map()
     constructor() {
         super()
 
@@ -69,7 +73,7 @@ export class FixedLayout extends HTMLElement {
                 break
         }
     }
-    async #createFrame({ index, src: srcOption }) {
+    async #createFrame({ index, src: srcOption }, hidden = false) {
         const srcOptionIsString = typeof srcOption === 'string'
         const src = srcOptionIsString ? srcOption : srcOption?.src
         const onZoom = srcOptionIsString ? null : srcOption?.onZoom
@@ -89,15 +93,15 @@ export class FixedLayout extends HTMLElement {
         iframe.setAttribute('part', 'filter')
         // Vayana: lets getContents() say which section each frame shows
         if (index != null) iframe.dataset.vayanaIndex = index
+        if (hidden) this.#hide({ element })
         this.#root.append(element)
-        if (!src) return { blank: true, element, iframe }
+        if (!src) return { blank: true, element, iframe, index }
         return new Promise(resolve => {
             iframe.addEventListener('load', () => {
                 const doc = iframe.contentDocument
-                this.dispatchEvent(new CustomEvent('load', { detail: { doc, index } }))
                 const { width, height } = getViewport(doc, this.defaultViewport)
                 resolve({
-                    element, iframe,
+                    element, iframe, index,
                     width: parseFloat(width),
                     height: parseFloat(height),
                     onZoom,
@@ -138,7 +142,8 @@ export class FixedLayout extends HTMLElement {
         const transform = frame => {
             let { element, iframe, width, height, blank, onZoom } = frame
             if (!iframe) return
-            if (onZoom) onZoom({ doc: frame.iframe.contentDocument, scale })
+            // Vayana: kept so building the neighbours can wait for the page on screen to finish drawing
+            if (onZoom) frame.drawn = onZoom({ doc: frame.iframe.contentDocument, scale })
             const iframeScale = onZoom ? scale : 1
             Object.assign(iframe.style, {
                 width: `${width * iframeScale}px`,
@@ -166,18 +171,65 @@ export class FixedLayout extends HTMLElement {
             transform(right)
         }
     }
+    // A frame's 'load' goes out once, when it is first shown: a frame built ahead may never be.
+    #announce(frame) {
+        if (frame.blank || frame.announced) return
+        frame.announced = true
+        const { iframe, index } = frame
+        this.dispatchEvent(new CustomEvent('load', { detail: { doc: iframe.contentDocument, index } }))
+    }
+    #hide({ element }) {
+        element.dataset.vayanaAhead = ''
+        element.style.display = 'none'
+    }
+    #dropAhead(index) {
+        const frame = this.#ahead.get(index)
+        this.#ahead.delete(index)
+        frame?.then(built => { if (built && built !== this.#center) built.element.remove() })
+    }
+    #keepAround(index) {
+        const neighbours = [index + 1, index - 1]
+        for (const kept of [...this.#ahead.keys()]) if (!neighbours.includes(kept)) this.#dropAhead(kept)
+        for (const neighbour of neighbours) {
+            const section = this.book.sections[neighbour]
+            if (this.#ahead.has(neighbour) || !section || this.#spreads[neighbour]?.center !== section) continue
+            this.#ahead.set(neighbour, Promise.resolve(section.load?.())
+                .then(src => src ? this.#createFrame({ index: neighbour, src }, true) : null)
+                .catch(() => null))
+        }
+    }
     async #showSpread({ left, right, center, side }) {
-        this.#root.replaceChildren()
+        const previous = [this.#left, this.#right, this.#center]
         this.#left = null
         this.#right = null
         this.#center = null
         if (center) {
-            this.#center = await this.#createFrame(center)
+            const ahead = this.#ahead.get(center.index)
+            this.#ahead.delete(center.index)
+            const frame = await ahead ?? await this.#createFrame(center)
+            delete frame.element.dataset.vayanaAhead
+            for (const old of previous) {
+                if (!old || old === frame) continue
+                if (old === previous[2] && !old.blank && Number.isInteger(old.index)) {
+                    this.#hide(old)
+                    this.#dropAhead(old.index)
+                    this.#ahead.set(old.index, Promise.resolve(old))
+                } else old.element.remove()
+            }
+            this.#center = frame
+            this.#announce(frame)
             this.#side = 'center'
             this.#render()
+            Promise.resolve(frame.drawn).catch(() => {}).then(() => {
+                if (this.#center === frame) this.#keepAround(center.index)
+            })
         } else {
+            for (const index of [...this.#ahead.keys()]) this.#dropAhead(index)
+            this.#root.replaceChildren()
             this.#left = await this.#createFrame(left)
+            this.#announce(this.#left)
             this.#right = await this.#createFrame(right)
+            this.#announce(this.#right)
             this.#side = this.#left.blank ? 'right'
                 : this.#right.blank ? 'left' : side
             this.#render()
@@ -312,12 +364,15 @@ export class FixedLayout extends HTMLElement {
         if (!s) return this.goToSpread(this.#index - 1, this.rtl ? 'left' : 'right', 'page')
     }
     getContents() {
-        return Array.from(this.#root.querySelectorAll('iframe'), frame => ({
-            doc: frame.contentDocument,
-            // Vayana: the section index, as the paginator reports it
-            index: frame.dataset.vayanaIndex != null ? Number(frame.dataset.vayanaIndex) : undefined,
-            // TODO: overlayer
-        }))
+        // Vayana: frames built ahead are not on screen
+        return Array.from(this.#root.querySelectorAll('iframe'))
+            .filter(frame => !frame.closest('[data-vayana-ahead]'))
+            .map(frame => ({
+                doc: frame.contentDocument,
+                // Vayana: the section index, as the paginator reports it
+                index: frame.dataset.vayanaIndex != null ? Number(frame.dataset.vayanaIndex) : undefined,
+                // TODO: overlayer
+            }))
     }
     destroy() {
         this.#observer.unobserve(this)
