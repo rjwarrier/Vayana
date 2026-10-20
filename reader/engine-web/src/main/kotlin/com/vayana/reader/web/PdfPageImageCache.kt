@@ -14,9 +14,9 @@ internal class PdfPageImageCache(private val dir: File, private val maxBytes: Lo
     private var writesSinceTrim = 0
 
     /**
-     * The saved image of [name]'s page, rotation and colours, marked as just used, or null. A page's size on screen
-     * drifts a little (the crop of a book's margins grows as more pages are measured), so an image within
-     * [SizeTolerance] of the requested width serves too, and is scaled to fit.
+     * The saved image of [name]'s page, rotation and colours, marked as just used, or null. Another size serves too,
+     * scaled to fit, the closest first: any larger one (page previews shrink a full page), or one at most
+     * [SizeTolerance] smaller, since a page's size on screen drifts a little as the crop of a book's margins grows.
      */
     fun read(book: String, name: String): File? {
         val requested = file(book, name) ?: return null
@@ -32,9 +32,9 @@ internal class PdfPageImageCache(private val dir: File, private val maxBytes: Lo
             .mapNotNull { candidate ->
                 val parts = PageNameParts.matchEntire(candidate.name)?.destructured ?: return@mapNotNull null
                 val (candidatePage, candidateWidth, candidateVariant) = parts
-                val difference = abs(candidateWidth.toInt() - wanted)
-                if (candidatePage != page || candidateVariant != variant || difference > wanted * SizeTolerance) null
-                else candidate to difference
+                val difference = candidateWidth.toInt() - wanted
+                if (candidatePage != page || candidateVariant != variant || -difference > wanted * SizeTolerance) null
+                else candidate to abs(difference)
             }
             .minByOrNull { it.second }?.first
     }

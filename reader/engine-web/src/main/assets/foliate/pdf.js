@@ -397,7 +397,7 @@ export const makePDF = async file => {
     book.getPageThumbnail = (index, maxWidth = 240) => {
         if (!Number.isInteger(index) || index < 0 || index >= pdf.numPages) return Promise.resolve(null)
         const width = Math.max(80, Math.min(480, Number(maxWidth) || 240))
-        const cacheKey = `${index}:${Math.round(width)}:${pageRotationDegrees}`
+        const cacheKey = `${index}:${Math.round(width)}:${pageRotationDegrees}:${pageColors?.background}`
         if (thumbnailCache.has(cacheKey)) return thumbnailCache.get(cacheKey)
         const thumbnail = pdf.getPage(index + 1).then(async page => {
             const natural = page.getViewport({ scale: 1, rotation: page.rotate + pageRotationDegrees })
@@ -408,8 +408,17 @@ export const makePDF = async file => {
             const canvas = document.createElement('canvas')
             canvas.width = Math.max(1, Math.round(viewport.width))
             canvas.height = Math.max(1, Math.round(viewport.height))
-            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-            if (!shownPages.has(page.pageNumber)) page.cleanup()
+            // Vayana: in the reader's colours, shrunk from the page's saved image when it has one; only a page never
+            // drawn is decoded (a scanned page's full image), and that preview is not saved.
+            const name = pageImageName(page, canvas)
+            const saved = name ? await savedPageImage(name) : null
+            if (saved) {
+                canvas.getContext('2d').drawImage(saved, 0, 0, canvas.width, canvas.height)
+                saved.close()
+            } else {
+                await startRender(page, canvas, viewport).promise
+                if (!shownPages.has(page.pageNumber)) page.cleanup()
+            }
             return canvas.toDataURL('image/jpeg', 0.78)
         })
         thumbnail.catch(() => thumbnailCache.delete(cacheKey))

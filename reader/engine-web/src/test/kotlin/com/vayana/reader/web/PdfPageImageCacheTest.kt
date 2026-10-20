@@ -20,13 +20,15 @@ class PdfPageImageCacheTest {
     }
 
     @Test
-    fun `a page saved at a slightly different size serves, in the same colours only`() {
+    fun `a page saved at another size serves, in the same colours only`() {
         val cache = PdfPageImageCache(dir)
         cache.save(book, "5-1137x1840-0-000000-EDEDED.webp", byteArrayOf(1))
         cache.save(book, "5-1098x1777-0-000000-EDEDED.webp", byteArrayOf(2))
         cache.save(book, "5-1100x1780-0-own.webp", byteArrayOf(3))
         assertEquals(byteArrayOf(2).toList(), cache.read(book, "5-1100x1780-0-000000-EDEDED.webp")?.readBytes()?.toList())
         assertNull(cache.read(book, "5-1500x2428-0-000000-EDEDED.webp"))
+        // a page preview shrinks the closest larger page
+        assertEquals(byteArrayOf(2).toList(), cache.read(book, "5-240x388-0-000000-EDEDED.webp")?.readBytes()?.toList())
         assertNull(cache.read(book, "6-1100x1780-0-000000-EDEDED.webp"))
     }
 
