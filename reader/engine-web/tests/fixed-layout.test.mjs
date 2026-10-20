@@ -26,6 +26,15 @@ test('navigating to a reported fraction returns to the same page', () => {
     }
 })
 
+test('a fraction stored as a 32-bit float still returns to the same page', () => {
+    for (const total of [10, 324, 1000, 9999]) {
+        for (let index = 0; index < total; index++) {
+            const stored = Math.fround(fixedLayoutFraction({ current: index, total }))
+            assert.equal(fixedLayoutIndexOfFraction(stored, total), index, `page ${index} of ${total}`)
+        }
+    }
+})
+
 test('slider extremes and the resume clamp land on real pages', () => {
     assert.equal(fixedLayoutIndexOfFraction(0, 10), 0)
     assert.equal(fixedLayoutIndexOfFraction(1, 10), 9)

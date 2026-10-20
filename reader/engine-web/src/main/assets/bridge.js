@@ -1143,8 +1143,10 @@ function fixedLayoutFraction(section) {
 
 function fixedLayoutIndexOfFraction(fraction, total) {
     if (!(total > 0) || !Number.isFinite(fraction)) return null
-    // The epsilon absorbs float error: (i + 1) / n * n can come out a hair above i + 1.
-    return Math.max(0, Math.min(total - 1, Math.ceil(fraction * total - 1e-9) - 1))
+    // The epsilon absorbs float error: (i + 1) / n * n can come out a little above i + 1, by up to ~n * 6e-8 for
+    // the 32-bit float the reading percent is stored as (10 / 324 reads back as 0.03086419776), which a tighter
+    // epsilon turned into the next page on reopening.
+    return Math.max(0, Math.min(total - 1, Math.ceil(fraction * total - 1e-3) - 1))
 }
 
 function isTextAnnotationValue(value) {
