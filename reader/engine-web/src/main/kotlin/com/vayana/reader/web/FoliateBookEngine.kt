@@ -202,7 +202,10 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 ),
                 ByteArray(0).inputStream(),
             )
-        val stream = FileInputStream(file).also { it.channel.position(range.start) }
+        // WebView applies the request's Range itself by skip()ping range.start bytes of the stream we return, so
+        // hand it the file from byte 0 (capped at the range end); a stream already positioned at range.start
+        // runs out during that skip and every range past the first fails with "Failed to fetch".
+        val stream = FileInputStream(file)
         return WebResourceResponse(
             file.readerMimeType(),
             null,
@@ -214,7 +217,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 "Content-Range" to "bytes ${range.start}-${range.endInclusive}/$length",
                 "Accept-Ranges" to "bytes",
             ),
-            LimitedInputStream(stream, range.length),
+            LimitedInputStream(stream, range.endInclusive + 1),
         )
     }
 
@@ -835,6 +838,13 @@ private class LimitedInputStream(
         val count = source.read(buffer, offset, min(length.toLong(), remaining).toInt())
         if (count > 0) remaining -= count
         return count
+    }
+
+    // Delegate so WebView's skip to the range start is a seek, not a read through the file.
+    override fun skip(count: Long): Long {
+        val skipped = source.skip(min(count, remaining))
+        if (skipped > 0) remaining -= skipped
+        return skipped
     }
 
     override fun available(): Int = min(source.available().toLong(), remaining).toInt()
