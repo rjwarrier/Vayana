@@ -123,6 +123,8 @@ tasks.configureEach {
 
 dependencies {
     implementation(project(":core:wear"))
+    // Text recognition spike, debug builds only until the feature lands (docs/SCANNED_PDF_TEXT_PLAN.md).
+    debugImplementation(project(":format:ocr"))
     testImplementation(kotlin("test"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:resources"))

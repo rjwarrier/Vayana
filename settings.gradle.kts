@@ -12,6 +12,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Tesseract4Android (text recognition for scanned PDFs) is published only here; nothing else may come from it.
+        maven("https://jitpack.io") {
+            content { includeGroup("cz.adaptech.tesseract4android") }
+        }
     }
 }
 
@@ -48,6 +52,7 @@ include(":reader:engine-web")
 
 include(":format:epub")
 include(":format:pdf")
+include(":format:ocr")
 include(":format:convert")
 
 include(":dictionary:api")

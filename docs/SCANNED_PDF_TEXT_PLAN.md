@@ -20,6 +20,21 @@ Tesseract 5.5, pages rendered at 300 dpi, one core of a desktop PC:
 - 600 dpi was slower and no better than 300 dpi.
 - Phone estimate (not measured): 3–4 s / page / core with the fast model, ~10 min for 324 pages on two threads.
 
+### Phase 1 on the phone (2026-10-20, Tesseract4Android 4.9.0, `PdfRenderer` at 300 dpi)
+
+| Model | One page at a time | Two at a time | 324 pages (two at a time) | Native memory |
+|---|---|---|---|---|
+| `mal` (fast) | 1.0–1.2 s / page | 0.70 s / page | ~4 min | +10–15 MB |
+| `Malayalam` (script, fast) | — | 0.84 s / page | ~4.5 min | +40–60 MB |
+
+- Times include drawing the page. The text matches the desktop trial word for word.
+- Engine start-up is 40–50 ms (`mal`), 135–190 ms (`Malayalam`).
+- APK: +7.6 MB of native libraries per ABI (`libtesseract` 4.2, `libleptonica` 2.9, `libjpeg`, `libpngx`), +19 MB
+  for the universal APK with three ABIs. All four are 16 KB page-aligned (`zipalign -c -P 16` passes; LOAD segments
+  aligned to 0x4000).
+- Trigger (debug builds): `adb shell am broadcast -n com.vayana.app/.debug.OcrSpikeReceiver --es pdf <path>
+  --es pages 10,12 [--es lang mal] [--ei threads 2]`, models in `files/ocr-models/tessdata/`; logs under `OcrSpike`.
+
 ## Design
 
 ### Recognition runs on the Android side, not in the reader
