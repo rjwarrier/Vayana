@@ -210,10 +210,6 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 ),
                 ByteArray(0).inputStream(),
             )
-        // WebView applies the request's Range itself by skip()ping range.start bytes of the stream we return, so
-        // hand it the file from byte 0 (capped at the range end); a stream already positioned at range.start
-        // runs out during that skip and every range past the first fails with "Failed to fetch".
-        val stream = FileInputStream(file)
         return WebResourceResponse(
             file.readerMimeType(),
             null,
@@ -225,7 +221,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                 "Content-Range" to "bytes ${range.start}-${range.endInclusive}/$length",
                 "Accept-Ranges" to "bytes",
             ),
-            LimitedInputStream(stream, range.endInclusive + 1),
+            byteRangeStream(file, range),
         )
     }
 
@@ -818,6 +814,14 @@ private fun File.readerMimeType(): String =
 internal data class ByteRange(val start: Long, val endInclusive: Long) {
     val length: Long get() = endInclusive - start + 1
 }
+
+/**
+ * The body of a 206 response for [range]. WebView applies the request's Range itself by skip()ping range.start bytes
+ * of the stream it is given, so the stream starts at byte 0 and ends with the range; one already positioned at
+ * range.start runs out during that skip, and every range past the first fails with "Failed to fetch".
+ */
+internal fun byteRangeStream(file: File, range: ByteRange): InputStream =
+    LimitedInputStream(FileInputStream(file), range.endInclusive + 1)
 
 /** Parses one HTTP byte range. Multiple ranges are deliberately rejected because PDF.js never requests them. */
 internal fun parseByteRange(header: String, resourceLength: Long): ByteRange? {
