@@ -655,6 +655,7 @@ async function open(bookUrl, lastLocatorCfi, savedPageCounts) {
         fixedLayout = Boolean(view.isFixedLayout)
         if (fixedLayout) {
             view.book.setPageColors?.(fixedPageColors)
+            view.book.setPageImageBook?.(pageCountBook)
             void resolveFixedLayoutTocPages(view.book)
         }
         post('log', { step: 'view.init', fixedLayout })

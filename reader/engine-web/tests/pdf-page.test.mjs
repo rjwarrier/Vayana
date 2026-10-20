@@ -206,28 +206,42 @@ test('PDF navigation metadata, previews, rotation and password callbacks are exp
     assert.match(bridge, /rotationDegrees/)
 })
 
-test('a page drawn ahead is copied onto the screen, not rendered again', async () => {
+// The page drawing code of foliate/pdf.js in a context with stand-ins for the DOM, pdf.js and the Android bridge.
+const pageDrawing = (globals = {}) => {
     const start = pdf.indexOf('let pageColors')
     const end = pdf.indexOf('const renderPage', start)
     assert.ok(start >= 0 && end > start)
     const drawnImages = []
-    const canvas = () => ({ getContext: () => ({ drawImage: image => drawnImages.push(image) }) })
+    const savedImages = []
+    const canvas = () => ({
+        getContext: () => ({ drawImage: image => drawnImages.push(image) }),
+        toBlob: callback => callback('webp bytes'),
+    })
     const context = vm.createContext({
-        Math, Map, WeakMap, Promise, devicePixelRatio: 2,
+        Math, Map, WeakMap, Promise, String, Object, Error, devicePixelRatio: 2,
         MessageChannel: class { port1 = {}; port2 = { postMessage() {} } },
         document: { createElement: canvas, querySelectorAll: () => [] },
         CustomEvent: class {},
+        FileReader: class { readAsDataURL(blob) { this.result = `data:image/webp;base64,${blob}`; this.onload() } },
+        AndroidBridge: { savePageImage: (book, name, data) => savedImages.push({ book, name, data }) },
+        fetch: async () => ({ ok: false }),
         pdfjsLib: {
             TextLayer: class { async render() {} update() {} },
             AnnotationLayer: class { async render() {} },
         },
+        ...globals,
     })
-    vm.runInContext(`${pdf.slice(start, end)}; globalThis.api = { render, prerender, setColors: c => { pageColors = c } }`, context)
-    const { render, prerender, setColors } = context.api
+    context.globalThis = context
+    vm.runInContext(`${pdf.slice(start, end)}; globalThis.api = {
+        render, prerender, prerendered, shownPages,
+        setColors: c => { pageColors = c },
+        setBook: key => { pageImageBook = key },
+    }`, context)
     const fakePage = pageNumber => ({
-        pageNumber, rotate: 0, renders: 0,
+        pageNumber, rotate: 0, renders: 0, cleanups: 0,
         getViewport: ({ scale }) => ({ width: 100 * scale, height: 150 * scale }),
         render() { this.renders++; return { promise: Promise.resolve(), cancel() {} } },
+        cleanup() { this.cleanups++ },
         streamTextContent: async () => ({}),
         getAnnotations: async () => [],
     })
@@ -238,11 +252,17 @@ test('a page drawn ahead is copied onto the screen, not rendered again', async (
             : selector === '.annotationLayer' ? { replaceChildren() {} } : null
         return doc
     }
+    return { ...context.api, drawnImages, savedImages, fakePage, fakeDoc }
+}
 
+test('a page drawn ahead is copied onto the screen, not rendered again', async () => {
+    const { render, prerender, setColors, drawnImages, fakePage, fakeDoc } = pageDrawing()
     await render(fakePage(1), fakeDoc(), 1)
     const next = fakePage(2)
     const ahead = await prerender(next)
     assert.equal(next.renders, 1)
+    // drawn off screen: its decoded images go once the canvas holds the page
+    assert.equal(next.cleanups, 1)
     const doc = fakeDoc()
     await render(next, doc, 1)
     assert.equal(next.renders, 1)
@@ -253,4 +273,36 @@ test('a page drawn ahead is copied onto the screen, not rendered again', async (
     setColors({ background: '#000000', foreground: '#FFFFFF' })
     await render(next, fakeDoc(), 1)
     assert.equal(next.renders, 2)
+})
+
+test('pages are drawn from their saved image, and saved after pdf.js draws them', async () => {
+    const book = 'b'.repeat(64)
+    const requested = []
+    const savedBitmap = { close() { this.closed = true } }
+    const { render, setBook, drawnImages, savedImages, fakePage, fakeDoc } = pageDrawing({
+        fetch: async url => {
+            requested.push(url)
+            return url.includes('/7-') ? { ok: true, blob: async () => 'saved' } : { ok: false }
+        },
+        createImageBitmap: async () => savedBitmap,
+    })
+    setBook(book)
+
+    const saved = fakePage(7)
+    await render(saved, fakeDoc(), 1)
+    assert.equal(saved.renders, 0)
+    assert.equal(drawnImages.at(-1), savedBitmap)
+    assert.ok(savedBitmap.closed)
+    assert.equal(requested[0], `/page-cache/${book}/7-200x300-0-own.webp`)
+
+    const fresh = fakePage(8)
+    await render(fresh, fakeDoc(), 1)
+    assert.equal(fresh.renders, 1)
+    assert.deepEqual({ ...savedImages[0] }, { book, name: '8-200x300-0-own.webp', data: 'webp bytes' })
+
+    // zoomed past a screenful: drawn on demand, never saved
+    const zoomed = fakePage(9)
+    await render(zoomed, fakeDoc(), 30)
+    assert.equal(zoomed.renders, 1)
+    assert.equal(savedImages.length, 1)
 })

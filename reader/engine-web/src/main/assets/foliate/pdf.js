@@ -97,6 +97,62 @@ const startRender = (page, canvas, viewport) => renderWithoutFrames(page.render(
     ...(pageColors ? { pageColors } : {}),
 }))
 
+// Vayana: pages drawn at a screenful or less are kept on disk as WebP (Kotlin's PdfPageImageCache, one folder per
+// book), so reopening a book or jumping to a page read before shows it in a few ms instead of decoding it again.
+// Named by page, canvas size, colours and rotation; zoomed-in pages are drawn on demand only.
+let pageImageBook = null
+const pageImageName = (page, canvas) => {
+    if (!pageImageBook || canvas.width * canvas.height > MaxPrerenderPixels) return null
+    const colors = pageColors
+        ? `${pageColors.background}-${pageColors.foreground}`.replace(/[^0-9A-Za-z-]/g, '')
+        : 'own'
+    return `${page.pageNumber}-${canvas.width}x${canvas.height}-${pageRotationDegrees}-${colors}.webp`
+}
+const savedPageImage = async name => {
+    try {
+        const response = await fetch(`/page-cache/${pageImageBook}/${name}`, { cache: 'no-store' })
+        return response.ok ? await createImageBitmap(await response.blob()) : null
+    } catch (_) {
+        return null
+    }
+}
+const keepPageImage = (name, canvas) => {
+    const book = pageImageBook
+    if (!globalThis.AndroidBridge?.savePageImage) return
+    canvas.toBlob(blob => {
+        if (!blob) return
+        const reader = new FileReader()
+        reader.onload = () => globalThis.AndroidBridge.savePageImage(book, name, String(reader.result).split(',')[1] ?? '')
+        reader.readAsDataURL(blob)
+    }, 'image/webp', 0.9)
+}
+
+// Draws the page into the canvas from its saved image when there is one, else with pdf.js, then saves it.
+// { promise, cancel }; a cancelled draw rejects with pdf.js's RenderingCancelledException.
+const drawPage = (page, canvas, viewport) => {
+    let task = null
+    let cancelled = false
+    const name = pageImageName(page, canvas)
+    const promise = (async () => {
+        const saved = name ? await savedPageImage(name) : null
+        if (saved) {
+            // a saved image may be a few percent off this size (see PdfPageImageCache.read)
+            canvas.getContext('2d').drawImage(saved, 0, 0, canvas.width, canvas.height)
+            saved.close()
+            return
+        }
+        if (cancelled) throw Object.assign(new Error('Rendering cancelled'), { name: 'RenderingCancelledException' })
+        task = startRender(page, canvas, viewport)
+        await task.promise
+        if (name) keepPageImage(name, canvas)
+    })()
+    return { promise, cancel: () => { cancelled = true; task?.cancel() } }
+}
+
+// Vayana: pdf.js keeps a page's decoded images (a scanned page's is ~57 MB) until page.cleanup(). A page drawn ahead
+// lets them go once its canvas is drawn; a page drawn on screen keeps them for zooming until it is turned away from.
+const shownPages = new Map()
+
 const prerender = page => {
     if (lastZoom == null) return null
     const { scale, viewport } = pageViewport(page, lastZoom)
@@ -105,14 +161,18 @@ const prerender = page => {
     const existing = prerendered.get(page.pageNumber)
     if (existing?.key === key) return existing.canvas
     const canvas = pageCanvas(viewport)
-    const task = startRender(page, canvas, viewport)
-    const drawn = task.promise.then(() => canvas, () => null)
-    prerendered.set(page.pageNumber, { key, canvas: drawn, task })
+    const draw = drawPage(page, canvas, viewport)
+    const drawn = draw.promise.then(() => {
+        if (!shownPages.has(page.pageNumber)) page.cleanup()
+        return canvas
+    }, () => null)
+    prerendered.set(page.pageNumber, { key, canvas: drawn, task: draw })
     return drawn
 }
 
 const render = async (page, doc, zoom) => {
     lastZoom = zoom
+    shownPages.set(page.pageNumber, page)
     const { pageSize, pixelRatio, scale, viewport } = pageViewport(page, zoom)
     doc.documentElement.style.transform = `scale(${1 / pixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
@@ -130,11 +190,11 @@ const render = async (page, doc, zoom) => {
     if (pageRenders.get(doc)?.generation !== generation) return
     if (drawnAhead) canvas.getContext('2d').drawImage(drawnAhead, 0, 0)
     else {
-        const task = startRender(page, canvas, viewport)
-        pageRenders.set(doc, { generation, task })
-        drawing = task.promise.catch(() => {})
+        const draw = drawPage(page, canvas, viewport)
+        pageRenders.set(doc, { generation, task: draw })
+        drawing = draw.promise.catch(() => {})
         try {
-            await task.promise
+            await draw.promise
         } catch (error) {
             if (error?.name === 'RenderingCancelledException') return
             throw error
@@ -300,6 +360,11 @@ export const makePDF = async file => {
             task.cancel()
             prerendered.delete(pageNumber)
         }
+        for (const [pageNumber, page] of shownPages) {
+            if (pageNumber === index + 1) continue
+            shownPages.delete(pageNumber)
+            page.cleanup()
+        }
         prefetchTimer = setTimeout(async () => {
             await drawing
             for (const candidate of neighbours) {
@@ -344,6 +409,7 @@ export const makePDF = async file => {
             canvas.width = Math.max(1, Math.round(viewport.width))
             canvas.height = Math.max(1, Math.round(viewport.height))
             await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+            if (!shownPages.has(page.pageNumber)) page.cleanup()
             return canvas.toDataURL('image/jpeg', 0.78)
         })
         thumbnail.catch(() => thumbnailCache.delete(cacheKey))
@@ -366,6 +432,7 @@ export const makePDF = async file => {
         return pageTexts.get(index)
     }
     book.setPageColors = colors => { pageColors = colors }
+    book.setPageImageBook = key => { pageImageBook = /^[0-9a-f]{64}$/.test(key ?? '') ? key : null }
     book.setPageRotation = degrees => {
         const normalized = ((Number(degrees) || 0) % 360 + 360) % 360
         pageRotationDegrees = [0, 90, 180, 270].includes(normalized) ? normalized : 0
@@ -376,6 +443,8 @@ export const makePDF = async file => {
         cache.clear()
         thumbnailCache.clear()
         prerendered.clear()
+        shownPages.clear()
+        pageImageBook = null
         lastZoom = null
         return pdf.destroy()
     }

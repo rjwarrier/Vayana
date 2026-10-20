@@ -123,6 +123,8 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         PageCountStore(File(appContext.cacheDir, "page-counts"), "$appUpdated|$webView")
     }
 
+    private val pageImages by lazy { PdfPageImageCache(File(appContext.cacheDir, "pdf-pages")) }
+
     // NOT WebViewAssetLoader.AssetsPathHandler: its automatic MIME-type lookup often can't
     // resolve ".js" -> "text/javascript" on-device (MimeTypeMap has no default mapping for it),
     // and WebView's <script type="module"> loader silently refuses to run a module served with
@@ -165,6 +167,12 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
             WebResourceResponse(mimeType, null, 200, "OK", BookResourceHeaders, stream)
         }
         .addPathHandler("/fonts/") { path -> serveFont(path) }
+        // `<book key>/<page image name>`, saved by savePageImage below; see PdfPageImageCache.
+        .addPathHandler("/page-cache/") { path ->
+            val (book, name) = path.removePrefix("/page-cache/").split('/').takeIf { it.size == 2 } ?: return@addPathHandler null
+            val file = pageImages.read(book, name) ?: return@addPathHandler null
+            WebResourceResponse("image/webp", null, 200, "OK", BookResourceHeaders, file.inputStream())
+        }
         .build()
 
     /** Streams either the complete book or the single byte range requested by PDF.js. */
@@ -587,6 +595,15 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
         @JavascriptInterface
         fun onEvent(type: String, jsonPayload: String) {
             webView.post { withBridgeEventPayload(jsonPayload) { handleEvent(type, it) } }
+        }
+
+        /** A PDF page as pdf.js drew it, base64 WebP, kept for the next time it is shown. See foliate/pdf.js. */
+        @JavascriptInterface
+        fun savePageImage(book: String, name: String, base64Data: String) {
+            thread(name = "pdf-page-image") {
+                val bytes = runCatching { Base64.decode(base64Data, Base64.DEFAULT) }.getOrNull() ?: return@thread
+                runCatching { pageImages.save(book, name, bytes) }
+            }
         }
 
         /** Metadata only: bridge.js uses it to expose PDFs as a range-backed file without copying their bytes. */
