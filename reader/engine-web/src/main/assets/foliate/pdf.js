@@ -193,7 +193,15 @@ const recognizedTextContent = (page, { lines, joins }) => {
     const [left0, , , top0] = page.view
     const joined = new Set(joins ?? [])
     const items = []
-    for (const [lineIndex, line] of (lines ?? []).entries()) line.forEach(([str, left, top, right, bottom, confidence], i) => {
+    // Every word on a line is as tall as the line, reaching halfway to the lines above and below, so a press anywhere
+    // on the printed text lands on a word (a word's own box is only as tall as its letters).
+    const bands = (lines ?? []).map(line => [Math.min(...line.map(word => word[2])), Math.max(...line.map(word => word[4]))])
+    const reach = (gap, height) => gap > 0 && gap < height * 1.5 ? gap / 2 : 0
+    for (const [lineIndex, line] of (lines ?? []).entries()) line.forEach(([str, left, , right, , confidence], i) => {
+        const [lineTop, lineBottom] = bands[lineIndex]
+        const lineHeight = lineBottom - lineTop
+        const top = lineTop - reach(lineTop - (bands[lineIndex - 1]?.[1] ?? -Infinity), lineHeight)
+        const bottom = lineBottom + reach((bands[lineIndex + 1]?.[0] ?? Infinity) - lineBottom, lineHeight)
         const height = Math.max(1, bottom - top)
         const baseline = top0 - bottom + height * 0.2
         const item = (text, x, width, hasEOL) => ({

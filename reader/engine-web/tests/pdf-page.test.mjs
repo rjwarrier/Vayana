@@ -341,12 +341,14 @@ test('words recognised on a scanned page become pdf.js text items over their box
     assert.deepEqual(Array.from(content.items, item => Boolean(item.joinsNext)), [false, false, false, false, true, false])
     // a word Tesseract was unsure of (41) is marked; lookup skips it
     assert.deepEqual(Array.from(content.items, item => Boolean(item.lowConfidence)), [false, false, false, true, false, false])
-    const [first, space] = content.items
-    // the item covers the word's box: left edge, width, and a baseline a fifth of the box above its foot
+    const [first, space, second] = content.items
+    // the item spans the word across, and its line down: the line's band (145-152) reaches halfway to the next line
+    // (160), so a press anywhere on the line finds a word; the baseline sits a fifth of that height above its foot
     assert.equal(first.transform[4], 35.5)
     assert.equal(first.width, 38)
-    assert.equal(first.height, 6)
-    assert.ok(Math.abs(first.transform[5] - (576 - 151.5 + 6 * 0.2)) < 1e-9)
+    assert.equal(first.height, 11)
+    assert.equal(second.height, 11)
+    assert.ok(Math.abs(first.transform[5] - (576 - 156 + 11 * 0.2)) < 1e-9)
     assert.equal(space.transform[4], 73.5)
     assert.equal(space.width, 6.5)
     assert.equal(content.styles[first.fontName].ascent, 0.8)
