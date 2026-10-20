@@ -8,5 +8,12 @@ android {
 
 dependencies {
     implementation(libs.tesseract4android)
-    testImplementation(kotlin("test"))
+    implementation(libs.androidx.work.runtime.ktx)
+    testImplementation(libs.junit5.jupiter)
+    testImplementation(libs.org.json)
+    testRuntimeOnly(libs.junit5.platform.launcher)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }

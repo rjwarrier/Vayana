@@ -17,7 +17,7 @@ data class RecognizedWord(
     val confidence: Float,
 )
 
-/** A page's words, line by line, in reading order. */
+/** A page's words, line by line, in reading order, normalised (see [normalizeRecognizedText]). */
 data class RecognizedPage(val lines: List<List<RecognizedWord>>)
 
 /**
@@ -64,7 +64,7 @@ class PageRecognizer(dataPath: File, language: String) : Closeable {
         try {
             words.begin()
             do {
-                val text = words.getUTF8Text(TessBaseAPI.PageIteratorLevel.RIL_WORD)?.trim().orEmpty()
+                val text = normalizeRecognizedText(words.getUTF8Text(TessBaseAPI.PageIteratorLevel.RIL_WORD)?.trim().orEmpty())
                 if (text.isNotEmpty()) {
                     val box = words.getBoundingRect(TessBaseAPI.PageIteratorLevel.RIL_WORD)
                     line += RecognizedWord(

@@ -8,6 +8,8 @@ import android.os.Debug
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Log
+import com.vayana.format.ocr.BookRecognition
+import com.vayana.format.ocr.OcrModel
 import com.vayana.format.ocr.PageRecognizer
 import java.io.File
 import kotlin.concurrent.thread
@@ -21,6 +23,21 @@ import kotlin.concurrent.thread
  */
 class OcrSpikeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // The background job (phase 2): --es job start|stop --es book <file sha256> [--es model mal-fast] [--ei start 0]
+        when (intent.getStringExtra("job")) {
+            "start" -> {
+                val model = OcrModel.byId(intent.getStringExtra("model")) ?: OcrModel.MalayalamFast
+                BookRecognition.start(context, File(intent.getStringExtra("pdf") ?: return), intent.getStringExtra("book") ?: return,
+                    model, intent.getIntExtra("start", 0))
+                Log.i(Tag, "job started ${model.id}")
+                return
+            }
+            "stop" -> {
+                BookRecognition.stop(context, intent.getStringExtra("book") ?: return)
+                Log.i(Tag, "job stopped")
+                return
+            }
+        }
         val pdf = File(intent.getStringExtra("pdf") ?: return)
         val pages = intent.getStringExtra("pages")?.split(',')?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
         val language = intent.getStringExtra("lang") ?: "mal"
