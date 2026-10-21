@@ -243,6 +243,10 @@ storeType=PKCS12
 
 Without an external path, the build looks for an ignored `keystore.properties` file in the repository root.
 
+The build writes one APK per CPU type to `app/build/outputs/apk/release/`: `app-arm64-v8a-release.apk` (nearly every
+phone and tablet), `app-armeabi-v7a-release.apk` (older 32-bit phones), `app-x86_64-release.apk` (emulators,
+Chromebooks) and `app-universal-release.apk` (all of them, larger).
+
 ## Project structure
 
 ```text

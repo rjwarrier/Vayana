@@ -37,10 +37,25 @@ android {
         applicationId = "com.vayana.app"
         versionCode = 5
         versionName = "0.93"
-        // ARM phones and tablets, plus 64-bit x86 (emulators, Chromebooks). 32-bit x86 Android devices are gone;
-        // its copy of ML Kit's native code was 1.3 MB.
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+    }
+
+    // One APK per CPU type, so a phone downloads only its own native code (text recognition's engine is ~7.5 MB of
+    // it per type), plus a universal APK for anyone unsure which to take. ARM phones and tablets, and 64-bit x86
+    // (emulators, Chromebooks); 32-bit x86 Android devices are gone (its copy of ML Kit's native code was 1.3 MB).
+    // The APKs share a version code: they are installed from GitHub, not Google Play, and any of them updates any.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+    // ... and nothing for 32-bit x86, not even in the universal APK (the split list above doesn't reach it, and
+    // ndk.abiFilters can't be combined with splits)
+    packaging {
+        jniLibs {
+            excludes += "lib/x86/**"
         }
     }
 
@@ -97,7 +112,8 @@ abstract class GenerateBuildInfo : DefaultTask() {
 androidComponents {
     onVariants { variant ->
         val buildInfo = tasks.register<GenerateBuildInfo>("generate${variant.name.replaceFirstChar(Char::uppercase)}BuildInfo") {
-            versionCode.set(variant.outputs.single().versionCode.map { it })
+            // one output per CPU type (ABI splits), all with the same version code
+            versionCode.set(variant.outputs.first().versionCode.map { it })
         }
         variant.sources.assets?.addGeneratedSourceDirectory(buildInfo, GenerateBuildInfo::outputDirectory)
     }
@@ -123,7 +139,7 @@ tasks.configureEach {
 
 dependencies {
     implementation(project(":core:wear"))
-    // Text recognition spike, debug builds only until the feature lands (docs/SCANNED_PDF_TEXT_PLAN.md).
+    // The debug-only adb trigger for text recognition (OcrSpikeReceiver); the feature itself comes in with the reader.
     debugImplementation(project(":format:ocr"))
     testImplementation(kotlin("test"))
     implementation(project(":core:designsystem"))
