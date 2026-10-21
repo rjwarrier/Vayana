@@ -2178,7 +2178,7 @@
     <string name="search_index_hint">Contents are indexed locally from downloaded EPUBs.</string>
     <string name="feature_action_failed">Could not save this change. Please try again.</string>
     <string name="privacy_stored_ocr">Text recognized from scanned books</string>
-    <string name="privacy_stored_ocr_detail">%1$d books, %2$s, in Vayana’s private storage. A book’s text goes when the book is deleted; its reader settings can remove it too.</string>
+    <string name="privacy_stored_ocr_detail">Books: %1$d · Space: %2$s, in Vayana’s private storage. A book’s text goes when the book is deleted; its reader settings can remove it too.</string>
     <string name="privacy_stored_ocr_none">None yet.</string>
     <string name="privacy_stored_ocr_remove">Remove all</string>
     <string name="privacy_stored_ocr_keep">Keep</string>

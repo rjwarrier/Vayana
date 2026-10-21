@@ -2202,7 +2202,7 @@
     <string name="search_index_hint">I contenuti vengono indicizzati localmente dagli EPUB scaricati.</string>
     <string name="feature_action_failed">Impossibile salvare questa modifica. Riprova.</string>
     <string name="privacy_stored_ocr">Testo riconosciuto dai libri scansionati</string>
-    <string name="privacy_stored_ocr_detail">%1$d libri, %2$s, nella memoria privata di Vayana. Il testo di un libro viene eliminato con il libro; si può rimuovere anche dalle sue impostazioni di lettura.</string>
+    <string name="privacy_stored_ocr_detail">Libri: %1$d · Spazio: %2$s, nella memoria privata di Vayana. Il testo di un libro viene eliminato con il libro; si può rimuovere anche dalle sue impostazioni di lettura.</string>
     <string name="privacy_stored_ocr_none">Ancora nessuno.</string>
     <string name="privacy_stored_ocr_remove">Rimuovi tutto</string>
     <string name="privacy_stored_ocr_keep">Mantieni</string>
