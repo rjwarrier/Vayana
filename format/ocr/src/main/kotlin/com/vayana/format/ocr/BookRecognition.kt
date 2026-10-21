@@ -80,6 +80,11 @@ object BookRecognition {
         WorkManager.getInstance(context).cancelUniqueWork(workName(book))
     }
 
+    /** Stops every book's recognition. */
+    fun stopAll(context: Context) {
+        WorkManager.getInstance(context).cancelAllWorkByTag(Tag)
+    }
+
     /** The book's running or last job, or null when it never had one. */
     fun progress(context: Context, book: String): Flow<RecognitionProgress?> =
         WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(workName(book)).map { infos ->

@@ -239,6 +239,6 @@ private val PageNumber = Regex("[0-9൦-൯]{1,4}")
 private const val ContainerXml = """<?xml version="1.0" encoding="utf-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"""
 
-private const val StyleCss = """p { text-indent: 1.5em; margin: 0; }
+private const val StyleCss = """p { text-indent: 1.5em; margin: 0; text-align: start; }
 h2 { text-align: center; margin: 2em 0 1em; }
 .vayana-page { }"""

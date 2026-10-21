@@ -2201,4 +2201,12 @@
     <string name="search_contents_empty">Nessun passaggio indicizzato corrisponde a questa ricerca.</string>
     <string name="search_index_hint">I contenuti vengono indicizzati localmente dagli EPUB scaricati.</string>
     <string name="feature_action_failed">Impossibile salvare questa modifica. Riprova.</string>
+    <string name="privacy_stored_ocr">Testo riconosciuto dai libri scansionati</string>
+    <string name="privacy_stored_ocr_detail">%1$d libri, %2$s, nella memoria privata di Vayana. Il testo di un libro viene eliminato con il libro; si può rimuovere anche dalle sue impostazioni di lettura.</string>
+    <string name="privacy_stored_ocr_none">Ancora nessuno.</string>
+    <string name="privacy_stored_ocr_remove">Rimuovi tutto</string>
+    <string name="privacy_stored_ocr_keep">Mantieni</string>
+    <string name="privacy_stored_ocr_remove_confirm">Rimuovere il testo riconosciuto da tutti i libri scansionati? Ricerca, selezione, lettura ad alta voce e vista testo smetteranno di funzionare su di essi finché non verrà riconosciuto di nuovo.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), per il riconoscimento del testo</string>
+    <string name="privacy_leaves_ocr_detail">La prima volta che riconosci un libro scansionato in una lingua, il suo modello di riconoscimento viene scaricato dal progetto Tesseract su GitHub. Non viene inviato nulla su di te o sul libro; le pagine vengono lette su questo telefono.</string>
 </resources>

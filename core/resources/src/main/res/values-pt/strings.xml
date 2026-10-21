@@ -2201,4 +2201,12 @@
     <string name="search_contents_empty">Nenhum trecho indexado corresponde a esta busca.</string>
     <string name="search_index_hint">O conteúdo é indexado localmente a partir dos EPUBs baixados.</string>
     <string name="feature_action_failed">Não foi possível salvar esta alteração. Tente novamente.</string>
+    <string name="privacy_stored_ocr">Texto reconhecido de livros digitalizados</string>
+    <string name="privacy_stored_ocr_detail">%1$d livros, %2$s, no armazenamento privado do Vayana. O texto de um livro sai junto com o livro; também pode ser removido nas configurações de leitura dele.</string>
+    <string name="privacy_stored_ocr_none">Nenhum ainda.</string>
+    <string name="privacy_stored_ocr_remove">Remover tudo</string>
+    <string name="privacy_stored_ocr_keep">Manter</string>
+    <string name="privacy_stored_ocr_remove_confirm">Remover o texto reconhecido de todos os livros digitalizados? Pesquisa, seleção, leitura em voz alta e a vista de texto deixam de funcionar neles até que seja reconhecido de novo.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), para o reconhecimento de texto</string>
+    <string name="privacy_leaves_ocr_detail">Na primeira vez que você reconhece um livro digitalizado em um idioma, o modelo de reconhecimento é baixado do projeto Tesseract no GitHub. Nada sobre você ou o livro é enviado; as páginas são lidas neste telefone.</string>
 </resources>

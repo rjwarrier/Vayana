@@ -10,6 +10,7 @@ import com.vayana.core.common.DispatcherProvider
 import com.vayana.core.datastore.settings.SettingsRepository
 import com.vayana.core.sync.github.assetStore
 import com.vayana.core.sync.github.gitHubSyncConfig
+import com.vayana.format.ocr.BookRecognition
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -31,6 +32,9 @@ internal data class PrivacyState(
     val syncRepository: String?,
     /** As GitHub reports it; null when sync is off or GitHub couldn't be asked. */
     val repositoryPrivate: Boolean?,
+    /** Scanned books with recognised text kept on this phone, and its size. */
+    val recognizedTextBooks: Int = 0,
+    val recognizedTextBytes: Long = 0,
 )
 
 @HiltViewModel
@@ -53,9 +57,25 @@ internal class PrivacyViewModel @Inject constructor(
                     bookFilesPrivate = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
                     syncRepository = config?.let { "${it.owner}/${it.repository}" },
                     repositoryPrivate = config?.let { runCatching { it.assetStore().repositoryIsPrivate() }.getOrNull() },
-                )
+                ).withRecognizedText()
             }
         }
+    }
+
+    /** Stops any recognition and deletes the text recognised from every scanned book. */
+    fun removeRecognizedText() {
+        viewModelScope.launch {
+            BookRecognition.stopAll(context)
+            _state.value = withContext(dispatchers.io) {
+                BookRecognition.store(context).deleteAll()
+                _state.value?.withRecognizedText()
+            }
+        }
+    }
+
+    private fun PrivacyState.withRecognizedText(): PrivacyState {
+        val (books, bytes) = BookRecognition.store(context).usage()
+        return copy(recognizedTextBooks = books, recognizedTextBytes = bytes)
     }
 }
 

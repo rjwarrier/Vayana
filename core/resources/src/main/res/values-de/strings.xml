@@ -2174,4 +2174,12 @@
     <string name="search_contents_empty">Keine indexierten Passagen passen zu dieser Suche.</string>
     <string name="search_index_hint">Inhalte werden lokal aus heruntergeladenen EPUBs indexiert.</string>
     <string name="feature_action_failed">Diese Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.</string>
+    <string name="privacy_stored_ocr">Aus gescannten Büchern erkannter Text</string>
+    <string name="privacy_stored_ocr_detail">%1$d Bücher, %2$s, in Vayanas privatem Speicher. Der Text eines Buchs verschwindet mit dem Buch; er lässt sich auch in dessen Leseeinstellungen entfernen.</string>
+    <string name="privacy_stored_ocr_none">Noch keiner.</string>
+    <string name="privacy_stored_ocr_remove">Alles entfernen</string>
+    <string name="privacy_stored_ocr_keep">Behalten</string>
+    <string name="privacy_stored_ocr_remove_confirm">Den aus allen gescannten Büchern erkannten Text entfernen? Suche, Auswahl, Vorlesen und die Textansicht funktionieren dort erst wieder, wenn er erneut erkannt wurde.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), für die Texterkennung</string>
+    <string name="privacy_leaves_ocr_detail">Wenn du zum ersten Mal ein gescanntes Buch in einer Sprache erkennst, wird das Erkennungsmodell vom Tesseract-Projekt auf GitHub heruntergeladen. Nichts über dich oder das Buch wird gesendet; die Seiten werden auf diesem Telefon gelesen.</string>
 </resources>

@@ -2201,4 +2201,12 @@
     <string name="search_contents_empty">Aucun passage indexé ne correspond à cette recherche.</string>
     <string name="search_index_hint">Le contenu est indexé localement à partir des EPUB téléchargés.</string>
     <string name="feature_action_failed">Impossible d\'enregistrer cette modification. Réessayez.</string>
+    <string name="privacy_stored_ocr">Texte reconnu dans les livres scannés</string>
+    <string name="privacy_stored_ocr_detail">%1$d livres, %2$s, dans le stockage privé de Vayana. Le texte d’un livre disparaît avec le livre ; ses réglages de lecture permettent aussi de le supprimer.</string>
+    <string name="privacy_stored_ocr_none">Aucun pour l’instant.</string>
+    <string name="privacy_stored_ocr_remove">Tout supprimer</string>
+    <string name="privacy_stored_ocr_keep">Conserver</string>
+    <string name="privacy_stored_ocr_remove_confirm">Supprimer le texte reconnu dans tous les livres scannés ? La recherche, la sélection, la lecture à voix haute et la vue texte ne fonctionneront plus pour eux tant qu’il n’aura pas été reconnu à nouveau.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), pour la reconnaissance du texte</string>
+    <string name="privacy_leaves_ocr_detail">La première fois que vous reconnaissez un livre scanné dans une langue, son modèle de reconnaissance est téléchargé depuis le projet Tesseract sur GitHub. Rien sur vous ou le livre n’est envoyé ; les pages sont lues sur ce téléphone.</string>
 </resources>

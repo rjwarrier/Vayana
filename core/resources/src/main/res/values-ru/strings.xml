@@ -2228,4 +2228,12 @@
     <string name="search_contents_empty">Нет проиндексированных фрагментов по этому запросу.</string>
     <string name="search_index_hint">Содержимое индексируется локально из скачанных EPUB.</string>
     <string name="feature_action_failed">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
+    <string name="privacy_stored_ocr">Текст, распознанный в сканированных книгах</string>
+    <string name="privacy_stored_ocr_detail">Книг: %1$d, %2$s, во внутреннем хранилище Vayana. Текст книги удаляется вместе с ней; его можно удалить и в её настройках чтения.</string>
+    <string name="privacy_stored_ocr_none">Пока нет.</string>
+    <string name="privacy_stored_ocr_remove">Удалить всё</string>
+    <string name="privacy_stored_ocr_keep">Оставить</string>
+    <string name="privacy_stored_ocr_remove_confirm">Удалить текст, распознанный во всех сканированных книгах? Поиск, выделение, чтение вслух и текстовый вид перестанут работать для них, пока текст не распознают снова.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), для распознавания текста</string>
+    <string name="privacy_leaves_ocr_detail">Когда вы впервые распознаёте сканированную книгу на каком-то языке, его модель загружается из проекта Tesseract на GitHub. Ничего о вас или о книге не отправляется; страницы читаются на этом телефоне.</string>
 </resources>

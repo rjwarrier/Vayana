@@ -1,5 +1,12 @@
 package com.vayana.feature.settings
 
+import android.text.format.Formatter
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,14 +57,14 @@ import com.vayana.core.resources.R
 fun PrivacyRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: PrivacyViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    PrivacyScreen(state, onBack, modifier)
+    PrivacyScreen(state, onBack, viewModel::removeRecognizedText, modifier)
 }
 
 private enum class Verdict { GOOD, WARN, UNKNOWN }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PrivacyScreen(state: PrivacyState?, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun PrivacyScreen(state: PrivacyState?, onBack: () -> Unit, onRemoveRecognizedText: () -> Unit, modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -88,7 +95,7 @@ private fun PrivacyScreen(state: PrivacyState?, onBack: () -> Unit, modifier: Mo
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             item { SettingsContentContainer { StatusCard(state) } }
-            item { SettingsContentContainer { StoredCard() } }
+            item { SettingsContentContainer { StoredCard(state, onRemoveRecognizedText) } }
             item { SettingsContentContainer { LeavesCard() } }
             item { SettingsContentContainer { NeverCard() } }
         }
@@ -152,10 +159,11 @@ private fun StatusRow(label: String, verdict: Verdict, detail: String) {
 }
 
 @Composable
-private fun StoredCard() {
+private fun StoredCard(state: PrivacyState, onRemoveRecognizedText: () -> Unit) {
     PrivacyCard(Icons.Outlined.PhoneAndroid, stringResource(R.string.privacy_stored_section)) {
         Fact(R.string.privacy_stored_library, R.string.privacy_stored_library_detail)
         Fact(R.string.privacy_stored_books, R.string.privacy_stored_books_detail)
+        RecognizedTextFact(state, onRemoveRecognizedText)
         Fact(R.string.privacy_stored_secrets, R.string.privacy_stored_secrets_detail)
         Fact(R.string.privacy_stored_logs, R.string.privacy_stored_logs_detail)
         Fact(R.string.privacy_stored_backups, R.string.privacy_stored_backups_detail)
@@ -169,6 +177,7 @@ private fun LeavesCard() {
         Fact(R.string.privacy_leaves_goodreads, R.string.privacy_leaves_goodreads_detail)
         Fact(R.string.privacy_leaves_wikimedia, R.string.privacy_leaves_wikimedia_detail)
         Fact(R.string.privacy_leaves_catalogs, R.string.privacy_leaves_catalogs_detail)
+        Fact(R.string.privacy_leaves_ocr, R.string.privacy_leaves_ocr_detail)
         Fact(R.string.privacy_leaves_apps, R.string.privacy_leaves_apps_detail)
     }
 }
@@ -177,6 +186,40 @@ private fun LeavesCard() {
 private fun NeverCard() {
     PrivacyCard(Icons.Outlined.CheckCircle, stringResource(R.string.privacy_never_section)) {
         Text(stringResource(R.string.privacy_never_detail), style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Text recognised from scanned books: how much there is, and removing it all (it can be recognised again). */
+@Composable
+private fun RecognizedTextFact(state: PrivacyState, onRemove: () -> Unit) {
+    val context = LocalContext.current
+    var confirming by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Text(stringResource(R.string.privacy_stored_ocr), style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = if (state.recognizedTextBooks == 0) stringResource(R.string.privacy_stored_ocr_none) else stringResource(
+                R.string.privacy_stored_ocr_detail,
+                state.recognizedTextBooks,
+                Formatter.formatShortFileSize(context, state.recognizedTextBytes),
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (state.recognizedTextBooks > 0) {
+            TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.privacy_stored_ocr_remove)) }
+        }
+    }
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            text = { Text(stringResource(R.string.privacy_stored_ocr_remove_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { confirming = false; onRemove() }) { Text(stringResource(R.string.privacy_stored_ocr_remove)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.privacy_stored_ocr_keep)) }
+            },
+        )
     }
 }
 

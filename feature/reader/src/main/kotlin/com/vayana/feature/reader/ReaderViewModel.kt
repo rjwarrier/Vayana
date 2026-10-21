@@ -643,7 +643,7 @@ class ReaderViewModel @Inject constructor(
             // Only what the page is drawn from: a brightness swipe or a read-aloud speed change rewrites the settings too,
             // and re-applying an identical style still re-lays-out the whole chapter.
             combine(effectiveSettings, _pdfBookPreferences) { snapshot, pdf ->
-                snapshot.toBookStyle(pdf?.rotationDegrees ?: 0) to snapshot.readTheme
+                snapshot.toBookStyle(pdf?.rotationDegrees ?: 0).forReadingView() to snapshot.readTheme
             }
                 .distinctUntilChanged()
                 .debounce(StyleUpdateDebounceMillis)
@@ -1371,6 +1371,11 @@ class ReaderViewModel @Inject constructor(
         _engineGeneration.update { it + 1 }
     }
 
+    // A scanned book's text view sets justified text flush left: its long Malayalam words, reflowed from the scan,
+    // leave wide gaps when stretched across a line. Any other alignment chosen stands.
+    private fun BookStyle.forReadingView(): BookStyle =
+        if (textView && textAlign == BookTextAlign.JUSTIFIED) copy(textAlign = BookTextAlign.LEFT) else this
+
     private fun Locator.toScanLocator(): Locator? {
         val page = printedPageIndex ?: return null
         val total = textViewPages.takeIf { it > 0 } ?: return null
@@ -1526,7 +1531,7 @@ class ReaderViewModel @Inject constructor(
 
     private suspend fun applyReaderStyle(engine: BookEngine, snapshot: SettingsSnapshot) {
         engine.applyStyle(
-            style = snapshot.toBookStyle(_pdfBookPreferences.value?.rotationDegrees ?: 0),
+            style = snapshot.toBookStyle(_pdfBookPreferences.value?.rotationDegrees ?: 0).forReadingView(),
             theme = snapshot.readTheme,
         )
     }

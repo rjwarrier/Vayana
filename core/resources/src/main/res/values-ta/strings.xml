@@ -2174,4 +2174,12 @@
     <string name="search_contents_empty">இந்தத் தேடலுக்குப் பொருந்தும் அட்டவணைப்படுத்திய பகுதிகள் இல்லை.</string>
     <string name="search_index_hint">பதிவிறக்கிய EPUB-களிலிருந்து உள்ளடக்கம் சாதனத்திலேயே அட்டவணைப்படுத்தப்படுகிறது.</string>
     <string name="feature_action_failed">இந்த மாற்றத்தைச் சேமிக்க முடியவில்லை. மீண்டும் முயலுங்கள்.</string>
+    <string name="privacy_stored_ocr">ஸ்கேன் செய்யப்பட்ட நூல்களில் அடையாளம் காணப்பட்ட உரை</string>
+    <string name="privacy_stored_ocr_detail">%1$d நூல்கள், %2$s, Vayana-வின் தனிப்பட்ட சேமிப்பகத்தில். நூலை நீக்கினால் அதன் உரையும் நீங்கும்; அதன் வாசிப்பு அமைப்புகளிலும் நீக்கலாம்.</string>
+    <string name="privacy_stored_ocr_none">இன்னும் இல்லை.</string>
+    <string name="privacy_stored_ocr_remove">அனைத்தையும் நீக்கு</string>
+    <string name="privacy_stored_ocr_keep">வைத்திரு</string>
+    <string name="privacy_stored_ocr_remove_confirm">எல்லா ஸ்கேன் நூல்களிலும் அடையாளம் காணப்பட்ட உரையை நீக்கவா? மீண்டும் அடையாளம் காணும் வரை தேடல், தேர்வு, உரக்கப் படித்தல், உரைக் காட்சி அவற்றில் வேலை செய்யாது.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), உரை அடையாளம் காணலுக்கு</string>
+    <string name="privacy_leaves_ocr_detail">ஒரு மொழியில் ஸ்கேன் செய்யப்பட்ட நூலை முதல் முறை அடையாளம் காணும்போது, அதன் மாதிரி GitHub-இல் உள்ள Tesseract திட்டத்திலிருந்து பதிவிறக்கப்படும். உங்களைப் பற்றியோ நூலைப் பற்றியோ எதுவும் அனுப்பப்படுவதில்லை; பக்கங்கள் இந்தக் கைப்பேசியில் படிக்கப்படுகின்றன.</string>
 </resources>

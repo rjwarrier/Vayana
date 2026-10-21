@@ -69,6 +69,16 @@ class OcrStore(private val root: File) {
         bookDir(book)?.deleteRecursively()
     }
 
+    /** How many books have recognised text, and how many bytes it all takes. */
+    fun usage(): Pair<Int, Long> {
+        val books = root.listFiles().orEmpty().filter { it.isDirectory && BookKeyPattern.matches(it.name) }
+        return books.size to books.sumOf { book -> book.walk().filter { it.isFile }.sumOf { it.length() } }
+    }
+
+    fun deleteAll() {
+        root.listFiles().orEmpty().filter { it.isDirectory && BookKeyPattern.matches(it.name) }.forEach { it.deleteRecursively() }
+    }
+
     /** The file a page is saved in, or null for a key or index that could leave the store. */
     fun pageFile(book: String, pageIndex: Int): File? =
         if (pageIndex >= 0) bookDir(book)?.let { File(it, "$pageIndex.json") } else null
@@ -131,5 +141,5 @@ private val BookKeyPattern = Regex("[0-9a-f]{64}")
 private const val LineJoinsMarker = "lines-joined"
 // Versioned, so a change in how the text is laid out builds it again.
 private const val TextFilePrefix = "text-v"
-private const val TextEpubName = "text-v4.epub"
-private const val TextPageMapName = "text-v4-pages.json"
+private const val TextEpubName = "text-v5.epub"
+private const val TextPageMapName = "text-v5-pages.json"

@@ -2177,4 +2177,12 @@
     <string name="search_contents_empty">No indexed passages match this search.</string>
     <string name="search_index_hint">Contents are indexed locally from downloaded EPUBs.</string>
     <string name="feature_action_failed">Could not save this change. Please try again.</string>
+    <string name="privacy_stored_ocr">Text recognized from scanned books</string>
+    <string name="privacy_stored_ocr_detail">%1$d books, %2$s, in Vayana’s private storage. A book’s text goes when the book is deleted; its reader settings can remove it too.</string>
+    <string name="privacy_stored_ocr_none">None yet.</string>
+    <string name="privacy_stored_ocr_remove">Remove all</string>
+    <string name="privacy_stored_ocr_keep">Keep</string>
+    <string name="privacy_stored_ocr_remove_confirm">Remove the text recognized from every scanned book? Search, selection, read aloud and the text view stop working on them until it is recognized again.</string>
+    <string name="privacy_leaves_ocr">GitHub (Tesseract), for text recognition</string>
+    <string name="privacy_leaves_ocr_detail">The first time you recognize a scanned book in a language, its recognition model is downloaded from the Tesseract project on GitHub. Nothing about you or the book is sent; the pages are read on this phone.</string>
 </resources>
