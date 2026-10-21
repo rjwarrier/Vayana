@@ -37,6 +37,10 @@ object BookRecognition {
 
     fun models(context: Context) = OcrModelFiles(File(context.filesDir, "ocr-models"))
 
+    /** The model last started, offered first for a book whose language has no model of its own. */
+    fun lastModel(context: Context): OcrModel? =
+        OcrModel.byId(runCatching { File(context.filesDir, LastModelFile).readText().trim() }.getOrNull())
+
     /**
      * Starts recognising [pages] (every page when null) of [pdf], saved under [book] (its file's SHA-256), from
      * [startPage] outwards. A job already running for the book is left alone. Waits for Wi-Fi if the model must
@@ -69,6 +73,7 @@ object BookRecognition {
             .addTag(Tag)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(workName(book), ExistingWorkPolicy.KEEP, request)
+        runCatching { File(context.filesDir, LastModelFile).writeText(model.id) }
     }
 
     fun stop(context: Context, book: String) {
@@ -98,6 +103,7 @@ object BookRecognition {
     internal const val KeyDone = "done"
     internal const val KeyTotal = "total"
     private const val Tag = "vayana-ocr"
+    private const val LastModelFile = "ocr-last-model"
 }
 
 class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {

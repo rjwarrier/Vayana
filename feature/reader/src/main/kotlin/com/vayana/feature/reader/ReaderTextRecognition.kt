@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
@@ -33,9 +36,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.format.ocr.OcrModel
 import com.vayana.reader.api.PageTextSource
+import java.util.Locale
 import kotlin.math.ceil
 
 /** Text recognition for a scanned PDF (docs/SCANNED_PDF_TEXT_PLAN.md), as the style panel and the page offer it. */
@@ -117,7 +122,7 @@ internal fun TextRecognitionDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var model by rememberSaveable { mutableStateOf(OcrModel.MalayalamFast) }
+    var model by rememberSaveable { mutableStateOf(state.suggestedModel) }
     val remaining = (state.totalPages - state.recognizedPages).coerceAtLeast(0)
     // ~1 s a page on a recent phone (phase 1 measurements); rounded up to whole minutes.
     val minutes = ceil(remaining * SecondsPerPage / 60.0).toInt().coerceAtLeast(1)
@@ -131,11 +136,20 @@ internal fun TextRecognitionDialog(
                     return@Column
                 }
                 Text(stringResource(R.string.reader_ocr_dialog_body, minutes))
-                Column(Modifier.selectableGroup()) {
-                    for ((option, title, subtitle) in listOf(
-                        Triple(OcrModel.MalayalamFast, R.string.reader_ocr_model_malayalam, R.string.reader_ocr_model_malayalam_subtitle),
-                        Triple(OcrModel.MalayalamScript, R.string.reader_ocr_model_mixed, R.string.reader_ocr_model_mixed_subtitle),
-                    )) {
+                // Malayalam's two models first, then every other language by name
+                val malayalam = mapOf(
+                    OcrModel.MalayalamFast to (R.string.reader_ocr_model_malayalam to R.string.reader_ocr_model_malayalam_subtitle),
+                    OcrModel.MalayalamScript to (R.string.reader_ocr_model_mixed to R.string.reader_ocr_model_mixed_subtitle),
+                )
+                val others = (OcrModel.entries - malayalam.keys).sortedBy { languageName(it) }
+                Column(
+                    Modifier
+                        .selectableGroup()
+                        .heightIn(max = ModelListMaxHeight)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    for (option in malayalam.keys + others) {
+                        val labels = malayalam[option]
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -144,9 +158,9 @@ internal fun TextRecognitionDialog(
                         ) {
                             RadioButton(selected = model == option, onClick = null)
                             Column(Modifier.weight(1f)) {
-                                Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+                                Text(labels?.first?.let { stringResource(it) } ?: languageName(option), style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    text = stringResource(subtitle) + " " + if (option in state.installedModels) {
+                                    text = (labels?.second?.let { stringResource(it) + " " } ?: "") + if (option in state.installedModels) {
                                         stringResource(R.string.reader_ocr_installed)
                                     } else {
                                         stringResource(R.string.reader_ocr_download, Formatter.formatShortFileSize(context, option.sizeBytes))
@@ -194,3 +208,13 @@ internal fun ReadingViewSwitch(state: ReadingViewUi?, onShowText: (Boolean) -> U
         )
     }
 }
+
+/** A model's language in the app's language and its own, "Tamil · தமிழ்". */
+private fun languageName(model: OcrModel): String {
+    val locale = Locale.forLanguageTag(model.textLanguage)
+    val here = locale.getDisplayLanguage(Locale.getDefault())
+    val own = locale.getDisplayLanguage(locale)
+    return if (own.equals(here, ignoreCase = true)) here else "$here · $own"
+}
+
+private val ModelListMaxHeight = 320.dp

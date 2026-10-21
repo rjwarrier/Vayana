@@ -38,6 +38,23 @@ class LineJoinsTest {
     }
 
     @Test
+    fun `only Malayalam line ends are joined`() {
+        assertFalse(continuesOnNextLine("under", "stand", emptyMap()))
+        assertFalse(continuesOnNextLine("കൊടു", "stand", emptyMap()))
+    }
+
+    @Test
+    fun `every model has its own id and file, a pinned hash, and a model is found by the book's language`() {
+        assertEquals(OcrModel.entries.size, OcrModel.entries.map { it.id }.toSet().size)
+        assertEquals(OcrModel.entries.size, OcrModel.entries.map { it.language }.toSet().size)
+        assertTrue(OcrModel.entries.all { it.sha256.matches(Regex("[0-9a-f]{64}")) && it.sizeBytes > 0 })
+        assertEquals(OcrModel.TamilFast, OcrModel.forLanguage("ta-IN"))
+        assertEquals(OcrModel.EnglishFast, OcrModel.forLanguage("EN"))
+        assertEquals(OcrModel.MalayalamFast, OcrModel.forLanguage("ml"))
+        assertEquals(null, OcrModel.forLanguage("ja"))
+    }
+
+    @Test
     fun `joins are found per page from the whole book's words`() {
         fun line(vararg words: String) = words.map { RecognizedWord(it, 0f, 0f, 1f, 1f, 90f) }
         val pages = mapOf(

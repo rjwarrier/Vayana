@@ -42,6 +42,8 @@ internal fun continuesOnNextLine(end: String, start: String, wholeWords: Map<Str
     val first = bare(end)
     val second = bare(start)
     if (first.isEmpty() || second.isEmpty()) return false
+    // the rules below are Malayalam spelling; other scripts' line ends are left as they are
+    if (first.none { it in MalayalamLetters } || second.none { it in MalayalamLetters }) return false
     val lead = second[0]
     if (lead in IndependentVowels) return false
     if (lead in DependentMarks) return true
@@ -54,6 +56,7 @@ internal fun continuesOnNextLine(end: String, start: String, wholeWords: Map<Str
 private fun bare(word: String) = word.trim { it in Surrounding }
 
 private const val Virama = '്'
+private val MalayalamLetters = 'ഀ'..'ൿ'
 private const val Surrounding = "‘’“”\"'()[].,!?;:…"
 private val IndependentVowels = 'അ'..'ഔ'
 private val DependentMarks = ('ാ'..'്').toSet() + setOf('ം', 'ഃ', 'ൗ')

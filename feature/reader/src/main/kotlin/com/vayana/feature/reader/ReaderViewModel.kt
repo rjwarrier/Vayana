@@ -168,6 +168,8 @@ data class TextRecognitionUi(
     val totalPages: Int,
     val running: Boolean,
     val installedModels: Set<OcrModel>,
+    /** The model to offer first: the book's language, else the one last used. */
+    val suggestedModel: OcrModel = OcrModel.MalayalamFast,
 )
 
 data class PdfBookPreferences(
@@ -1331,12 +1333,16 @@ class ReaderViewModel @Inject constructor(
                     // ... and its text view, if it was recognised before there was one
                     if (done && (addJoins || store.textEpub(sha256) == null)) {
                         val loaded = uiState.value as? ReaderUiState.Loaded
-                        runCatching { store.buildTextEpub(sha256, loaded?.bookTitle.orEmpty(), loaded?.bookAuthor, OcrModel.MalayalamFast.textLanguage) }
+                        val language = (OcrModel.byId(store.savedPages(sha256).firstOrNull()?.let { store.model(sha256, it) }) ?: OcrModel.MalayalamFast).textLanguage
+                        runCatching { store.buildTextEpub(sha256, loaded?.bookTitle.orEmpty(), loaded?.bookAuthor, language) }
                     }
                     _readingView.value = ReadingViewUi(textActive = textView, textAvailable = store.textEpub(sha256) != null)
                     Triple(saved, OcrModel.entries.filter(models::isInstalled).toSet(), addJoins)
                 }
-                _textRecognition.value = TextRecognitionUi(recognized, totalPages, progress?.running == true, installed)
+                // the book's own language when there's a model for it, else the last one used, else Malayalam
+                val suggested = OcrModel.forLanguage((uiState.value as? ReaderUiState.Loaded)?.bookLanguage)
+                    ?: BookRecognition.lastModel(appContext) ?: OcrModel.MalayalamFast
+                _textRecognition.value = TextRecognitionUi(recognized, totalPages, progress?.running == true, installed, suggested)
                 // Pages on screen pick up their new text; at most every couple of seconds while the job runs.
                 if (joinsAdded || lastRecognized >= 0 && recognized > lastRecognized) engine.refreshRecognizedText()
                 lastRecognized = recognized

@@ -58,6 +58,11 @@ Tesseract 5.5, pages rendered at 300 dpi, one core of a desktop PC:
 
 ### Models
 
+- *Now:* 19 models, none in the APK, each downloaded on first use from tessdata_fast at one pinned commit and kept
+  only with its pinned SHA-256: Malayalam (and Malayalam with English), English, Hindi, Tamil, Kannada, Telugu,
+  Bengali, Marathi, Gujarati, Punjabi, Odia, Sanskrit, French, German, Spanish, Portuguese, Italian, Russian (0.5-12 MB
+  each). The dialog offers the book's language first, else the last model used. Joining words across lines is
+  Malayalam-only. The APK carries only the engine (~7.5 MB of native code per ABI).
 - Downloaded on first use, not bundled: `mal` (fast) by default for Malayalam books, the `Malayalam` script model as
   an option for books mixing English, `eng` (fast) for English scans. Language from the book's metadata, else the
   app language, changeable before starting.
