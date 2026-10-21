@@ -23,6 +23,8 @@ class OcrStoreTest {
         assertEquals("എക്സ്പ്രസ്സ്", normalizeRecognizedText("എക്‌സ്പ്രസ്സ്"))
         // a virama without a joiner is a real conjunct break and stays
         assertEquals("വന്ന്", normalizeRecognizedText("വന്ന്"))
+        // Malayalam digits become the 0-9 books print
+        assertEquals("2018 ജനുവരി 23", normalizeRecognizedText("൨൦൧൮ ജനുവരി ൨൩"))
     }
 
     @Test

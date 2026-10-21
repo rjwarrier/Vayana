@@ -156,6 +156,9 @@ data class BookFinishedPrompt(val rating: Float, val saving: Boolean = false, va
 
 data class PdfPasswordPrompt(val incorrect: Boolean)
 
+/** A scanned book's views: its scan, or its recognised text read as an EPUB once that has been built. */
+data class ReadingViewUi(val textActive: Boolean, val textAvailable: Boolean)
+
 /**
  * Text recognition of a scanned PDF (docs/SCANNED_PDF_TEXT_PLAN.md): [recognizedPages] of [totalPages] have text,
  * [running] while the background job works, [installedModels] already downloaded.
@@ -208,7 +211,7 @@ class ReaderViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val bookRepository: BookRepository,
     private val readAloudStatusHolder: ReadAloudStatusHolder,
-    private val annotationRepository: AnnotationRepository,
+    storedAnnotations: AnnotationRepository,
     private val database: VayanaDatabase,
     private val storageRoots: StorageRoots,
     private val settingsRepository: SettingsRepository,
@@ -304,6 +307,17 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var boundEngine: BookEngine? = null
+
+    // A scanned book's text view (docs/SCANNED_PDF_TEXT_PLAN.md): its recognised text as an EPUB, read like any other.
+    // Its marks are its own (see ViewAnnotations); its reading position is kept as the scan's page.
+    private var textView = false
+    // The printed page to open at after switching views, and that the reopen is a switch, not a return to the book.
+    private var viewSwitchPage: Int? = null
+    private var switchingView = false
+    private var textViewPages = 0
+    private val _readingView = MutableStateFlow<ReadingViewUi?>(null)
+    val readingView: StateFlow<ReadingViewUi?> = _readingView
+    private val annotationRepository: AnnotationRepository = ViewAnnotations(storedAnnotations) { textView }
 
     private val _textRecognition = MutableStateFlow<TextRecognitionUi?>(null)
     val textRecognition: StateFlow<TextRecognitionUi?> = _textRecognition
@@ -419,7 +433,9 @@ class ReaderViewModel @Inject constructor(
                 savedStateHandle[FromStartKey] = false
             }
             // Reading again from the start is not a return to where the reader left off.
-            val previousReadAt = book.lastReadAt.takeIf { openTarget.isNullOrBlank() && !fromStart && book.readingPercent > 0f }
+            val switchedView = switchingView
+            switchingView = false
+            val previousReadAt = book.lastReadAt.takeIf { openTarget.isNullOrBlank() && !fromStart && book.readingPercent > 0f && !switchedView }
             if (book.fileAvailability == BookFileAvailability.CLOUD_ONLY) {
                 _uiState.value = ReaderUiState.Failed(UiText.Res(R.string.reader_error_cloud_only))
                 return@launch
@@ -435,9 +451,21 @@ class ReaderViewModel @Inject constructor(
                 return@launch
             }
 
-            val source = BookSource(localFile.absolutePath, contentSha256 = book.fileHash)
+            // A mark made in the text view opens there. The text view needs the book's text built; else the scan.
+            if (openTarget?.startsWith(TextViewLocatorPrefix) == true) textView = true
+            val sha256 = book.fileHash
+            val textEpub = sha256?.takeIf { textView && book.format == BookFormat.PDF }
+                ?.let { withContext(dispatchers.io) { BookRecognition.store(appContext).textEpub(it) } }
+            if (textEpub == null) textView = false
+            val textPages = if (textView && sha256 != null) withContext(dispatchers.io) { BookRecognition.store(appContext).textPageMap(sha256) } else emptyList()
+            if (textView) textViewPages = textPages.size
+            val viewTarget = openTarget?.removePrefix(TextViewLocatorPrefix)
+            val switchPage = viewSwitchPage
+            viewSwitchPage = null
+
+            val source = if (textEpub != null) BookSource(textEpub.absolutePath) else BookSource(localFile.absolutePath, contentSha256 = sha256)
             val savedLocator = book.lastLocator?.takeIf { it.isNotBlank() }
-            val initialLocatorString = openTarget?.takeIf { it.isNotBlank() }
+            val initialLocatorString = viewTarget?.takeIf { it.isNotBlank() }
             val resumeLocator = initialLocatorString?.let {
                 Locator(cfi = it, href = null, progression = book.readingPercent, chapterTitle = null)
             }
@@ -446,7 +474,7 @@ class ReaderViewModel @Inject constructor(
                 .onSuccess { openBook: OpenBook ->
                     bookOpen = true
                     // A reopen after a renderer crash is the same reading session, not a new open.
-                    if (restoredCfi == null) viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
+                    if (restoredCfi == null && !switchedView) viewModelScope.launch { bookRepository.recordBookOpened(bookId) }
                     if (readerResumed) onResume()
                     applyReaderStyle(engine, effectiveSettings.value)
                     _uiState.value = ReaderUiState.Loaded(
@@ -468,11 +496,20 @@ class ReaderViewModel @Inject constructor(
                         pageLabels = openBook.pageLabels,
                     )
                     observeAnnotations(engine)
-                    val sha256 = book.fileHash
-                    if (openBook.fixedLayout && sha256 != null) observeTextRecognition(engine, localFile, sha256, openBook.pageLabels.size)
+                    if (book.format == BookFormat.PDF && sha256 != null) {
+                        observeTextRecognition(engine, localFile, sha256, if (textView) textPages.size else openBook.pageLabels.size)
+                    }
                     showReturnRecap(previousReadAt)
-                    if (!openTarget.isNullOrBlank()) {
-                        engine.goTo(NavTarget.ToLocator(Locator(cfi = openTarget, href = null, progression = 0f, chapterTitle = null)))
+                    if (!viewTarget.isNullOrBlank()) {
+                        engine.goTo(NavTarget.ToLocator(Locator(cfi = viewTarget, href = null, progression = 0f, chapterTitle = null)))
+                    } else if (textView) {
+                        // the printed page being read: the one switched from, else the scan's saved page
+                        val page = switchPage ?: savedLocator?.let(::scanPageIndex)
+                            ?: ((book.readingPercent * textPages.size).toInt() - 1).takeIf { book.readingPercent > 0.001f }
+                        val chapter = page?.let { textPages.getOrNull(it) }
+                        if (page != null && chapter != null) {
+                            engine.goTo(NavTarget.ToLocator(Locator(cfi = "$chapter#page-$page", href = null, progression = 0f, chapterTitle = null)))
+                        }
                     } else if (!fromStart && savedLocator != null && book.readingPercent > 0.001f) {
                         engine.goTo(NavTarget.ToFraction(book.readingPercent.coerceIn(0f, 0.999f)))
                     }
@@ -490,10 +527,12 @@ class ReaderViewModel @Inject constructor(
         }
 
         engineJobs += viewModelScope.launch {
-            engine.location.filterNotNull().collect { locator ->
+            engine.location.filterNotNull().collect { shown ->
                 _uiState.update { current ->
-                    if (current is ReaderUiState.Loaded) current.copy(currentLocator = locator) else current
+                    if (current is ReaderUiState.Loaded) current.copy(currentLocator = shown) else current
                 }
+                // the text view's place is kept as the scan's page, so progress and sync see one book
+                val locator = if (textView) shown.toScanLocator() ?: return@collect else shown
                 refreshReadingPositionPromptCurrentLocation(locator)
                 pendingRemoteReadingPosition?.let { remotePosition ->
                     pendingRemoteReadingPosition = null
@@ -1285,9 +1324,16 @@ class ReaderViewModel @Inject constructor(
                     val models = BookRecognition.models(appContext)
                     val store = BookRecognition.store(appContext)
                     val saved = store.savedPages(sha256).size
+                    val done = progress?.running != true && totalPages in 1..saved
                     // A book recognised before words broken across lines were joined gets its joins now, once.
-                    val addJoins = progress?.running != true && totalPages in 1..saved && !store.hasLineJoins(sha256)
+                    val addJoins = done && !store.hasLineJoins(sha256)
                     if (addJoins) store.saveLineJoins(sha256)
+                    // ... and its text view, if it was recognised before there was one
+                    if (done && (addJoins || store.textEpub(sha256) == null)) {
+                        val loaded = uiState.value as? ReaderUiState.Loaded
+                        runCatching { store.buildTextEpub(sha256, loaded?.bookTitle.orEmpty(), loaded?.bookAuthor, OcrModel.MalayalamFast.textLanguage) }
+                    }
+                    _readingView.value = ReadingViewUi(textActive = textView, textAvailable = store.textEpub(sha256) != null)
                     Triple(saved, OcrModel.entries.filter(models::isInstalled).toSet(), addJoins)
                 }
                 _textRecognition.value = TextRecognitionUi(recognized, totalPages, progress?.running == true, installed)
@@ -1297,6 +1343,39 @@ class ReaderViewModel @Inject constructor(
                 delay(RecognitionRefreshMillis)
             }
         }
+    }
+
+    /**
+     * Reads the scanned book as its recognised text (an EPUB, with every style option) or as its scan, at the same
+     * printed page. The engine is rebuilt for the other book, as after a renderer restart.
+     */
+    fun showTextView(text: Boolean) {
+        if (text == textView || (text && _readingView.value?.textAvailable != true)) return
+        val shown = (uiState.value as? ReaderUiState.Loaded)?.currentLocator
+        val page = if (textView) shown?.printedPageIndex else shown?.currentPage?.minus(1)
+        flushPendingLocatorWrite()
+        readAloudPlayer.stop()
+        textView = text
+        viewSwitchPage = page
+        switchingView = true
+        restartCfi = if (!text) page?.let(::scanPageCfi) else null
+        bookOpen = false
+        _readingView.update { it?.copy(textActive = text) }
+        _uiState.value = ReaderUiState.Loading
+        _engineGeneration.update { it + 1 }
+    }
+
+    private fun Locator.toScanLocator(): Locator? {
+        val page = printedPageIndex ?: return null
+        val total = textViewPages.takeIf { it > 0 } ?: return null
+        return Locator(
+            cfi = scanPageCfi(page),
+            href = null,
+            progression = (page + 1f) / total,
+            chapterTitle = chapterTitle,
+            currentPage = page + 1,
+            totalPages = total,
+        )
     }
 
     /** Recognises the open scanned PDF's text in the background, from the page on screen outwards. */
@@ -2236,3 +2315,9 @@ private const val FromStartKey = "fromStart"
 
 // How often pages on screen pick up newly recognised text while recognition runs.
 private const val RecognitionRefreshMillis = 2_000L
+
+// A scanned PDF's page as the reader locates it: the page's section in pdf.js's spine.
+internal fun scanPageCfi(pageIndex: Int) = "epubcfi(/6/${2 * (pageIndex + 1)})"
+
+internal fun scanPageIndex(cfi: String): Int? =
+    Regex("^epubcfi\\(/6/(\\d+)\\)$").matchEntire(cfi)?.groupValues?.get(1)?.toIntOrNull()?.let { it / 2 - 1 }?.takeIf { it >= 0 }

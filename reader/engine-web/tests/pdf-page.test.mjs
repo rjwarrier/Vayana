@@ -312,7 +312,7 @@ test('words recognised on a scanned page become pdf.js text items over their box
     const end = pdf.indexOf('const finishTextLayer', start)
     assert.ok(start >= 0 && end > start)
     const requested = []
-    const recognized = { lines: [[['ചെന്നൈ', 35.5, 145.5, 73.5, 151.5, 94], ['എന്ന', 80, 145, 100, 152, 90]], [['2018', 35, 160, 60, 168, 41]], [['കിലോമീറ്ററു', 35, 175, 90, 183, 90]], [['കൾക്കു', 35, 190, 70, 198, 90]]], joins: [2] }
+    const recognized = { lines: [[['ചെന്നൈ', 35.5, 145.5, 73.5, 151.5, 94], ['എന്ന', 80, 145, 100, 152, 90]], [['൨൦൧൮', 35, 160, 60, 168, 41]], [['കിലോമീറ്ററു', 35, 175, 90, 183, 90]], [['കൾക്കു', 35, 190, 70, 198, 90]]], joins: [2] }
     const context = vm.createContext({
         Map, Math, String, Boolean,
         fetch: async url => {

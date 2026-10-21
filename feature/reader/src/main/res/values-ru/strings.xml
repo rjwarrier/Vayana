@@ -30,4 +30,9 @@
     <string name="reader_ocr_installed">Уже загружено.</string>
     <string name="reader_ocr_dialog_start">Начать</string>
     <string name="reader_ocr_dialog_close">Закрыть</string>
+    <!-- Scan / Text views of a scanned book (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_view_scan">Скан</string>
+    <string name="reader_view_text">Текст</string>
+    <string name="reader_view_scan_note">Печатные страницы. Перейдите в Текст, чтобы читать распознанный текст своим шрифтом, размером и в своей теме.</string>
+    <string name="reader_view_text_note">Распознанный текст своим шрифтом, размером и в своей теме. Слово может быть распознано неверно; Скан показывает печатную страницу.</string>
 </resources>

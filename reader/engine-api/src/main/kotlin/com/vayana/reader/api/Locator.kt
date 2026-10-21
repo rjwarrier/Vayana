@@ -24,6 +24,8 @@ data class Locator(
     /** [bookMinutesLeft] unrounded, for measuring how fast the reader goes; null when it is not known. */
     val bookMinutesLeftExact: Double? = null,
     val tocPages: Map<String, Int> = emptyMap(),
+    /** In a scanned book's text view, the index of the printed page being read; null otherwise. */
+    val printedPageIndex: Int? = null,
 )
 
 data class TocEntry(

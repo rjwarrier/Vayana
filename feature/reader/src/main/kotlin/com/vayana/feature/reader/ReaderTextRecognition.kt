@@ -18,6 +18,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -169,3 +172,25 @@ internal fun TextRecognitionDialog(
 }
 
 private const val SecondsPerPage = 1.0
+
+/** Scan or Text, for a scanned book whose text has been recognised; nothing for any other book. */
+@Composable
+internal fun ReadingViewSwitch(state: ReadingViewUi?, onShowText: (Boolean) -> Unit) {
+    if (state?.textAvailable != true) return
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            listOf(false to R.string.reader_view_scan, true to R.string.reader_view_text).forEachIndexed { index, (text, label) ->
+                SegmentedButton(
+                    selected = state.textActive == text,
+                    onClick = { onShowText(text) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
+                ) { Text(stringResource(label)) }
+            }
+        }
+        Text(
+            text = stringResource(if (state.textActive) R.string.reader_view_text_note else R.string.reader_view_scan_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}

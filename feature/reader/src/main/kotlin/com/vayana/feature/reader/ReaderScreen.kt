@@ -252,9 +252,10 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
     val readingInfoRequest by viewModel.readingInfoRequest.collectAsStateWithLifecycle()
     var showPdfPageBrowser by rememberSaveable { mutableStateOf(false) }
     val textRecognition by viewModel.textRecognition.collectAsStateWithLifecycle()
+    val readingView by viewModel.readingView.collectAsStateWithLifecycle()
     var showTextRecognitionDialog by rememberSaveable { mutableStateOf(false) }
     val pageText = (uiState as? ReaderUiState.Loaded)?.pageText
-    val pdfPageControls = remember(viewModel, pdfBookPreferences?.rotationDegrees, textRecognition, pageText) {
+    val pdfPageControls = remember(viewModel, pdfBookPreferences?.rotationDegrees, textRecognition, pageText, readingView) {
         PdfPageControls(
             onCropMarginsChange = viewModel::updatePdfCropMargins,
             onFitWidthChange = viewModel::updatePdfFitWidth,
@@ -269,6 +270,8 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onStop = viewModel::stopTextRecognition,
                 onRemove = viewModel::removeRecognizedText,
             ),
+            readingView = readingView,
+            onShowTextView = viewModel::showTextView,
         )
     }
     val readAloudVoiceControls = remember(readAloudVoices, readAloudEngines, pronunciations) {
@@ -2951,6 +2954,7 @@ private fun StylePanel(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        ReadingViewSwitch(pdfPageControls.readingView, pdfPageControls.onShowTextView)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -3367,6 +3371,9 @@ internal class PdfPageControls(
     val onRotateClockwise: () -> Unit,
     val onBrowsePages: () -> Unit,
     val textRecognition: TextRecognitionControls,
+    /** A scanned book's views, once its text is recognised: the scan or the text (see ReaderViewModel.showTextView). */
+    val readingView: ReadingViewUi?,
+    val onShowTextView: (Boolean) -> Unit,
 )
 
 @Composable

@@ -30,4 +30,9 @@
     <string name="reader_ocr_installed">ഇതിനകം ഡൗൺലോഡ് ചെയ്തു.</string>
     <string name="reader_ocr_dialog_start">തുടങ്ങുക</string>
     <string name="reader_ocr_dialog_close">അടയ്ക്കുക</string>
+    <!-- Scan / Text views of a scanned book (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_view_scan">സ്കാൻ</string>
+    <string name="reader_view_text">ടെക്സ്റ്റ്</string>
+    <string name="reader_view_scan_note">അച്ചടിച്ച പേജുകൾ. തിരിച്ചറിഞ്ഞ ടെക്സ്റ്റ് നിങ്ങളുടെ ഫോണ്ടിലും വലുപ്പത്തിലും തീമിലും വായിക്കാൻ ടെക്സ്റ്റിലേക്ക് മാറുക.</string>
+    <string name="reader_view_text_note">തിരിച്ചറിഞ്ഞ ടെക്സ്റ്റ്, നിങ്ങളുടെ ഫോണ്ടിലും വലുപ്പത്തിലും തീമിലും. ചില വാക്കുകൾ തെറ്റായി വായിച്ചിരിക്കാം; അച്ചടിച്ച പേജ് സ്കാനിൽ കാണാം.</string>
 </resources>

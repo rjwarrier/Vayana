@@ -707,6 +707,7 @@ class FoliateBookEngine(private val webView: WebView, context: Context) : BookEn
                     bookMinutesLeft = payload.optMinutesOrNull("bookMinutesLeft"),
                     bookMinutesLeftExact = payload.optExactMinutesOrNull("bookMinutesLeft"),
                     tocPages = payload.optJSONObject("tocPages")?.toIntMap()?.also { lastTocPages = it } ?: lastTocPages,
+                    printedPageIndex = payload.optIntOrNull("printedPage"),
                 )
                 _location.value = locator
                 _events.tryEmit(EngineEvent.Relocated(locator))

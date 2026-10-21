@@ -39,6 +39,27 @@ class OcrStore(private val root: File) {
     /** Whether [saveLineJoins] has run since the book was last fully recognised. */
     fun hasLineJoins(book: String): Boolean = bookDir(book)?.let { File(it, LineJoinsMarker).isFile } == true
 
+    /** The book's recognised text as an EPUB (see [writeTextEpub]), or null if it hasn't been built. */
+    fun textEpub(book: String): File? = bookDir(book)?.let { File(it, TextEpubName) }?.takeIf { it.isFile }
+
+    /** For every printed page, the chapter file of [textEpub] its start is in. */
+    fun textPageMap(book: String): List<String?> = runCatching {
+        val json = JSONArray(File(bookDir(book), TextPageMapName).readText())
+        List(json.length()) { json.optString(it).takeIf { file -> file.isNotEmpty() } }
+    }.getOrDefault(emptyList())
+
+    /** Builds the book's text EPUB from every page saved, replacing an older one. */
+    fun buildTextEpub(book: String, title: String, author: String?, language: String) {
+        val dir = bookDir(book) ?: return
+        val pages = savedPages(book).mapNotNull { index -> read(book, index)?.let { index to it } }.toMap()
+        if (pages.isEmpty()) return
+        writeTextEpub(reflowRecognizedPages(pages), title, author, language, File(dir, TextEpubName), File(dir, TextPageMapName), (pages.keys.max()) + 1)
+        // text built by an earlier version of the layout
+        dir.listFiles().orEmpty()
+            .filter { it.name.startsWith(TextFilePrefix) && it.name != TextEpubName && it.name != TextPageMapName }
+            .forEach { it.delete() }
+    }
+
     /** The page indexes saved so far. */
     fun savedPages(book: String): Set<Int> = bookDir(book)?.list().orEmpty()
         .mapNotNull { it.removeSuffix(".json").takeIf { name -> name != it }?.toIntOrNull() }
@@ -83,7 +104,8 @@ fun recognizedPageFromJson(json: JSONObject): RecognizedPage {
         List(words.length()) { wordIndex ->
             val word = words.getJSONArray(wordIndex)
             RecognizedWord(
-                text = word.getString(0),
+                // pages saved before a normalisation rule was added get it here
+                text = normalizeRecognizedText(word.getString(0)),
                 left = word.getDouble(1).toFloat(),
                 top = word.getDouble(2).toFloat(),
                 right = word.getDouble(3).toFloat(),
@@ -107,3 +129,7 @@ private fun Float.rounded(): Double = Math.round(this * 100) / 100.0
 
 private val BookKeyPattern = Regex("[0-9a-f]{64}")
 private const val LineJoinsMarker = "lines-joined"
+// Versioned, so a change in how the text is laid out builds it again.
+private const val TextFilePrefix = "text-v"
+private const val TextEpubName = "text-v4.epub"
+private const val TextPageMapName = "text-v4-pages.json"

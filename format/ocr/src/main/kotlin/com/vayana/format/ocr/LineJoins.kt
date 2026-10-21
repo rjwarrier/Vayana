@@ -17,10 +17,7 @@ package com.vayana.format.ocr
  * ponytail: a heuristic from one book; a Malayalam word list would do better if one is ever bundled.
  */
 fun lineJoins(pages: Map<Int, RecognizedPage>): Map<Int, Set<Int>> {
-    val wholeWords = HashMap<String, Int>()
-    for (page in pages.values) for (line in page.lines) {
-        for (word in line.drop(1).dropLast(1)) bare(word.text).takeIf { it.isNotEmpty() }?.let { wholeWords.merge(it, 1, Int::plus) }
-    }
+    val wholeWords = wholeWordCounts(pages)
     return pages.mapValues { (_, page) ->
         page.lines.indices.filter { index ->
             val next = page.lines.getOrNull(index + 1) ?: return@filter false
@@ -29,6 +26,15 @@ fun lineJoins(pages: Map<Int, RecognizedPage>): Map<Int, Set<Int>> {
             continuesOnNextLine(end, start, wholeWords)
         }.toSet()
     }
+}
+
+/** How often each word appears in the middle of a line in [pages]: there it is certainly a whole word. */
+internal fun wholeWordCounts(pages: Map<Int, RecognizedPage>): Map<String, Int> {
+    val wholeWords = HashMap<String, Int>()
+    for (page in pages.values) for (line in page.lines) {
+        for (word in line.drop(1).dropLast(1)) bare(word.text).takeIf { it.isNotEmpty() }?.let { wholeWords.merge(it, 1, Int::plus) }
+    }
+    return wholeWords
 }
 
 internal fun continuesOnNextLine(end: String, start: String, wholeWords: Map<String, Int>): Boolean {

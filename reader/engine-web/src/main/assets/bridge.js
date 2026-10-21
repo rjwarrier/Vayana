@@ -556,6 +556,7 @@ async function open(bookUrl, lastLocatorCfi, savedPageCounts) {
                 // text remaining to read, so unlike page count this is independent of font size.
                 chapterMinutesLeft: Number.isFinite(time?.section) ? time.section : null,
                 bookMinutesLeft: Number.isFinite(time?.total) ? time.total : null,
+                printedPage: fixedLayout ? null : printedPageAt(e.detail.range),
             })
             if (tocChanged) lastSentTocRevision = pageStats.tocRevision
             markFirstRender('relocate')
@@ -3804,6 +3805,21 @@ async function searchFixedLayout(query, token) {
         }
     }
     if (token === searchToken) post('searchResults', { query, results })
+}
+
+// In a scanned book's text view (an EPUB built from its recognised text, :format:ocr TextEpub), the printed page under
+// the reading position: the last page start before or on the screen, else the page the chapter begins on.
+function printedPageAt(range) {
+    const doc = range?.startContainer?.ownerDocument
+    const markers = doc?.querySelectorAll?.('span.vayana-page')
+    if (!markers?.length) return null
+    let page = null
+    for (const marker of markers) {
+        if (range.comparePoint(marker, 0) > 0) break
+        page = Number(marker.id.slice('page-'.length))
+    }
+    const chapterStart = Number(doc.body?.dataset.firstPage)
+    return Number.isInteger(page) ? page : Number.isInteger(chapterStart) ? chapterStart : null
 }
 
 // Text recognition has reached more pages of this scanned PDF (see foliate/pdf.js refreshRecognizedText).

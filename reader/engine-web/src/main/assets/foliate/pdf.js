@@ -209,7 +209,9 @@ const recognizedTextContent = (page, { lines, joins }) => {
             transform: [height, 0, 0, height, left0 + x, baseline],
         })
         const next = line[i + 1]
-        const word = item(String(str), left, right - left, !next && !joined.has(lineIndex))
+        // Malayalam digits (൧൮) are the recognition's misreading of 0-9, which books print (see :format:ocr OcrText)
+        const text = String(str).replace(/[൦-൯]/g, digit => String(digit.charCodeAt(0) - 0x0D66))
+        const word = item(text, left, right - left, !next && !joined.has(lineIndex))
         if (confidence < LowRecognitionConfidence) word.lowConfidence = true
         if (!next && joined.has(lineIndex)) word.joinsNext = true
         items.push(word)

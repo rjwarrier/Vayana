@@ -30,4 +30,9 @@
     <string name="reader_ocr_installed">ஏற்கனவே பதிவிறக்கப்பட்டது.</string>
     <string name="reader_ocr_dialog_start">தொடங்கு</string>
     <string name="reader_ocr_dialog_close">மூடு</string>
+    <!-- Scan / Text views of a scanned book (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_view_scan">ஸ்கேன்</string>
+    <string name="reader_view_text">உரை</string>
+    <string name="reader_view_scan_note">அச்சிட்ட பக்கங்கள். அடையாளம் காணப்பட்ட உரையை உங்கள் எழுத்துரு, அளவு, தீமில் படிக்க உரைக்கு மாறுங்கள்.</string>
+    <string name="reader_view_text_note">அடையாளம் காணப்பட்ட உரை, உங்கள் எழுத்துரு, அளவு, தீமில். சில சொற்கள் தவறாகப் படிக்கப்படலாம்; அச்சிட்ட பக்கத்தை ஸ்கேனில் பார்க்கலாம்.</string>
 </resources>

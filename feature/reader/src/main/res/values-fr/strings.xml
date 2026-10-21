@@ -30,4 +30,9 @@
     <string name="reader_ocr_installed">Déjà téléchargé.</string>
     <string name="reader_ocr_dialog_start">Démarrer</string>
     <string name="reader_ocr_dialog_close">Fermer</string>
+    <!-- Scan / Text views of a scanned book (docs/SCANNED_PDF_TEXT_PLAN.md) -->
+    <string name="reader_view_scan">Scan</string>
+    <string name="reader_view_text">Texte</string>
+    <string name="reader_view_scan_note">Les pages imprimées. Passez à Texte pour lire le texte reconnu avec votre police, votre taille et votre thème.</string>
+    <string name="reader_view_text_note">Le texte reconnu avec votre police, votre taille et votre thème. Un mot peut être mal reconnu ; Scan montre la page imprimée.</string>
 </resources>

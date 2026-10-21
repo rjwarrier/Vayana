@@ -144,6 +144,8 @@ class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : Co
         if (isStopped) return@withContext Result.retry()
         // The whole book is known now: words broken across lines can be told from separate ones.
         store.saveLineJoins(book)
+        // the text view: the book as running text
+        runCatching { store.buildTextEpub(book, inputData.getString(BookRecognition.KeyTitle).orEmpty(), null, model.textLanguage) }
         Result.success(progressData(done.get(), pages.size))
     }
 

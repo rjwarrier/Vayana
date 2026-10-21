@@ -25,6 +25,9 @@ enum class OcrModel(
 
     val url: String get() = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/$TessdataCommit/$path"
 
+    /** The language of text recognised with this model, as the text view's EPUB declares it. */
+    val textLanguage: String get() = "ml"
+
     companion object {
         fun byId(id: String?): OcrModel? = entries.firstOrNull { it.id == id }
 
