@@ -111,6 +111,7 @@ internal class OfflineDictionaryRepository @Inject constructor(
         var mainSlot: Slot? = null
         var main = primary.firstNotNullOfOrNull { slot -> lookIn(slot, word)?.also { mainSlot = slot } }
         val extras = installed
+            .asSequence()
             .filter { it.wordLanguage == wordLanguage && !it.monolingual && it != mainSlot }
             .mapNotNull { slot -> lookIn(slot, word)?.let { slot to it } }
             .distinctBy { (slot, _) -> slot.meaningLanguage }
