@@ -1005,6 +1005,8 @@
     <string name="settings_restore_summary_books">%1$d libri</string>
     <string name="settings_restore_summary_notes">%1$d evidenziazioni e note</string>
     <string name="settings_restore_summary_size">%1$s in totale</string>
+    <string name="settings_restore_summary_customizations">%1$d caratteri personalizzati; correzioni di pronuncia per %2$d libri</string>
+    <string name="settings_restore_summary_customizations_missing">Questo backup precedente non include caratteri o correzioni di pronuncia. Le personalizzazioni esistenti su questo dispositivo verranno mantenute.</string>
     <string name="settings_group_appearance">Aspetto</string>
     <string name="settings_group_appearance_subtitle">Tema, colori, e-ink, animazioni e date</string>
     <string name="settings_group_library">Libreria</string>

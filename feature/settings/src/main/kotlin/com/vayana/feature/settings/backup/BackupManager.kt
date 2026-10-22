@@ -27,6 +27,7 @@ import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -36,7 +37,7 @@ import org.json.JSONObject
 
 /**
  * Everything that makes a backup restorable on a fresh install: the database (books,
- * annotations, word-lookup stats), settings, and the actual book/cover files - all as one zip,
+ * annotations, word-lookup stats), settings, book/cover files, imported fonts and pronunciation corrections - as one zip,
  * so restoring is "pick the file" with no server, account, or network involved (the product specification §4.9).
  *
  * Restore is stash-then-commit: every live path it's about to overwrite is first moved aside
@@ -73,6 +74,7 @@ class BackupManager @Inject constructor(
                     ZipOutputStream(BufferedOutputStream(it)).use { zip ->
                         writeManifest(zip)
                         writeSettings(zip)
+                        writeReaderCustomizations(zip)
                         writeFile(zip, snapshot, "database/$DatabaseFileName")
                         writeDirectory(zip, storageRoots.booksDir, "books")
                         writeDirectory(zip, storageRoots.coversDir, "covers")
@@ -101,6 +103,7 @@ class BackupManager @Inject constructor(
                 var settingsCount = 0
                 var fileBookCount = 0
                 var sawDatabase = false
+                var readerCustomizations: ReaderCustomizationsBackup? = null
                 var totalBytes = 0L
                 val seenEntries = HashSet<String>()
                 val input = context.contentResolver.openInputStream(source)
@@ -120,6 +123,7 @@ class BackupManager @Inject constructor(
                             when (entry.name) {
                                 "manifest.json" -> manifest = parseManifestJson(readBounded(zip, MaxMetadataBytes))
                                 "settings.json" -> settingsCount = JSONObject(readBounded(zip, MaxMetadataBytes)).length()
+                                ReaderCustomizationsEntry -> readerCustomizations = ReaderCustomizationsBackup.parse(readBounded(zip, MaxMetadataBytes))
                                 "database/$DatabaseFileName" -> {
                                     sawDatabase = true
                                     tempDb.parentFile?.mkdirs()
@@ -139,6 +143,8 @@ class BackupManager @Inject constructor(
                 if (!sawDatabase) {
                     return@withContext InspectOutcome.Failed(UiText.Res(R.string.settings_error_backup_has_no_database))
                 }
+                failUnless(finalManifest.backupFormatVersion < 2 || readerCustomizations != null,
+                    R.string.settings_error_backup_missing_file, "", ReaderCustomizationsEntry)
                 val (bookCount, annotationCount) = countRows(tempDb, fileBookCount)
                 InspectOutcome.Success(
                     BackupInspection(
@@ -149,6 +155,8 @@ class BackupManager @Inject constructor(
                         totalBytes = totalBytes,
                         isNewerFormat = finalManifest.backupFormatVersion > CurrentBackupFormatVersion,
                         isNewerDatabase = finalManifest.databaseVersion > DATABASE_VERSION,
+                        importedFontCount = readerCustomizations?.fonts?.size,
+                        pronunciationBookCount = readerCustomizations?.pronunciations?.size ?: 0,
                     ),
                 )
             } catch (cancellation: CancellationException) {
@@ -232,6 +240,13 @@ class BackupManager @Inject constructor(
 
                 val settingsFile = File(stagingDir, "settings.json")
                 val settingsMap = if (settingsFile.isFile) readSettingsMap(settingsFile) else emptyMap()
+                val customizationsFile = File(stagingDir, ReaderCustomizationsEntry)
+                failUnless(manifest.backupFormatVersion < 2 || customizationsFile.isFile,
+                    R.string.settings_error_backup_missing_file, "", ReaderCustomizationsEntry)
+                val customizations = customizationsFile.takeIf { it.isFile }?.let {
+                    ReaderCustomizationsBackup.parse(it.readText()).also { data -> data.validateFonts(File(stagingDir, "fonts")) }
+                }
+                val originalCustomizations = customizations?.let { ReaderCustomizationsBackup.capture(context, settingsRepository) }
 
                 validateStagedBackup(context, stagingDir, manifest.databaseVersion)
 
@@ -241,7 +256,8 @@ class BackupManager @Inject constructor(
                 val dbFile = context.getDatabasePath(DatabaseFileName)
                 val dbWal = File(dbFile.path + "-wal")
                 val dbShm = File(dbFile.path + "-shm")
-                val stashed = listOf(dbFile, dbWal, dbShm, storageRoots.booksDir, storageRoots.coversDir)
+                val stashed = listOfNotNull(dbFile, dbWal, dbShm, storageRoots.booksDir, storageRoots.coversDir,
+                    storageRoots.fontsDir.takeIf { customizations != null })
 
                 try {
                     stashed.forEach { stashAside(it) }
@@ -252,6 +268,11 @@ class BackupManager @Inject constructor(
                         ?.copyRecursively(storageRoots.booksDir, overwrite = true)
                     File(stagingDir, "covers").takeIf { it.isDirectory }
                         ?.copyRecursively(storageRoots.coversDir, overwrite = true)
+                    if (customizations != null) {
+                        File(stagingDir, "fonts").takeIf { it.isDirectory }
+                            ?.copyRecursively(storageRoots.fontsDir, overwrite = true)
+                        customizations.restore(context, settingsRepository)
+                    }
                     if (settingsMap.isNotEmpty()) settingsRepository.importFromMap(settingsMap)
 
                     stashed.forEach { discardStash(it) }
@@ -262,15 +283,18 @@ class BackupManager @Inject constructor(
                     // Deliberately catches everything, cancellation included: the live database
                     // is already closed at this point, so the process must restart no matter
                     // what interrupted the swap - there is no "let the caller decide" option.
-                    runCatchingCancellable { stashed.forEach { unstash(it) } }
-                    stagingDir.deleteRecursively()
-                    restartApp()
-                    RestoreOutcome.Failed(
-                        UiText.Res(
-                            R.string.settings_error_restore_rolled_back,
-                            throwable.uiText(R.string.settings_error_restore_failed),
-                        ),
-                    )
+                    withContext(NonCancellable) {
+                        runCatching { stashed.forEach { unstash(it) } }
+                        runCatching { originalCustomizations?.restore(context, settingsRepository) }
+                        stagingDir.deleteRecursively()
+                        restartApp()
+                        RestoreOutcome.Failed(
+                            UiText.Res(
+                                R.string.settings_error_restore_rolled_back,
+                                throwable.uiText(R.string.settings_error_restore_failed),
+                            ),
+                        )
+                    }
                 }
             } catch (cancellation: CancellationException) {
                 stagingDir.deleteRecursively()
@@ -329,8 +353,18 @@ class BackupManager @Inject constructor(
         zip.closeEntry()
     }
 
+    private suspend fun writeReaderCustomizations(zip: ZipOutputStream) {
+        val data = ReaderCustomizationsBackup.capture(context, settingsRepository)
+        data.validateFonts(storageRoots.fontsDir)
+        val bytes = data.toJson().toByteArray(Charsets.UTF_8)
+        failUnless(bytes.size <= MaxMetadataBytes, R.string.settings_error_backup_metadata_unexpectedly_large)
+        zip.putNextEntry(ZipEntry(ReaderCustomizationsEntry))
+        zip.write(bytes)
+        zip.closeEntry()
+        data.fonts.forEach { font -> writeFile(zip, File(storageRoots.fontsDir, font.fileName), "fonts/${font.fileName}") }
+    }
+
     private fun writeFile(zip: ZipOutputStream, file: File, entryName: String) {
-        if (!file.isFile) return
         zip.putNextEntry(ZipEntry(entryName))
         file.inputStream().use { it.copyTo(zip) }
         zip.closeEntry()
@@ -375,7 +409,7 @@ class BackupManager @Inject constructor(
                         )
                         cumulativeBytes += count
                         entryBytes += count
-                        if (entry.name == "manifest.json" || entry.name == "settings.json") {
+                        if (entry.name == "manifest.json" || entry.name == "settings.json" || entry.name == ReaderCustomizationsEntry) {
                             failUnless(
                                 entryBytes <= MaxMetadataBytes,
                                 R.string.settings_error_backup_metadata_unexpectedly_large,
@@ -426,7 +460,7 @@ class BackupManager @Inject constructor(
 
     private companion object {
         const val DatabaseFileName = "vayana.db"
-        const val CurrentBackupFormatVersion = 1
+        const val CurrentBackupFormatVersion = 2
         const val MaxBackupEntries = 200_000
         const val MaxRestoreTotalBytes = 20L * 1024L * 1024L * 1024L
         const val MaxMetadataBytes = 1024 * 1024

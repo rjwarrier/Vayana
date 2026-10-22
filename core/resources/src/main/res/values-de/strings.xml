@@ -991,6 +991,8 @@
     <string name="settings_restore_summary_books">%1$d Bücher</string>
     <string name="settings_restore_summary_notes">%1$d Markierungen und Notizen</string>
     <string name="settings_restore_summary_size">%1$s insgesamt</string>
+    <string name="settings_restore_summary_customizations">%1$d eigene Schriftarten; Aussprachekorrekturen für %2$d Bücher</string>
+    <string name="settings_restore_summary_customizations_missing">Diese ältere Sicherung enthält keine Schriftarten oder Aussprachekorrekturen. Vorhandene Anpassungen auf diesem Gerät bleiben erhalten.</string>
     <string name="settings_group_appearance">Darstellung</string>
     <string name="settings_group_appearance_subtitle">Design, Farben, E-Ink, Animation und Datum</string>
     <string name="settings_group_library">Bibliothek</string>

@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -566,7 +567,7 @@ private fun SettingsScreen(
                 },
                 title = { Text(stringResource(R.string.settings_restore_review_title)) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         if (!inspection.isCompatible) {
                             Text(
                                 text = stringResource(R.string.settings_restore_incompatible),
@@ -597,6 +598,12 @@ private fun SettingsScreen(
                         )
                         Text(
                             text = stringResource(R.string.settings_restore_summary_size, inspection.totalBytes.formatByteSize()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = inspection.importedFontCount?.let { count ->
+                                stringResource(R.string.settings_restore_summary_customizations, count, inspection.pronunciationBookCount)
+                            } ?: stringResource(R.string.settings_restore_summary_customizations_missing),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))

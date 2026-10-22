@@ -1005,6 +1005,8 @@
     <string name="settings_restore_summary_books">%1$d livres</string>
     <string name="settings_restore_summary_notes">%1$d surlignages et notes</string>
     <string name="settings_restore_summary_size">%1$s au total</string>
+    <string name="settings_restore_summary_customizations">%1$d polices personnalisées ; corrections de prononciation pour %2$d livres</string>
+    <string name="settings_restore_summary_customizations_missing">Cette ancienne sauvegarde ne contient ni polices ni corrections de prononciation. Les personnalisations présentes sur cet appareil seront conservées.</string>
     <string name="settings_group_appearance">Apparence</string>
     <string name="settings_group_appearance_subtitle">Thème, couleurs, e-ink, animations et dates</string>
     <string name="settings_group_library">Bibliothèque</string>

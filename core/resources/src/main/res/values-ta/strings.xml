@@ -991,6 +991,8 @@
     <string name="settings_restore_summary_books">%1$d நூல்கள்</string>
     <string name="settings_restore_summary_notes">%1$d குறியீடுகளும் குறிப்புகளும்</string>
     <string name="settings_restore_summary_size">மொத்தம் %1$s</string>
+    <string name="settings_restore_summary_customizations">%1$d தனிப்பயன் எழுத்துருக்கள்; %2$d புத்தகங்களுக்கான உச்சரிப்புத் திருத்தங்கள்</string>
+    <string name="settings_restore_summary_customizations_missing">இந்தப் பழைய காப்புப்பிரதியில் எழுத்துருக்களோ உச்சரிப்புத் திருத்தங்களோ இல்லை. இந்தச் சாதனத்தில் உள்ள தனிப்பயன் அமைப்புகள் தக்கவைக்கப்படும்.</string>
     <string name="settings_group_appearance">தோற்றம்</string>
     <string name="settings_group_appearance_subtitle">கருப்பொருள், வண்ணங்கள், இ-இங்க், அசைவு, தேதிகள்</string>
     <string name="settings_group_library">நூலகம்</string>

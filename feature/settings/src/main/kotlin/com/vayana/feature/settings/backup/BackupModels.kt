@@ -28,6 +28,9 @@ data class BackupInspection(
     val totalBytes: Long,
     val isNewerFormat: Boolean,
     val isNewerDatabase: Boolean,
+    /** Null for older archives that did not include reader customizations. */
+    val importedFontCount: Int? = null,
+    val pronunciationBookCount: Int = 0,
 ) {
     val isCompatible: Boolean get() = !isNewerFormat && !isNewerDatabase
 }

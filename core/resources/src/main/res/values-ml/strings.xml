@@ -991,6 +991,8 @@
     <string name="settings_restore_summary_books">%1$d പുസ്തകങ്ങൾ</string>
     <string name="settings_restore_summary_notes">%1$d അടയാളങ്ങളും കുറിപ്പുകളും</string>
     <string name="settings_restore_summary_size">ആകെ %1$s</string>
+    <string name="settings_restore_summary_customizations">%1$d ഇഷ്ടാനുസൃത ഫോണ്ടുകൾ; %2$d പുസ്തകങ്ങൾക്കുള്ള ഉച്ചാരണ തിരുത്തലുകൾ</string>
+    <string name="settings_restore_summary_customizations_missing">ഈ പഴയ ബാക്കപ്പിൽ ഫോണ്ടുകളോ ഉച്ചാരണ തിരുത്തലുകളോ ഇല്ല. ഈ ഉപകരണത്തിലെ നിലവിലുള്ള ഇഷ്ടാനുസൃത ക്രമീകരണങ്ങൾ നിലനിർത്തും.</string>
     <string name="settings_group_appearance">രൂപഭാവം</string>
     <string name="settings_group_appearance_subtitle">രൂപഭാവം, നിറങ്ങൾ, ഇ-ഇങ്ക്, ചലനം, തീയതികൾ</string>
     <string name="settings_group_library">പുസ്തകശാല</string>

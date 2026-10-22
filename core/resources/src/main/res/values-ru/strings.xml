@@ -1019,6 +1019,8 @@
     <string name="settings_restore_summary_books">Книг: %1$d</string>
     <string name="settings_restore_summary_notes">Выделений и заметок: %1$d</string>
     <string name="settings_restore_summary_size">Всего %1$s</string>
+    <string name="settings_restore_summary_customizations">Пользовательских шрифтов: %1$d; исправления произношения для %2$d книг</string>
+    <string name="settings_restore_summary_customizations_missing">Эта старая резервная копия не содержит шрифтов и исправлений произношения. Существующие настройки на этом устройстве будут сохранены.</string>
     <string name="settings_group_appearance">Внешний вид</string>
     <string name="settings_group_appearance_subtitle">Тема, цвета, e-ink, анимация и даты</string>
     <string name="settings_group_library">Библиотека</string>
