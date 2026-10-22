@@ -34,7 +34,7 @@ data class SyncDataUsageEntry(
 
 /**
  * One line per sync with what it sent and received, for Settings → Data usage. File-based like the diagnostics log
- * (one JSON object per line, so a torn write only loses its own line), kept for [RetentionDays].
+ * (one JSON object per line, so a torn write only loses its own line), kept up to [RetentionDays] within the size cap.
  */
 @Singleton
 class SyncDataUsageLog internal constructor(
@@ -70,7 +70,15 @@ class SyncDataUsageLog internal constructor(
     private fun trimLocked() {
         runCatching {
             val cutoff = clock() - RetentionDays * DayMillis
-            val kept = file.readLines(Charsets.UTF_8).filter { line -> (line.toEntryOrNull()?.at ?: 0L) >= cutoff }.takeLast(MaxEntries)
+            val kept = ArrayDeque<String>()
+            var bytes = 0L
+            for (line in file.readLines(Charsets.UTF_8).asReversed()) {
+                if ((line.toEntryOrNull()?.at ?: 0L) < cutoff) continue
+                val lineBytes = line.toByteArray(Charsets.UTF_8).size + 1L
+                if (bytes + lineBytes > TrimTargetBytes || kept.size >= MaxEntries) break
+                kept.addFirst(line)
+                bytes += lineBytes
+            }
             file.writeText(if (kept.isEmpty()) "" else kept.joinToString("\n", postfix = "\n"))
         }
     }
@@ -79,6 +87,8 @@ class SyncDataUsageLog internal constructor(
         const val RetentionDays = 120L
         const val MaxEntries = 20_000
         const val MaxFileBytes = 1024L * 1024
+        // Leave headroom below the trigger so ordinary appends do not keep rewriting the whole log.
+        private const val TrimTargetBytes = 512L * 1024
         const val DayMillis = 24L * 60 * 60 * 1000
     }
 }

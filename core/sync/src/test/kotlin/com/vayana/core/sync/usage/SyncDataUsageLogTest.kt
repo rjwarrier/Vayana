@@ -92,6 +92,25 @@ class SyncDataUsageLogTest {
     }
 
     @Test
+    fun trimmingLeavesHalfAMegabyteOfHeadroomAndKeepsTheNewestEntries() {
+        val file = File(dir, "sync-usage.ndjson")
+        now = 201 * SyncDataUsageLog.DayMillis
+        file.writeText((0 until 15_000).joinToString("", transform = { index ->
+            """{"at":${now - 15_000 + index},"kind":"BACKGROUND","network":"WIFI","up":1,"down":1,"requests":1}""" + "\n"
+        }))
+        assertTrue(file.length() > SyncDataUsageLog.MaxFileBytes)
+
+        log().record(SyncKind.FULL, GitHubTransferStats(1, 10, 10))
+
+        assertTrue(file.length() <= 512 * 1024, "trim left the log above its target")
+        val kept = log().readAll()
+        assertEquals(now, kept.first().at)
+        assertEquals(SyncKind.FULL, kept.first().kind)
+        assertTrue(kept.size > 1)
+        assertEquals(kept.size.toLong(), file.useLines { it.count().toLong() })
+    }
+
+    @Test
     fun wifiWinsOverCellularWhenBothAreUp() {
         assertEquals(DataNetwork.WIFI, dataNetworkOf(wifi = true, cellular = true))
         assertEquals(DataNetwork.MOBILE, dataNetworkOf(wifi = false, cellular = true))
