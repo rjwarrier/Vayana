@@ -2197,11 +2197,11 @@
     <string name="photo_no_books">Aggiungi un libro cartaceo prima di salvare un\'evidenziazione da foto.</string>
     <string name="photo_page_title">Pagina %1$d</string>
     <string name="search_contents">Contenuto dei libri</string>
-    <string name="search_indexing">Indicizzazione dei contenuti EPUB… %1$d di %2$d</string>
-    <string name="search_index_errors">Impossibile indicizzare %1$d file EPUB.</string>
+    <string name="search_indexing">Indicizzazione dei contenuti dei libri… %1$d di %2$d</string>
+    <string name="search_index_errors">Impossibile indicizzare %1$d file di libri.</string>
     <string name="search_index_retry">Riprova indicizzazione</string>
     <string name="search_contents_empty">Nessun passaggio indicizzato corrisponde a questa ricerca.</string>
-    <string name="search_index_hint">I contenuti vengono indicizzati localmente dagli EPUB scaricati.</string>
+    <string name="search_index_hint">I contenuti vengono indicizzati localmente dagli EPUB scaricati e dai PDF con riconoscimento completato.</string>
     <string name="feature_action_failed">Impossibile salvare questa modifica. Riprova.</string>
     <string name="privacy_stored_ocr">Testo riconosciuto dai libri scansionati</string>
     <string name="privacy_stored_ocr_detail">Libri: %1$d · Spazio: %2$s, nella memoria privata di Vayana. Il testo di un libro viene eliminato con il libro; si può rimuovere anche dalle sue impostazioni di lettura.</string>

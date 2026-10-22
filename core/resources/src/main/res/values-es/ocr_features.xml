@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">Necesario para el reconocimiento activo o en cola</string>
+    <string name="ocr_model_malayalam">Malayalam</string>
+    <string name="ocr_model_mixed">Malayalam e inglés</string>
+    <string name="offline_prepare_title">Preparar sin conexión</string>
+    <string name="offline_prepare_detail">Las descargas continúan al salir de esta pantalla. El reconocimiento PDF opcional continúa desde las páginas guardadas. Los modelos de idioma se descargan por Wi-Fi.</string>
+    <string name="offline_prepare_recognize">Reconocer los PDF seleccionados</string>
+    <string name="offline_prepare_wifi">Descargar libros solo por Wi-Fi</string>
+    <string name="offline_prepare_start">Añadir libros seleccionados a la cola</string>
+    <string name="offline_prepare_waiting">Esperando red, espacio o tareas en segundo plano</string>
+    <string name="offline_prepare_recognizing">Reconociendo texto</string>
+    <string name="offline_prepare_ready">Listo sin conexión</string>
+    <string name="offline_prepare_cancelled">Cancelado</string>
+    <string name="offline_prepare_empty">Todavía no hay solicitudes. Selecciona libros en Acciones en lote.</string>
+    <string name="ocr_storage_models">Modelos de reconocimiento instalados</string>
+    <string name="ocr_storage_model_category">Modelos de reconocimiento</string>
+    <string name="ocr_storage_text">Texto reconocido</string>
+    <string name="ocr_storage_books">Texto reconocido por libro</string>
+    <string name="ocr_storage_remove">Eliminar</string>
+    <string name="ocr_storage_book_confirm">¿Eliminar el texto reconocido de %1$s? La búsqueda, la selección y la vista Texto necesitan un nuevo reconocimiento. Se conservan el libro original, los subrayados y la posición de lectura.</string>
+    <string name="ocr_storage_model_confirm">¿Eliminar el modelo de reconocimiento %1$s? Se conserva el texto ya reconocido. El modelo deberá descargarse de nuevo antes de reconocer más páginas.</string>
+    <string name="ocr_storage_error">No se pudieron eliminar estos datos. Detén el reconocimiento o la preparación sin conexión e inténtalo de nuevo.</string>
+    <string name="ocr_storage_unknown_book">Libro %1$s</string>
+</resources>

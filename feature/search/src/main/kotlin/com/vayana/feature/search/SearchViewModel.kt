@@ -144,7 +144,8 @@ class SearchViewModel @Inject constructor(
                         val chapter = chapters[passage.chapterId] ?: return@mapNotNull null
                         val excerpt = passageExcerpt(chapter.substring(passage.startOffset, passage.endOffset), tokens)
                         BookContentResult(passage.id, book, passage.chapterTitle, excerpt,
-                            "text:search:${android.net.Uri.encode(passage.chapterHref)}:${android.net.Uri.encode(excerpt)}")
+                            if (book.format == com.vayana.core.database.model.BookFormat.PDF) passage.chapterHref
+                            else "text:search:${android.net.Uri.encode(passage.chapterHref)}:${android.net.Uri.encode(excerpt)}")
                     })
                 }
             }

@@ -2197,11 +2197,11 @@
     <string name="photo_no_books">Adicione um livro físico antes de salvar um destaque de foto.</string>
     <string name="photo_page_title">Página %1$d</string>
     <string name="search_contents">Conteúdo dos livros</string>
-    <string name="search_indexing">Indexando conteúdo EPUB… %1$d de %2$d</string>
-    <string name="search_index_errors">Não foi possível indexar %1$d arquivos EPUB.</string>
+    <string name="search_indexing">Indexando o conteúdo dos livros… %1$d de %2$d</string>
+    <string name="search_index_errors">Não foi possível indexar %1$d arquivos de livros.</string>
     <string name="search_index_retry">Tentar indexar novamente</string>
     <string name="search_contents_empty">Nenhum trecho indexado corresponde a esta busca.</string>
-    <string name="search_index_hint">O conteúdo é indexado localmente a partir dos EPUBs baixados.</string>
+    <string name="search_index_hint">O conteúdo é indexado localmente a partir de EPUBs baixados e de PDFs cujo reconhecimento terminou.</string>
     <string name="feature_action_failed">Não foi possível salvar esta alteração. Tente novamente.</string>
     <string name="privacy_stored_ocr">Texto reconhecido de livros digitalizados</string>
     <string name="privacy_stored_ocr_detail">Livros: %1$d · Espaço: %2$s, no armazenamento privado do Vayana. O texto de um livro sai junto com o livro; também pode ser removido nas configurações de leitura dele.</string>

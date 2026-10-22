@@ -2170,11 +2170,11 @@
     <string name="photo_no_books">புகைப்படக் குறியீட்டைச் சேமிக்கும் முன் ஓர் அச்சு நூலைச் சேருங்கள்.</string>
     <string name="photo_page_title">பக்கம் %1$d</string>
     <string name="search_contents">நூல் உள்ளடக்கம்</string>
-    <string name="search_indexing">EPUB உள்ளடக்கத்தை அட்டவணைப்படுத்துகிறது… %2$d-இல் %1$d</string>
-    <string name="search_index_errors">%1$d EPUB கோப்புகளை அட்டவணைப்படுத்த முடியவில்லை.</string>
+    <string name="search_indexing">புத்தக உள்ளடக்கத்தை அட்டவணைப்படுத்துகிறது… %2$d-இல் %1$d</string>
+    <string name="search_index_errors">%1$d புத்தகக் கோப்புகளை அட்டவணைப்படுத்த முடியவில்லை.</string>
     <string name="search_index_retry">அட்டவணைப்படுத்தலை மீண்டும் முயல்</string>
     <string name="search_contents_empty">இந்தத் தேடலுக்குப் பொருந்தும் அட்டவணைப்படுத்திய பகுதிகள் இல்லை.</string>
-    <string name="search_index_hint">பதிவிறக்கிய EPUB-களிலிருந்து உள்ளடக்கம் சாதனத்திலேயே அட்டவணைப்படுத்தப்படுகிறது.</string>
+    <string name="search_index_hint">பதிவிறக்கிய EPUB-களும் எழுத்துணர்வு முடிந்த PDF-களும் சாதனத்திலேயே அட்டவணைப்படுத்தப்படுகின்றன.</string>
     <string name="feature_action_failed">இந்த மாற்றத்தைச் சேமிக்க முடியவில்லை. மீண்டும் முயலுங்கள்.</string>
     <string name="privacy_stored_ocr">ஸ்கேன் செய்யப்பட்ட நூல்களில் அடையாளம் காணப்பட்ட உரை</string>
     <string name="privacy_stored_ocr_detail">%1$d நூல்கள், %2$s, Vayana-வின் தனிப்பட்ட சேமிப்பகத்தில். நூலை நீக்கினால் அதன் உரையும் நீங்கும்; அதன் வாசிப்பு அமைப்புகளிலும் நீக்கலாம்.</string>

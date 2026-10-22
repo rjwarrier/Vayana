@@ -2197,11 +2197,11 @@
     <string name="photo_no_books">Añade un libro físico antes de guardar un subrayado desde una foto.</string>
     <string name="photo_page_title">Página %1$d</string>
     <string name="search_contents">Contenido de los libros</string>
-    <string name="search_indexing">Indexando el contenido EPUB… %1$d de %2$d</string>
-    <string name="search_index_errors">No se pudieron indexar %1$d archivos EPUB.</string>
+    <string name="search_indexing">Indexando el contenido de los libros… %1$d de %2$d</string>
+    <string name="search_index_errors">No se pudieron indexar %1$d archivos de libros.</string>
     <string name="search_index_retry">Reintentar indexación</string>
     <string name="search_contents_empty">Ningún pasaje indexado coincide con esta búsqueda.</string>
-    <string name="search_index_hint">El contenido se indexa localmente a partir de los EPUB descargados.</string>
+    <string name="search_index_hint">El contenido se indexa localmente desde EPUB descargados y texto PDF cuyo reconocimiento ha terminado.</string>
     <string name="feature_action_failed">No se pudo guardar este cambio. Inténtalo de nuevo.</string>
     <string name="privacy_stored_ocr">Texto reconocido de libros escaneados</string>
     <string name="privacy_stored_ocr_detail">Libros: %1$d · Espacio: %2$s, en el almacenamiento privado de Vayana. El texto de un libro se elimina con el libro; también se puede quitar desde sus ajustes de lectura.</string>

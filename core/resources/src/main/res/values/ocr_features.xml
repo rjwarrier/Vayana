@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">Used by active or queued recognition</string>
+    <string name="ocr_model_malayalam">Malayalam</string>
+    <string name="ocr_model_mixed">Malayalam and English</string>
+    <string name="offline_prepare_title">Prepare offline</string>
+    <string name="offline_prepare_detail">Downloads continue after you leave this screen. Optional PDF recognition resumes from saved pages. Language models download over Wi-Fi.</string>
+    <string name="offline_prepare_recognize">Recognize selected PDFs</string>
+    <string name="offline_prepare_wifi">Download books over Wi-Fi only</string>
+    <string name="offline_prepare_start">Queue selected books</string>
+    <string name="offline_prepare_waiting">Waiting for network, storage or background work</string>
+    <string name="offline_prepare_recognizing">Recognizing text</string>
+    <string name="offline_prepare_ready">Ready offline</string>
+    <string name="offline_prepare_cancelled">Cancelled</string>
+    <string name="offline_prepare_empty">No preparation requests yet. Select books in Bulk actions to add them.</string>
+    <string name="ocr_storage_models">Installed recognition models</string>
+    <string name="ocr_storage_model_category">Recognition models</string>
+    <string name="ocr_storage_text">Recognized text</string>
+    <string name="ocr_storage_books">Recognized text by book</string>
+    <string name="ocr_storage_remove">Remove</string>
+    <string name="ocr_storage_book_confirm">Remove recognized text for %1$s? Search, selection and Text view need recognition again. The original book, highlights and reading position are kept.</string>
+    <string name="ocr_storage_model_confirm">Remove the %1$s recognition model? Existing recognized text is kept. The model must download again before recognizing more pages.</string>
+    <string name="ocr_storage_error">Could not remove this data. Stop active recognition or offline preparation and try again.</string>
+    <string name="ocr_storage_unknown_book">Book %1$s</string>
+</resources>

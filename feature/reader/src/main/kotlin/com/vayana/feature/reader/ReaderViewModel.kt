@@ -242,6 +242,7 @@ class ReaderViewModel @Inject constructor(
 
     private val _readingPositionPrompt = MutableStateFlow<ReadingPositionPrompt?>(null)
     val readingPositionPrompt: StateFlow<ReadingPositionPrompt?> = _readingPositionPrompt
+    private var readingPositionNavigationJob: Job? = null
 
     val settings: StateFlow<SettingsSnapshot> = settingsRepository.snapshot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsSnapshot())
@@ -1320,32 +1321,33 @@ class ReaderViewModel @Inject constructor(
         recognitionBook = pdf to sha256
         recognitionJob?.cancel()
         recognitionJob = viewModelScope.launch {
-            var lastRecognized = -1
-            BookRecognition.progress(appContext, sha256).conflate().collect { progress ->
-                val (recognized, installed, joinsAdded) = withContext(dispatchers.io) {
+            val refresh = RecognitionRefresh()
+            combine(BookRecognition.progress(appContext, sha256), com.vayana.format.ocr.OcrStore.changes) { progress, _ -> progress }
+                .conflate().collect { progress ->
+                val (recognized, installed, joinsReady) = withContext(dispatchers.io) {
                     val models = BookRecognition.models(appContext)
                     val store = BookRecognition.store(appContext)
                     val saved = store.savedPages(sha256).size
                     val done = progress?.running != true && totalPages in 1..saved
                     // A book recognised before words broken across lines were joined gets its joins now, once.
-                    val addJoins = done && !store.hasLineJoins(sha256)
-                    if (addJoins) store.saveLineJoins(sha256)
-                    // ... and its text view, if it was recognised before there was one
-                    if (done && (addJoins || store.textEpub(sha256) == null)) {
+                    if (done) {
                         val loaded = uiState.value as? ReaderUiState.Loaded
-                        val language = (OcrModel.byId(store.savedPages(sha256).firstOrNull()?.let { store.model(sha256, it) }) ?: OcrModel.MalayalamFast).textLanguage
-                        runCatching { store.buildTextEpub(sha256, loaded?.bookTitle.orEmpty(), loaded?.bookAuthor, language) }
+                        runCatchingCancellable { BookRecognition.finishTextIfComplete(appContext, sha256, totalPages,
+                            loaded?.bookTitle.orEmpty(), loaded?.bookAuthor) }
                     }
                     _readingView.value = ReadingViewUi(textActive = textView, textAvailable = store.textEpub(sha256) != null)
-                    Triple(saved, OcrModel.entries.filter(models::isInstalled).toSet(), addJoins)
+                    Triple(saved, OcrModel.entries.filter(models::isInstalled).toSet(), store.hasLineJoins(sha256))
+                }
+                if (textView && _readingView.value?.textAvailable == false) {
+                    showTextView(false)
+                    return@collect
                 }
                 // the book's own language when there's a model for it, else the last one used, else Malayalam
                 val suggested = OcrModel.forLanguage((uiState.value as? ReaderUiState.Loaded)?.bookLanguage)
                     ?: BookRecognition.lastModel(appContext) ?: OcrModel.MalayalamFast
                 _textRecognition.value = TextRecognitionUi(recognized, totalPages, progress?.running == true, installed, suggested)
                 // Pages on screen pick up their new text; at most every couple of seconds while the job runs.
-                if (joinsAdded || lastRecognized >= 0 && recognized > lastRecognized) engine.refreshRecognizedText()
-                lastRecognized = recognized
+                if (refresh.update(recognized, joinsReady)) engine.refreshRecognizedText()
                 delay(RecognitionRefreshMillis)
             }
         }
@@ -1394,7 +1396,7 @@ class ReaderViewModel @Inject constructor(
         val (pdf, sha256) = recognitionBook ?: return
         val startPage = ((uiState.value as? ReaderUiState.Loaded)?.currentLocator?.currentPage ?: 1) - 1
         val title = (uiState.value as? ReaderUiState.Loaded)?.bookTitle
-        BookRecognition.start(appContext, pdf, sha256, model, startPage.coerceAtLeast(0), title = title)
+        viewModelScope.launch { BookRecognition.start(appContext, pdf, sha256, model, startPage.coerceAtLeast(0), title = title) }
     }
 
     fun stopTextRecognition() {
@@ -1405,10 +1407,10 @@ class ReaderViewModel @Inject constructor(
     /** Stops recognition and deletes the text recognised so far; pages on screen keep theirs until reopened. */
     fun removeRecognizedText() {
         val (_, sha256) = recognitionBook ?: return
-        BookRecognition.stop(appContext, sha256)
         viewModelScope.launch {
-            withContext(dispatchers.io) { BookRecognition.store(appContext).delete(sha256) }
+            withContext(dispatchers.io) { BookRecognition.remove(appContext, sha256) }
             _textRecognition.update { it?.copy(recognizedPages = 0, running = false) }
+            _readingView.update { it?.copy(textAvailable = false) }
         }
     }
 
@@ -1578,6 +1580,7 @@ class ReaderViewModel @Inject constructor(
                     syncedAt = remoteProgress.syncedAt,
                 )
                 val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator
+                    ?.let { if (textView) it.toScanLocator() else it }
                 if (currentLocator == null) {
                     pendingRemoteReadingPosition = remotePosition
                 } else {
@@ -1767,18 +1770,33 @@ class ReaderViewModel @Inject constructor(
         val prompt = _readingPositionPrompt.value ?: return
         _readingPositionPrompt.value = null
         locatorDeferredByResumeSync = null
-        lastReaderWrittenLocator = prompt.targetLocator
-        dispatch(
-            NavTarget.ToLocator(
-                Locator(cfi = prompt.targetLocator, href = null, progression = prompt.targetProgress, chapterTitle = null),
-            ),
-        )
+        readingPositionNavigationJob?.cancel()
+        val engine = boundEngine ?: return
+        val readingText = textView
+        readingPositionNavigationJob = viewModelScope.launch {
+            val target = if (readingText) {
+                val (_, sha256) = recognitionBook ?: return@launch
+                if (textViewPages <= 0) return@launch
+                val page = scanPageIndex(prompt.targetLocator)
+                    ?: (prompt.targetProgress * textViewPages).roundToInt().minus(1).coerceIn(0, textViewPages - 1)
+                val chapter = withContext(dispatchers.io) {
+                    BookRecognition.store(appContext).textPageMap(sha256).getOrNull(page)
+                } ?: return@launch
+                "$chapter#page-$page"
+            } else prompt.targetLocator
+            // The reader may have switched views, or kept its current position, while the page map was read.
+            if (boundEngine !== engine || textView != readingText || _readingPositionPrompt.value != null) return@launch
+            lastReaderWrittenLocator = prompt.targetLocator
+            engine.goTo(NavTarget.ToLocator(Locator(cfi = target, href = null, progression = prompt.targetProgress, chapterTitle = null)))
+        }
     }
 
     fun dismissReadingPositionPrompt() {
         _readingPositionPrompt.value = null
         locatorDeferredByResumeSync = null
-        val currentLocator = (uiState.value as? ReaderUiState.Loaded)?.currentLocator ?: return
+        readingPositionNavigationJob?.cancel()
+        val shown = (uiState.value as? ReaderUiState.Loaded)?.currentLocator ?: return
+        val currentLocator = if (textView) shown.toScanLocator() ?: return else shown
         val currentCfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
         lastReaderWrittenLocator = currentCfi
         viewModelScope.launch {

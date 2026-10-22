@@ -530,6 +530,8 @@ private fun StorageCategory.color(): Color = when (this) {
     StorageCategory.LIBRARY_DATA -> MaterialTheme.colorScheme.secondary
     StorageCategory.DICTIONARY -> MaterialTheme.colorScheme.primary.copy(alpha = SecondaryShareAlpha)
     StorageCategory.FONTS -> MaterialTheme.colorScheme.tertiary.copy(alpha = SecondaryShareAlpha)
+    StorageCategory.OCR_MODELS -> MaterialTheme.colorScheme.secondary.copy(alpha = SecondaryShareAlpha)
+    StorageCategory.RECOGNIZED_TEXT -> MaterialTheme.colorScheme.tertiary.copy(alpha = SecondaryShareAlpha)
     StorageCategory.CACHE -> MaterialTheme.colorScheme.outline
     StorageCategory.OTHER -> MaterialTheme.colorScheme.outlineVariant
 }
@@ -540,6 +542,8 @@ private fun StorageCategory.labelRes(): Int = when (this) {
     StorageCategory.LIBRARY_DATA -> R.string.statistics_storage_category_library_data
     StorageCategory.DICTIONARY -> R.string.statistics_storage_category_dictionary
     StorageCategory.FONTS -> R.string.statistics_storage_category_fonts
+    StorageCategory.OCR_MODELS -> R.string.ocr_storage_model_category
+    StorageCategory.RECOGNIZED_TEXT -> R.string.ocr_storage_text
     StorageCategory.CACHE -> R.string.statistics_storage_category_cache
     StorageCategory.OTHER -> R.string.statistics_storage_category_other
 }

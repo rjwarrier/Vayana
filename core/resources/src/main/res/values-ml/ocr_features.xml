@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">നടന്നുകൊണ്ടിരിക്കുന്നതോ ക്യൂവിലുള്ളതോ ആയ തിരിച്ചറിയലിന് ആവശ്യമാണ്</string>
+    <string name="ocr_model_malayalam">മലയാളം</string>
+    <string name="ocr_model_mixed">മലയാളവും ഇംഗ്ലീഷും</string>
+    <string name="offline_prepare_title">ഓഫ്‌ലൈനായി തയ്യാറാക്കുക</string>
+    <string name="offline_prepare_detail">ഈ സ്ക്രീൻ വിട്ടാലും ഡൗൺലോഡുകൾ തുടരും. PDF അക്ഷരതിരിച്ചറിയൽ സേവ് ചെയ്ത പേജുകളിൽ നിന്ന് തുടരും. ഭാഷാ മോഡലുകൾ Wi-Fi വഴി ഡൗൺലോഡ് ചെയ്യും.</string>
+    <string name="offline_prepare_recognize">തിരഞ്ഞെടുത്ത PDF-കളിലെ അക്ഷരങ്ങൾ തിരിച്ചറിയുക</string>
+    <string name="offline_prepare_wifi">പുസ്തകങ്ങൾ Wi-Fi വഴി മാത്രം ഡൗൺലോഡ് ചെയ്യുക</string>
+    <string name="offline_prepare_start">തിരഞ്ഞെടുത്ത പുസ്തകങ്ങൾ ക്യൂവിൽ ചേർക്കുക</string>
+    <string name="offline_prepare_waiting">നെറ്റ്‌വർക്ക്, സംഭരണസ്ഥലം അല്ലെങ്കിൽ പശ്ചാത്തല പ്രവർത്തനം കാത്തിരിക്കുന്നു</string>
+    <string name="offline_prepare_recognizing">അക്ഷരങ്ങൾ തിരിച്ചറിയുന്നു</string>
+    <string name="offline_prepare_ready">ഓഫ്‌ലൈനിൽ തയ്യാറാണ്</string>
+    <string name="offline_prepare_cancelled">റദ്ദാക്കി</string>
+    <string name="offline_prepare_empty">ഇതുവരെ അഭ്യർത്ഥനകളില്ല. കൂട്ട പ്രവർത്തനങ്ങളിൽ പുസ്തകങ്ങൾ തിരഞ്ഞെടുക്കുക.</string>
+    <string name="ocr_storage_models">ഇൻസ്റ്റാൾ ചെയ്ത തിരിച്ചറിയൽ മോഡലുകൾ</string>
+    <string name="ocr_storage_model_category">തിരിച്ചറിയൽ മോഡലുകൾ</string>
+    <string name="ocr_storage_text">തിരിച്ചറിഞ്ഞ വാചകം</string>
+    <string name="ocr_storage_books">ഓരോ പുസ്തകത്തിലെയും തിരിച്ചറിഞ്ഞ വാചകം</string>
+    <string name="ocr_storage_remove">നീക്കം ചെയ്യുക</string>
+    <string name="ocr_storage_book_confirm">%1$s എന്ന പുസ്തകത്തിലെ തിരിച്ചറിഞ്ഞ വാചകം നീക്കം ചെയ്യണോ? തിരയൽ, തിരഞ്ഞെടുക്കൽ, വാചക കാഴ്ച എന്നിവയ്ക്ക് വീണ്ടും തിരിച്ചറിയണം. യഥാർത്ഥ പുസ്തകം, ഹൈലൈറ്റുകൾ, വായനാസ്ഥാനം എന്നിവ നിലനിർത്തും.</string>
+    <string name="ocr_storage_model_confirm">%1$s തിരിച്ചറിയൽ മോഡൽ നീക്കം ചെയ്യണോ? ഇതിനകം തിരിച്ചറിഞ്ഞ വാചകം നിലനിർത്തും. കൂടുതൽ പേജുകൾ തിരിച്ചറിയാൻ മോഡൽ വീണ്ടും ഡൗൺലോഡ് ചെയ്യണം.</string>
+    <string name="ocr_storage_error">ഈ ഡാറ്റ നീക്കം ചെയ്യാനായില്ല. സജീവമായ തിരിച്ചറിയലോ ഓഫ്‌ലൈൻ തയ്യാറാക്കലോ നിർത്തി വീണ്ടും ശ്രമിക്കുക.</string>
+    <string name="ocr_storage_unknown_book">പുസ്തകം %1$s</string>
+</resources>

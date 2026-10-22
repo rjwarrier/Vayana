@@ -140,7 +140,8 @@ private fun SmartShelfStatus.labelRes() = when (this) {
 }
 
 @Composable
-internal fun BulkBooksDialog(books: List<Book>, shelves: List<Shelf>, onAction: suspend (Set<Long>, BulkLibraryAction) -> BulkLibraryResult, onDismiss: () -> Unit) {
+internal fun BulkBooksDialog(books: List<Book>, shelves: List<Shelf>, onAction: suspend (Set<Long>, BulkLibraryAction) -> BulkLibraryResult, onDismiss: () -> Unit,
+    onPrepare: (Set<Long>) -> Unit) {
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var tags by remember { mutableStateOf("") }
     var chooseShelf by remember { mutableStateOf(false) }
@@ -182,8 +183,9 @@ internal fun BulkBooksDialog(books: List<Book>, shelves: List<Shelf>, onAction: 
                 OutlinedTextField(tags, { tags = it.take(1024) }, enabled = !busy, label = { Text(stringResource(R.string.tools_add_tags)) }, supportingText = { Text(stringResource(R.string.tools_tags_hint)) })
                 Row(Modifier.horizontalScroll(rememberScrollState())) {
                     TextButton(enabled = activeSelected.isNotEmpty() && tags.isNotBlank() && !busy, onClick = { run(BulkLibraryAction.AddTags(tags)) }) { Text(stringResource(R.string.tools_add_tags)) }
-                    TextButton(enabled = activeSelected.isNotEmpty() && !busy, onClick = { run(BulkLibraryAction.Download) }) { Text(stringResource(R.string.tools_download_selected)) }
+                    TextButton(enabled = activeSelected.isNotEmpty() && !busy, onClick = { onPrepare(activeSelected) }) { Text(stringResource(R.string.tools_download_selected)) }
                 }
+                TextButton(enabled = !busy, onClick = { onPrepare(activeSelected) }) { Text(stringResource(R.string.offline_prepare_title)) }
             }
         }, confirmButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.tools_close)) } })
     if (chooseShelf) AlertDialog(onDismissRequest = { chooseShelf = false }, title = { Text(stringResource(R.string.tools_add_to_shelf)) },

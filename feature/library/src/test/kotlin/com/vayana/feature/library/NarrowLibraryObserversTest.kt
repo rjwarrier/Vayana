@@ -73,7 +73,8 @@ class NarrowLibraryObserversTest {
         assertEquals(library.map { BookNotebookFields(it.id, it.syncId, it.title, it.author, it.tagsCsv) },
             books.observeNotebookFields().first())
 
-        assertEquals(listOf(LocalEpubFile(epub, "hash-Epub", "books/Epub"), LocalEpubFile(olderEpub, "hash-Older", "books/Older")),
+        assertEquals(listOf(LocalEpubFile(epub, "hash-Epub", "books/Epub"), LocalEpubFile(olderEpub, "hash-Older", "books/Older"),
+            LocalEpubFile(pdf, "hash-Pdf", "books/Pdf", "PDF")),
             db.epubPassageDao().observeLocalEpubFiles().first())
     }
 }

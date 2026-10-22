@@ -2224,11 +2224,11 @@
     <string name="photo_no_books">Добавьте бумажную книгу, прежде чем сохранять выделение с фото.</string>
     <string name="photo_page_title">Страница %1$d</string>
     <string name="search_contents">Содержимое книг</string>
-    <string name="search_indexing">Индексация содержимого EPUB… %1$d из %2$d</string>
-    <string name="search_index_errors">Не удалось проиндексировать файлы EPUB: %1$d.</string>
+    <string name="search_indexing">Индексация содержимого книг… %1$d из %2$d</string>
+    <string name="search_index_errors">Не удалось проиндексировать файлы книг: %1$d.</string>
     <string name="search_index_retry">Повторить индексацию</string>
     <string name="search_contents_empty">Нет проиндексированных фрагментов по этому запросу.</string>
-    <string name="search_index_hint">Содержимое индексируется локально из скачанных EPUB.</string>
+    <string name="search_index_hint">Содержимое индексируется локально из загруженных EPUB и PDF с завершённым распознаванием текста.</string>
     <string name="feature_action_failed">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
     <string name="privacy_stored_ocr">Текст, распознанный в сканированных книгах</string>
     <string name="privacy_stored_ocr_detail">Книг: %1$d, %2$s, во внутреннем хранилище Vayana. Текст книги удаляется вместе с ней; его можно удалить и в её настройках чтения.</string>

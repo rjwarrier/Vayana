@@ -13,6 +13,9 @@ import com.vayana.format.ocr.OcrModel
 import com.vayana.format.ocr.PageRecognizer
 import java.io.File
 import kotlin.concurrent.thread
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Debug builds only: phase 1 of docs/SCANNED_PDF_TEXT_PLAN.md. Recognises pages of a PDF on the device and logs
@@ -27,9 +30,21 @@ class OcrSpikeReceiver : BroadcastReceiver() {
         when (intent.getStringExtra("job")) {
             "start" -> {
                 val model = OcrModel.byId(intent.getStringExtra("model")) ?: OcrModel.MalayalamFast
-                BookRecognition.start(context, File(intent.getStringExtra("pdf") ?: return), intent.getStringExtra("book") ?: return,
-                    model, intent.getIntExtra("start", 0))
-                Log.i(Tag, "job started ${model.id}")
+                val pdf = File(intent.getStringExtra("pdf") ?: return)
+                val book = intent.getStringExtra("book") ?: return
+                val start = intent.getIntExtra("start", 0)
+                val pending = goAsync()
+                val appContext = context.applicationContext
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        BookRecognition.start(appContext, pdf, book, model, start)
+                        Log.i(Tag, "job started ${model.id}")
+                    } catch (error: Exception) {
+                        Log.e(Tag, "job start failed", error)
+                    } finally {
+                        pending.finish()
+                    }
+                }
                 return
             }
             "stop" -> {

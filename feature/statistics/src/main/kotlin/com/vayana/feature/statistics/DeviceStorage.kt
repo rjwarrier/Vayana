@@ -4,7 +4,7 @@ import java.io.File
 import java.nio.file.Files
 
 /** What the app's files on this device are for, in the order the Storage card lists them. */
-enum class StorageCategory { BOOKS, COVERS, LIBRARY_DATA, DICTIONARY, FONTS, CACHE, OTHER }
+enum class StorageCategory { BOOKS, COVERS, LIBRARY_DATA, DICTIONARY, FONTS, OCR_MODELS, RECOGNIZED_TEXT, CACHE, OTHER }
 
 data class CategorySize(val category: StorageCategory, val bytes: Long)
 

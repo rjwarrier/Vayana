@@ -307,6 +307,26 @@ test('pages are drawn from their saved image, and saved after pdf.js draws them'
     assert.equal(savedImages.length, 1)
 })
 
+test('finishing OCR joins replaces search text already cached for a recognised page', async () => {
+    const ocrStart = pdf.indexOf('let ocrKey = null')
+    const ocrEnd = pdf.indexOf('const finishTextLayer', ocrStart)
+    const textStart = pdf.indexOf('const pageTexts = new Map()')
+    const textEnd = pdf.indexOf('book.setPageRotation =', textStart)
+    assert.ok(ocrStart > 0 && ocrEnd > ocrStart && textStart > 0 && textEnd > textStart)
+    const recognized = { lines: [[['some', 10, 10, 30, 20, 90]], [['thing', 10, 25, 30, 35, 90]]], joins: [] }
+    const page = { pageNumber: 1, view: [0, 0, 100, 100], getTextContent: async () => ({ items: [], styles: {} }) }
+    const book = {}
+    const context = vm.createContext({
+        book, pdf: { getPage: async () => page }, Map, Math, String, Boolean,
+        fetch: async () => ({ ok: true, json: async () => recognized }),
+    })
+    vm.runInContext(`${pdf.slice(ocrStart, ocrEnd)}; ${pdf.slice(textStart, textEnd)}; ocrKey = 'a'.repeat(64)`, context)
+    assert.equal(await book.getPageText(0), 'some thing ')
+    recognized.joins = [0]
+    await book.refreshRecognizedText()
+    assert.equal(await book.getPageText(0), 'something ')
+})
+
 test('words recognised on a scanned page become pdf.js text items over their boxes, used only when the page has no text', async () => {
     const start = pdf.indexOf('let ocrKey = null')
     const end = pdf.indexOf('const finishTextLayer', start)

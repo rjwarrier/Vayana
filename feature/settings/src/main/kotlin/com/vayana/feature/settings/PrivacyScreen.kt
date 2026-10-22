@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -52,19 +53,24 @@ import com.vayana.core.designsystem.tokens.Radii
 import com.vayana.core.designsystem.tokens.Sizes
 import com.vayana.core.designsystem.tokens.Spacing
 import com.vayana.core.resources.R
+import com.vayana.format.ocr.OcrModel
+import java.util.Locale
 
 @Composable
 fun PrivacyRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: PrivacyViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    PrivacyScreen(state, onBack, viewModel::removeRecognizedText, modifier)
+    PrivacyScreen(state, onBack, viewModel::removeRecognizedText, modifier, viewModel::removeBookText, viewModel::removeModel)
 }
 
 private enum class Verdict { GOOD, WARN, UNKNOWN }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PrivacyScreen(state: PrivacyState?, onBack: () -> Unit, onRemoveRecognizedText: () -> Unit, modifier: Modifier = Modifier) {
+private fun PrivacyScreen(state: PrivacyState?, onBack: () -> Unit, onRemoveRecognizedText: () -> Unit, modifier: Modifier = Modifier,
+    onRemoveBook: (String) -> Unit, onRemoveModel: (OcrModel) -> Unit) {
+    var bookToRemove by remember { mutableStateOf<RecognizedBookStorage?>(null) }
+    var modelToRemove by remember { mutableStateOf<OcrModel?>(null) }
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -96,10 +102,65 @@ private fun PrivacyScreen(state: PrivacyState?, onBack: () -> Unit, onRemoveReco
         ) {
             item { SettingsContentContainer { StatusCard(state) } }
             item { SettingsContentContainer { StoredCard(state, onRemoveRecognizedText) } }
+            item { SettingsContentContainer {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(stringResource(R.string.ocr_storage_models), style = MaterialTheme.typography.titleMedium)
+                    if (state.recognitionModels.isEmpty()) Text(stringResource(R.string.privacy_stored_ocr_none))
+                    state.recognitionModels.forEach { entry ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(storageModelName(entry.model))
+                                Text(Formatter.formatShortFileSize(LocalContext.current, entry.bytes), style = MaterialTheme.typography.bodySmall)
+                                if (entry.busy) Text(stringResource(R.string.ocr_storage_in_use), style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(enabled = !state.storageBusy && !entry.busy, onClick = { modelToRemove = entry.model }) {
+                                Text(stringResource(R.string.ocr_storage_remove))
+                            }
+                        }
+                    }
+                    state.storageError?.let { Text(it.resolve(LocalContext.current.resources), color = MaterialTheme.colorScheme.error) }
+                    if (state.storageBusy) VayanaLoadingIndicator(Modifier.size(Sizes.icon))
+                }
+            } }
+            if (state.recognizedBooks.isNotEmpty()) {
+                item { SettingsContentContainer { Text(stringResource(R.string.ocr_storage_books), style = MaterialTheme.typography.titleMedium) } }
+                items(state.recognizedBooks, key = { it.hash }) { book -> SettingsContentContainer {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(book.title ?: stringResource(R.string.ocr_storage_unknown_book, book.hash.take(12)))
+                            Text(Formatter.formatShortFileSize(LocalContext.current, book.bytes), style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(enabled = !state.storageBusy, onClick = { bookToRemove = book }) { Text(stringResource(R.string.ocr_storage_remove)) }
+                    }
+                } }
+            }
             item { SettingsContentContainer { LeavesCard() } }
             item { SettingsContentContainer { NeverCard() } }
         }
     }
+    bookToRemove?.let { book ->
+        val name = book.title ?: stringResource(R.string.ocr_storage_unknown_book, book.hash.take(12))
+        StorageRemovalConfirmation(stringResource(R.string.ocr_storage_book_confirm, name), { bookToRemove = null }) {
+            bookToRemove = null; onRemoveBook(book.hash)
+        }
+    }
+    modelToRemove?.let { model ->
+        StorageRemovalConfirmation(stringResource(R.string.ocr_storage_model_confirm, storageModelName(model)), { modelToRemove = null }) {
+            modelToRemove = null; onRemoveModel(model)
+        }
+    }
+}
+
+@Composable private fun StorageRemovalConfirmation(text: String, dismiss: () -> Unit, remove: () -> Unit) {
+    AlertDialog(onDismissRequest = dismiss, text = { Text(text) },
+        confirmButton = { TextButton(onClick = remove) { Text(stringResource(R.string.ocr_storage_remove)) } },
+        dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.privacy_stored_ocr_keep)) } })
+}
+
+@Composable private fun storageModelName(model: OcrModel): String = when (model) {
+    OcrModel.MalayalamFast -> stringResource(R.string.ocr_model_malayalam)
+    OcrModel.MalayalamScript -> stringResource(R.string.ocr_model_mixed)
+    else -> Locale.forLanguageTag(model.textLanguage).getDisplayLanguage(Locale.getDefault())
 }
 
 @Composable
@@ -206,7 +267,7 @@ private fun RecognizedTextFact(state: PrivacyState, onRemove: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (state.recognizedTextBooks > 0) {
-            TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.privacy_stored_ocr_remove)) }
+            TextButton(enabled = !state.storageBusy, onClick = { confirming = true }) { Text(stringResource(R.string.privacy_stored_ocr_remove)) }
         }
     }
     if (confirming) {

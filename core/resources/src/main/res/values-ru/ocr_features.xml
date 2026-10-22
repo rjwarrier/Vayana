@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">Используется активным распознаванием или очередью</string>
+    <string name="ocr_model_malayalam">Малаялам</string>
+    <string name="ocr_model_mixed">Малаялам и английский</string>
+    <string name="offline_prepare_title">Подготовить офлайн</string>
+    <string name="offline_prepare_detail">Загрузки продолжаются после закрытия экрана. Распознавание PDF возобновляется с сохранённых страниц. Языковые модели загружаются по Wi-Fi.</string>
+    <string name="offline_prepare_recognize">Распознать выбранные PDF</string>
+    <string name="offline_prepare_wifi">Загружать книги только по Wi-Fi</string>
+    <string name="offline_prepare_start">Добавить выбранные книги в очередь</string>
+    <string name="offline_prepare_waiting">Ожидание сети, места или фоновой работы</string>
+    <string name="offline_prepare_recognizing">Распознавание текста</string>
+    <string name="offline_prepare_ready">Готово офлайн</string>
+    <string name="offline_prepare_cancelled">Отменено</string>
+    <string name="offline_prepare_empty">Запросов пока нет. Выберите книги в групповых действиях.</string>
+    <string name="ocr_storage_models">Установленные модели распознавания</string>
+    <string name="ocr_storage_model_category">Модели распознавания</string>
+    <string name="ocr_storage_text">Распознанный текст</string>
+    <string name="ocr_storage_books">Распознанный текст по книгам</string>
+    <string name="ocr_storage_remove">Удалить</string>
+    <string name="ocr_storage_book_confirm">Удалить распознанный текст книги %1$s? Для поиска, выделения и текстового вида потребуется повторное распознавание. Исходная книга, выделения и позиция чтения сохранятся.</string>
+    <string name="ocr_storage_model_confirm">Удалить модель распознавания %1$s? Уже распознанный текст сохранится. Для распознавания новых страниц модель потребуется загрузить снова.</string>
+    <string name="ocr_storage_error">Не удалось удалить данные. Остановите распознавание или офлайн-подготовку и повторите попытку.</string>
+    <string name="ocr_storage_unknown_book">Книга %1$s</string>
+</resources>

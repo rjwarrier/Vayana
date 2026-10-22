@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">Usato dal riconoscimento attivo o in coda</string>
+    <string name="ocr_model_malayalam">Malayalam</string>
+    <string name="ocr_model_mixed">Malayalam e inglese</string>
+    <string name="offline_prepare_title">Prepara offline</string>
+    <string name="offline_prepare_detail">I download continuano dopo aver lasciato questa schermata. Il riconoscimento PDF facoltativo riprende dalle pagine salvate. I modelli linguistici vengono scaricati tramite Wi-Fi.</string>
+    <string name="offline_prepare_recognize">Riconosci i PDF selezionati</string>
+    <string name="offline_prepare_wifi">Scarica libri solo tramite Wi-Fi</string>
+    <string name="offline_prepare_start">Accoda i libri selezionati</string>
+    <string name="offline_prepare_waiting">In attesa di rete, spazio o attività in background</string>
+    <string name="offline_prepare_recognizing">Riconoscimento del testo</string>
+    <string name="offline_prepare_ready">Pronto offline</string>
+    <string name="offline_prepare_cancelled">Annullato</string>
+    <string name="offline_prepare_empty">Nessuna richiesta. Seleziona libri nelle azioni multiple.</string>
+    <string name="ocr_storage_models">Modelli di riconoscimento installati</string>
+    <string name="ocr_storage_model_category">Modelli di riconoscimento</string>
+    <string name="ocr_storage_text">Testo riconosciuto</string>
+    <string name="ocr_storage_books">Testo riconosciuto per libro</string>
+    <string name="ocr_storage_remove">Rimuovi</string>
+    <string name="ocr_storage_book_confirm">Rimuovere il testo riconosciuto di %1$s? Ricerca, selezione e vista Testo richiederanno un nuovo riconoscimento. Il libro originale, le evidenziazioni e la posizione di lettura restano invariati.</string>
+    <string name="ocr_storage_model_confirm">Rimuovere il modello di riconoscimento %1$s? Il testo già riconosciuto viene conservato. Il modello dovrà essere scaricato di nuovo per riconoscere altre pagine.</string>
+    <string name="ocr_storage_error">Impossibile rimuovere questi dati. Interrompi il riconoscimento o la preparazione offline e riprova.</string>
+    <string name="ocr_storage_unknown_book">Libro %1$s</string>
+</resources>

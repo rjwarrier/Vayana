@@ -3069,7 +3069,7 @@ class LibraryViewModel @Inject constructor(
     }
 }
 
-private fun Book.fileAssetReference(): CloudAssetReference? {
+internal fun Book.fileAssetReference(): CloudAssetReference? {
     val assetId = fileAssetId?.takeIf { it.isNotBlank() } ?: return null
     val assetSha256 = fileAssetSha256?.takeIf { it.isNotBlank() } ?: return null
     val assetSizeBytes = fileAssetSizeBytes ?: return null

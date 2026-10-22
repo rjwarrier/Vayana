@@ -8,6 +8,19 @@ import kotlin.test.assertEquals
 class DeviceStorageTest {
     private fun File.file(path: String, bytes: Int) = File(this, path).apply { parentFile.mkdirs(); writeBytes(ByteArray(bytes)) }
 
+    @Test fun recognitionModelsAndTextHaveTheirOwnCategories() {
+        val root = createTempDirectory("ocr-storage").toFile()
+        try {
+            root.file("ocr-models/tessdata/eng.traineddata", 20)
+            root.file("ocr/hash/page.json", 10)
+            val storage = measureDeviceStorage(listOf(root), listOf(
+                StorageRule(File(root, "ocr-models"), StorageCategory.OCR_MODELS),
+                StorageRule(File(root, "ocr"), StorageCategory.RECOGNIZED_TEXT)))
+            assertEquals(listOf(CategorySize(StorageCategory.OCR_MODELS, 20), CategorySize(StorageCategory.RECOGNIZED_TEXT, 10)), storage.categories)
+            assertEquals(30L, storage.totalBytes)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test
     fun filesEachFileUnderItsMostSpecificRuleAndTheRestUnderOther() {
         val data = createTempDirectory("storage-data").toFile()

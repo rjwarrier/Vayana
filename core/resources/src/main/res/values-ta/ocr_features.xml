@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">நடப்பு அல்லது வரிசையிலுள்ள எழுத்துணர்வுக்குத் தேவை</string>
+    <string name="ocr_model_malayalam">மலையாளம்</string>
+    <string name="ocr_model_mixed">மலையாளம் மற்றும் ஆங்கிலம்</string>
+    <string name="offline_prepare_title">ஆஃப்லைனில் தயார்செய்</string>
+    <string name="offline_prepare_detail">இந்தத் திரையை விட்டு வெளியேறினாலும் பதிவிறக்கங்கள் தொடரும். PDF எழுத்துணர்வு சேமித்த பக்கங்களிலிருந்து தொடரும். மொழி மாதிரிகள் Wi-Fi வழியாகப் பதிவிறக்கப்படும்.</string>
+    <string name="offline_prepare_recognize">தேர்ந்தெடுத்த PDF-களின் எழுத்துகளை உணர்</string>
+    <string name="offline_prepare_wifi">Wi-Fi வழியாக மட்டும் புத்தகங்களைப் பதிவிறக்கு</string>
+    <string name="offline_prepare_start">தேர்ந்தெடுத்த புத்தகங்களை வரிசையில் சேர்</string>
+    <string name="offline_prepare_waiting">பிணையம், சேமிப்பிடம் அல்லது பின்னணிப் பணிக்காகக் காத்திருக்கிறது</string>
+    <string name="offline_prepare_recognizing">எழுத்துகளை உணர்கிறது</string>
+    <string name="offline_prepare_ready">ஆஃப்லைனில் தயார்</string>
+    <string name="offline_prepare_cancelled">ரத்துசெய்யப்பட்டது</string>
+    <string name="offline_prepare_empty">கோரிக்கைகள் இல்லை. மொத்தச் செயல்களில் புத்தகங்களைத் தேர்ந்தெடுக்கவும்.</string>
+    <string name="ocr_storage_models">நிறுவப்பட்ட எழுத்துணர்வு மாதிரிகள்</string>
+    <string name="ocr_storage_model_category">எழுத்துணர்வு மாதிரிகள்</string>
+    <string name="ocr_storage_text">உணரப்பட்ட உரை</string>
+    <string name="ocr_storage_books">புத்தகவாரியான உணரப்பட்ட உரை</string>
+    <string name="ocr_storage_remove">அகற்று</string>
+    <string name="ocr_storage_book_confirm">%1$s புத்தகத்தின் உணரப்பட்ட உரையை அகற்றவா? தேடல், தேர்வு, உரைக் காட்சி ஆகியவற்றிற்கு மீண்டும் எழுத்துணர்வு தேவை. அசல் புத்தகம், சிறப்பித்தல்கள், வாசிப்பிடம் ஆகியவை தக்கவைக்கப்படும்.</string>
+    <string name="ocr_storage_model_confirm">%1$s எழுத்துணர்வு மாதிரியை அகற்றவா? ஏற்கெனவே உணரப்பட்ட உரை தக்கவைக்கப்படும். மேலும் பக்கங்களை உணர மாதிரியை மீண்டும் பதிவிறக்க வேண்டும்.</string>
+    <string name="ocr_storage_error">இந்தத் தரவை அகற்ற முடியவில்லை. எழுத்துணர்வு அல்லது ஆஃப்லைன் தயாரிப்பை நிறுத்தி மீண்டும் முயலவும்.</string>
+    <string name="ocr_storage_unknown_book">புத்தகம் %1$s</string>
+</resources>

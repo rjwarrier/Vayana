@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.work.Constraints
+import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -13,14 +14,18 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import androidx.work.await
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -46,7 +51,7 @@ object BookRecognition {
      * [startPage] outwards. A job already running for the book is left alone. Waits for Wi-Fi if the model must
      * be downloaded first.
      */
-    fun start(
+    suspend fun start(
         context: Context,
         pdf: File,
         book: String,
@@ -54,13 +59,14 @@ object BookRecognition {
         startPage: Int,
         pages: IntArray? = null,
         title: String? = null,
-    ) {
+    ) = RecognitionAccess.models.withLock {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
             .setRequiredNetworkType(if (models(context).isInstalled(model)) NetworkType.NOT_REQUIRED else NetworkType.UNMETERED)
             .build()
         val request = OneTimeWorkRequestBuilder<BookRecognitionWorker>()
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
             .setConstraints(constraints)
             .setInputData(workDataOf(
                 KeyPdf to pdf.absolutePath,
@@ -71,9 +77,12 @@ object BookRecognition {
                 KeyTitle to title,
             ))
             .addTag(Tag)
+            .addTag(bookTag(book))
+            .addTag(modelTag(model))
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(workName(book), ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniqueWork(workName(book), ExistingWorkPolicy.KEEP, request).await()
         runCatching { File(context.filesDir, LastModelFile).writeText(model.id) }
+        Unit
     }
 
     fun stop(context: Context, book: String) {
@@ -85,10 +94,60 @@ object BookRecognition {
         WorkManager.getInstance(context).cancelAllWorkByTag(Tag)
     }
 
+    fun jobs(context: Context): Flow<List<WorkInfo>> = WorkManager.getInstance(context).getWorkInfosByTagFlow(Tag)
+    fun bookTag(book: String) = "ocr-book:$book"
+    fun modelTag(model: OcrModel) = "ocr-model:${model.id}"
+    fun preparationTag(book: String) = "prepare-ocr:$book"
+    const val PreparationTag = "vayana-prepare-ocr"
+
+    suspend fun remove(context: Context, book: String) {
+        val manager = WorkManager.getInstance(context)
+        manager.cancelAllWorkByTag(preparationTag(book)).await()
+        manager.cancelUniqueWork(workName(book)).await()
+        RecognitionAccess.book(book) { store(context).delete(book) }
+    }
+
+    suspend fun removeAll(context: Context) {
+        val manager = WorkManager.getInstance(context)
+        manager.cancelAllWorkByTag(PreparationTag).await()
+        manager.cancelAllWorkByTag(Tag).await()
+        val store = store(context)
+        (RecognitionAccess.knownBooks() + store.bookUsage().keys).forEach { book ->
+            RecognitionAccess.book(book) { store.delete(book) }
+        }
+    }
+
+    /** Pending jobs and engines already stopping both protect their model. Enqueue uses the same lock. */
+    suspend fun removeModel(context: Context, model: OcrModel): Boolean = RecognitionAccess.models.withLock {
+        val busy = WorkManager.getInstance(context).getWorkInfosByTagFlow(modelTag(model)).first().any { !it.state.isFinished } ||
+            jobs(context).first().any { !it.state.isFinished && it.tags.none { tag -> tag.startsWith("ocr-model:") } }
+        if (busy || RecognitionAccess.modelBusy(model)) false else models(context).remove(model)
+    }
+
+    /** Older recognized books are finalized lazily by the reader, using the same ownership as worker/cleanup. */
+    suspend fun finishTextIfComplete(context: Context, book: String, totalPages: Int, title: String, author: String?) =
+        RecognitionAccess.book(book) {
+            val store = store(context)
+            val pages = store.savedPages(book)
+            if (totalPages > 0 && pages.size >= totalPages) {
+                val addJoins = !store.hasLineJoins(book)
+                if (addJoins) store.saveLineJoins(book)
+                if (addJoins || store.textEpub(book) == null) {
+                    val language = (OcrModel.byId(pages.firstOrNull()?.let { store.model(book, it) }) ?: OcrModel.MalayalamFast).textLanguage
+                    store.buildTextEpub(book, title, author, language)
+                }
+            }
+        }
+
     /** The book's running or last job, or null when it never had one. */
-    fun progress(context: Context, book: String): Flow<RecognitionProgress?> =
+    fun jobInfo(context: Context, book: String): Flow<WorkInfo?> =
         WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(workName(book)).map { infos ->
-            val info = infos.lastOrNull() ?: return@map null
+            infos.lastOrNull()
+        }
+
+    fun progress(context: Context, book: String): Flow<RecognitionProgress?> =
+        jobInfo(context, book).map { info ->
+            info ?: return@map null
             val data = if (info.state.isFinished) info.outputData else info.progress
             RecognitionProgress(
                 done = data.getInt(KeyDone, 0),
@@ -116,11 +175,17 @@ class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : Co
         val pdf = inputData.getString(BookRecognition.KeyPdf)?.let(::File)?.takeIf { it.isFile } ?: return@withContext Result.failure()
         val book = inputData.getString(BookRecognition.KeyBook) ?: return@withContext Result.failure()
         val model = OcrModel.byId(inputData.getString(BookRecognition.KeyModel)) ?: return@withContext Result.failure()
+        if (!RecognitionAccess.engines.tryAcquire()) return@withContext Result.retry()
+        try { RecognitionAccess.book(book) { RecognitionAccess.model(model) { recognize(pdf, book, model) } } }
+        finally { RecognitionAccess.engines.release() }
+    }
+
+    private suspend fun recognize(pdf: File, book: String, model: OcrModel): Result {
         val models = BookRecognition.models(applicationContext)
         try {
             models.download(model)
         } catch (_: IOException) {
-            return@withContext Result.retry()
+            return Result.retry()
         }
         val store = BookRecognition.store(applicationContext)
         val pageCount = openRenderer(pdf) { it.pageCount }
@@ -152,12 +217,12 @@ class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : Co
         } finally {
             notification.cancel()
         }
-        if (isStopped) return@withContext Result.retry()
+        if (isStopped) return Result.retry()
         // The whole book is known now: words broken across lines can be told from separate ones.
         store.saveLineJoins(book)
         // the text view: the book as running text
         runCatching { store.buildTextEpub(book, inputData.getString(BookRecognition.KeyTitle).orEmpty(), null, model.textLanguage) }
-        Result.success(progressData(done.get(), pages.size))
+        return Result.success(progressData(done.get(), pages.size))
     }
 
     // Two engines where there is memory to spare: ~0.7 s a page instead of ~1.1 s on a recent phone.

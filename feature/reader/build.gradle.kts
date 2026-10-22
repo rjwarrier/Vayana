@@ -21,4 +21,6 @@ dependencies {
     implementation(project(":dictionary:online"))
     testImplementation(kotlin("test"))
     testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation(project(":core:diagnostics"))
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -2173,11 +2173,11 @@
     <string name="photo_no_books">Add a physical book before saving a photo highlight.</string>
     <string name="photo_page_title">Page %1$d</string>
     <string name="search_contents">Book contents</string>
-    <string name="search_indexing">Indexing EPUB contents… %1$d of %2$d</string>
-    <string name="search_index_errors">%1$d EPUB files could not be indexed.</string>
+    <string name="search_indexing">Indexing book contents… %1$d of %2$d</string>
+    <string name="search_index_errors">%1$d book files could not be indexed.</string>
     <string name="search_index_retry">Retry indexing</string>
     <string name="search_contents_empty">No indexed passages match this search.</string>
-    <string name="search_index_hint">Contents are indexed locally from downloaded EPUBs.</string>
+    <string name="search_index_hint">Contents are indexed locally from downloaded EPUBs and PDF text whose recognition has finished.</string>
     <string name="feature_action_failed">Could not save this change. Please try again.</string>
     <string name="privacy_stored_ocr">Text recognized from scanned books</string>
     <string name="privacy_stored_ocr_detail">Books: %1$d · Space: %2$s, in Vayana’s private storage. A book’s text goes when the book is deleted; its reader settings can remove it too.</string>

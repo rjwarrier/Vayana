@@ -5,6 +5,8 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /**
@@ -65,7 +67,20 @@ enum class OcrModel(
  * and with the expected SHA-256; anything else is deleted.
  */
 class OcrModelFiles(val dataPath: File) {
+    init {
+        // Process death skips the installer's finally; leave recent partials for other books still downloading.
+        val cutoff = System.currentTimeMillis() - PartialMaxAgeMillis
+        File(dataPath, "tessdata").listFiles().orEmpty()
+            .filter { it.isFile && it.name.endsWith(".part") && it.lastModified() < cutoff }
+            .forEach { it.delete() }
+    }
+
     fun isInstalled(model: OcrModel): Boolean = file(model).length() == model.sizeBytes
+
+    fun installedBytes(model: OcrModel): Long = file(model).takeIf { it.isFile }?.length() ?: 0L
+
+    /** Call through BookRecognition.removeModel so a queued/active worker cannot lose its model. */
+    internal fun remove(model: OcrModel): Boolean = (!file(model).exists() || file(model).delete()).also { if (it) OcrStore.changed() }
 
     /** Downloads [model] unless it is already installed. Throws on a network error or a file that doesn't match. */
     fun download(model: OcrModel) {
@@ -83,19 +98,23 @@ class OcrModelFiles(val dataPath: File) {
     }
 
     /** Writes [source] as [model]'s file if its size and SHA-256 match; otherwise throws and leaves nothing behind. */
-    fun install(model: OcrModel, source: InputStream) = installVerified(source, model.id, model.sizeBytes, model.sha256, file(model))
+    fun install(model: OcrModel, source: InputStream) {
+        installVerified(source, model.id, model.sizeBytes, model.sha256, file(model))
+        OcrStore.changed()
+    }
 
     private fun file(model: OcrModel) = File(File(dataPath, "tessdata"), "${model.language}.traineddata")
 
     private companion object {
         const val TimeoutMillis = 30_000
+        const val PartialMaxAgeMillis = 24 * 60 * 60 * 1000L
     }
 }
 
 /** Writes [source] to [target] only if it is exactly [sizeBytes] long with this [sha256]; nothing is left otherwise. */
 internal fun installVerified(source: InputStream, name: String, sizeBytes: Long, sha256: String, target: File) {
     target.parentFile?.mkdirs()
-    val partial = File(target.parentFile, "${target.name}.part")
+    val partial = File.createTempFile("${target.name}.", ".part", target.absoluteFile.parentFile)
     val digest = MessageDigest.getInstance("SHA-256")
     var length = 0L
     try {
@@ -112,7 +131,7 @@ internal fun installVerified(source: InputStream, name: String, sizeBytes: Long,
         }
         val actual = digest.digest().joinToString("") { "%02x".format(it) }
         if (length != sizeBytes || actual != sha256) throw IOException("$name does not match its pinned SHA-256")
-        if (!partial.renameTo(target)) throw IOException("Could not install $name")
+        Files.move(partial.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
     } finally {
         partial.delete()
     }

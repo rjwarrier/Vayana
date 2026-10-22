@@ -246,7 +246,10 @@ fun LibraryRoute(
                 }
                 LibraryTool.BULK -> {
                     val shelves by viewModel.shelves.collectAsStateWithLifecycle()
-                    BulkBooksDialog(uiState.books, shelves, viewModel::bulkAction, dismiss)
+                    var preparing by remember { mutableStateOf<Set<Long>?>(null) }
+                    val selected = preparing
+                    if (selected != null) OfflinePreparationDialog(uiState.books, selected, { preparing = null }, open)
+                    else BulkBooksDialog(uiState.books, shelves, viewModel::bulkAction, dismiss, { preparing = it })
                 }
             }
         },

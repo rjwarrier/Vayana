@@ -613,6 +613,8 @@ private fun Context.storageRules(libraryRoot: File): List<StorageRule> {
         StorageRule(File(libraryRoot, "covers"), StorageCategory.COVERS),
         StorageRule(File(libraryRoot, "fonts"), StorageCategory.FONTS),
         StorageRule(File(filesDir, "dictionaries"), StorageCategory.DICTIONARY),
+        StorageRule(File(filesDir, "ocr-models"), StorageCategory.OCR_MODELS),
+        StorageRule(File(filesDir, "ocr"), StorageCategory.RECOGNIZED_TEXT),
         // Notes, quotes, reading history and sync state are rows in the database; settings sit beside it.
         databases?.let { StorageRule(it, StorageCategory.LIBRARY_DATA) },
         StorageRule(File(filesDir, "datastore"), StorageCategory.LIBRARY_DATA),

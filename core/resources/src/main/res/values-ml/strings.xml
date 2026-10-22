@@ -2170,11 +2170,11 @@
     <string name="photo_no_books">ഫോട്ടോ അടയാളം സംരക്ഷിക്കുന്നതിന് മുമ്പ് ഒരു അച്ചടിച്ച പുസ്തകം ചേർക്കുക.</string>
     <string name="photo_page_title">പേജ് %1$d</string>
     <string name="search_contents">പുസ്തക ഉള്ളടക്കം</string>
-    <string name="search_indexing">EPUB ഉള്ളടക്കം സൂചികയാക്കുന്നു… %2$d-ൽ %1$d</string>
-    <string name="search_index_errors">%1$d EPUB ഫയലുകൾ സൂചികയാക്കാനായില്ല.</string>
+    <string name="search_indexing">പുസ്തക ഉള്ളടക്കം സൂചികയാക്കുന്നു… %2$d-ൽ %1$d</string>
+    <string name="search_index_errors">%1$d പുസ്തക ഫയലുകൾ സൂചികയാക്കാനായില്ല.</string>
     <string name="search_index_retry">സൂചികയാക്കൽ വീണ്ടും ശ്രമിക്കുക</string>
     <string name="search_contents_empty">ഈ തിരയലിന് യോജിക്കുന്ന സൂചികയാക്കിയ ഭാഗങ്ങളില്ല.</string>
-    <string name="search_index_hint">ഡൗൺലോഡ് ചെയ്ത EPUB-കളിൽ നിന്ന് ഉള്ളടക്കം ഉപകരണത്തിൽ തന്നെ സൂചികയാക്കുന്നു.</string>
+    <string name="search_index_hint">ഡൗൺലോഡ് ചെയ്ത EPUB-കളുടെയും തിരിച്ചറിയൽ പൂർത്തിയായ PDF-കളുടെയും ഉള്ളടക്കം ഉപകരണത്തിൽ തന്നെ സൂചികയാക്കുന്നു.</string>
     <string name="feature_action_failed">ഈ മാറ്റം സംരക്ഷിക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക.</string>
     <string name="privacy_stored_ocr">സ്കാൻ ചെയ്ത പുസ്തകങ്ങളിൽനിന്ന് തിരിച്ചറിഞ്ഞ ടെക്സ്റ്റ്</string>
     <string name="privacy_stored_ocr_detail">%1$d പുസ്തകങ്ങൾ, %2$s, Vayana-യുടെ സ്വകാര്യ സംഭരണത്തിൽ. പുസ്തകം കളയുമ്പോൾ അതിന്റെ ടെക്സ്റ്റും പോകും; വായനാ ക്രമീകരണങ്ങളിൽനിന്നും നീക്കാം.</string>

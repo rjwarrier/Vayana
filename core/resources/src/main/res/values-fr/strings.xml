@@ -2197,11 +2197,11 @@
     <string name="photo_no_books">Ajoutez un livre papier avant d\'enregistrer un surlignage depuis une photo.</string>
     <string name="photo_page_title">Page %1$d</string>
     <string name="search_contents">Contenu des livres</string>
-    <string name="search_indexing">Indexation du contenu EPUB… %1$d sur %2$d</string>
-    <string name="search_index_errors">%1$d fichiers EPUB n\'ont pas pu être indexés.</string>
+    <string name="search_indexing">Indexation du contenu des livres… %1$d sur %2$d</string>
+    <string name="search_index_errors">%1$d fichiers de livres n’ont pas pu être indexés.</string>
     <string name="search_index_retry">Relancer l\'indexation</string>
     <string name="search_contents_empty">Aucun passage indexé ne correspond à cette recherche.</string>
-    <string name="search_index_hint">Le contenu est indexé localement à partir des EPUB téléchargés.</string>
+    <string name="search_index_hint">Le contenu est indexé localement depuis les EPUB téléchargés et les PDF dont la reconnaissance est terminée.</string>
     <string name="feature_action_failed">Impossible d\'enregistrer cette modification. Réessayez.</string>
     <string name="privacy_stored_ocr">Texte reconnu dans les livres scannés</string>
     <string name="privacy_stored_ocr_detail">Livres : %1$d · Espace : %2$s, dans le stockage privé de Vayana. Le texte d’un livre disparaît avec le livre ; ses réglages de lecture permettent aussi de le supprimer.</string>

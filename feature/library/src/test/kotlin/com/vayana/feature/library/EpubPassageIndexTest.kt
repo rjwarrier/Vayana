@@ -43,6 +43,27 @@ class EpubPassageIndexTest {
         assertEquals(0, count("SELECT count(*) FROM epub_passages_fts_content"))
     }
 
+    @Test fun recognizedPdfHitsKeepTheirPageAndReplaceTheirRevision() = runBlocking {
+        val id = epub("Scan", "pdf-hash")
+        db.openHelper.writableDatabase.execSQL("UPDATE books SET format = 'PDF' WHERE id = $id")
+        val dao = db.epubPassageDao()
+        val text = "മലയാളം river"
+        dao.replace(id, "pdf-hash:ocr:first", sequenceOf(EpubChapterText("epubcfi(/6/16)", "8", text, listOf(text.indices))))
+        val hit = dao.search("river*", 10).first().single()
+        assertEquals(1, dao.search("മലയാളം*", 10).first().size)
+        assertEquals("epubcfi(/6/16)", hit.chapterHref)
+        assertEquals("pdf-hash:ocr:first", dao.indexedFiles().single().fileHash)
+        dao.discardUnavailable()
+        assertEquals(1, dao.search("river*", 10).first().size)
+        dao.replace(id, "pdf-hash:ocr:second", sequenceOf(chapter("new mountain")))
+        assertTrue(dao.search("river*", 10).first().isEmpty())
+        assertEquals(1, dao.search("mountain*", 10).first().size)
+        db.openHelper.writableDatabase.execSQL("UPDATE books SET fileHash = 'replacement' WHERE id = $id")
+        dao.discardUnavailable()
+        assertTrue(dao.search("mountain*", 10).first().isEmpty())
+        assertIndexMatchesPassages()
+    }
+
     @Test fun reindexingABookForgetsItsOldWords() = runBlocking {
         val id = epub("Book")
         val dao = db.epubPassageDao()

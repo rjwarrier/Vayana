@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">Für laufende oder wartende Erkennung benötigt</string>
+    <string name="ocr_model_malayalam">Malayalam</string>
+    <string name="ocr_model_mixed">Malayalam und Englisch</string>
+    <string name="offline_prepare_title">Offline vorbereiten</string>
+    <string name="offline_prepare_detail">Downloads laufen weiter, wenn du diese Ansicht verlässt. Die optionale PDF-Texterkennung setzt bei gespeicherten Seiten fort. Sprachmodelle werden über WLAN geladen.</string>
+    <string name="offline_prepare_recognize">Ausgewählte PDFs erkennen</string>
+    <string name="offline_prepare_wifi">Bücher nur über WLAN laden</string>
+    <string name="offline_prepare_start">Ausgewählte Bücher einreihen</string>
+    <string name="offline_prepare_waiting">Wartet auf Netzwerk, Speicher oder Hintergrundarbeit</string>
+    <string name="offline_prepare_recognizing">Text wird erkannt</string>
+    <string name="offline_prepare_ready">Offline bereit</string>
+    <string name="offline_prepare_cancelled">Abgebrochen</string>
+    <string name="offline_prepare_empty">Noch keine Aufträge. Wähle Bücher unter Mehrfachaktionen aus.</string>
+    <string name="ocr_storage_models">Installierte Erkennungsmodelle</string>
+    <string name="ocr_storage_model_category">Erkennungsmodelle</string>
+    <string name="ocr_storage_text">Erkannter Text</string>
+    <string name="ocr_storage_books">Erkannter Text nach Buch</string>
+    <string name="ocr_storage_remove">Entfernen</string>
+    <string name="ocr_storage_book_confirm">Erkannten Text für %1$s entfernen? Suche, Auswahl und Textansicht benötigen eine erneute Erkennung. Originalbuch, Markierungen und Leseposition bleiben erhalten.</string>
+    <string name="ocr_storage_model_confirm">Erkennungsmodell %1$s entfernen? Bereits erkannter Text bleibt erhalten. Vor der nächsten Erkennung muss das Modell erneut geladen werden.</string>
+    <string name="ocr_storage_error">Diese Daten konnten nicht entfernt werden. Beende aktive Erkennung oder Offline-Vorbereitung und versuche es erneut.</string>
+    <string name="ocr_storage_unknown_book">Buch %1$s</string>
+</resources>

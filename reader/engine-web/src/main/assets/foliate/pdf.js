@@ -535,7 +535,7 @@ export const makePDF = async file => {
     book.refreshRecognizedText = async () => {
         if (!ocrKey) return
         recognizedPages.clear()
-        for (const [index, text] of pageTexts) if (!(await text.catch(() => ''))?.trim()) pageTexts.delete(index)
+        pageTexts.clear()
         for (const [doc, { page, viewport }] of textLayerDocs) {
             if (!doc.defaultView) {
                 textLayerDocs.delete(doc)

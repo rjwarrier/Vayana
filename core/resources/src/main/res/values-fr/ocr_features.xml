@@ -1,0 +1,24 @@
+<resources>
+    <string name="ocr_storage_in_use">Utilisé par une reconnaissance en cours ou en attente</string>
+    <string name="ocr_model_malayalam">Malayalam</string>
+    <string name="ocr_model_mixed">Malayalam et anglais</string>
+    <string name="offline_prepare_title">Préparer hors connexion</string>
+    <string name="offline_prepare_detail">Les téléchargements continuent après avoir quitté cet écran. La reconnaissance PDF reprend à partir des pages enregistrées. Les modèles de langue sont téléchargés en Wi-Fi.</string>
+    <string name="offline_prepare_recognize">Reconnaître les PDF sélectionnés</string>
+    <string name="offline_prepare_wifi">Télécharger les livres en Wi-Fi uniquement</string>
+    <string name="offline_prepare_start">Mettre les livres sélectionnés en file</string>
+    <string name="offline_prepare_waiting">En attente du réseau, d’espace ou de tâches en arrière-plan</string>
+    <string name="offline_prepare_recognizing">Reconnaissance du texte</string>
+    <string name="offline_prepare_ready">Disponible hors connexion</string>
+    <string name="offline_prepare_cancelled">Annulé</string>
+    <string name="offline_prepare_empty">Aucune demande. Sélectionnez des livres dans les actions groupées.</string>
+    <string name="ocr_storage_models">Modèles de reconnaissance installés</string>
+    <string name="ocr_storage_model_category">Modèles de reconnaissance</string>
+    <string name="ocr_storage_text">Texte reconnu</string>
+    <string name="ocr_storage_books">Texte reconnu par livre</string>
+    <string name="ocr_storage_remove">Supprimer</string>
+    <string name="ocr_storage_book_confirm">Supprimer le texte reconnu de %1$s ? La recherche, la sélection et la vue Texte nécessiteront une nouvelle reconnaissance. Le livre original, les surlignages et la position de lecture sont conservés.</string>
+    <string name="ocr_storage_model_confirm">Supprimer le modèle de reconnaissance %1$s ? Le texte déjà reconnu est conservé. Le modèle devra être téléchargé à nouveau pour reconnaître d’autres pages.</string>
+    <string name="ocr_storage_error">Impossible de supprimer ces données. Arrêtez la reconnaissance ou la préparation hors connexion, puis réessayez.</string>
+    <string name="ocr_storage_unknown_book">Livre %1$s</string>
+</resources>

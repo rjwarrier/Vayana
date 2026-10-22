@@ -29,6 +29,7 @@ object Sizes {
     val statusBarHeight = 44.dp
 
     val contentMaxWidth = 600.dp
+    val offlinePreparationDialogMaxHeight = 480.dp
 
     /**
      * A tablet list pane can be compact even when the full window is wide. Below this width,

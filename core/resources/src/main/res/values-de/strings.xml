@@ -2170,11 +2170,11 @@
     <string name="photo_no_books">Füge ein gedrucktes Buch hinzu, bevor du eine Foto-Markierung speicherst.</string>
     <string name="photo_page_title">Seite %1$d</string>
     <string name="search_contents">Buchinhalte</string>
-    <string name="search_indexing">EPUB-Inhalte werden indexiert… %1$d von %2$d</string>
-    <string name="search_index_errors">%1$d EPUB-Dateien konnten nicht indexiert werden.</string>
+    <string name="search_indexing">Buchinhalte werden indexiert… %1$d von %2$d</string>
+    <string name="search_index_errors">%1$d Buchdateien konnten nicht indexiert werden.</string>
     <string name="search_index_retry">Indexierung wiederholen</string>
     <string name="search_contents_empty">Keine indexierten Passagen passen zu dieser Suche.</string>
-    <string name="search_index_hint">Inhalte werden lokal aus heruntergeladenen EPUBs indexiert.</string>
+    <string name="search_index_hint">Inhalte heruntergeladener EPUBs und fertig erkannter PDF-Texte werden lokal indexiert.</string>
     <string name="feature_action_failed">Diese Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.</string>
     <string name="privacy_stored_ocr">Aus gescannten Büchern erkannter Text</string>
     <string name="privacy_stored_ocr_detail">Bücher: %1$d · Speicher: %2$s, in Vayanas privatem Speicher. Der Text eines Buchs verschwindet mit dem Buch; er lässt sich auch in dessen Leseeinstellungen entfernen.</string>

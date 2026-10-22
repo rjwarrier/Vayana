@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.Flow
 data class IndexedEpubFile(val bookId: Long, val fileHash: String)
 
 /** [filePath] is root-relative, as stored. */
-data class LocalEpubFile(val bookId: Long, val fileHash: String, val filePath: String)
+data class LocalEpubFile(val bookId: Long, val fileHash: String, val filePath: String, val format: String = "EPUB")
 
 /** A chapter to index, with the `[start, end]` stretches of [text] that become searchable passages. */
 class EpubChapterText(val href: String, val title: String, val text: String, val passages: List<IntRange>)
@@ -43,12 +43,12 @@ class ChapterPassage(val id: Long, val startOffset: Int, val endOffset: Int)
  */
 @Dao
 abstract class EpubPassageDao {
-    @Query("SELECT b.id AS bookId, b.fileHash FROM books b WHERE b.isDeleted = 0 AND b.format = 'EPUB' AND b.fileAvailability = 'LOCAL' AND EXISTS (SELECT 1 FROM epub_chapters c WHERE c.bookId = b.id AND c.fileHash = b.fileHash)")
+    @Query("SELECT DISTINCT c.bookId, c.fileHash FROM epub_chapters c JOIN books b ON b.id = c.bookId WHERE b.isDeleted = 0 AND b.fileAvailability = 'LOCAL' AND " + CurrentContentSource)
     abstract suspend fun indexedFiles(): List<IndexedEpubFile>
 
-    // Only the three columns the index needs: this is watched for the app's lifetime and books change on every
+    // Only the columns the index needs: this is watched for the app's lifetime and books change on every
     // reading-progress write.
-    @Query("SELECT id AS bookId, fileHash, filePath FROM books WHERE isDeleted = 0 AND format = 'EPUB' AND fileAvailability = 'LOCAL' AND filePath != '' ORDER BY createdAt DESC")
+    @Query("SELECT id AS bookId, fileHash, filePath, format FROM books WHERE isDeleted = 0 AND format IN ('EPUB', 'PDF') AND fileAvailability = 'LOCAL' AND filePath != '' ORDER BY createdAt DESC")
     abstract fun observeLocalEpubFiles(): Flow<List<LocalEpubFile>>
 
     @Query("SELECT EXISTS(SELECT 1 FROM epub_chapters WHERE bookId = :bookId AND fileHash = :hash)")
@@ -90,7 +90,7 @@ abstract class EpubPassageDao {
         deleteChapters(bookId)
     }
 
-    /** Drops the index of books that are gone, no longer local EPUBs, or whose file changed since indexing. */
+    /** Drops the index of books that are gone, no longer local EPUBs/PDFs, or whose source file changed. */
     @Transaction
     open suspend fun discardUnavailable() {
         staleBookIds().forEach { deleteForBook(it) }
@@ -110,7 +110,7 @@ abstract class EpubPassageDao {
         ids.distinct().chunked(MaxBoundIds).flatMap { chapterBlobs(it) }
             .associate { it.id to EpubPassageIndex.decompress(it.compressedText) }
 
-    @Query("SELECT DISTINCT c.bookId FROM epub_chapters c LEFT JOIN books b ON b.id = c.bookId WHERE b.id IS NULL OR b.isDeleted != 0 OR b.format != 'EPUB' OR b.fileAvailability != 'LOCAL' OR b.fileHash != c.fileHash")
+    @Query("SELECT DISTINCT c.bookId FROM epub_chapters c LEFT JOIN books b ON b.id = c.bookId WHERE b.id IS NULL OR b.isDeleted != 0 OR b.fileAvailability != 'LOCAL' OR NOT " + CurrentContentSource)
     protected abstract suspend fun staleBookIds(): List<Long>
 
     @Insert
@@ -154,8 +154,12 @@ abstract class EpubPassageDao {
         const val SearchSql = "SELECT p.id, c.bookId, p.chapterId, c.href AS chapterHref, c.title AS chapterTitle, " +
             "p.startOffset, p.endOffset FROM epub_passages_fts f JOIN epub_passages p ON p.id = f.docid " +
             "JOIN epub_chapters c ON c.id = p.chapterId JOIN books b ON b.id = c.bookId " +
-            "WHERE epub_passages_fts MATCH ? AND b.isDeleted = 0 AND b.fileAvailability = 'LOCAL' AND b.format = 'EPUB' " +
-            "AND b.fileHash = c.fileHash AND (? IS NULL OR b.id = ?) " +
+            "WHERE epub_passages_fts MATCH ? AND b.isDeleted = 0 AND b.fileAvailability = 'LOCAL' " +
+            "AND " + CurrentContentSource + " AND (? IS NULL OR b.id = ?) " +
             "AND (? IS NULL OR EXISTS (SELECT 1 FROM book_shelf_cross_ref s WHERE s.bookId = b.id AND s.shelfId = ?)) ORDER BY b.lastReadAt DESC, p.id LIMIT ?"
     }
 }
+
+// The PDF index is disposable derived text: its revision changes without changing the original PDF hash.
+private const val CurrentContentSource = "((b.format = 'EPUB' AND c.fileHash = b.fileHash) OR " +
+    "(b.format = 'PDF' AND substr(c.fileHash, 1, length(b.fileHash) + 5) = b.fileHash || ':ocr:'))"

@@ -23,6 +23,8 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":format:epub"))
     implementation(project(":format:pdf"))
+    implementation(project(":format:ocr"))
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.documentfile)
@@ -33,4 +35,5 @@ dependencies {
     testImplementation(libs.org.json)
     testImplementation(libs.room.runtime)
     testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation(libs.androidx.work.testing)
 }

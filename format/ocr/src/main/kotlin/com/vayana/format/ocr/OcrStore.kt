@@ -1,6 +1,13 @@
 package com.vayana.format.ocr
 
 import java.io.File
+import java.util.zip.ZipFile
+import java.util.UUID
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -16,7 +23,12 @@ class OcrStore(private val root: File) {
         file.parentFile?.mkdirs()
         val partial = File(file.parentFile, "${file.name}.part")
         partial.writeText(page.toJson(model).toString())
-        if (!partial.renameTo(file)) partial.delete()
+        Files.move(partial.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        val marker = File(file.parentFile, LineJoinsMarker)
+        if (marker.exists()) {
+            marker.delete()
+            changed()
+        }
     }
 
     fun read(book: String, pageIndex: Int): RecognizedPage? =
@@ -33,14 +45,46 @@ class OcrStore(private val root: File) {
             val page = pages.getValue(index)
             if (page.joinedLines != joins) save(book, index, page.copy(joinedLines = joins), model(book, index).orEmpty())
         }
-        bookDir(book)?.let { File(it, LineJoinsMarker).writeText("") }
+        bookDir(book)?.let { directory ->
+            val partial = File(directory, "$LineJoinsMarker.part")
+            partial.writeText(UUID.randomUUID().toString())
+            Files.move(partial.toPath(), File(directory, LineJoinsMarker).toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+        changed()
     }
 
     /** Whether [saveLineJoins] has run since the book was last fully recognised. */
     fun hasLineJoins(book: String): Boolean = bookDir(book)?.let { File(it, LineJoinsMarker).isFile } == true
 
+    /** Stable across restarts, replaced whenever finalized recognition changes. Old empty markers remain usable. */
+    fun searchRevision(book: String): String? = runCatching {
+        bookDir(book)?.let { File(it, LineJoinsMarker) }
+            ?.takeIf { it.isFile }?.let { "$SearchTextVersion:${it.readText().ifBlank { "legacy-${it.lastModified()}" }}" }
+    }.getOrNull()
+
+    fun searchPages(book: String): Sequence<RecognizedTextPage> {
+        if (searchRevision(book) == null) return emptySequence()
+        return savedPages(book).sorted().asSequence().mapNotNull { index ->
+            val page = read(book, index) ?: return@mapNotNull null
+            val text = buildString {
+                page.lines.forEachIndexed { line, words ->
+                    append(words.joinToString(" ") { it.text })
+                    if (line !in page.joinedLines) append(' ')
+                }
+            }.trim()
+            text.takeIf { it.isNotBlank() }?.let { RecognizedTextPage(index, it) }
+        }
+    }
+
     /** The book's recognised text as an EPUB (see [writeTextEpub]), or null if it hasn't been built. */
-    fun textEpub(book: String): File? = bookDir(book)?.let { File(it, TextEpubName) }?.takeIf { it.isFile }
+    fun textEpub(book: String): File? = bookDir(book)?.let { File(it, TextEpubName) }?.takeIf { file ->
+        file.isFile && runCatching {
+            // Earlier versions also published empty-spine EPUBs. Accept localized chapter numbers too.
+            ZipFile(file).use { zip ->
+                zip.entries().asSequence().any { it.name.startsWith("OEBPS/c") && it.name.endsWith(".xhtml") }
+            }
+        }.getOrDefault(false)
+    }
 
     /** For every printed page, the chapter file of [textEpub] its start is in. */
     fun textPageMap(book: String): List<String?> = runCatching {
@@ -52,8 +96,18 @@ class OcrStore(private val root: File) {
     fun buildTextEpub(book: String, title: String, author: String?, language: String) {
         val dir = bookDir(book) ?: return
         val pages = savedPages(book).mapNotNull { index -> read(book, index)?.let { index to it } }.toMap()
-        if (pages.isEmpty()) return
-        writeTextEpub(reflowRecognizedPages(pages), title, author, language, File(dir, TextEpubName), File(dir, TextPageMapName), (pages.keys.max()) + 1)
+        val text = reflowRecognizedPages(pages)
+        val readable = text.chapters.any { chapter ->
+            !chapter.title.isNullOrBlank() || chapter.blocks.any { block ->
+                block.parts.any { it is TextPart.Text && it.text.isNotBlank() }
+            }
+        }
+        if (!readable) {
+            File(dir, TextEpubName).delete()
+            File(dir, TextPageMapName).delete()
+            return
+        }
+        writeTextEpub(text, title, author, language, File(dir, TextEpubName), File(dir, TextPageMapName), (pages.keys.max()) + 1)
         // text built by an earlier version of the layout
         dir.listFiles().orEmpty()
             .filter { it.name.startsWith(TextFilePrefix) && it.name != TextEpubName && it.name != TextPageMapName }
@@ -67,16 +121,22 @@ class OcrStore(private val root: File) {
 
     fun delete(book: String) {
         bookDir(book)?.deleteRecursively()
+        changed()
     }
 
     /** How many books have recognised text, and how many bytes it all takes. */
     fun usage(): Pair<Int, Long> {
-        val books = root.listFiles().orEmpty().filter { it.isDirectory && BookKeyPattern.matches(it.name) }
-        return books.size to books.sumOf { book -> book.walk().filter { it.isFile }.sumOf { it.length() } }
+        val books = bookUsage()
+        return books.size to books.values.sum()
     }
+
+    fun bookUsage(): Map<String, Long> = root.listFiles().orEmpty()
+        .filter { it.isDirectory && BookKeyPattern.matches(it.name) }
+        .associate { book -> book.name to book.walk().filter { it.isFile }.sumOf { it.length() } }
 
     fun deleteAll() {
         root.listFiles().orEmpty().filter { it.isDirectory && BookKeyPattern.matches(it.name) }.forEach { it.deleteRecursively() }
+        changed()
     }
 
     /** The file a page is saved in, or null for a key or index that could leave the store. */
@@ -84,7 +144,16 @@ class OcrStore(private val root: File) {
         if (pageIndex >= 0) bookDir(book)?.let { File(it, "$pageIndex.json") } else null
 
     private fun bookDir(book: String): File? = if (BookKeyPattern.matches(book)) File(root, book) else null
+
+    companion object {
+        private val updates = MutableStateFlow(0L)
+        /** All instances share changes; readers/indexers often construct their own store for the same root. */
+        val changes = updates.asStateFlow()
+        internal fun changed() { updates.update { it + 1 } }
+    }
 }
+
+data class RecognizedTextPage(val pageIndex: Int, val text: String)
 
 /**
  * `{ "model": "mal-fast", "lines": [ [ ["word", left, top, right, bottom, confidence], ... ], ... ], "joins": [2, 5] }`,
@@ -139,6 +208,7 @@ private fun Float.rounded(): Double = Math.round(this * 100) / 100.0
 
 private val BookKeyPattern = Regex("[0-9a-f]{64}")
 private const val LineJoinsMarker = "lines-joined"
+private const val SearchTextVersion = 1
 // Versioned, so a change in how the text is laid out builds it again.
 private const val TextFilePrefix = "text-v"
 private const val TextEpubName = "text-v5.epub"
