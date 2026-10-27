@@ -41,6 +41,7 @@ internal class ReadAloudPlayer(
     private var queue: List<SpeechUtterance> = emptyList()
     private var sourceSentences: List<SpeechSentence> = emptyList()
     private var pronunciations: List<SpeechPronunciation> = emptyList()
+    private var frenchHonorific = false
     private var pronouncer = SpeechPronouncer(emptyList())
     private var batchesById = mutableMapOf<String, SpeechBatch>()
     private var lastMarkedSource: String? = null
@@ -206,11 +207,12 @@ internal class ReadAloudPlayer(
         if (_state.value.playing) speakFromPosition()
     }
 
-    fun setPronunciations(rules: List<SpeechPronunciation>) {
+    fun setPronunciations(rules: List<SpeechPronunciation>, frenchHonorific: Boolean = this.frenchHonorific) {
         val next = normalizedPronunciations(rules)
-        if (next == pronunciations) return
+        if (next == pronunciations && frenchHonorific == this.frenchHonorific) return
         pronunciations = next
-        pronouncer = SpeechPronouncer(next)
+        this.frenchHonorific = frenchHonorific
+        pronouncer = SpeechPronouncer(next, frenchHonorific)
         val current = queue.getOrNull(position)
         val sourceStart = current?.sourceRange(0, 1)?.first ?: 0
         queue = sourceSentences.flatMap { it.splitForSpeech(pronouncer) }

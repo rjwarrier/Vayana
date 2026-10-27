@@ -5,6 +5,23 @@ import kotlin.test.assertEquals
 
 class SpeechPronunciationTest {
     @Test
+    fun frenchTagsExpandHonorificsAndPreserveHighlightOffsets() {
+        for (tags in listOf("France", "French", "fiction, FRENCH ")) {
+            val source = "M. Dupont met M. Émile today."
+            val prepared = SpeechPronouncer(emptyList(), usesFrenchHonorific(tags)).prepare(source)
+            assertEquals("Monsieur Dupont met Monsieur Émile today.", prepared.text)
+            assertEquals(0 to 2, prepared.sourceRange(0, 8))
+            val name = prepared.text.indexOf("Émile")
+            assertEquals(source.indexOf("Émile") to source.indexOf("Émile") + 5, prepared.sourceRange(name, name + 5))
+        }
+        for (tags in listOf(null, "English", "French history")) {
+            assertEquals("M. Dupont", SpeechPronouncer(emptyList(), usesFrenchHonorific(tags)).prepare("M. Dupont").text)
+        }
+        assertEquals("Master Dupont", SpeechPronouncer(listOf(SpeechPronunciation("M.", "Master")), true).prepare("M. Dupont").text)
+        assertEquals("AM. Dupont and M. 12", SpeechPronouncer(emptyList(), true).prepare("AM. Dupont and M. 12").text)
+    }
+
+    @Test
     fun romanLabelsBecomeNumbersAndHighlightTheOriginalNumeral() {
         val source = "CHAPTER I. Part IV, Volume XII, Section ix, Scene XL and Book MCMXCIX."
         val prepared = prepareSpeechPronunciation(source, emptyList())

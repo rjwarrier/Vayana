@@ -1818,7 +1818,7 @@ function speechTextWithoutAbbreviationStops(text) {
     const withoutStop = (match, gap) => speechParagraphBreak(gap)
         ? match : match.slice(0, -gap.length - 1) + ' ' + gap.replace(/[\r\n]/g, ' ')
     let prepared = text.replace(
-        /(?<![\p{L}\p{N}_])(?:Mr|Mrs|Ms|Mx|Dr|Prof|Rev|Fr|Capt|Lt|Col|Gen|Sgt|Maj|Cmdr|Hon|Pres|Gov|Sen|Rep|Supt|Det)\.(\s+)(?=\p{L})/giu,
+        /(?<![\p{L}\p{N}_])(?:M|Mr|Mrs|Ms|Mx|Dr|Prof|Rev|Fr|Capt|Lt|Col|Gen|Sgt|Maj|Cmdr|Hon|Pres|Gov|Sen|Rep|Supt|Det)\.(\s+)(?=\p{L})/giu,
         withoutStop,
     )
     prepared = prepared.replace(
@@ -1882,6 +1882,10 @@ function normalizeSpeechSegment(segment, prepared = segment, omitted = new Set()
                 end: exponent.end - sourceOffset, text: exponent.text,
             })
         }
+    }
+    // Keep the French title in the spoken source for the tag-dependent native pronunciation rule.
+    for (const match of segment.matchAll(/(?<![\p{L}\p{N}_])M\.(?=[\s\p{Zs}]+\p{Lu}\p{L})/gu)) {
+        expansions.set(match.index, { end: match.index + 2, text: 'M.' })
     }
     const words = { 'e.g.': 'for example', 'i.e.': 'that is', 'etc.': 'et cetera', 'vs.': 'versus' }
     for (const match of segment.matchAll(/(?<![\p{L}\p{N}_])(?:e\.g\.|i\.e\.|etc\.|vs\.)(?![\p{L}\p{N}_])/giu)) {

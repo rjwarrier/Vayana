@@ -423,7 +423,7 @@ class ReaderViewModel @Inject constructor(
             _bookStyleOverride.value = book.toStyleOverrideOrNull()
             pronunciationBookKey = book.syncId
             _pronunciations.value = pronunciationStore.load(book.syncId)
-            readAloudPlayer.setPronunciations(_pronunciations.value)
+            readAloudPlayer.setPronunciations(_pronunciations.value, usesFrenchHonorific(book.tagsCsv))
             _pdfBookPreferences.value = if (book.format == BookFormat.PDF) loadPdfBookPreferences() else null
             _pdfThumbnails.value = emptyMap()
             // Read before recordBookOpened below replaces it; a jump to a note or search hit isn't a "return".

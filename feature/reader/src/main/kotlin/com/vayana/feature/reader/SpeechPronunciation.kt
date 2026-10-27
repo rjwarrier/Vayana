@@ -25,8 +25,14 @@ internal class PronouncedSpeechText(
 internal fun prepareSpeechPronunciation(text: String, rules: List<SpeechPronunciation>): PronouncedSpeechText =
     SpeechPronouncer(rules).prepare(text)
 
+internal fun usesFrenchHonorific(tagsCsv: String?): Boolean = tagsCsv?.split(',')?.any {
+    it.trim().equals("France", ignoreCase = true) || it.trim().equals("French", ignoreCase = true)
+} == true
+
+private val FrenchHonorific = Regex("(?<![\\p{L}\\p{N}_])M\\.(?=[\\s\\p{Zs}]+\\p{Lu}\\p{L})")
+
 /** Compile the book's rules once, rather than compiling a regex for every sentence in a chapter. */
-internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
+internal class SpeechPronouncer(rules: List<SpeechPronunciation>, private val frenchHonorific: Boolean = false) {
     private val ordered = normalizedPronunciations(rules).sortedByDescending { it.original.length }
     private val pattern = Regex(
         "(?<![\\p{L}\\p{N}_])(?:" +
@@ -51,10 +57,12 @@ internal class SpeechPronouncer(rules: List<SpeechPronunciation>) {
         fun free(match: MatchResult) = claimed.none { (other, _) ->
             match.range.first <= other.range.last && match.range.last >= other.range.first
         } && protected.none { match.range.first <= it.last && match.range.last >= it.first }
+        val honorifics = if (frenchHonorific) FrenchHonorific.findAll(text)
+            .filter { free(it) }.map { it to "Monsieur" }.toList() else emptyList()
         val typography = typographyReplacements(text).filter { (match, _) -> free(match) }
         val matches = (corrections.filter { (match, _) ->
             numerals.none { (numeral, _) -> match.range.first <= numeral.range.last && match.range.last >= numeral.range.first }
-        } + numerals + typography).sortedBy { it.first.range.first }
+        } + numerals + honorifics + typography).sortedBy { it.first.range.first }
         if (matches.isEmpty()) return PronouncedSpeechText(text)
         val length = text.length + matches.sumOf { (match, replacement) -> replacement.length - match.value.length }
         val spoken = StringBuilder(length)

@@ -268,3 +268,8 @@ test('list labels, paragraph boundaries, ambiguous abbreviations and decimals ke
         'A.', 'First item.', 'See Fig.', '12 is next.', 'Acme Inc.', 'They left.', 'It cost 3.14.',
     ])
 })
+
+test('French honorific stays with its name and retains its period for native pronunciation', () => {
+    const { sentences } = setup('<p>M. Dupont met M. Émile. They left.</p>')
+    assert.deepEqual(Array.from(sentences, s => s.text), ['M. Dupont met M. Émile.', 'They left.'])
+})
