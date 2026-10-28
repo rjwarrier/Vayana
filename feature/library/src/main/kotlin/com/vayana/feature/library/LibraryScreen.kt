@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.isActiveForReading
 import com.vayana.core.database.model.hasStartedReading
 import com.vayana.core.database.model.isFinished
 import com.vayana.core.database.model.shownReadingPercent
@@ -1482,7 +1483,7 @@ private fun LibraryList(
  */
 private fun rememberLibraryDisplayBooks(books: List<Book>, keepHeroInRows: Boolean): LibraryDisplayBooks =
     remember(books, keepHeroInRows) {
-        val hero = books.filter { it.readingDisposition == "ACTIVE" }.maxByOrNull { it.lastReadAt ?: 0L }
+        val hero = books.filter { it.isActiveForReading() }.maxByOrNull { it.lastReadAt ?: 0L }
             ?.takeIf { (it.lastReadAt ?: 0L) > 0L }
         LibraryDisplayBooks(
             hero = hero,

@@ -35,6 +35,8 @@ internal class ReadAloudPlayer(
 ) : SpeechOutput.Listener {
     private val _state = MutableStateFlow(ReadAloudState())
     val state: StateFlow<ReadAloudState> = _state
+    private val _chapterProgress = MutableStateFlow(0f)
+    val chapterProgress: StateFlow<Float> = _chapterProgress
     val voices: StateFlow<List<SpeechVoiceOption>> = output.voices
     val engines: StateFlow<List<SpeechEngineOption>> = output.engines
 
@@ -48,6 +50,22 @@ internal class ReadAloudPlayer(
     private var lastMarkedStart = 0
     private var lastMarkedEnd = 0
     private var position = 0
+    private var chapterStartProgress = 0f
+    private var progressOffsets = IntArray(1)
+
+    private fun rebuildProgressOffsets() {
+        progressOffsets = IntArray(queue.size + 1)
+        queue.forEachIndexed { index, utterance ->
+            progressOffsets[index + 1] = progressOffsets[index] + utterance.text.length
+        }
+    }
+
+    private fun updateChapterProgress(index: Int = position, offset: Int = 0) {
+        val total = progressOffsets.last()
+        val completed = progressOffsets.getOrElse(index) { total } + offset
+        val fraction = if (total > 0) completed.toFloat() / total else 0f
+        _chapterProgress.value = (chapterStartProgress + (1f - chapterStartProgress) * fraction).coerceIn(0f, 1f)
+    }
     private var playbackGeneration = 0L
     private var queueGeneration = 0L
 
@@ -160,6 +178,9 @@ internal class ReadAloudPlayer(
         val wasActive = _state.value.active
         queue = emptyList()
         sourceSentences = emptyList()
+        progressOffsets = IntArray(1)
+        chapterStartProgress = 0f
+        _chapterProgress.value = 0f
         batchesById.clear()
         position = 0
         enqueued = -1
@@ -216,9 +237,11 @@ internal class ReadAloudPlayer(
         val current = queue.getOrNull(position)
         val sourceStart = current?.sourceRange(0, 1)?.first ?: 0
         queue = sourceSentences.flatMap { it.splitForSpeech(pronouncer) }
+        rebuildProgressOffsets()
         position = queue.indexOfFirst {
             it.sourceId == current?.sourceId && it.sourceRange(0, it.text.length).second > sourceStart
         }.coerceAtLeast(0)
+        updateChapterProgress()
         batchesById.clear()
         output.stop()
         if (_state.value.playing && queue.isNotEmpty()) speakFromPosition()
@@ -253,6 +276,7 @@ internal class ReadAloudPlayer(
             }
             val index = batchesById[utteranceId]?.firstIndex ?: return@launch
             position = index
+            updateChapterProgress()
             // The engine was fed only a few sentences ahead; keep it that far ahead as reading moves on.
             if (_state.value.playing) enqueueAhead()
             onSpeaking()
@@ -283,6 +307,7 @@ internal class ReadAloudPlayer(
                 if (localStart >= localEnd) continue
                 val changedSentence = position != part.index
                 position = part.index
+                if (wordHighlight || changedSentence) updateChapterProgress(part.index, if (wordHighlight) localEnd else 0)
                 // Timing still tracks navigation on E-Ink, but the panel only updates once per sentence.
                 if (wordHighlight || changedSentence) {
                     val range = if (wordHighlight) utterance.sourceRange(localStart, localEnd)
@@ -297,7 +322,12 @@ internal class ReadAloudPlayer(
     override fun onDone(utteranceId: String) {
         scope.launch {
             val completed = batchesById.remove(utteranceId) ?: return@launch
-            if (_state.value.playing && completed.lastIndex == queue.lastIndex) nextChapter()
+            if (_state.value.playing) {
+                if (completed.lastIndex >= position) {
+                    updateChapterProgress(completed.lastIndex, queue[completed.lastIndex].text.length)
+                }
+                if (completed.lastIndex == queue.lastIndex) nextChapter()
+            }
         }
     }
 
@@ -339,8 +369,10 @@ internal class ReadAloudPlayer(
     }
 
     private fun load(chunk: SpeechChunk) {
+        chapterStartProgress = chunk.chapterStartProgress.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
         sourceSentences = chunk.sentences
         queue = sourceSentences.flatMap { it.splitForSpeech(pronouncer) }
+        rebuildProgressOffsets()
         batchesById.clear()
         position = 0
         enqueued = -1
@@ -379,6 +411,7 @@ internal class ReadAloudPlayer(
 
     /** Restarts speech at [position]. Each hand-over to the engine is a binder call, so only the next few are sent. */
     private fun speakFromPosition() {
+        updateChapterProgress()
         ++queueGeneration
         batchesById.clear()
         lastMarkedSource = null

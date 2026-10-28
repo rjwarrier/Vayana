@@ -12,6 +12,13 @@ import kotlin.test.assertTrue
 
 class BookReadingStateTest {
     @Test
+    fun explicitlyMarkedReadingCountsImmediatelyWithoutAFinishDate() {
+        val reading = book().copy(readingDisposition = "READING", startedReadingAt = 5L)
+        assertEquals(BookReadingState.READING, reading.readingState())
+        assertEquals(0L, reading.totalReadingSeconds)
+    }
+
+    @Test
     fun untouchedBookIsNotStarted() {
         assertEquals(BookReadingState.NOT_STARTED, book().readingState())
     }

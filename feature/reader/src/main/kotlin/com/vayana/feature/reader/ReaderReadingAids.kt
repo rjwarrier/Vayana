@@ -5,6 +5,13 @@ import com.vayana.core.designsystem.tokens.Strokes
 import com.vayana.core.designsystem.theme.DisplayProfile
 import com.vayana.core.designsystem.theme.LocalDisplayProfile
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +47,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +80,7 @@ internal enum class ReaderEdge { LEFT, RIGHT }
 @Composable
 internal fun ReadAloudBar(
     state: ReadAloudState,
+    chapterProgress: StateFlow<Float>,
     onTogglePlayback: () -> Unit,
     onRateChange: (Float) -> Unit,
     onPitchChange: (Float) -> Unit,
@@ -82,76 +93,94 @@ internal fun ReadAloudBar(
         adjustment.value = if (adjustment.value == target) null else target
     }
     val sliderModifier = Modifier.padding(horizontal = Paddings.screenHorizontal).padding(top = Spacing.sm)
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
-        // Over the page by surface tier, not shadow (design spec); outlined on E-Ink, where tiers don't show.
-        color = readingAidSurfaceColor(),
-        border = readingAidBorder(),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            when (adjustment.value) {
-                ReadAloudAdjustment.SPEED -> ReadAloudAdjustmentSlider(
-                    label = stringResource(R.string.reader_read_aloud_speed_control),
-                    value = state.rate,
-                    setting = SettingsRegistry.ReadAloudRate,
-                    onValueChangeFinished = onRateChange,
-                    modifier = sliderModifier,
-                )
-                ReadAloudAdjustment.PITCH -> ReadAloudAdjustmentSlider(
-                    label = stringResource(R.string.reader_read_aloud_pitch_control),
-                    value = state.pitch,
-                    setting = SettingsRegistry.ReadAloudPitch,
-                    onValueChangeFinished = onPitchChange,
-                    modifier = sliderModifier,
-                )
-                null -> Unit
-            }
+    Column(modifier = modifier.fillMaxWidth()) {
+        ReadAloudChapterProgress(chapterProgress)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = Radii.extraLarge, topEnd = Radii.extraLarge),
+            // Over the page by surface tier, not shadow (design spec); outlined on E-Ink, where tiers don't show.
+            color = readingAidSurfaceColor(),
+            border = readingAidBorder(),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                when (adjustment.value) {
+                    ReadAloudAdjustment.SPEED -> ReadAloudAdjustmentSlider(
+                        label = stringResource(R.string.reader_read_aloud_speed_control),
+                        value = state.rate,
+                        setting = SettingsRegistry.ReadAloudRate,
+                        onValueChangeFinished = onRateChange,
+                        modifier = sliderModifier,
+                    )
+                    ReadAloudAdjustment.PITCH -> ReadAloudAdjustmentSlider(
+                        label = stringResource(R.string.reader_read_aloud_pitch_control),
+                        value = state.pitch,
+                        setting = SettingsRegistry.ReadAloudPitch,
+                        onValueChangeFinished = onPitchChange,
+                        modifier = sliderModifier,
+                    )
+                    null -> Unit
+                }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                IconButton(onClick = onTogglePlayback) {
-                    Icon(
-                        imageVector = if (state.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                        contentDescription = stringResource(
-                            if (state.playing) R.string.reader_read_aloud_pause else R.string.reader_read_aloud_play,
-                        ),
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = Paddings.screenHorizontal, vertical = Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    IconButton(onClick = onTogglePlayback) {
+                        Icon(
+                            imageVector = if (state.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                            contentDescription = stringResource(
+                                if (state.playing) R.string.reader_read_aloud_pause else R.string.reader_read_aloud_play,
+                            ),
+                        )
+                    }
+                    ReadAloudSettingButton(
+                        label = stringResource(R.string.reader_read_aloud_speed_control),
+                        value = state.rate.asMultiplier(),
+                        selected = adjustment.value == ReadAloudAdjustment.SPEED,
+                        onClick = { toggleAdjustment(ReadAloudAdjustment.SPEED) },
                     )
-                }
-                ReadAloudSettingButton(
-                    label = stringResource(R.string.reader_read_aloud_speed_control),
-                    value = state.rate.asMultiplier(),
-                    selected = adjustment.value == ReadAloudAdjustment.SPEED,
-                    onClick = { toggleAdjustment(ReadAloudAdjustment.SPEED) },
-                )
-                ReadAloudSettingButton(
-                    label = stringResource(R.string.reader_read_aloud_pitch_control),
-                    value = state.pitch.asMultiplier(),
-                    selected = adjustment.value == ReadAloudAdjustment.PITCH,
-                    onClick = { toggleAdjustment(ReadAloudAdjustment.PITCH) },
-                )
-                TextButton(onClick = onCycleSleepTimer) {
-                    Icon(imageVector = Icons.Outlined.Bedtime, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text(
-                        text = if (state.sleepTimerMinutes > 0) {
-                            stringResource(R.string.reader_read_aloud_sleep_minutes, state.sleepTimerMinutes)
-                        } else {
-                            stringResource(R.string.reader_read_aloud_sleep_off)
-                        },
+                    ReadAloudSettingButton(
+                        label = stringResource(R.string.reader_read_aloud_pitch_control),
+                        value = state.pitch.asMultiplier(),
+                        selected = adjustment.value == ReadAloudAdjustment.PITCH,
+                        onClick = { toggleAdjustment(ReadAloudAdjustment.PITCH) },
                     )
-                }
-                IconButton(onClick = onStop) {
-                    Icon(imageVector = Icons.Outlined.Close, contentDescription = stringResource(R.string.reader_read_aloud_stop))
+                    TextButton(onClick = onCycleSleepTimer) {
+                        Icon(imageVector = Icons.Outlined.Bedtime, contentDescription = null, modifier = Modifier.size(Sizes.iconSmall))
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                        Text(
+                            text = if (state.sleepTimerMinutes > 0) {
+                                stringResource(R.string.reader_read_aloud_sleep_minutes, state.sleepTimerMinutes)
+                            } else {
+                                stringResource(R.string.reader_read_aloud_sleep_off)
+                            },
+                        )
+                    }
+                    IconButton(onClick = onStop) {
+                        Icon(imageVector = Icons.Outlined.Close, contentDescription = stringResource(R.string.reader_read_aloud_stop))
+                    }
                 }
             }
         }
+    }
+}
+
+/** Word timing invalidates this small composition, leaving reader chrome and playback controls unchanged. */
+@Composable
+private fun ReadAloudChapterProgress(chapterProgress: StateFlow<Float>) {
+    val progress by chapterProgress.collectAsStateWithLifecycle()
+    val progressColor = if (isMonochromeEink()) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.outlineVariant
+    Canvas(Modifier.fillMaxWidth().height(2.dp).semantics {
+        progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f)
+    }) {
+        drawRect(trackColor)
+        drawRect(progressColor, size = Size(size.width * progress, size.height))
     }
 }
 

@@ -28,6 +28,49 @@ class ReadAloudPlayerTest {
     private val scope = CoroutineScope(Dispatchers.Unconfined)
 
     @Test
+    fun chapterProgressTracksSpeechPauseSkipAndChapterChanges() {
+        val output = FakeOutput()
+        val base = FakeEngine(listOf(listOf("unused"), listOf("New chapter.")))
+        val engine = object : BookEngine by base {
+            override suspend fun startSpeech(fromCfi: String?) = SpeechChunk(
+                listOf(SpeechSentence("0:0", "Alpha beta."), SpeechSentence("0:1", "Gamma delta.")),
+                endOfBook = false, chapterStartProgress = 0.5f,
+            )
+        }
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        assertEquals(0.5f, player.chapterProgress.value)
+        output.listener!!.onStart("0:0")
+        val controlsBeforeWord = player.state.value
+        output.listener!!.onRangeStart("0:0", 0, 5)
+        assertEquals(controlsBeforeWord, player.state.value)
+        assertEquals(0.5f + 0.5f * 5 / 23, player.chapterProgress.value, 0.0001f)
+        player.pause()
+        val paused = player.chapterProgress.value
+        output.listener!!.onRangeStart("0:0", 6, 10)
+        assertEquals(paused, player.chapterProgress.value)
+        player.skip(1)
+        assertEquals(0.5f + 0.5f * 11 / 23, player.chapterProgress.value, 0.0001f)
+        player.skip(100)
+        assertEquals(0f, player.chapterProgress.value)
+        player.stop()
+        assertEquals(0f, player.chapterProgress.value)
+    }
+
+    @Test
+    fun delayedCompletionDoesNotMoveChapterProgressBackwards() {
+        val output = FakeOutput()
+        val engine = FakeEngine(listOf(listOf("First sentence.", "Second sentence.")))
+        val player = ReadAloudPlayer(output, scope, { engine }, {}, PlaybackFocus.Unmanaged)
+        player.start(rate = 1f, pitch = 1f, voiceName = "")
+        output.listener!!.onStart("0:1")
+        output.listener!!.onRangeStart("0:1", 0, 6)
+        val progress = player.chapterProgress.value
+        output.listener!!.onDone("0:0")
+        assertEquals(progress, player.chapterProgress.value)
+    }
+
+    @Test
     fun repeatedPronunciationRangesDoNotRedrawTheSameOriginalWord() {
         val output = FakeOutput()
         val engine = FakeEngine(listOf(listOf("Hermione smiled.")))

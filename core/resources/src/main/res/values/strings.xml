@@ -2141,6 +2141,7 @@
     <string name="disposition_reason">Reason (optional)</string>
     <string name="disposition_save">Save status</string>
     <string name="disposition_resume">Resume reading</string>
+    <string name="disposition_reading_restart_hint">Choosing Reading clears the finish date and starts this completed book from the beginning. Highlights and reading history are kept.</string>
     <string name="disposition_hint">Your position, highlights and reading history are kept.</string>
     <string name="flashcard_create">Create review question</string>
     <string name="flashcard_edit">Edit review question</string>

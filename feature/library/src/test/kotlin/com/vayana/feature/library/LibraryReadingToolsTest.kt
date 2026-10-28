@@ -111,6 +111,14 @@ class LibraryReadingToolsTest {
         assertFalse(rule.matches(book().copy(tagsCsv = "NotFavorite"), setOf(1), .95f, 8 * day))
     }
 
+    @Test fun explicitReadingOverridesCompletionThresholdUntilActuallyFinished() {
+        val reading = book().copy(readingDisposition = "READING", readingPercent = .96f,
+            finishedReadingAt = null, totalReadingSeconds = 0)
+        assertTrue(SmartShelf(name = "Reading", status = SmartShelfStatus.READING).matches(reading, emptySet(), .95f, day))
+        assertFalse(SmartShelf(name = "Finished", status = SmartShelfStatus.FINISHED).matches(reading, emptySet(), .95f, day))
+        assertTrue(SmartShelf(name = "Finished", status = SmartShelfStatus.FINISHED).matches(reading.copy(finishedReadingAt = 20), emptySet(), .95f, day))
+    }
+
     @Test fun neverOpenedBooksAreUnreadButNotDormant() {
         val unread = book().copy(readingPercent = 0f, lastReadAt = null, totalReadingSeconds = 0)
         assertTrue(SmartShelf(name = "Unread", status = SmartShelfStatus.UNREAD).matches(unread, emptySet(), .95f, day))

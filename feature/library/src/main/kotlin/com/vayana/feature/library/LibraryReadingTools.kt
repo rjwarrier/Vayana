@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.isActiveForReading
 import com.vayana.core.database.model.hasStartedReading
 import com.vayana.core.database.model.Book
 import com.vayana.core.datastore.settings.SmartShelf
@@ -43,12 +44,12 @@ internal fun observeSmartShelfItems(
 
 internal fun SmartShelf.matches(book: Book, booksWithNotes: Set<Long>, finishedThreshold: Float, now: Long): Boolean {
     val progress = book.readingPercent.coerceIn(0f, 1f)
-    val finished = book.finishedReadingAt != null || progress >= finishedThreshold
+    val finished = book.finishedReadingAt != null || progress >= 1f || (book.readingDisposition != "READING" && progress >= finishedThreshold)
     val started = book.hasStartedReading()
     val statusMatches = when (status) {
         SmartShelfStatus.ALL -> true
-        SmartShelfStatus.UNREAD -> book.readingDisposition == "ACTIVE" && !started && !finished
-        SmartShelfStatus.READING -> book.readingDisposition == "ACTIVE" && started && !finished
+        SmartShelfStatus.UNREAD -> book.isActiveForReading() && !started && !finished
+        SmartShelfStatus.READING -> book.isActiveForReading() && started && !finished
         SmartShelfStatus.FINISHED -> finished
         SmartShelfStatus.PAUSED -> book.readingDisposition == "PAUSED"
         SmartShelfStatus.DNF -> book.readingDisposition == "DNF"

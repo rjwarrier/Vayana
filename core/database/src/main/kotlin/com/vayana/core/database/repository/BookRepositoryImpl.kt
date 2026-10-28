@@ -199,7 +199,7 @@ class BookRepositoryImpl @Inject constructor(
         database.withTransaction {
             val now = System.currentTimeMillis()
             val book = bookDao.getById(id)
-            if (book != null && book.readingDisposition != "ACTIVE") bookDao.updateDisposition(id, "ACTIVE", null,
+            if (book != null && book.readingDisposition != "ACTIVE" && book.readingDisposition != "READING") bookDao.updateDisposition(id, "ACTIVE", null,
                 maxOf(now, (book.dispositionUpdatedAt ?: 0L) + 1))
             bookDao.recordBookOpened(id, now)
         }
@@ -544,7 +544,22 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markFinished(id: Long) {
-        bookDao.markFinished(id, System.currentTimeMillis())
+        database.withTransaction {
+            val book = bookDao.getById(id) ?: return@withTransaction
+            if (book.isDeleted) return@withTransaction
+            val now = maxOf(System.currentTimeMillis(), book.updatedAt)
+            if (book.readingDisposition == "READING") {
+                bookDao.update(book.copy(
+                    readingDisposition = "ACTIVE", dispositionReason = null,
+                    dispositionUpdatedAt = maxOf(now, (book.dispositionUpdatedAt ?: 0L) + 1),
+                    startedReadingAt = book.startedReadingAt ?: now,
+                    finishedReadingAt = book.finishedReadingAt ?: now,
+                    readingPercent = 1f, updatedAt = now,
+                ))
+            } else {
+                bookDao.markFinished(id, now)
+            }
+        }
     }
 
     override suspend fun resetReadingStats(id: Long) {
@@ -629,11 +644,31 @@ class BookRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateDisposition(id: Long, disposition: String, reason: String?) {
-        require(disposition in setOf("ACTIVE", "PAUSED", "DNF"))
+        require(disposition in setOf("ACTIVE", "READING", "PAUSED", "DNF"))
         database.withTransaction {
             val book = bookDao.getById(id) ?: return@withTransaction
-            bookDao.updateDisposition(id, disposition, reason?.trim()?.take(2000)?.takeIf { it.isNotBlank() },
-                maxOf(System.currentTimeMillis(), (book.dispositionUpdatedAt ?: 0L) + 1))
+            if (book.isDeleted) return@withTransaction
+            val normalizedReason = reason?.trim()?.take(2000)?.takeIf { it.isNotBlank() }
+            val needsRestart = disposition == "READING" &&
+                (book.finishedReadingAt != null || book.readingPercent >= 1f || book.startedReadingAt == null)
+            if (book.readingDisposition == disposition && book.dispositionReason == normalizedReason && !needsRestart) return@withTransaction
+            val now = maxOf(System.currentTimeMillis(), book.updatedAt, (book.dispositionUpdatedAt ?: 0L) + 1)
+            if (disposition == "READING") {
+                val completed = book.readingPercent >= 1f
+                bookDao.update(book.copy(
+                    readingDisposition = "READING",
+                    dispositionReason = normalizedReason,
+                    dispositionUpdatedAt = now,
+                    finishedReadingAt = null,
+                    startedReadingAt = book.startedReadingAt ?: now,
+                    readingPercent = if (completed) 0f else book.readingPercent,
+                    lastLocator = if (completed) null else book.lastLocator,
+                    lastReadAt = now,
+                    updatedAt = maxOf(book.updatedAt, now),
+                ))
+            } else {
+                bookDao.updateDisposition(id, disposition, normalizedReason, now)
+            }
         }
     }
 
@@ -845,7 +880,7 @@ class BookRepositoryImpl @Inject constructor(
                     dispositionReason = if ((record.dispositionUpdatedAt ?: 0L) > (existing.dispositionUpdatedAt ?: 0L)) record.dispositionReason else existing.dispositionReason,
                     dispositionUpdatedAt = maxOf(record.dispositionUpdatedAt ?: 0L, existing.dispositionUpdatedAt ?: 0L).takeIf { it > 0L },
                     updatedAt = maxOf(existing.updatedAt, record.updatedAt),
-                )
+                ).withReadingRestartFrom(record, existing)
                 if (merged != existing) {
                     bookDao.update(merged)
                     return CloudBookMergeResult.UPDATED
@@ -1178,9 +1213,34 @@ private fun BookEntity.withOfflineReadingFrom(record: CloudBookRecord): BookEnti
     },
 )
 
-private fun BookEntity.withMergedDispositionFrom(existing: BookEntity): BookEntity =
-    if ((dispositionUpdatedAt ?: 0L) > (existing.dispositionUpdatedAt ?: 0L)) this else copy(
+private fun BookEntity.withMergedDispositionFrom(existing: BookEntity): BookEntity {
+    if ((dispositionUpdatedAt ?: 0L) > (existing.dispositionUpdatedAt ?: 0L)) return this
+    // A catalog edit from a stale device must not restore completion on a cloud-only reread.
+    val preserveRestart = existing.readingDisposition == "READING" &&
+        (lastReadAt ?: 0L) <= (existing.dispositionUpdatedAt ?: 0L)
+    return copy(
         readingDisposition = existing.readingDisposition,
         dispositionReason = existing.dispositionReason,
         dispositionUpdatedAt = existing.dispositionUpdatedAt,
+        lastLocator = if (preserveRestart) existing.lastLocator else lastLocator,
+        readingPercent = if (preserveRestart) existing.readingPercent else readingPercent,
+        startedReadingAt = if (preserveRestart) existing.startedReadingAt else startedReadingAt,
+        finishedReadingAt = if (preserveRestart) existing.finishedReadingAt else finishedReadingAt,
+        lastReadAt = if (preserveRestart) existing.lastReadAt else lastReadAt,
+        totalReadingSeconds = if (preserveRestart) maxOf(totalReadingSeconds, existing.totalReadingSeconds) else totalReadingSeconds,
     )
+}
+
+/** A newer explicit Reading choice clears completion on every device, including locally downloaded ebooks. */
+private fun BookEntity.withReadingRestartFrom(record: CloudBookRecord, existing: BookEntity): BookEntity {
+    val restartAt = record.dispositionUpdatedAt ?: return this
+    if (record.readingDisposition != "READING" || record.finishedReadingAt != null ||
+        restartAt <= (existing.dispositionUpdatedAt ?: 0L) || restartAt < (existing.lastReadAt ?: 0L)) return this
+    return copy(
+        startedReadingAt = record.startedReadingAt,
+        finishedReadingAt = null,
+        readingPercent = record.readingPercent.sanitizedReadingPercent(),
+        lastLocator = record.lastLocator,
+        lastReadAt = record.lastReadAt ?: restartAt,
+    )
+}

@@ -42,6 +42,7 @@ class PortableReadingProgressJsonTest {
         val json = """{"books":[{"syncId":"book","title":"Paper","format":"PHYSICAL","fileHash":"hash","updatedAt":300,"readNextAddedAt":100,"readNextUpdatedAt":200,"readNextPinned":true,"readingDisposition":"DNF","dispositionReason":"Stopped","dispositionUpdatedAt":250}],"annotations":[{"syncId":"note","bookSyncId":"book","type":"HIGHLIGHT","colorKey":"yellow","locator":"page:1","selectedText":"Answer","createdAt":100,"updatedAt":200,"reviewQuestion":"Question?"}]}"""
         val book = parsePortableCloudBooks(json).single()
         assertEquals("DNF", book.readingDisposition)
+        assertEquals("READING", parsePortableCloudBooks(json.replace("DNF", "READING")).single().readingDisposition)
         assertEquals("Stopped", book.dispositionReason)
         assertEquals(250L, book.dispositionUpdatedAt)
         assertTrue(book.readNextPinned)

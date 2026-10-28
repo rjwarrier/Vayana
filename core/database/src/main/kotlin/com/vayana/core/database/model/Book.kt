@@ -142,11 +142,14 @@ data class Book(
  */
 const val StartedReadingSeconds = 300L
 
+/** Both automatic Active and explicitly selected Reading participate in current-reading features. */
+fun Book.isActiveForReading(): Boolean = readingDisposition == "ACTIVE" || readingDisposition == "READING"
+
 /**
- * Whether the reader has begun this book. An ebook needs [StartedReadingSeconds] of reading here or on a synced
- * device, or a finish date; a book read outside the app counts from any page, date or session recorded for it.
+ * Whether the reader has begun this book. An explicit Reading choice counts immediately; otherwise an ebook
+ * needs [StartedReadingSeconds] of reading here or on a synced device, or a finish date; a book read outside the app counts from any page, date or session recorded for it.
  */
-fun Book.hasStartedReading(): Boolean = finishedReadingAt != null || if (format.isOffline) {
+fun Book.hasStartedReading(): Boolean = readingDisposition == "READING" || finishedReadingAt != null || if (format.isOffline) {
     startedReadingAt != null || readingPercent > 0f || lastReadAt != null || totalReadingSeconds > 0L
 } else {
     totalReadingSeconds >= StartedReadingSeconds

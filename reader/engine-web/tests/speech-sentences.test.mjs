@@ -273,3 +273,16 @@ test('French honorific stays with its name and retains its period for native pro
     const { sentences } = setup('<p>M. Dupont met M. Émile. They left.</p>')
     assert.deepEqual(Array.from(sentences, s => s.text), ['M. Dupont met M. Émile.', 'They left.'])
 })
+
+test('chapter progress includes the text before a mid-chapter speech start', () => {
+    const { context, document } = setup('<p>First sentence. Second sentence. Final sentence.</p>')
+    const from = document.createRange()
+    const text = document.querySelector('p').firstChild
+    from.setStart(text, text.textContent.indexOf('Second'))
+    from.collapse(true)
+    const sentences = context.speechSentencesFor(document, 0, from)
+    assert.equal(sentences[0].text, 'Second sentence.')
+    assert.ok(vm.runInContext('speech.chapterStartProgress', context) > 0.3)
+    context.speechSentencesFor(document, 0, null)
+    assert.equal(vm.runInContext('speech.chapterStartProgress', context), 0)
+})

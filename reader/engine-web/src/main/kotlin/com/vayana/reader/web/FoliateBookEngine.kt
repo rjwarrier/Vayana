@@ -928,7 +928,8 @@ private fun JSONObject.toSpeechChunk(): SpeechChunk {
             ))
         }
     }
-    return SpeechChunk(sentences, endOfBook = optBoolean("endOfBook"))
+    return SpeechChunk(sentences, endOfBook = optBoolean("endOfBook"),
+        chapterStartProgress = optDouble("chapterStartProgress", 0.0).toFloat().takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f)
 }
 
 private const val BridgeRequestTimeoutMillis = 15_000L

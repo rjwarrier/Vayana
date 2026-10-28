@@ -10,4 +10,9 @@ data class FootnoteOpened(val footnote: Footnote) : EngineEvent
 data class SpeechSentence(val id: String, val text: String, val pauseBeforeMs: Long = 0)
 
 /** Sentences to read aloud next; [endOfBook] means nothing comes after them. */
-data class SpeechChunk(val sentences: List<SpeechSentence>, val endOfBook: Boolean)
+data class SpeechChunk(
+    val sentences: List<SpeechSentence>,
+    val endOfBook: Boolean,
+    /** Fraction of the chapter before the first returned sentence, including when starting from a selection. */
+    val chapterStartProgress: Float = 0f,
+)

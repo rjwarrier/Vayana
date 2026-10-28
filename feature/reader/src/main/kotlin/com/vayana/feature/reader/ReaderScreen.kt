@@ -411,6 +411,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
                 onDismissFootnote = viewModel::dismissFootnote,
                 onOpenFootnote = viewModel::openFootnoteTarget,
                 readAloud = readAloud,
+                readAloudChapterProgress = viewModel.readAloudChapterProgress,
                 onStartReadAloud = { startReadAloud(false) },
                 onReadAloudFromSelection = { startReadAloud(true) },
                 onReadAloudFromHighlight = viewModel::startReadAloudFromActiveHighlight,
@@ -537,6 +538,7 @@ fun ReaderRoute(onBack: () -> Unit, modifier: Modifier = Modifier, onReviewVocab
         onDismissFootnote = viewModel::dismissFootnote,
         onOpenFootnote = viewModel::openFootnoteTarget,
         readAloud = readAloud,
+        readAloudChapterProgress = viewModel.readAloudChapterProgress,
         onStartReadAloud = { startReadAloud(false) },
         onReadAloudFromSelection = { startReadAloud(true) },
         onReadAloudFromHighlight = viewModel::startReadAloudFromActiveHighlight,
@@ -895,6 +897,7 @@ private fun ReaderScreen(
     onDismissFootnote: () -> Unit,
     onOpenFootnote: () -> Unit,
     readAloud: ReadAloudState,
+    readAloudChapterProgress: kotlinx.coroutines.flow.StateFlow<Float>,
     onStartReadAloud: () -> Unit,
     onReadAloudFromSelection: () -> Unit,
     onReadAloudFromHighlight: () -> Unit,
@@ -1715,6 +1718,7 @@ private fun ReaderScreen(
         if (readAloudPanelVisible) {
             ReadAloudBar(
                 state = readAloud,
+                chapterProgress = readAloudChapterProgress,
                 onTogglePlayback = onToggleReadAloud,
                 onRateChange = onReadAloudRateChange,
                 onPitchChange = onReadAloudPitchChange,
@@ -2042,6 +2046,8 @@ private fun ReaderSettingsFooterButton(
     ReaderFooterPill(
         modifier = modifier,
         footerGap = footerGap,
+        horizontalTouchPadding = Spacing.sm,
+        minimumTouchHeight = Sizes.touchTargetEink,
         onClick = onClick,
         color = if (LocalDisplayProfile.current == DisplayProfile.E_INK) {
             MaterialTheme.colorScheme.secondaryContainer
@@ -2050,13 +2056,11 @@ private fun ReaderSettingsFooterButton(
         },
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Outlined.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(stringResource(R.string.reader_footer_open_settings), style = MaterialTheme.typography.labelMedium)
-        }
+        Icon(
+            Icons.Outlined.Tune,
+            contentDescription = stringResource(R.string.reader_footer_open_settings),
+            modifier = Modifier.size(Sizes.iconSmall),
+        )
     }
 }
 
@@ -2066,6 +2070,7 @@ private fun ReaderFooterPill(
     modifier: Modifier,
     footerGap: Dp,
     horizontalTouchPadding: Dp = 0.dp,
+    minimumTouchHeight: Dp = Sizes.touchTarget,
     onClick: () -> Unit = {},
     onLongPress: (() -> Unit)? = null,
     color: Color = readerHudSurfaceColor(),
@@ -2077,7 +2082,7 @@ private fun ReaderFooterPill(
             .navigationBarsPadding()
             .windowInsetsPadding(readerHudHorizontalInsets)
             .padding(bottom = footerGap)
-            .heightIn(min = 48.dp)
+            .heightIn(min = minimumTouchHeight)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             .padding(horizontal = horizontalTouchPadding),
         contentAlignment = Alignment.Center,

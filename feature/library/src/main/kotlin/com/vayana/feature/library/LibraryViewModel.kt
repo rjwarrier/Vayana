@@ -1,5 +1,8 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.isActiveForReading
+import com.vayana.core.database.model.isFinished
+import com.vayana.core.database.model.hasStartedReading
 import com.vayana.core.database.model.shownReadingPercent
 import com.vayana.core.common.IncomingBookFiles
 import com.vayana.core.resources.UiText
@@ -3414,11 +3417,11 @@ private fun List<ImportProgressRow>.summarize(): ImportSummary = ImportSummary(
 
 private fun List<Book>.filterBy(filter: LibraryFilter, finishedThreshold: Float): List<Book> = when (filter) {
     LibraryFilter.ALL -> this
-    LibraryFilter.READING -> filter { it.readingDisposition == "ACTIVE" && it.shownReadingPercent > 0f && it.readingPercent < finishedThreshold }
-    LibraryFilter.FINISHED -> filter { it.shownReadingPercent >= finishedThreshold }
+    LibraryFilter.READING -> filter { it.isActiveForReading() && it.hasStartedReading() && !it.isFinished() && (it.readingDisposition == "READING" || it.readingPercent < finishedThreshold) }
+    LibraryFilter.FINISHED -> filter { it.isFinished() || (it.readingDisposition != "READING" && it.shownReadingPercent >= finishedThreshold) }
     LibraryFilter.PAUSED -> filter { it.readingDisposition == "PAUSED" }
     LibraryFilter.DNF -> filter { it.readingDisposition == "DNF" }
-    LibraryFilter.NOT_STARTED -> filter { it.readingDisposition == "ACTIVE" && it.shownReadingPercent <= 0f }
+    LibraryFilter.NOT_STARTED -> filter { it.isActiveForReading() && !it.hasStartedReading() }
 }
 
 internal fun Book.hasMeaningfulSyncedProgressChange(after: Book): Boolean {

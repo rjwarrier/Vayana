@@ -1,6 +1,8 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.isActiveForReading
 import com.vayana.core.database.model.hasStartedReading
+import com.vayana.core.database.model.isFinished
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -122,7 +124,7 @@ internal fun todayLibraryState(all: List<Book>, plans: Map<String, LocalDate>, g
     for (book in all) {
         // A book read again after its finish date (marked finished early, or by an import) is being read now.
         val finished = book.finishedReadingAt?.let { finishedAt -> (book.lastReadAt ?: 0L) <= finishedAt } == true
-        if (book.readingDisposition != "ACTIVE" || finished || !(book.readingPercent < 1f)) continue
+        if (!book.isActiveForReading() || finished || !(book.readingPercent < 1f)) continue
         if (book.hasLocalReadableSource() && book.hasStartedReading() &&
             (current == null || (book.lastReadAt ?: 0L) > (current.lastReadAt ?: 0L))) current = book
         if (dailyPlans.size < 3) plans[book.syncId]?.let { dailyPlans += book to finishByPlan(book, it, date) }
@@ -349,12 +351,13 @@ internal fun BookDispositionControl(
     asChip: Boolean = false,
     viewModel: ReadingDashboardViewModel = hiltViewModel(),
 ) {
+    val displayedDisposition = if (book.readingDisposition == "READING" && book.isFinished()) "ACTIVE" else book.readingDisposition
     var editing by rememberSaveable(book.id) { mutableStateOf(false) }
     if (asChip) {
         AssistChip(
             onClick = { editing = true },
             label = {
-                Text(stringResource(R.string.reading_disposition) + " · " + stringResource(dispositionLabel(book.readingDisposition)))
+                Text(stringResource(R.string.reading_disposition) + " · " + stringResource(dispositionLabel(displayedDisposition)))
             },
             leadingIcon = {
                 Icon(
@@ -367,19 +370,20 @@ internal fun BookDispositionControl(
         )
     } else {
         TextButton(onClick = { editing = true }, modifier = modifier) {
-            Text(stringResource(R.string.reading_disposition) + ": " + stringResource(dispositionLabel(book.readingDisposition)))
+            Text(stringResource(R.string.reading_disposition) + ": " + stringResource(dispositionLabel(displayedDisposition)))
         }
     }
     if (!editing) return
-    var status by remember(book.id) { mutableStateOf(book.readingDisposition) }
+    var status by remember(book.id) { mutableStateOf(displayedDisposition) }
     var reason by remember(book.id) { mutableStateOf(book.dispositionReason.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     AlertDialog(onDismissRequest = { if (!busy) editing = false }, title = { Text(stringResource(R.string.reading_disposition)) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(stringResource(R.string.disposition_hint))
-            listOf("ACTIVE", "PAUSED", "DNF").forEach { value -> FilterChip(selected = value == status,
+            Text(stringResource(if (status == "READING" && book.readingPercent >= 1f)
+                R.string.disposition_reading_restart_hint else R.string.disposition_hint))
+            listOf("ACTIVE", "READING", "PAUSED", "DNF").forEach { value -> FilterChip(selected = value == status,
                 onClick = { status = value }, label = { Text(stringResource(dispositionLabel(value))) }, enabled = !busy) }
             OutlinedTextField(value = reason, onValueChange = { reason = it.take(2000) }, label = { Text(stringResource(R.string.disposition_reason)) }, enabled = !busy)
             if (failed) Text(stringResource(R.string.feature_action_failed), color = MaterialTheme.colorScheme.error)
@@ -394,6 +398,7 @@ internal fun BookDispositionControl(
 }
 
 private fun dispositionLabel(value: String): Int = when (value) {
+    "READING" -> R.string.offline_book_status_reading
     "PAUSED" -> R.string.disposition_paused
     "DNF" -> R.string.disposition_dnf
     else -> R.string.disposition_active

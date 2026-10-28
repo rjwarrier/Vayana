@@ -1,5 +1,6 @@
 package com.vayana.app.wear
 
+import com.vayana.core.database.model.isActiveForReading
 import android.content.Context
 import androidx.work.*
 import com.google.android.gms.wearable.DataEventBuffer
@@ -177,7 +178,7 @@ class PhoneWearWorker(context: Context, parameters: WorkerParameters) : Coroutin
 }
 
 internal fun watchBooks(books: List<Book>): List<WearBook> = books.filter { it.format == BookFormat.PHYSICAL &&
-    it.finishedReadingAt == null && it.readingPercent < 1f && it.readingDisposition == "ACTIVE" &&
+    it.finishedReadingAt == null && it.readingPercent < 1f && it.isActiveForReading() &&
     (it.startedReadingAt != null || it.readingPercent > 0f || it.lastReadAt != null || it.totalReadingSeconds > 0) }
     .sortedByDescending { it.lastReadAt ?: it.createdAt }.take(50)
     .map {

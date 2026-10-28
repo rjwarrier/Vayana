@@ -1,5 +1,6 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.isActiveForReading
 import com.vayana.core.database.model.hasStartedReading
 import com.vayana.core.database.model.isFinished
 import androidx.compose.foundation.clickable
@@ -69,7 +70,7 @@ internal fun rememberReadNextShelfBooks(
 /** The next unread book in the series being read, else the author's next unread book; empty when nothing fits. */
 internal fun suggestedReadNext(books: List<Book>, currentBook: Book?): List<Book> {
     val current = currentBook
-        ?.takeIf { it.hasStartedReading() && it.finishedReadingAt == null && it.readingDisposition == "ACTIVE" }
+        ?.takeIf { it.hasStartedReading() && it.finishedReadingAt == null && it.isActiveForReading() }
         ?: return emptyList()
     val currentSeries = current.series?.metadataKey()?.takeIf { it.isNotBlank() } ?: return emptyList()
     val currentSeriesNumber = current.seriesNumber?.toDoubleOrNull()
@@ -314,7 +315,7 @@ internal fun ReadNextSeriesBreakDialog(
 }
 
 private fun Book.isReadNextCandidate(): Boolean =
-    readingDisposition == "ACTIVE" && !format.isOffline && !isFinished()
+    isActiveForReading() && !format.isOffline && !isFinished()
 
 /** The lowest-numbered unread book of [seriesKey] after [afterNumber] (any number when null), excluding [current]. */
 private fun List<Book>.nextInSeries(current: Book, seriesKey: String, afterNumber: Double?): Book? = asSequence()
@@ -329,7 +330,7 @@ private fun List<Book>.nextInSeries(current: Book, seriesKey: String, afterNumbe
 internal fun List<Book>.readNextSeriesBreakWarningFor(queuedBook: Book): ReadNextSeriesBreakWarning? {
     val current = asSequence()
         .filter { it.id != queuedBook.id }
-        .filter { it.hasStartedReading() && it.finishedReadingAt == null && it.readingDisposition == "ACTIVE" }
+        .filter { it.hasStartedReading() && it.finishedReadingAt == null && it.isActiveForReading() }
         .filter { !it.series.isNullOrBlank() && !it.seriesNumber.isNullOrBlank() }
         .maxByOrNull { it.lastReadAt ?: it.startedReadingAt ?: 0L }
         ?: return null

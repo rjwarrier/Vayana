@@ -406,7 +406,7 @@ fun parsePortableCloudBooks(jsonText: String): List<PortableCloudBook> {
                     readNextAddedAt = book.optPositiveLongOrNull("readNextAddedAt"),
                     readNextUpdatedAt = book.optPositiveLongOrNull("readNextUpdatedAt"),
                     readNextPinned = book.optBoolean("readNextPinned", false),
-                    readingDisposition = book.optString("readingDisposition", "ACTIVE").takeIf { it in setOf("ACTIVE", "PAUSED", "DNF") } ?: "ACTIVE",
+                    readingDisposition = book.optString("readingDisposition", "ACTIVE").takeIf { it in setOf("ACTIVE", "READING", "PAUSED", "DNF") } ?: "ACTIVE",
                     dispositionReason = book.optBoundedString("dispositionReason", 2000),
                     dispositionUpdatedAt = book.optPositiveLongOrNull("dispositionUpdatedAt"),
                     deletionUpdatedAt = book.optPositiveLongOrNull("deletionUpdatedAt"),

@@ -379,6 +379,7 @@ class ReaderViewModel @Inject constructor(
     )
     private var lastSpeechInteractionAt = 0L
     val readAloud: StateFlow<ReadAloudState> = readAloudPlayer.state
+    internal val readAloudChapterProgress: StateFlow<Float> = readAloudPlayer.chapterProgress
     private val pronunciationStore = SpeechPronunciationStore(appContext)
     private var pronunciationBookKey: String? = null
     private val _pronunciations = MutableStateFlow<List<SpeechPronunciation>>(emptyList())

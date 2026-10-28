@@ -2000,6 +2000,7 @@ function raisedPdfSpeechSpan(node, previous) {
 
 // The chapter's sentences in reading order, from the first one not before [fromRange] (the page on screen).
 function speechSentencesFor(doc, index, fromRange) {
+    speech.chapterStartProgress = 0
     speech.index = index
     speech.sentences.clear()
     if (!doc.body) return []
@@ -2128,6 +2129,7 @@ function speechSentencesFor(doc, index, fromRange) {
         while (exponentIndex < exponents.length && exponents[exponentIndex].end <= segmentStart) exponentIndex++
         let exponentEnd = exponentIndex
         while (exponentEnd < exponents.length && exponents[exponentEnd].start < segmentStart + segment.length) exponentEnd++
+        if (!sentences.length) speech.chapterStartProgress = text.length ? start / text.length : 0
         const normalized = normalizeSpeechSegment(text.slice(segmentStart, segmentStart + segment.length), segment,
             omitted, segmentStart, exponents.slice(exponentIndex, exponentEnd))
         const sentenceText = normalized.text
@@ -2188,7 +2190,7 @@ async function startSpeech(requestId, fromCfi) {
             post('log', { step: 'startSpeech', message: String(error) })
         }
     }
-    post('reply', { requestId, sentences: speechSentencesFor(content.doc, content.index, fromRange), endOfBook: false })
+    post('reply', { requestId, sentences: speechSentencesFor(content.doc, content.index, fromRange), chapterStartProgress: speech.chapterStartProgress, endOfBook: false })
 }
 
 async function nextSpeechChunk(requestId) {
@@ -2206,7 +2208,7 @@ async function nextSpeechChunk(requestId) {
         if (fixedLayout) await whenFixedPageRendered(content?.doc)
         const sentences = content?.doc ? speechSentencesFor(content.doc, next, null) : []
         speech.index = next
-        post('reply', { requestId, sentences, endOfBook: false })
+        post('reply', { requestId, sentences, chapterStartProgress: speech.chapterStartProgress, endOfBook: false })
     } catch (error) {
         post('log', { step: 'nextSpeechChunk', message: String(error) })
         post('reply', { requestId, sentences: [], endOfBook: true })

@@ -652,6 +652,48 @@ class OfflineBookRepositoryTest {
         assertEquals(recovered, repository.getById(book.id)!!.lastLocator)
     }
 
+    @Test
+    fun newerReadingChoiceReopensDownloadedEbookThroughCloudMetadata() = runBlocking {
+        val added = repository.insertOfflineBook("Book", null, BookFormat.PHYSICAL, 100, 200)
+        val original = database.bookDao().getById(added.id)!!
+        database.bookDao().update(original.copy(
+            format = "EPUB", filePath = "books/book.epub", fileAvailability = "LOCAL",
+            lastLocator = "end", readingPercent = 1f, finishedReadingAt = 200,
+            lastReadAt = 200, updatedAt = 200,
+        ))
+        val remote = offlineRecord(500, null, format = BookFormat.EPUB).copy(
+            syncId = original.syncId, fileHash = original.fileHash,
+            readingDisposition = "READING", dispositionUpdatedAt = 500, lastReadAt = 500,
+        )
+        assertEquals(CloudBookMergeResult.UPDATED, repository.mergeCloudBook(remote))
+        val after = repository.getById(added.id)!!
+        assertEquals("READING", after.readingDisposition)
+        assertNull(after.finishedReadingAt)
+        assertEquals(0f, after.readingPercent)
+        assertNull(after.lastLocator)
+        assertEquals("books/book.epub", after.filePath)
+        // Older finished metadata must not undo the explicit restart.
+        repository.mergeCloudBook(remote.copy(updatedAt = 200, dispositionUpdatedAt = null,
+            readingDisposition = "ACTIVE", finishedReadingAt = 200, readingPercent = 1f, lastReadAt = 200))
+        assertNull(repository.getById(added.id)!!.finishedReadingAt)
+    }
+
+    @Test
+    fun cloudOnlyReadingRestartSurvivesNewerCatalogWithStaleCompletion() = runBlocking {
+        val remote = offlineRecord(500, 200, format = BookFormat.EPUB).copy(lastReadAt = 200)
+        repository.mergeCloudBook(remote)
+        val book = repository.observeAll().first().single()
+        repository.updateDisposition(book.id, "READING", null)
+        val restarted = repository.getById(book.id)!!
+        repository.mergeCloudBook(remote.copy(updatedAt = restarted.updatedAt + 1000, title = "Renamed"))
+        val after = repository.getById(book.id)!!
+        assertEquals("Renamed", after.title)
+        assertEquals("READING", after.readingDisposition)
+        assertNull(after.finishedReadingAt)
+        assertEquals(0f, after.readingPercent)
+        assertEquals(restarted.lastReadAt, after.lastReadAt)
+    }
+
     private fun offlineRecord(
         updatedAt: Long,
         finishedAt: Long?,

@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 data class BookNotebookFields(val id: Long, val syncId: String, val title: String, val author: String?, val tagsCsv: String?)
 
 /** SQL twin of `Book.hasStartedReading` for a book read in the app. */
-private const val StartedEbook = "(finishedReadingAt IS NOT NULL OR totalReadingSeconds >= $StartedReadingSeconds)"
+private const val StartedEbook = "(readingDisposition = 'READING' OR finishedReadingAt IS NOT NULL OR totalReadingSeconds >= $StartedReadingSeconds)"
 
 @Dao
 interface BookDao {
@@ -156,7 +156,7 @@ interface BookDao {
     @Query(
         "UPDATE books SET lastLocator = :locator, readingPercent = :readingPercent, " +
             "startedReadingAt = CASE WHEN startedReadingAt IS NULL AND totalReadingSeconds >= $StartedReadingSeconds THEN :updatedAt ELSE startedReadingAt END, " +
-            "finishedReadingAt = CASE WHEN :readingPercent >= :finishedThreshold AND totalReadingSeconds >= $StartedReadingSeconds THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
+            "finishedReadingAt = CASE WHEN :readingPercent >= (CASE WHEN readingDisposition = 'READING' THEN 1.0 ELSE :finishedThreshold END) AND totalReadingSeconds >= $StartedReadingSeconds THEN (CASE WHEN finishedReadingAt IS NULL THEN :updatedAt ELSE finishedReadingAt END) ELSE finishedReadingAt END, " +
             "updatedAt = :updatedAt, lastReadAt = :updatedAt WHERE id = :id",
     )
     /** Saves the place on every turn, but only a book read for [StartedReadingSeconds] gets a start or finish date. */
@@ -214,7 +214,10 @@ interface BookDao {
 
     @Query(
         "UPDATE books SET lastLocator = NULL, readingPercent = 0, startedReadingAt = NULL, finishedReadingAt = NULL, " +
-            "totalReadingSeconds = 0, lastReadAt = NULL, updatedAt = :timestamp WHERE id = :id",
+            "totalReadingSeconds = 0, lastReadAt = NULL, " +
+            "dispositionUpdatedAt = CASE WHEN readingDisposition = 'READING' THEN MAX(:timestamp, COALESCE(dispositionUpdatedAt, 0) + 1) ELSE dispositionUpdatedAt END, " +
+            "readingDisposition = CASE WHEN readingDisposition = 'READING' THEN 'ACTIVE' ELSE readingDisposition END, " +
+            "updatedAt = :timestamp WHERE id = :id",
     )
     suspend fun resetReadingStats(id: Long, timestamp: Long)
 
@@ -274,20 +277,20 @@ interface BookDao {
      * where watching every book would reload the whole library each time the reader saves its place.
      */
     @Query(
-        "SELECT * FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt > 0 AND filePath != '' " +
+        "SELECT * FROM books WHERE isDeleted = 0 AND readingDisposition IN ('ACTIVE', 'READING') AND lastReadAt > 0 AND filePath != '' " +
             "AND fileAvailability = 'LOCAL' AND $StartedEbook ORDER BY lastReadAt DESC LIMIT 1",
     )
     fun observeContinueReading(): Flow<BookEntity?>
 
     /** The most recently read book whose file is on this device, so it can open in the reader. */
     @Query(
-        "SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt IS NOT NULL AND filePath != '' " +
+        "SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition IN ('ACTIVE', 'READING') AND lastReadAt IS NOT NULL AND filePath != '' " +
             "AND fileAvailability = 'LOCAL' AND $StartedEbook ORDER BY lastReadAt DESC LIMIT 1",
     )
     suspend fun lastReadOpenableBookId(): Long?
 
     /** The most recently read active book, wherever its file is. */
-    @Query("SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition = 'ACTIVE' AND lastReadAt > 0 ORDER BY lastReadAt DESC LIMIT 1")
+    @Query("SELECT id FROM books WHERE isDeleted = 0 AND readingDisposition IN ('ACTIVE', 'READING') AND lastReadAt > 0 ORDER BY lastReadAt DESC LIMIT 1")
     suspend fun lastReadBookId(): Long?
 
     /** Ids of active books matching an FTS [match], most recently read first. */

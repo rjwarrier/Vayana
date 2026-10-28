@@ -4,6 +4,8 @@ import androidx.room.Room
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.EpubChapterText
 import com.vayana.core.database.search.EpubPassageIndexCallback
+import com.vayana.core.database.model.hasStartedReading
+import com.vayana.core.database.model.isFinished
 import com.vayana.core.database.model.BookFormat
 import com.vayana.core.database.repository.BookRepositoryImpl
 import com.vayana.core.database.repository.ReadNextQueueFullException
@@ -132,6 +134,67 @@ class ReadingFeaturesTest {
         assertFalse(books.getById(first.id)!!.readNextPinned)
         books.setReadNext(third.id, true, 2)
         assertEquals(setOf(second.id, third.id), orderedReadNext(books.observeAll().first()).map { it.id }.toSet())
+    }
+
+    @Test fun explicitReadingSurvivesThresholdAndResetReturnsItToUnread() = runBlocking {
+        val book = books.insertOfflineBook("Reading", null, BookFormat.PHYSICAL, 100, null)
+        db.bookDao().update(db.bookDao().getById(book.id)!!.copy(
+            format = "EPUB", filePath = "book.epub", totalReadingSeconds = 900L,
+        ))
+        books.updateDisposition(book.id, "READING", null)
+        books.updateLocator(book.id, "almost-end", 0.96f, 0.95f)
+        assertNull(books.getById(book.id)!!.finishedReadingAt)
+        assertEquals(BookReadingState.READING, books.getById(book.id)!!.readingState())
+        val before = books.getById(book.id)!!
+        books.updateDisposition(book.id, "READING", " ")
+        assertEquals(before, books.getById(book.id))
+        books.resetReadingStats(book.id)
+        val reset = books.getById(book.id)!!
+        assertEquals("ACTIVE", reset.readingDisposition)
+        assertEquals(BookReadingState.NOT_STARTED, reset.readingState())
+    }
+
+    @Test fun selectingReadingReopensFinishedBooksAndPreservesHistory() = runBlocking {
+        for (format in listOf(BookFormat.PHYSICAL, BookFormat.EPUB)) {
+            val original = books.insertOfflineBook("Read again", null, BookFormat.PHYSICAL, 100, null)
+            val before = db.bookDao().getById(original.id)!!.copy(
+                format = format.name, filePath = if (format == BookFormat.EPUB) "book.epub" else "",
+                readingPercent = 1f, finishedReadingAt = 2000L, totalReadingSeconds = 900L,
+                lastLocator = "end-of-book",
+            )
+            db.bookDao().update(before)
+            books.updateDisposition(original.id, "READING", null)
+            val after = books.getById(original.id)!!
+            assertEquals("READING", after.readingDisposition)
+            assertNull(after.finishedReadingAt)
+            assertNull(after.lastLocator)
+            assertEquals(0f, after.readingPercent)
+            assertEquals(before.totalReadingSeconds, after.totalReadingSeconds)
+            assertTrue(after.hasStartedReading())
+            assertFalse(after.isFinished())
+            assertEquals(BookReadingState.READING, after.readingState())
+            books.recordBookOpened(original.id)
+            assertEquals("READING", books.getById(original.id)!!.readingDisposition)
+            books.markFinished(original.id)
+            assertTrue(books.getById(original.id)!!.isFinished())
+            assertEquals("ACTIVE", books.getById(original.id)!!.readingDisposition)
+        }
+    }
+
+    @Test fun selectingReadingKeepsUnfinishedProgressWithoutInventingReadingTime() = runBlocking {
+        val original = books.insertOfflineBook("Partway", null, BookFormat.PHYSICAL, 100, null)
+        db.bookDao().update(db.bookDao().getById(original.id)!!.copy(
+            format = "EPUB", filePath = "book.epub", readingPercent = 0.4f,
+            finishedReadingAt = 2000L, lastLocator = "middle", totalReadingSeconds = 0L,
+        ))
+        books.updateDisposition(original.id, "READING", "Again")
+        val after = books.getById(original.id)!!
+        assertNull(after.finishedReadingAt)
+        assertEquals(0.4f, after.readingPercent)
+        assertEquals("middle", after.lastLocator)
+        assertEquals(0L, after.totalReadingSeconds)
+        assertTrue(after.hasStartedReading())
+        assertFalse(after.isFinished())
     }
 
     @Test fun pausedAndDnfRetainReadingHistoryAndOpeningResumes() = runBlocking {
