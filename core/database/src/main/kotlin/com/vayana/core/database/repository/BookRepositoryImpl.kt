@@ -516,6 +516,8 @@ class BookRepositoryImpl @Inject constructor(
         val assets = listOfNotNull(
             book.fileAssetId?.takeIf { it.isNotBlank() }?.let { it to CloudAssetKind.BOOK_FILE },
             book.coverAssetId?.takeIf { it.isNotBlank() }?.let { it to CloudAssetKind.COVER },
+            book.fileHash.takeIf { book.format == "PDF" && it.matches(Regex("[0-9a-f]{64}")) }
+                ?.let { "ocr-$it" to CloudAssetKind.RECOGNIZED_TEXT },
         ).distinctBy { (assetId, _) -> assetId }
         pendingCloudDeletionDao.insertAll(
             assets.map { (assetId, kind) -> PendingCloudDeletionEntity(assetId = assetId, kind = kind.value, queuedAt = deletedAt) },

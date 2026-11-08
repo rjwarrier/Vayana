@@ -185,6 +185,18 @@ Metadata and cover changes affect Vayana's local record unless the book is a rea
 
 Vayana's EPUB reader remembers the position for each book and supports reflowable text, fixed-layout EPUBs, and per-book presentation choices.
 
+### Clean up an EPUB
+
+In **Book details → book options → Clean Up**, choose what to remove from a local EPUB:
+
+- **Project Gutenberg artifacts:** marked headers, footers, and filename placeholders.
+- **Images:** illustrations, diagrams, and the embedded cover; captions and the library cover are kept.
+- **Embedded fonts:** bundled fonts and their font-face rules.
+- **Text artifacts:** invisible characters inside words, soft-hyphen splits, and repeated nonbreaking spaces in plain prose. Poetry and intentional formatting are preserved.
+- **Embedded audio and video:** recordings, videos, and synchronized read-along tracks. Device text-to-speech is kept.
+
+The dialog checks which items are present and estimates compressed resource sizes. Nothing is selected automatically. After cleanup, a completion dialog shows the original size, cleaned size, and file-size change in bytes and percentage. Cleanup installs a separate reading copy and keeps the original on this device, so total device storage can increase. Reading time and notes are preserved; the reading position is restored from nearby text where possible. Note links can shift after content changes. Use **Full Sync** to share the cleaned copy with other devices.
+
 ### Reader navigation
 
 - Tap or swipe through pages according to the configured tap zones and page-turn behavior.
@@ -245,7 +257,9 @@ The PDF reader supports:
 - Text selection, copy, dictionary lookup, highlights, underlines, notes, and quote cards on PDFs with a text layer
 - First-page cover generation and title/author extraction from PDF metadata when present
 
-Scanned-image PDFs without a text layer can be viewed, zoomed, panned, and bookmarked, but their text cannot be selected or searched. PDF fonts and spacing are printed into the page, so EPUB typography controls do not apply.
+Scanned-image PDFs can be viewed, zoomed, panned, and bookmarked. Use **Recognize text** to enable selection, search, and Text view. After recognition finishes, run **Full Sync** to upload the recognized text with the book-sync passphrase. Other devices running an updated build receive the page text, word boxes, text EPUB, and printed-page map during their next Full Sync, without recognizing the book again. Recognition models and unfinished jobs stay on their original device. Reading-progress-only sync does not transfer recognized text. Removing recognized text locally can be undone by a later Full Sync if the cloud copy still exists. Permanently deleting the book also queues its cloud OCR copy for removal.
+
+PDF fonts and spacing are printed into the page, so EPUB typography controls apply to Text view rather than the scanned page.
 
 ## Highlights, notes, bookmarks, and quotes
 

@@ -79,8 +79,9 @@ Tesseract 5.5, pages rendered at 300 dpi, one core of a desktop PC:
   { "model": "mal-fast-4.1", "lines": [ { "words": [ ["ചെന്നൈ", x0, y0, x1, y1, conf], ... ] } ] }
   ```
 
-- Keyed by the file's hash: replacing the book's file starts over; the same file on another device recognises again
-  (not synced in v1; see open questions).
+- Keyed by the PDF file's hash: replacing the file starts over. Completed recognition now travels in **Full Sync**,
+  encrypted with the book-sync passphrase. The bundle includes page JSON, line joins, the text EPUB and page map;
+  recognition models and incomplete jobs remain local. Receiving devices must run a build with OCR sync support.
 - Deleted with the book (permanent deletion and orphan clean-up in `StorageMaintenance`) and from Settings → Privacy
   & data ("Recognised text: N books, X MB").
 
@@ -151,6 +152,10 @@ Total: about 4–5 days of work.
   highlights made on it may no longer resolve. v1: keep the first result; offer re-running only with a warning that
   marks on that book may be lost.
 - **APK size.** Native libraries for three ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`); measure in phase 1.
-- **Sync.** Recognised text is regenerated per device in v1. Syncing it (small JSON, encrypted like books) can follow
-  if recognising on every device proves annoying.
+- **Sync.** Completed OCR is zipped, encrypted, and referenced separately under `vayana/recognized-text/<PDF hash>.json`,
+  so an older client publishing a snapshot cannot drop it. Content revisions prevent repeat transfers; cached archives
+  avoid rebuilding unchanged results. One conditional folder listing supplies the references for every PDF. Uploads
+  use compare-and-set with bounded conflict retries; downloads validate the hash, pages and text-view files before
+  installation. A recovery journal protects interrupted directory swaps. Active OCR jobs are skipped until a later
+  sync. Permanent PDF deletion queues the cloud OCR descriptor and archive for removal after tombstones are published.
 - **Other scripts.** Tamil, Hindi etc. work the same way with their models; only Malayalam and English are tested.

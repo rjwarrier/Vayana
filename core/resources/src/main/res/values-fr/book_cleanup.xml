@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Nettoyer</string>
-    <string name="library_clean_up_body">Supprime les artefacts Project Gutenberg reconnus et corrige les défauts évidents dans la prose : espaces accidentels, caractères invisibles dans les mots et mots coupés aux traits d\'union conditionnels. La poésie, les lettres, les illustrations et les traits d\'union imprimés ordinaires sont conservés. Le temps de lecture et les notes sont conservés. Votre position est restaurée à partir du texte voisin si possible ; sinon, elle est effacée. Les liens des notes peuvent se décaler. Le fichier d\'origine est conservé sur cet appareil. Utilisez la synchronisation complète pour partager la copie nettoyée.</string>
-    <string name="library_cleaned">Artefacts Gutenberg supprimés. Utilisez la synchronisation complète pour mettre à jour la copie dans le cloud.</string>
-    <string name="library_nothing_to_clean">Aucun artefact Gutenberg reconnu. Livre inchangé.</string>
+    <string name="library_clean_up_body">La copie nettoyée devient le fichier de lecture ; le fichier d’origine reste sur cet appareil, ce qui peut augmenter le stockage utilisé. Le temps de lecture, les notes et la couverture de la bibliothèque sont conservés. La position est restaurée à partir du texte voisin si possible ; sinon, elle est effacée. Les liens des notes peuvent se décaler. Utilisez la synchronisation complète pour partager la copie nettoyée.</string>
+    <string name="library_cleaned">Éléments sélectionnés nettoyés. Utilisez la synchronisation complète pour mettre à jour la copie dans le cloud.</string>
+    <string name="library_nothing_to_clean">Aucun élément sélectionné à nettoyer. Livre inchangé.</string>
     <string name="library_clean_up_preparing">Préparation du nettoyage…</string>
     <string name="library_clean_up_processing">Nettoyage du livre…</string>
     <string name="library_clean_up_finishing">Enregistrement du livre nettoyé…</string>

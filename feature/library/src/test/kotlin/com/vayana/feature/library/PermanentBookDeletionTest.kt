@@ -28,6 +28,12 @@ import com.vayana.core.database.repository.CloudBookRecord
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class PermanentBookDeletionTest {
+    @Test fun permanentPdfDeletionAlsoQueuesItsRecognizedText(): Unit = runBlocking {
+        val hash = "b".repeat(64)
+        val id = database.bookDao().insert(book(syncId = "pdf-with-ocr", fileHash = hash, updatedAt = 1000, isDeleted = false, withAssets = false).copy(format = "PDF"))
+        repository.purgeEverywhere(id)
+        assertEquals(listOf("ocr-$hash" to "recognized_text"), database.pendingCloudDeletionDao().getBatch(10).map { it.assetId to it.kind })
+    }
     private lateinit var database: VayanaDatabase
     private lateinit var repository: BookRepositoryImpl
 

@@ -39,7 +39,7 @@ class GitHubContentsAssetStore(
     private val committerEmail: String,
     private val client: GitHubHttpClient = UrlConnectionGitHubHttpClient(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : CloudAssetStore {
+) : CloudAssetStore, RecognizedTextAssetDeletion {
     init {
         require(token.isNotBlank()) { "GitHub token is required" }
         require(committerName.isNotBlank()) { "GitHub committer name is required" }
@@ -305,21 +305,32 @@ class GitHubContentsAssetStore(
         validateSyncDocumentPath(path)
         val sha = getSyncDocumentSha(path)
         if (sha == skipSha) return@withContext null
+        getSyncDocumentWithKnownSha(path, sha)
+    }
+
+    /** Reads exactly the blob named by a shared directory listing, without listing the folder again per book. */
+    suspend fun getSyncDocumentWithKnownSha(path: String, sha: String, maxBytes: Int = MaxSyncDocumentBytes): GitHubSyncDocument = withContext(dispatcher) {
+        validateSyncDocumentPath(path)
+        require(sha.matches(GitHubObjectShaRegex)) { "Invalid GitHub object SHA" }
+        require(maxBytes in 1..MaxSyncDocumentBytes)
         // Blob content is addressed by its SHA, so a cached copy (from an earlier read, or the content GitHub
         // embeds in the metadata response for smaller files) is exactly the bytes of this version.
-        GitHubBlobCache.get(sha)?.let { return@withContext GitHubSyncDocument(bytes = it, sha = sha) }
+        GitHubBlobCache.get(sha)?.let {
+            require(it.size <= maxBytes) { "Sync document download is too large" }
+            return@withContext GitHubSyncDocument(bytes = it, sha = sha)
+        }
         val blobResponse = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = blobUrl(sha),
                 headers = rawBlobHeaders(),
-                maxResponseBytes = MaxSyncDocumentBytes,
+                maxResponseBytes = maxBytes,
             ),
         )
         if (blobResponse.statusCode != HttpURLConnection.HTTP_OK) {
             throw GitHubAssetStoreException("GitHub metadata download failed", blobResponse.statusCode, blobResponse.safeBodyText())
         }
-        require(blobResponse.body.size <= MaxSyncDocumentBytes) { "Sync document download is too large" }
+        require(blobResponse.body.size <= maxBytes) { "Sync document download is too large" }
         GitHubBlobCache.put(sha, blobResponse.body)
         GitHubSyncDocument(bytes = blobResponse.body, sha = sha)
     }
@@ -359,6 +370,19 @@ class GitHubContentsAssetStore(
         }
     }
 
+    override suspend fun deleteRecognizedText(bookHash: String) {
+        require(bookHash.matches(Regex("[0-9a-f]{64}")))
+        val path = "vayana/recognized-text/$bookHash.json"
+        val descriptor = try { getSyncDocumentWithSha(path) } catch (missing: GitHubAssetStoreException) {
+            if (missing.statusCode == HttpURLConnection.HTTP_NOT_FOUND) return else throw missing
+        }
+        val metadata = org.json.JSONObject(descriptor.bytes.toString(Charsets.UTF_8))
+        require(metadata.getString("bookHash") == bookHash)
+        val id = metadata.getJSONObject("asset").getString("id")
+        delete(CloudAssetLayout.pathFor(id))
+        deleteSyncDocument(path, descriptor.sha)
+    }
+
     suspend fun deleteSyncDocumentIfExists(path: String): Unit = withContext(dispatcher) {
         validateSyncDocumentPath(path)
         val sha = findExistingSha(path) ?: return@withContext
@@ -394,6 +418,19 @@ class GitHubContentsAssetStore(
      */
     private suspend fun getSyncDocumentSha(path: String): String {
         val folder = path.substringBeforeLast('/')
+        return getSyncDocumentFolderShas(folder)[path]
+            ?: throw GitHubAssetStoreException("GitHub metadata download failed", HttpURLConnection.HTTP_NOT_FOUND, path)
+    }
+
+    /** One conditional directory request supplies every recognized-text reference in a full sync. */
+    suspend fun listSyncDocumentShas(folder: String): Map<String, String> = withContext(dispatcher) {
+        validateSyncDocumentDirectoryPath(folder)
+        try { getSyncDocumentFolderShas(folder) } catch (missing: GitHubAssetStoreException) {
+            if (missing.statusCode == HttpURLConnection.HTTP_NOT_FOUND) emptyMap() else throw missing
+        }
+    }
+
+    private suspend fun getSyncDocumentFolderShas(folder: String): Map<String, String> {
         val metadataKey = "$cacheScope|$folder/"
         val cached = GitHubMetadataCache.get(metadataKey)
         val response = executeRead(
@@ -413,8 +450,7 @@ class GitHubContentsAssetStore(
                 .also { listing -> response.header("ETag")?.let { GitHubMetadataCache.put(metadataKey, CachedSyncDocumentMetadata(it, listing)) } }
             else -> throw GitHubAssetStoreException("GitHub metadata download failed", response.statusCode, response.safeBodyText())
         }
-        return shaByPath[path]
-            ?: throw GitHubAssetStoreException("GitHub metadata download failed", HttpURLConnection.HTTP_NOT_FOUND, path)
+        return shaByPath
     }
 
     /**
@@ -538,20 +574,23 @@ class GitHubContentsAssetStore(
         throw GitHubAssetStoreException("GitHub asset upload failed", response.statusCode, response.safeBodyText())
     }
 
-    override suspend fun get(path: String): ByteArray = withContext(dispatcher) {
+    override suspend fun get(path: String): ByteArray = get(path, MaxEncryptedAssetBytes)
+
+    suspend fun get(path: String, maxBytes: Int): ByteArray = withContext(dispatcher) {
         validateAssetPath(path)
+        require(maxBytes in 1..MaxEncryptedAssetBytes)
         val response = executeRead(
             GitHubHttpRequest(
                 method = "GET",
                 url = contentsUrl(path, includeRef = true),
                 headers = rawHeaders(),
-                maxResponseBytes = MaxEncryptedAssetBytes,
+                maxResponseBytes = maxBytes,
             ),
         )
         if (response.statusCode != HttpURLConnection.HTTP_OK) {
             throw GitHubAssetStoreException("GitHub asset download failed", response.statusCode, response.safeBodyText())
         }
-        require(response.body.size <= MaxEncryptedAssetBytes) { "Cloud asset download is too large" }
+        require(response.body.size <= maxBytes) { "Cloud asset download is too large" }
         response.body
     }
 
@@ -832,6 +871,7 @@ private fun validateAssetPath(path: String) {
 private fun validateSyncDocumentPath(path: String) {
     require(
         path == "vayana/snapshot-latest.json" ||
+            path.matches(Regex("vayana/recognized-text/[0-9a-f]{64}\\.json")) ||
             path.startsWith("vayana/snapshots/") ||
             path.startsWith("vayana/snapshot-slices/"),
     ) { "Invalid sync document path" }
@@ -843,7 +883,7 @@ private fun validateSyncDocumentPath(path: String) {
 }
 
 private fun validateSyncDocumentDirectoryPath(path: String) {
-    require(path == "vayana/snapshot-slices" || path.matches(SnapshotSliceDirectoryPathRegex)) { "Invalid sync document directory path" }
+    require(path == "vayana/snapshot-slices" || path == "vayana/recognized-text" || path.matches(SnapshotSliceDirectoryPathRegex)) { "Invalid sync document directory path" }
     require(".." !in path && "//" !in path) { "Invalid sync document directory path" }
 }
 

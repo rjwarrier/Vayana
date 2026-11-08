@@ -16,7 +16,22 @@ import org.json.JSONObject
  * is the SHA-256 of the book's file (`books.fileHash`), so replacing the file starts over and the same file keeps its
  * text however it is moved. A page that has a file is done; recognition skips it.
  */
-class OcrStore(private val root: File) {
+class OcrStore(internal val root: File) {
+    init { OcrSyncArchives.recover(root) }
+
+    fun pageCount(book: String): Int? = bookDir(book)?.let { directory ->
+        runCatching { File(directory, "page-count").readText().toInt().takeIf { it > 0 } }.getOrNull()
+    }
+
+    fun recordPageCount(book: String, total: Int) {
+        require(total > 0)
+        val directory = bookDir(book) ?: return
+        directory.mkdirs()
+        if (pageCount(book) == total) return
+        val partial = File(directory, "page-count.part")
+        partial.writeText(total.toString())
+        Files.move(partial.toPath(), File(directory, "page-count").toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
 
     fun save(book: String, pageIndex: Int, page: RecognizedPage, model: String) {
         val file = pageFile(book, pageIndex) ?: return
@@ -207,9 +222,9 @@ fun pagesToRecognize(pages: List<Int>, saved: Set<Int>, startPage: Int): List<In
 private fun Float.rounded(): Double = Math.round(this * 100) / 100.0
 
 private val BookKeyPattern = Regex("[0-9a-f]{64}")
-private const val LineJoinsMarker = "lines-joined"
+internal const val LineJoinsMarker = "lines-joined"
 private const val SearchTextVersion = 1
 // Versioned, so a change in how the text is laid out builds it again.
 private const val TextFilePrefix = "text-v"
-private const val TextEpubName = "text-v5.epub"
-private const val TextPageMapName = "text-v5-pages.json"
+internal const val TextEpubName = "text-v5.epub"
+internal const val TextPageMapName = "text-v5-pages.json"

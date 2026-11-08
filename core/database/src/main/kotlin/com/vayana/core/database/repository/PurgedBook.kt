@@ -13,4 +13,5 @@ data class PurgedBook(
 enum class CloudAssetKind(val value: String) {
     BOOK_FILE("book_file"),
     COVER("cover"),
+    RECOGNIZED_TEXT("recognized_text"),
 }

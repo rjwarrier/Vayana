@@ -1,9 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Clean Up</string>
-    <string name="library_clean_up_body">Remove recognized Project Gutenberg artifacts and fix clear text artifacts in prose: accidental space gaps, invisible characters inside words, and words split at soft hyphens. Poetry, letters, illustrations, and ordinary printed hyphens are preserved. Reading time and notes are kept. Your position is restored from nearby passage text when possible; otherwise it is cleared. Note links may shift. The original file is kept on this device. Use Full Sync to share the cleaned copy.</string>
-    <string name="library_cleaned">Gutenberg artifacts removed. Use Full Sync to update the cloud copy.</string>
-    <string name="library_nothing_to_clean">No recognized Gutenberg artifacts found. Book unchanged.</string>
+    <string name="library_cleanup_complete_title">Cleanup complete</string>
+    <string name="library_cleanup_original_size">Original size</string>
+    <string name="library_cleanup_new_size">Cleaned size</string>
+    <string name="library_cleanup_reduction">File size reduction</string>
+    <string name="library_cleanup_increase">File size increase</string>
+    <string name="library_cleanup_size_change">%1$s (%2$s)</string>
+    <string name="library_cleanup_result_note">The original file is kept on this device. These sizes compare the EPUB files. Use Full Sync to share the cleaned copy.</string>
+    <string name="library_clean_up_body">A cleaned copy becomes the reading file; the original is kept on this device, so device storage may increase. Reading time, notes, and the library cover are kept. Your position is restored from nearby text when possible; otherwise it is cleared. Note links may shift. Use Full Sync to share the cleaned copy.</string>
+    <string name="library_cleaned">Selected items cleaned up. Use Full Sync to update the cloud copy.</string>
+    <string name="library_nothing_to_clean">No selected items found to clean up. Book unchanged.</string>
+    <string name="library_cleanup_choose">Choose what to remove. Only selected items will change.</string>
+    <string name="library_cleanup_inspecting">Checking this book…</string>
+    <string name="library_cleanup_inspection_failed">Could not inspect this EPUB. The book has not changed.</string>
+    <string name="library_cleanup_retry">Try again</string>
+    <string name="library_cleanup_not_found">Not found in this book</string>
+    <string name="library_cleanup_resources">%1$d resources · about %2$s compressed</string>
+    <string name="library_cleanup_inline">Inline content, if present, is also removed.</string>
+    <string name="library_cleanup_gutenberg">Project Gutenberg artifacts</string>
+    <string name="library_cleanup_gutenberg_body">Remove marked Gutenberg headers, footers, and filename placeholders from downloaded books.</string>
+    <string name="library_cleanup_images">Images</string>
+    <string name="library_cleanup_images_body">Remove illustrations, diagrams, and the embedded cover. Captions and the library cover are kept.</string>
+    <string name="library_cleanup_fonts">Embedded fonts</string>
+    <string name="library_cleanup_fonts_body">Remove bundled font files and font-face rules. The reader uses available fonts instead.</string>
+    <string name="library_cleanup_text">Text artifacts</string>
+    <string name="library_cleanup_text_body">Fix invisible characters inside words, soft-hyphen splits, and repeated nonbreaking spaces in plain prose. Preserve poetry and intentional formatting.</string>
+    <string name="library_cleanup_media">Embedded audio and video</string>
+    <string name="library_cleanup_media_body">Remove bundled recordings, videos, and synchronized read-along tracks. Device text-to-speech is kept.</string>
     <string name="library_clean_up_preparing">Preparing cleanup…</string>
     <string name="library_clean_up_processing">Cleaning book…</string>
     <string name="library_clean_up_finishing">Saving cleaned book…</string>

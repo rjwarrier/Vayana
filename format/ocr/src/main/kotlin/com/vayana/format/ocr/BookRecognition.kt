@@ -42,6 +42,26 @@ object BookRecognition {
 
     fun models(context: Context) = OcrModelFiles(File(context.filesDir, "ocr-models"))
 
+    suspend fun captureForSync(context: Context, book: String, pdf: File? = null, checkCancelled: () -> Unit = {}): OcrSyncArchive? =
+        RecognitionAccess.idleBook(book) {
+            val store = store(context)
+            // Legacy OCR predates the recorded PDF page count. Check the actual PDF once before uploading it.
+            if (store.pageCount(book) == null && store.hasLineJoins(book) && store.textEpub(book) != null && pdf?.isFile == true) {
+                ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                    PdfRenderer(descriptor).use { renderer -> store.recordPageCount(book, renderer.pageCount) }
+                }
+            }
+            OcrSyncArchives.capture(store, book, checkCancelled)
+        }
+
+    suspend fun restoreFromSync(context: Context, book: String, archive: OcrSyncArchive, expectedLocalRevision: String?, checkCancelled: () -> Unit = {}) =
+        RecognitionAccess.idleBook(book) {
+            check(OcrSyncArchives.capture(store(context), book, checkCancelled)?.revision == expectedLocalRevision) {
+                "Recognized text changed during sync; retry sync"
+            }
+            OcrSyncArchives.restore(store(context), book, archive, checkCancelled)
+        }
+
     /** The model last started, offered first for a book whose language has no model of its own. */
     fun lastModel(context: Context): OcrModel? =
         OcrModel.byId(runCatching { File(context.filesDir, LastModelFile).readText().trim() }.getOrNull())
@@ -128,6 +148,7 @@ object BookRecognition {
     suspend fun finishTextIfComplete(context: Context, book: String, totalPages: Int, title: String, author: String?) =
         RecognitionAccess.book(book) {
             val store = store(context)
+            if (totalPages > 0) store.recordPageCount(book, totalPages)
             val pages = store.savedPages(book)
             if (totalPages > 0 && pages.size >= totalPages) {
                 val addJoins = !store.hasLineJoins(book)
@@ -189,6 +210,7 @@ class BookRecognitionWorker(context: Context, parameters: WorkerParameters) : Co
         }
         val store = BookRecognition.store(applicationContext)
         val pageCount = openRenderer(pdf) { it.pageCount }
+        store.recordPageCount(book, pageCount)
         val pages = inputData.getIntArray(BookRecognition.KeyPages)?.filter { it in 0 until pageCount }
             ?: (0 until pageCount).toList()
         val queue = ConcurrentLinkedQueue(pagesToRecognize(pages, store.savedPages(book), inputData.getInt(BookRecognition.KeyStartPage, 0)))

@@ -13,3 +13,8 @@ interface CloudAssetStore {
     /** Deletes the asset at [path]; one that is already gone counts as deleted. */
     suspend fun delete(path: String)
 }
+
+/** Stores with OCR descriptors can remove the associated encrypted archive on a permanent book deletion. */
+interface RecognizedTextAssetDeletion {
+    suspend fun deleteRecognizedText(bookHash: String)
+}

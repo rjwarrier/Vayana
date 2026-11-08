@@ -181,6 +181,7 @@ import com.vayana.core.sync.usage.SyncKind
 data class ImportSummary(val imported: Int, val duplicates: Int, val unsupported: Int, val failed: Int)
 
 data class BookCleanupProgress(val bookId: Long, val fraction: Float?)
+data class BookCleanupResult(val bookId: Long, val originalSizeBytes: Long, val cleanedSizeBytes: Long)
 
 enum class ImportRowStatus { QUEUED, COPYING, PARSING, IMPORTED, DUPLICATE, UNSUPPORTED, FAILED }
 
@@ -523,6 +524,7 @@ class LibraryViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val readingTools: ReadingToolsRepository,
     private val cloudBookAssetTransfer: CloudBookAssetTransfer,
+    private val recognizedTextSync: RecognizedTextSync,
     private val cloudAssetDeletionProcessor: CloudAssetDeletionProcessor,
     private val snapshotExporter: SnapshotExporter,
     private val storageRoots: StorageRoots,
@@ -634,6 +636,8 @@ class LibraryViewModel @Inject constructor(
     val bookDetailMessage: StateFlow<BookDetailMessage?> = _bookDetailMessage
     private val _cleanupProgress = MutableStateFlow<BookCleanupProgress?>(null)
     val cleanupProgress: StateFlow<BookCleanupProgress?> = _cleanupProgress
+    private val _cleanupResult = MutableStateFlow<BookCleanupResult?>(null)
+    val cleanupResult: StateFlow<BookCleanupResult?> = _cleanupResult
 
     private val _coverImageDownloadInProgress = MutableStateFlow(false)
     val coverImageDownloadInProgress: StateFlow<Boolean> = _coverImageDownloadInProgress
@@ -1006,8 +1010,22 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    fun cleanUpGutenberg(bookId: Long) {
+    suspend fun inspectBookCleanup(bookId: Long): com.vayana.format.epub.EpubCleanupInventory = withContext(dispatchers.io) {
+        val book = requireNotNull(bookRepository.getById(bookId))
+        require(book.format == BookFormat.EPUB && book.fileAvailability == BookFileAvailability.LOCAL)
+        val context = kotlinx.coroutines.currentCoroutineContext()
+        com.vayana.format.epub.EpubCleanup.inspect(storageRoots.resolve(book.filePath)) { context.ensureActive() }
+    }
+
+    fun dismissCleanupResult(bookId: Long) {
+        val result = _cleanupResult.value
+        if (result?.bookId == bookId) _cleanupResult.compareAndSet(result, null)
+    }
+
+    fun cleanUpBook(bookId: Long, options: com.vayana.format.epub.EpubCleanupOptions) {
+        if (!options.hasSelection) return
         if (!_cleanupProgress.compareAndSet(null, BookCleanupProgress(bookId, null))) return
+        _cleanupResult.value = null
         viewModelScope.launch {
             try {
                 _bookDetailMessage.value = syncOperationCoordinator.run {
@@ -1021,7 +1039,8 @@ class LibraryViewModel @Inject constructor(
                         try {
                             val cleanupContext = kotlinx.coroutines.currentCoroutineContext()
                             val source = storageRoots.resolve(book.filePath)
-                            val removed = com.vayana.format.epub.GutenbergCleanup.clean(source, destination,
+                            val originalSizeBytes = source.length()
+                            val removed = com.vayana.format.epub.EpubCleanup.clean(source, destination, options,
                                 onProgress = { completed, total ->
                                     _cleanupProgress.value = BookCleanupProgress(bookId, completed.toFloat() / total.coerceAtLeast(1))
                                 }, checkCancelled = { cleanupContext.ensureActive() })
@@ -1032,7 +1051,10 @@ class LibraryViewModel @Inject constructor(
                             }
                             installed = bookRepository.attachCleanedSource(bookId, book.fileHash,
                                 storageRoots.relativize(destination), com.vayana.core.common.Hashing.sha256(destination.inputStream()), restoredLocator)
-                            if (installed) BookDetailMessage.CLEANED else BookDetailMessage.SOURCE_FAILED
+                            if (installed) {
+                                _cleanupResult.value = BookCleanupResult(bookId, originalSizeBytes, destination.length())
+                                BookDetailMessage.CLEANED
+                            } else BookDetailMessage.SOURCE_FAILED
                         } catch (failure: Exception) {
                             if (failure is kotlinx.coroutines.CancellationException) throw failure
                             BookDetailMessage.SOURCE_FAILED
@@ -1040,7 +1062,7 @@ class LibraryViewModel @Inject constructor(
                             if (!installed) destination.delete()
                         }
                     }
-                }
+                }.takeUnless { it == BookDetailMessage.CLEANED }
             } finally {
                 _cleanupProgress.value = null
             }
@@ -1722,9 +1744,9 @@ class LibraryViewModel @Inject constructor(
             }
             updateSyncProgress(
                 showProgress = showProgress,
-                step = GitHubSyncProgressStep.SAVING_SNAPSHOT,
-                detail = UiText.Res(R.string.sync_detail_saving_latest_snapshot),
-                completedSteps = 4,
+                step = GitHubSyncProgressStep.UPLOADING_BOOKS,
+                detail = UiText.Res(R.string.sync_detail_recognized_text),
+                completedSteps = 3,
                 uploadedBooks = uploaded,
                 failedBooks = failed,
                 uploadedCovers = uploadedCovers,
@@ -1733,6 +1755,13 @@ class LibraryViewModel @Inject constructor(
                 cloudBooksUpdated = cloudLibraryMerge.updated,
                 downloadedCovers = cloudLibraryMerge.coversDownloaded,
             )
+            val ocrPassphrase = syncConfig.passphrase.toCharArray()
+            val ocrSync = try { recognizedTextSync.sync(localBooks, ocrPassphrase, store) }
+                finally { ocrPassphrase.fill('\u0000') }
+            failed += ocrSync.failed
+            fullSyncLog?.phase("Sync recognized text", "uploaded=${ocrSync.uploaded}, downloaded=${ocrSync.downloaded}, failed=${ocrSync.failed}, busy=${ocrSync.busy}" +
+                (ocrSync.failure?.let { ", failure=${it.javaClass.simpleName}: ${it.message}" } ?: ""))
+
             val snapshotProgress: (PortableSnapshotPublishProgress) -> Unit = { progress ->
                 updateSyncProgress(
                     showProgress = showProgress,
@@ -1809,7 +1838,7 @@ class LibraryViewModel @Inject constructor(
                 skipped = totalSkipped,
                 pullFailed = anyPullFailed && !allowInitialSync,
                 metadataSynced = metadataSave.synced,
-                failureMessage = metadataSave.failureMessage ?: entityMerges.firstFailureMessage(),
+                failureMessage = metadataSave.failureMessage ?: ocrSync.failure?.syncFailureMessage() ?: entityMerges.firstFailureMessage(),
                 newerRemoteBuild = newerRemoteBuild(progressMerge),
             )
         } finally {

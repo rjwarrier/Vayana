@@ -8,7 +8,7 @@ import java.util.zip.ZipOutputStream
 import kotlin.test.*
 
 class EpubCleanupPositionTest {
-    private fun book(duplicatePassage: Boolean = false, action: (File) -> Unit) {
+    private fun book(duplicatePassage: Boolean = false, namedEntities: Boolean = false, action: (File) -> Unit) {
         val file = File.createTempFile("position", ".epub")
         try {
             ZipOutputStream(file.outputStream()).use { zip ->
@@ -20,7 +20,9 @@ class EpubCleanupPositionTest {
                     val chapter = if (duplicatePassage && path.endsWith("xhtml")) {
                         content.replace("</body>", "<p>Along the inter\u00adnational RIVER, a traveller found <em>a quiet place</em> to rest.</p></body>")
                     } else content
-                    zip.putNextEntry(ZipEntry(path)); zip.write(chapter.toByteArray()); zip.closeEntry()
+                    val contentWithEntities = if (namedEntities && path.endsWith("xhtml")) chapter
+                        .replace("river", "caf&eacute;&nbsp;river") else chapter
+                    zip.putNextEntry(ZipEntry(path)); zip.write(contentWithEntities.toByteArray()); zip.closeEntry()
                 }
             }
             action(file)
@@ -32,6 +34,12 @@ class EpubCleanupPositionTest {
         assertTrue(locator.startsWith("text:search:OPS%2Fchapter.xhtml:"))
         val text = URLDecoder.decode(locator.substringAfterLast(':'), "UTF-8")
         assertEquals("international river, a traveller found a quiet place to rest.", text)
+    }
+
+    @Test fun preservesNamedEntitiesWhileRestoringTheReadingPosition() = book(namedEntities = true) { source ->
+        val locator = assertNotNull(EpubCleanupPosition.capture(source, "epubcfi(/6/2!/4/4/1:10)"))
+        assertEquals("international café river, a traveller found a quiet place to rest.",
+            URLDecoder.decode(locator.substringAfterLast(':'), "UTF-8"))
     }
 
     @Test fun supportsRangeStartAndRejectsRemovedOrInvalidPositions() = book { source ->

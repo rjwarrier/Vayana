@@ -7,6 +7,10 @@
     </queries>
 
     <application>
+        <receiver
+            android:name="com.vayana.app.debug.OcrSyncReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
         <!-- Debug builds only: the text recognition spike (docs/SCANNED_PDF_TEXT_PLAN.md, phase 1). DUMP limits it to
              adb's shell; no app can send it. -->
         <receiver

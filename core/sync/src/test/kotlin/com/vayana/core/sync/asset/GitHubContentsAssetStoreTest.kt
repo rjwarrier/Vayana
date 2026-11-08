@@ -36,6 +36,19 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 
 class GitHubContentsAssetStoreTest {
+    @Test fun recognizedTextDirectoryCanBeReadOnceAndBlobsReadByTheirKnownSha() = runBlocking {
+        val path = "vayana/recognized-text/${"b".repeat(64)}.json"
+        val client = RecordingGitHubHttpClient(
+            GitHubHttpResponse(200, folderListing(path to ExistingSha)),
+            GitHubHttpResponse(200, "{\"version\":1}".toByteArray()),
+        )
+        val store = testStore(client)
+        val references = store.listSyncDocumentShas("vayana/recognized-text")
+        assertEquals(ExistingSha, references[path])
+        assertEquals("{\"version\":1}", store.getSyncDocumentWithKnownSha(path, references.getValue(path)).bytes.toString(Charsets.UTF_8))
+        assertEquals(1, client.requests.count { it.url.contains("/contents/") })
+    }
+
     // These script the plain format's requests (inline JSON slices); compact-format tests switch it back on themselves.
     @BeforeTest
     fun usePlainSnapshotFormat() {

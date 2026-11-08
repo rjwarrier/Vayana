@@ -170,6 +170,7 @@ fun BookDetailRoute(
     val finishByDates by viewModel.finishByDates.collectAsStateWithLifecycle()
     val detailMessage by viewModel.bookDetailMessage.collectAsStateWithLifecycle()
     val cleanupProgress by viewModel.cleanupProgress.collectAsStateWithLifecycle()
+    val cleanupResult by viewModel.cleanupResult.collectAsStateWithLifecycle()
     val coverImageDownloadInProgress by viewModel.coverImageDownloadInProgress.collectAsStateWithLifecycle()
     val allShelves by viewModel.shelves.collectAsStateWithLifecycle()
     val shelvesForBook by remember(bookId) { viewModel.observeShelvesForBook(bookId) }.collectAsStateWithLifecycle()
@@ -221,6 +222,8 @@ fun BookDetailRoute(
         onFinishByChange = { date -> book?.let { viewModel.setFinishBy(it.syncId, date) } },
         detailMessage = detailMessage,
         cleanupProgress = cleanupProgress,
+        cleanupResult = cleanupResult,
+        onDismissCleanupResult = { viewModel.dismissCleanupResult(bookId) },
         coverImageDownloadInProgress = coverImageDownloadInProgress,
         allShelves = allShelves,
         shelvesForBook = shelvesForBook,
@@ -244,7 +247,8 @@ fun BookDetailRoute(
         onReplaceSource = { contentResolver, uri ->
             viewModel.replaceSource(bookId, contentResolver, uri)
         },
-        onCleanUp = { viewModel.cleanUpGutenberg(bookId) },
+        onInspectCleanup = { viewModel.inspectBookCleanup(bookId) },
+        onCleanUp = { options -> viewModel.cleanUpBook(bookId, options) },
         onReplaceCover = { contentResolver, uri ->
             viewModel.replaceCover(bookId, contentResolver, uri)
         },
@@ -353,6 +357,8 @@ private fun BookDetailScreen(
     yearlyBooksGoal: Int,
     detailMessage: BookDetailMessage?,
     cleanupProgress: BookCleanupProgress?,
+    cleanupResult: BookCleanupResult?,
+    onDismissCleanupResult: () -> Unit,
     coverImageDownloadInProgress: Boolean,
     allShelves: List<com.vayana.core.database.model.Shelf>,
     shelvesForBook: List<com.vayana.core.database.model.Shelf>,
@@ -370,7 +376,8 @@ private fun BookDetailScreen(
     onUpdateReadingDates: (startedAt: Long?, finishedAt: Long?) -> Unit,
     onUpdateRating: (Float) -> Unit,
     onReplaceSource: (android.content.ContentResolver, Uri) -> Unit,
-    onCleanUp: () -> Unit,
+    onInspectCleanup: suspend () -> com.vayana.format.epub.EpubCleanupInventory,
+    onCleanUp: (com.vayana.format.epub.EpubCleanupOptions) -> Unit,
     onReplaceCover: (android.content.ContentResolver, Uri) -> Unit,
     onReplaceCoverFromWeb: (CoverImageRequest) -> Unit,
     onRemoveCover: () -> Unit,
@@ -1215,16 +1222,16 @@ private fun BookDetailScreen(
         )
     }
 
+    if (cleanupResult != null && cleanupResult.bookId == book?.id && cleanupProgress == null) {
+        BookCleanupResultDialog(cleanupResult, onDismissCleanupResult)
+    }
+
     if (showCleanUpDialog && book != null && cleanupProgress == null) {
-        ConfirmActionDialog(
+        BookCleanupDialog(
+            sourceKey = book.fileHash,
             onDismissRequest = { showCleanUpDialog = false },
-            icon = Icons.Outlined.AutoStories,
-            title = stringResource(R.string.library_clean_up),
-            body = stringResource(R.string.library_clean_up_body),
-            confirmLabel = stringResource(R.string.library_clean_up),
-            dismissLabel = stringResource(R.string.library_edit_metadata_cancel),
-            destructive = false,
-            onConfirm = { showCleanUpDialog = false; onCleanUp() },
+            inspect = onInspectCleanup,
+            onConfirm = { options -> showCleanUpDialog = false; onCleanUp(options) },
         )
     }
 

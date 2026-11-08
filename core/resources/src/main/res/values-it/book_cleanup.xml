@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Ripulisci</string>
-    <string name="library_clean_up_body">Rimuove gli artefatti riconosciuti di Project Gutenberg e corregge errori evidenti nella prosa: spazi accidentali, caratteri invisibili nelle parole e parole spezzate ai trattini morbidi. Poesie, lettere, illustrazioni e normali trattini stampati vengono mantenuti. Il tempo di lettura e le note vengono mantenuti. La tua posizione viene ripristinata dal testo vicino quando possibile; altrimenti viene cancellata. I collegamenti delle note possono spostarsi. Il file originale resta su questo dispositivo. Usa la sincronizzazione completa per condividere la copia ripulita.</string>
-    <string name="library_cleaned">Artefatti di Gutenberg rimossi. Usa la sincronizzazione completa per aggiornare la copia nel cloud.</string>
-    <string name="library_nothing_to_clean">Nessun artefatto di Gutenberg riconosciuto. Libro invariato.</string>
+    <string name="library_clean_up_body">La copia ripulita diventa il file di lettura; l’originale rimane su questo dispositivo, quindi lo spazio occupato può aumentare. Tempo di lettura, note e copertina della biblioteca vengono conservati. La posizione viene ripristinata dal testo vicino quando possibile, altrimenti viene cancellata. I collegamenti delle note possono spostarsi. Usa la sincronizzazione completa per condividere la copia ripulita.</string>
+    <string name="library_cleaned">Elementi selezionati ripuliti. Usa la sincronizzazione completa per aggiornare la copia nel cloud.</string>
+    <string name="library_nothing_to_clean">Nessun elemento selezionato da ripulire. Libro invariato.</string>
     <string name="library_clean_up_preparing">Preparazione della pulizia…</string>
     <string name="library_clean_up_processing">Pulizia del libro…</string>
     <string name="library_clean_up_finishing">Salvataggio del libro ripulito…</string>

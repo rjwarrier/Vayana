@@ -9,6 +9,22 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 
 class CloudAssetDeletionProcessorTest {
+    @Test fun permanentlyDeletedPdfQueuesAndRemovesItsRecognizedText() = runBlocking {
+        val hash = "b".repeat(64)
+        val id = "ocr-$hash"
+        val queue = FakePendingDeletions(id)
+        queue.rows[id] = queue.rows.getValue(id).copy(kind = "recognized_text")
+        var deletedHash: String? = null
+        val store = object : CloudAssetStore, RecognizedTextAssetDeletion {
+            override suspend fun put(path: String, bytes: ByteArray) = error("unused")
+            override suspend fun get(path: String): ByteArray = error("unused")
+            override suspend fun delete(path: String) = error("Must delete the descriptor and its referenced archive")
+            override suspend fun deleteRecognizedText(bookHash: String) { deletedHash = bookHash }
+        }
+        assertEquals(1, CloudAssetDeletionProcessor(queue).deletePending(store).deleted)
+        assertEquals(hash, deletedHash)
+        assertEquals(0, queue.count())
+    }
     @Test
     fun deletesQueuedAssetsAndClearsThem() = runBlocking {
         val queue = FakePendingDeletions("fileasset00000001", "coverasset0000001")

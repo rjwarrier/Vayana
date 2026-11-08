@@ -1,22 +1,18 @@
 package com.vayana.format.epub
 
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
-import java.io.StringReader
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 import org.w3c.dom.Element
 import org.w3c.dom.Node
-import org.xml.sax.InputSource
 
 /** Opt-in cleanup of marked Gutenberg sections and unambiguous prose artifacts. */
 object GutenbergCleanup {
@@ -80,36 +76,35 @@ object GutenbergCleanup {
         }
     }
 
-    private fun cleanChapter(bytes: ByteArray): Pair<ByteArray, Int> {
+    internal fun cleanChapter(
+        bytes: ByteArray,
+        gutenberg: Boolean = true,
+        textArtifacts: Boolean = true,
+    ): Pair<ByteArray, Int> {
+        if (!gutenberg && !textArtifacts) return bytes to 0
         // Internal entity declarations are unnecessary for this operation and can expand exponentially.
         val text = bytes.toString(Charsets.UTF_8)
         if (!text.contains("pg-header") && !text.contains("pg-footer") && !text.contains("img_images_") &&
             !text.hasTextArtifacts() && !TextArtifactEntity.containsMatchIn(text)) return bytes to 0
-        require(!text.contains("<!ENTITY", ignoreCase = true)) { "Unsupported EPUB entity declaration" }
-        val builder = DocumentBuilderFactory.newInstance().apply {
-            isNamespaceAware = true
-            isExpandEntityReferences = false
-        }.newDocumentBuilder()
-        builder.setEntityResolver { _, _ -> InputSource(StringReader("")) }
-        val document = builder.parse(ByteArrayInputStream(bytes))
+        val document = EpubXml.parse(bytes)
         var removed = 0
         fun visit(parent: Node, prose: Boolean = false, protected: Boolean = false) {
             var child = parent.firstChild
             while (child != null) {
                 val next = child.nextSibling
                 val element = child as? Element
-                val boilerplate = element != null && element.localName in BoilerplateTags &&
+                val boilerplate = gutenberg && element != null && element.localName in BoilerplateTags &&
                     element.getAttribute("id") in BoilerplateIds
                 // Gutenberg's no-images editions replace illustrations with filename-like labels.
                 // Remove an entire otherwise-empty figure, but retain real images and captions.
-                val emptyIllustration = element?.isEmptyIllustration() == true
-                if (boilerplate || emptyIllustration || element?.isImagePlaceholder() == true) {
+                val emptyIllustration = gutenberg && element?.isEmptyIllustration() == true
+                if (boilerplate || emptyIllustration || (gutenberg && element?.isImagePlaceholder() == true)) {
                     parent.removeChild(child)
                     removed++
                 } else if (element != null) {
                     val preserve = protected || element.protectsTextFormatting()
                     visit(child, prose || element.localName == "p", preserve)
-                } else if (child.nodeType == Node.TEXT_NODE && prose && !protected) {
+                } else if (textArtifacts && child.nodeType == Node.TEXT_NODE && prose && !protected) {
                     val cleaned = cleanProseText(child.nodeValue)
                     if (cleaned != child.nodeValue) {
                         child.nodeValue = cleaned

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Bereinigen</string>
-    <string name="library_clean_up_body">Entfernt erkannte Project-Gutenberg-Artefakte und behebt eindeutige Textfehler im Fließtext: versehentliche Leerräume, unsichtbare Zeichen in Wörtern und an weichen Trennstrichen getrennte Wörter. Gedichte, Briefe, Abbildungen und normale gedruckte Bindestriche bleiben erhalten. Lesezeit und Notizen bleiben erhalten. Deine Position wird nach Möglichkeit anhand des umliegenden Textes wiederhergestellt, sonst wird sie gelöscht. Notizverknüpfungen können sich verschieben. Die Originaldatei bleibt auf diesem Gerät. Nutze die vollständige Synchronisierung, um die bereinigte Kopie zu teilen.</string>
-    <string name="library_cleaned">Gutenberg-Artefakte entfernt. Nutze die vollständige Synchronisierung, um die Cloud-Kopie zu aktualisieren.</string>
-    <string name="library_nothing_to_clean">Keine erkannten Gutenberg-Artefakte gefunden. Buch unverändert.</string>
+    <string name="library_clean_up_body">Eine bereinigte Kopie wird zur Lesedatei; das Original bleibt auf diesem Gerät. Der Speicherbedarf kann dadurch steigen. Lesezeit, Notizen und das Bibliothekscover bleiben erhalten. Die Position wird nach Möglichkeit aus dem umliegenden Text wiederhergestellt, sonst gelöscht. Notizverknüpfungen können sich verschieben. Nutze die vollständige Synchronisierung, um die bereinigte Kopie zu teilen.</string>
+    <string name="library_cleaned">Ausgewählte Elemente bereinigt. Nutze die vollständige Synchronisierung, um die Cloud-Kopie zu aktualisieren.</string>
+    <string name="library_nothing_to_clean">Keine ausgewählten Elemente zum Bereinigen gefunden. Buch unverändert.</string>
     <string name="library_clean_up_preparing">Bereinigung wird vorbereitet…</string>
     <string name="library_clean_up_processing">Buch wird bereinigt…</string>
     <string name="library_clean_up_finishing">Bereinigtes Buch wird gespeichert…</string>

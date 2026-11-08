@@ -17,7 +17,7 @@
     <string name="ocr_storage_text">Recognized text</string>
     <string name="ocr_storage_books">Recognized text by book</string>
     <string name="ocr_storage_remove">Remove</string>
-    <string name="ocr_storage_book_confirm">Remove recognized text for %1$s? Search, selection and Text view need recognition again. The original book, highlights and reading position are kept.</string>
+    <string name="ocr_storage_book_confirm">Remove recognized text for %1$s from this device? Search, selection and Text view need recognition or restoration from Full Sync. The original book, highlights and reading position are kept.</string>
     <string name="ocr_storage_model_confirm">Remove the %1$s recognition model? Existing recognized text is kept. The model must download again before recognizing more pages.</string>
     <string name="ocr_storage_error">Could not remove this data. Stop active recognition or offline preparation and try again.</string>
     <string name="ocr_storage_unknown_book">Book %1$s</string>

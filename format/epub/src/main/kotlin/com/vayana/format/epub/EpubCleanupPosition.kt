@@ -1,17 +1,14 @@
 package com.vayana.format.epub
 
 import java.io.File
-import java.io.StringReader
 import java.net.URI
 import java.net.URLEncoder
 import java.text.Normalizer
 import java.util.Locale
 import java.util.concurrent.CancellationException
 import java.util.zip.ZipFile
-import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
 import org.w3c.dom.Node
-import org.xml.sax.InputSource
 
 /** Best-effort conversion of the original CFI into a passage locator before its DOM changes. */
 object EpubCleanupPosition {
@@ -31,15 +28,10 @@ object EpubCleanupPosition {
             val steps = Step.findAll(path).toList()
             if (steps.isEmpty() || steps.joinToString("") { it.value } != path) return null
             ZipFile(source).use { zip ->
-                val builder = DocumentBuilderFactory.newInstance().apply {
-                    isNamespaceAware = true
-                    isExpandEntityReferences = false
-                }.newDocumentBuilder()
-                builder.setEntityResolver { _, _ -> InputSource(StringReader("")) }
                 fun document(entry: String): org.w3c.dom.Document {
                     checkCancelled()
                     val item = zip.getEntry(entry) ?: error("Missing EPUB entry")
-                    val text = zip.getInputStream(item).use { input ->
+                    val bytes = zip.getInputStream(item).use { input ->
                         val output = java.io.ByteArrayOutputStream()
                         val buffer = ByteArray(8192)
                         while (true) {
@@ -49,10 +41,9 @@ object EpubCleanupPosition {
                             require(output.size() + count <= 8 * 1024 * 1024)
                             output.write(buffer, 0, count)
                         }
-                        output.toString("UTF-8")
+                        output.toByteArray()
                     }
-                    require(!text.contains("<!ENTITY", ignoreCase = true))
-                    return builder.parse(InputSource(StringReader(text)))
+                    return EpubXml.parse(bytes)
                 }
                 val opf = (document("META-INF/container.xml").getElementsByTagNameNS("*", "rootfile")
                     .item(0) as? Element)?.getAttribute("full-path") ?: return null

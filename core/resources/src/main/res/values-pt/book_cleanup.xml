@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="library_clean_up">Limpar</string>
-    <string name="library_clean_up_body">Remove resíduos reconhecidos do Project Gutenberg e corrige falhas claras no texto em prosa: espaços acidentais, caracteres invisíveis dentro de palavras e palavras divididas em hifens opcionais. Poesia, cartas, ilustrações e hifens impressos comuns são preservados. O tempo de leitura e as notas são mantidos. Sua posição é restaurada a partir do texto próximo quando possível; caso contrário, é apagada. Os links das notas podem se deslocar. O arquivo original fica neste dispositivo. Use a sincronização completa para compartilhar a cópia limpa.</string>
-    <string name="library_cleaned">Resíduos do Gutenberg removidos. Use a sincronização completa para atualizar a cópia na nuvem.</string>
-    <string name="library_nothing_to_clean">Nenhum resíduo reconhecido do Gutenberg encontrado. Livro inalterado.</string>
+    <string name="library_clean_up_body">A cópia limpa passa a ser o arquivo de leitura; o original permanece neste dispositivo, portanto o espaço usado pode aumentar. O tempo de leitura, as notas e a capa da biblioteca são mantidos. A posição é restaurada a partir do texto próximo quando possível; caso contrário, é apagada. Os links das notas podem mudar. Use a sincronização completa para compartilhar a cópia limpa.</string>
+    <string name="library_cleaned">Itens selecionados limpos. Use a sincronização completa para atualizar a cópia na nuvem.</string>
+    <string name="library_nothing_to_clean">Nenhum item selecionado para limpar foi encontrado. Livro inalterado.</string>
     <string name="library_clean_up_preparing">Preparando a limpeza…</string>
     <string name="library_clean_up_processing">Limpando o livro…</string>
     <string name="library_clean_up_finishing">Salvando o livro limpo…</string>

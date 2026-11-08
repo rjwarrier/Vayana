@@ -2,6 +2,7 @@ package com.vayana.core.sync.asset
 
 import com.vayana.core.common.runCatchingCancellable
 import com.vayana.core.database.dao.PendingCloudDeletionDao
+import com.vayana.core.database.repository.CloudAssetKind
 import com.vayana.core.diagnostics.DiagnosticCategory
 import com.vayana.core.diagnostics.DiagnosticsLogStore
 import javax.inject.Inject
@@ -31,7 +32,14 @@ class CloudAssetDeletionProcessor @Inject constructor(
                 pendingCloudDeletionDao.delete(pending.assetId)
                 continue
             }
-            val error = runCatchingCancellable { store.delete(CloudAssetLayout.pathFor(pending.assetId)) }.exceptionOrNull()
+            val error = runCatchingCancellable {
+                if (pending.kind == CloudAssetKind.RECOGNIZED_TEXT.value) {
+                    val hash = pending.assetId.removePrefix("ocr-")
+                    require(pending.assetId.startsWith("ocr-") && hash.matches(Regex("[0-9a-f]{64}")))
+                    check(store is RecognizedTextAssetDeletion) { "Store cannot delete recognized text" }
+                    store.deleteRecognizedText(hash)
+                } else store.delete(CloudAssetLayout.pathFor(pending.assetId))
+            }.exceptionOrNull()
             if (error == null) {
                 pendingCloudDeletionDao.delete(pending.assetId)
                 deleted++

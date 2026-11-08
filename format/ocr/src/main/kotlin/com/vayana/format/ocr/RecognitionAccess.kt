@@ -16,6 +16,11 @@ internal object RecognitionAccess {
     private val activeModels = HashMap<OcrModel, Int>()
 
     suspend fun <T> book(hash: String, action: suspend () -> T): T = books.getOrPut(hash) { Mutex() }.withLock { action() }
+    suspend fun <T> idleBook(hash: String, action: suspend () -> T): T {
+        val lock = books.getOrPut(hash) { Mutex() }
+        if (!lock.tryLock()) throw RecognitionBusyException()
+        try { return action() } finally { lock.unlock() }
+    }
     fun knownBooks(): Set<String> = books.keys.toSet()
     fun modelBusy(model: OcrModel): Boolean = activeModels.getOrDefault(model, 0) > 0 // Caller holds models.
 
@@ -29,3 +34,6 @@ internal object RecognitionAccess {
         }
     }
 }
+
+/** Recognition is still writing; a later full sync can safely pick up the completed result. */
+class RecognitionBusyException : java.io.IOException("Text recognition is busy")
