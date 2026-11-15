@@ -137,6 +137,18 @@
                 android:resource="@xml/widget_reading_time_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.OverviewWidget"
+            android:exported="false"
+            android:label="@string/widget_overview_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_overview_info" />
+        </receiver>
+
         <!-- The web engine would otherwise keep usage metrics (megabytes) in the app's storage. -->
         <meta-data
             android:name="android.webkit.WebView.MetricsOptOut"

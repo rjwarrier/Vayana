@@ -303,7 +303,7 @@ private data class ReadingWidgetTheme(val appearance: WidgetAppearance, val colo
 
 private fun readingWidgetTheme(settings: SettingsSnapshot) = ReadingWidgetTheme(settings.widgetAppearance(), settings.widgetTheme())
 
-private fun WidgetPalette.chartColors() = ReadingChartColors(
+internal fun WidgetPalette.chartColors() = ReadingChartColors(
     plotBackground = surfaceHigh,
     grid = outlineVariant,
     frame = outline,

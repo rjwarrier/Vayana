@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.SizeF
 import android.util.TypedValue
@@ -257,21 +256,9 @@ class ContinueReadingWidgetUpdater @Inject constructor(
 
     /**
      * The cover at the height the largest layout shows it (a stacked or large-row cover, up to about 300dp at 2x), and
-     * no larger: RemoteViews bitmaps travel through a size-limited parcel. Decoded at the nearest power-of-two
-     * reduction, then scaled to exactly that height when still well above it.
+     * no larger: RemoteViews bitmaps travel through a size-limited parcel.
      */
-    private fun loadCover(relativePath: String): Bitmap? = runCatching {
-        val file = storageRoots.resolve(relativePath).takeIf { it.isFile } ?: return null
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.path, bounds)
-        var sample = 1
-        while (bounds.outHeight / (sample * 2) >= CoverHeightPx) sample *= 2
-        val decoded = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
-            ?: return null
-        if (decoded.height <= CoverHeightPx * CoverOversize) return decoded
-        val width = (decoded.width * CoverHeightPx.toFloat() / decoded.height).roundToInt().coerceAtLeast(1)
-        Bitmap.createScaledBitmap(decoded, width, CoverHeightPx, true).also { if (it !== decoded) decoded.recycle() }
-    }.getOrNull()
+    private fun loadCover(relativePath: String): Bitmap? = loadCoverBitmap(storageRoots, relativePath, CoverHeightPx, CoverOversize)
 
     companion object {
         const val ActionOpenBook = "com.vayana.app.OPEN_BOOK"

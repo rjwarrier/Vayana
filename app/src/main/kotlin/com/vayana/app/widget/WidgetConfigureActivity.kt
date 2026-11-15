@@ -118,8 +118,11 @@ class WidgetConfigureActivity : ComponentActivity() {
             ) {
                 WidgetConfigureScreen(
                     initial = settings.widgetAppearance(),
-                    // Each widget shows only the options it draws; the rest keep their saved values.
-                    readingTime = provider == ReadingTimeWidget::class.java.name,
+                    // Each widget shows only the options it draws; the rest keep their saved values. The overview
+                    // widget charts too, but has no header/fill option of its own - that's the reading-time widget's
+                    // own layout toggle.
+                    showsChart = provider == ReadingTimeWidget::class.java.name || provider == OverviewWidget::class.java.name,
+                    chartLayout = provider == ReadingTimeWidget::class.java.name,
                     preview = { appearance -> viewModel.preview(provider, appearance) },
                     onCancel = ::finish,
                     onDone = { appearance ->
@@ -169,7 +172,8 @@ class WidgetConfigureViewModel @Inject constructor(
 @Composable
 private fun WidgetConfigureScreen(
     initial: WidgetAppearance,
-    readingTime: Boolean,
+    showsChart: Boolean,
+    chartLayout: Boolean,
     preview: suspend (WidgetAppearance) -> RemoteViews?,
     onCancel: () -> Unit,
     onDone: (WidgetAppearance) -> Unit,
@@ -219,12 +223,14 @@ private fun WidgetConfigureScreen(
             WidgetPreview(appearance, preview)
 
             // This widget's own options first; the style every Vayana widget shares comes last.
-            if (readingTime) {
-                SectionTitle(stringResource(R.string.widget_section_layout))
-                SwitchRow(R.string.widget_chart_header, R.string.widget_chart_header_subtitle, chartHeader) { chartHeader = it }
-                // Filling the widget takes the header's room, so it is offered only without one.
-                if (!chartHeader) {
-                    SwitchRow(R.string.widget_chart_fill, R.string.widget_chart_fill_subtitle, chartFill) { chartFill = it }
+            if (showsChart) {
+                if (chartLayout) {
+                    SectionTitle(stringResource(R.string.widget_section_layout))
+                    SwitchRow(R.string.widget_chart_header, R.string.widget_chart_header_subtitle, chartHeader) { chartHeader = it }
+                    // Filling the widget takes the header's room, so it is offered only without one.
+                    if (!chartHeader) {
+                        SwitchRow(R.string.widget_chart_fill, R.string.widget_chart_fill_subtitle, chartFill) { chartFill = it }
+                    }
                 }
 
                 SectionTitle(stringResource(R.string.widget_chart_style))

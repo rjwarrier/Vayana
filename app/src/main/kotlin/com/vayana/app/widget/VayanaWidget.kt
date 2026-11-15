@@ -111,4 +111,8 @@ abstract class WidgetModule {
     @Binds
     @IntoSet
     abstract fun readingTime(widget: ReadingTimeWidgetUpdater): VayanaWidget
+
+    @Binds
+    @IntoSet
+    abstract fun overview(widget: OverviewWidgetUpdater): VayanaWidget
 }

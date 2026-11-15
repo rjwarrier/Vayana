@@ -1986,6 +1986,11 @@
     <string name="widget_reading_avg_none" translatable="false">—</string>
     <string name="widget_reading_preview_average">43m</string>
     <string name="widget_reading_chart_description">Reading time, last 7 days: %1$s. 7-day average %2$s.</string>
+    <string name="widget_overview_title">Reading overview</string>
+    <string name="widget_overview_description">Today’s reading, your streak and books finished, the book you’re reading, and the last 7 days as a chart.</string>
+    <string name="widget_overview_finished_label">Finished</string>
+    <string name="widget_overview_preview_streak" translatable="false">3</string>
+    <string name="widget_overview_preview_finished" translatable="false">12</string>
     <string name="reader_pronunciation_title">Pronunciations for this book</string>
     <string name="reader_pronunciation_description">Correct a name or phrase by writing how it should sound. Corrections are saved on this device. Tap a correction to edit it.</string>
     <string name="reader_pronunciation_original">Word or phrase in the book</string>
