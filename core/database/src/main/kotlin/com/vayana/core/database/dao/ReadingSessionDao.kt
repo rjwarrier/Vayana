@@ -43,6 +43,9 @@ interface ReadingSessionDao {
     @Query("SELECT * FROM reading_sessions WHERE startedAt >= :since ORDER BY startedAt ASC")
     fun observeSince(since: Long): Flow<List<ReadingSessionEntity>>
 
+    @Query("SELECT * FROM reading_sessions WHERE endedAt > :since")
+    fun observeOverlappingSince(since: Long): Flow<List<ReadingSessionEntity>>
+
     @Query("SELECT COALESCE(SUM(durationSeconds), 0) FROM reading_sessions WHERE startedAt >= :since")
     fun observeSecondsSince(since: Long): Flow<Long>
 

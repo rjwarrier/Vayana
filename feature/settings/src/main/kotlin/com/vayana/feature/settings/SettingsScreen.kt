@@ -1323,6 +1323,7 @@ private fun SettingsSnapshot.valueFor(setting: Setting<out Any>): Any = when (se
     SettingsRegistry.ReaderShowFooter -> readerShowFooter
     SettingsRegistry.ReaderAutoHideIndicators -> readerAutoHideIndicators
     SettingsRegistry.TodayCardEnabled -> todayCardEnabled
+    SettingsRegistry.BatteryWidgetSharing -> batteryWidgetSharingEnabled
     SettingsRegistry.ReaderAutoMarkSelection -> readerAutoMarkSelection
     SettingsRegistry.ReaderBionicReading -> readerBionicReading
     SettingsRegistry.ReaderBolderText -> readerBolderText

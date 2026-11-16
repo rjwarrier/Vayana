@@ -171,13 +171,13 @@ class DataStoreSettingsRepository @Inject constructor(
     override suspend fun exportToMap(includeNonExportable: Boolean): Map<String, String> {
         val preferences = dataStore.data.first()
         return SettingsRegistry.persisted
-            .filter { setting -> includeNonExportable || setting.isExportable }
+            .filter { setting -> setting != SettingsRegistry.BatteryWidgetSharing && (includeNonExportable || setting.isExportable) }
             .associate { setting -> setting.key to preferences.read(setting).serializeSettingValue() }
     }
 
     override suspend fun importFromMap(values: Map<String, String>) {
         dataStore.edit { preferences ->
-            SettingsRegistry.persisted.forEach { setting ->
+            SettingsRegistry.persisted.filterNot { it == SettingsRegistry.BatteryWidgetSharing }.forEach { setting ->
                 values[setting.key]?.let { encoded -> preferences.writeFromString(setting, encoded) }
             }
         }
@@ -249,6 +249,7 @@ internal fun Preferences.toSnapshot(): SettingsSnapshot {
         widgetChartDays = read(SettingsRegistry.WidgetChartDays),
         widgetChartHeader = read(SettingsRegistry.WidgetChartHeader),
         widgetChartFill = read(SettingsRegistry.WidgetChartFill),
+        batteryWidgetSharingEnabled = read(SettingsRegistry.BatteryWidgetSharing),
         yearlyBooksGoal = read(SettingsRegistry.YearlyBooksGoal),
         defaultCoverSource = read(SettingsRegistry.DefaultCoverSource),
         homeLibrarySyncEnabled = read(SettingsRegistry.HomeLibrarySync),

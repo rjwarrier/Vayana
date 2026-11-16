@@ -1,5 +1,7 @@
 package com.vayana.feature.library
 
+import com.vayana.core.database.model.orderedReadNext
+
 import androidx.room.Room
 import com.vayana.core.database.VayanaDatabase
 import com.vayana.core.database.dao.EpubChapterText

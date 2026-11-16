@@ -160,6 +160,7 @@ data class SettingsSnapshot(
     /** The overview widget's streak chip turns to its "at risk" state from this hour, local time, on a day with no
      * reading yet and a streak that would otherwise break. */
     val widgetStreakAtRiskHour: Int = 18,
+    val batteryWidgetSharingEnabled: Boolean = false,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
     /** Mirrors Home Library's catalog into Offline books while it is installed on this phone. */
@@ -827,6 +828,14 @@ object SettingsRegistry {
         subtitleRes = R.string.widget_chart_axis_labels_subtitle,
         group = SettingsGroup.APPEARANCE,
     )
+    val BatteryWidgetSharing = BooleanSetting(
+        key = "widgets.battery_widget_sharing",
+        defaultValue = false,
+        titleRes = R.string.settings_battery_widget_sharing,
+        subtitleRes = R.string.settings_battery_widget_sharing_subtitle,
+        group = SettingsGroup.APPEARANCE,
+    )
+
     val WidgetStreakAtRiskHour: IntSetting = IntSetting(
         key = "widgets.streak_at_risk_hour",
         defaultValue = 18,
@@ -986,6 +995,7 @@ object SettingsRegistry {
         ReaderKeepAwake,
         ReaderPersonalPace,
         TodayCardEnabled,
+        BatteryWidgetSharing,
         DailyReadingGoalMinutes,
         ReadingReminderEnabled,
         ReadingReminderHour,

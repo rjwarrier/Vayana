@@ -212,6 +212,7 @@ enum class OnlineLookupStatus { LOOKING_UP, NOT_FOUND, FAILED }
 class ReaderViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val bookRepository: BookRepository,
+    private val chapterTimeEstimates: ChapterTimeEstimates,
     private val readAloudStatusHolder: ReadAloudStatusHolder,
     storedAnnotations: AnnotationRepository,
     private val database: VayanaDatabase,
@@ -1763,7 +1764,7 @@ class ReaderViewModel @Inject constructor(
         // applicationScope, not viewModelScope: same reason - a launch on the cancelled viewModelScope from
         // onCleared() would silently never run its body.
         applicationScope.launch {
-            bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
+            saveLocator(write)
         }
     }
 
@@ -1801,7 +1802,7 @@ class ReaderViewModel @Inject constructor(
         val currentCfi = currentLocator.cfi?.takeIf { it.isNotBlank() } ?: return
         lastReaderWrittenLocator = currentCfi
         viewModelScope.launch {
-            bookRepository.updateLocator(bookId, currentCfi, currentLocator.progression, settings.value.finishedFraction)
+            saveLocator(PendingLocatorWrite(currentCfi, currentLocator.progression, currentLocator.chapterMinutesLeft))
         }
     }
 
@@ -1817,16 +1818,21 @@ class ReaderViewModel @Inject constructor(
             lastReaderWrittenLocator = cfi
             // The WebView bridge can fire several 'relocate' events for a single page turn in
             // quick succession; debounce so each one doesn't hit Room.
-            val write = PendingLocatorWrite(cfi, locator.progression)
+            val write = PendingLocatorWrite(cfi, locator.progression, locator.chapterMinutesLeft)
             pendingLocatorWrite = write
             locatorPersistJob?.cancel()
             locatorPersistJob = viewModelScope.launch {
                 delay(LocatorPersistDebounceMillis)
-                bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
+                saveLocator(write)
                 if (pendingLocatorWrite === write) pendingLocatorWrite = null
             }
         }
         onPageMoved(locator)
+    }
+
+    private suspend fun saveLocator(write: PendingLocatorWrite) {
+        bookRepository.updateLocator(bookId, write.cfi, write.progression, settings.value.finishedFraction)
+        chapterTimeEstimates.record(bookId, write.cfi, write.progression, write.chapterMinutes)
     }
 
     private suspend fun persistLocatorDeferredByResumeSync() {
@@ -2228,6 +2234,7 @@ private fun androidx.compose.ui.graphics.Color.toReadTheme(textColor: androidx.c
 private data class PendingLocatorWrite(
     val cfi: String,
     val progression: Float,
+    val chapterMinutes: Int?,
 )
 
 private data class BookStyleOverride(

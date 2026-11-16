@@ -1988,6 +1988,8 @@
     <string name="widget_reading_chart_description">Reading time, last 7 days: %1$s. 7-day average %2$s.</string>
     <string name="widget_overview_title">Reading overview</string>
     <string name="widget_overview_description">Today’s reading and streak, the book you’re reading as a position meter, your yearly book-goal ring, and the library’s counts.</string>
+    <string name="settings_battery_widget_sharing">Share with BatteryWidget</string>
+    <string name="settings_battery_widget_sharing_subtitle">Share reading summaries and book titles with BatteryWidget on this device.</string>
     <string name="widget_overview_week_label">WEEK</string>
     <string name="widget_overview_year_label">YEAR</string>
     <string name="widget_overview_pace_label">PACE</string>
@@ -1996,7 +1998,7 @@
     <string name="widget_overview_unread_label">Unread</string>
     <string name="widget_overview_read_next">Read Next</string>
     <string name="widget_streak_at_risk_hour_title">Streak-at-risk time</string>
-    <string name="widget_streak_at_risk_hour_subtitle">The overview widget's streak chip turns to "at risk" from this hour on a day with no reading yet.</string>
+    <string name="widget_streak_at_risk_hour_subtitle">The overview widget marks the streak as at risk from this hour on a day with no reading yet.</string>
     <string name="widget_overview_finished_label">Finished</string>
     <string name="widget_overview_offline_label">Offline</string>
     <string name="widget_overview_streak_at_risk">STREAK AT RISK</string>

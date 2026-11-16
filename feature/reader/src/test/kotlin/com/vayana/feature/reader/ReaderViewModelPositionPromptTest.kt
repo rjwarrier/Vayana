@@ -109,7 +109,7 @@ class ReaderViewModelPositionPromptTest {
             SyncOperationCoordinator(), database.syncedSnapshotSliceDao(), SyncDataUsageLog(context),
         )
         reader = ReaderViewModel(
-            SavedStateHandle(mapOf("bookId" to 1L)), books, ReadAloudStatusHolder(), unused<AnnotationRepository>(),
+            SavedStateHandle(mapOf("bookId" to 1L)), books, ChapterTimeEstimates(), ReadAloudStatusHolder(), unused<AnnotationRepository>(),
             database, roots, settings, unused<DictionaryRepository>(), unused<OnlineDictionary>(), words, sessions,
             unused<VocabularyCardRepository>(), syncer, dispatchers, scope, context,
         )

@@ -10,9 +10,13 @@ import com.vayana.core.datastore.settings.SettingsRegistry
 import com.vayana.core.datastore.settings.SettingsSnapshot
 import com.vayana.app.widget.OpenBookRequest
 import com.vayana.app.widget.OpenBookRequests
+import com.vayana.app.widget.ReadingWidgetBookTarget
 import com.vayana.app.widget.ShortcutDestination
 import com.vayana.app.widget.ShortcutRequests
+import com.vayana.app.widget.opensInReaderFromWidget
+import com.vayana.app.widget.readingWidgetCurrentBook
 import com.vayana.core.common.IncomingBookFiles
+import com.vayana.core.database.model.orderedReadNext
 import com.vayana.feature.library.RecentlyDeletedAutoPurge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -45,6 +49,17 @@ class AppSettingsViewModel @Inject constructor(
     val openBookRequest: StateFlow<OpenBookRequest?> = openBookRequests.pending
 
     suspend fun resolveOpenBookRequest(request: OpenBookRequest): OpenBookRequest? {
+        request.readingWidgetTarget?.let { target ->
+            return runCatchingCancellable {
+                val digital = if (target == ReadingWidgetBookTarget.CURRENT) bookRepository.observeContinueReading().first() else null
+                val catalog = bookRepository.observeAll().first()
+                val book = when (target) {
+                    ReadingWidgetBookTarget.CURRENT -> readingWidgetCurrentBook(catalog, digital)
+                    ReadingWidgetBookTarget.NEXT -> orderedReadNext(catalog).firstOrNull()
+                }
+                book?.let { request.copy(bookId = it.id, offline = !it.opensInReaderFromWidget()) }
+            }.getOrNull()
+        }
         if (request.bookSyncId == null) return request
         val book = bookRepository.observeAll().first().firstOrNull { it.syncId == request.bookSyncId } ?: return null
         val annotation = request.annotationSyncId?.let { annotationRepository.getBySyncId(it) } ?: return null

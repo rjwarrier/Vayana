@@ -11,6 +11,8 @@ import com.vayana.core.homelibrary.HomeLibrarySync
 import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.ReadingTimeWidgetUpdater
+import com.vayana.app.widget.ReadingWidgetProjection
+import com.vayana.app.widget.ReadingWidgetResult
 import com.vayana.feature.reminders.ReminderScheduler
 import com.vayana.feature.library.PhysicalReadingTimerNotification
 import dagger.hilt.android.HiltAndroidApp
@@ -33,12 +35,16 @@ class VayanaApp : Application() {
     @Inject lateinit var epubContentIndex: com.vayana.feature.search.EpubContentIndex
     @Inject lateinit var homeLibrarySync: HomeLibrarySync
     @Inject lateinit var readingTimeWidgetUpdater: ReadingTimeWidgetUpdater
+    @Inject @Volatile lateinit var readingWidgetProjection: ReadingWidgetProjection
     @Inject lateinit var physicalReadingTimerNotification: PhysicalReadingTimerNotification
     @Inject lateinit var appDataUsageHistory: com.vayana.feature.settings.AppDataUsageHistory
     @Inject lateinit var settingsRepository: com.vayana.core.datastore.settings.SettingsRepository
     @Inject lateinit var localDeviceName: com.vayana.core.database.repository.LocalDeviceName
     @Inject lateinit var sessionDeviceBackfill: com.vayana.core.sync.history.SessionDeviceBackfill
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
+
+    internal fun readingWidgetSnapshot(): ReadingWidgetResult =
+        if (::readingWidgetProjection.isInitialized) readingWidgetProjection.current() else ReadingWidgetResult.Unavailable
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppLanguage.wrap(base))
@@ -56,6 +62,7 @@ class VayanaApp : Application() {
         continueReadingWidgetUpdater.start()
         appShortcuts.start()
         readingTimeWidgetUpdater.start()
+        readingWidgetProjection.start()
         physicalReadingTimerNotification.start()
         homeLibrarySync.start()
         notebookExport.start()

@@ -2,6 +2,7 @@ package com.vayana.feature.library
 
 import com.vayana.core.database.model.isActiveForReading
 import com.vayana.core.database.model.hasStartedReading
+import com.vayana.core.database.model.orderedReadNext
 import com.vayana.core.database.model.isFinished
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.*
@@ -131,9 +132,6 @@ internal fun todayLibraryState(all: List<Book>, plans: Map<String, LocalDate>, g
     }
     return TodayState(goal = goal, current = current, plans = dailyPlans)
 }
-
-internal fun orderedReadNext(books: List<Book>): List<Book> = books.filter { it.readNextAddedAt != null }
-    .sortedWith(compareByDescending<Book> { it.readNextPinned }.thenBy { it.readNextAddedAt }.thenBy { it.id })
 
 @Composable
 internal fun TodayCard(onContinue: (Book) -> Unit, onWords: () -> Unit, onHighlights: () -> Unit,

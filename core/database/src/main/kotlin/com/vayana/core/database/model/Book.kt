@@ -158,6 +158,9 @@ fun Book.hasStartedReading(): Boolean = readingDisposition == "READING" || finis
 /** Finished by date, or by reaching the end of a book actually read (not one jumped to its last chapter). */
 fun Book.isFinished(): Boolean = finishedReadingAt != null || (readingPercent >= 1f && hasStartedReading())
 
+fun orderedReadNext(books: List<Book>): List<Book> = books.filter { it.readNextAddedAt != null }
+    .sortedWith(compareByDescending<Book> { it.readNextPinned }.thenBy { it.readNextAddedAt }.thenBy { it.id })
+
 /** Progress worth showing beside the cover: none until the book [hasStartedReading]. */
 val Book.shownReadingPercent: Float get() = if (hasStartedReading()) readingPercent.coerceIn(0f, 1f) else 0f
 

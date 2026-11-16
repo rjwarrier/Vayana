@@ -3,6 +3,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <permission
+        android:name="com.vayana.app.permission.SEND_READING_WIDGET_UPDATE"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.vayana.app.permission.SEND_READING_WIDGET_UPDATE" />
+
     <!-- Online catalogs on the home network (Calibre, a NAS): Android 17 blocks local addresses without it. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
@@ -13,6 +18,7 @@
     <queries>
         <!-- Home Library: package visibility to query its catalog and open books in it. -->
         <package android:name="com.mj.homelibrary" />
+        <package android:name="com.rj.batterywidget" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
@@ -93,6 +99,15 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="vayana" android:host="passage" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="vayana" android:host="reading-widget" />
+                <data android:path="/current" />
+                <data android:path="/next" />
+                <data android:path="/statistics" />
+                <data android:path="/library" />
+            </intent-filter>
             <!-- Share sheet. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -102,6 +117,12 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name=".widget.ReadingWidgetProvider"
+            android:authorities="com.vayana.app.readingwidget"
+            android:exported="true"
+            android:grantUriPermissions="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

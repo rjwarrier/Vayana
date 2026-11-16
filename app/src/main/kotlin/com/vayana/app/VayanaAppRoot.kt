@@ -80,6 +80,9 @@ fun VayanaAppRoot() {
         LaunchedEffect(startScreen) {
             if (startScreen != StartScreen.LAST_BOOK || lastBookOpened) return@LaunchedEffect
             lastBookOpened = true
+            if (settingsViewModel.openBookRequest.value?.readingWidgetTarget != null ||
+                settingsViewModel.shortcutRequest.value != null
+            ) return@LaunchedEffect
             settingsViewModel.lastReadBookId()?.let { bookId -> navController.navigate(ReaderRoute(bookId)) }
         }
         // A book opened or shared from another app is imported by the library, so show it.
@@ -92,7 +95,11 @@ fun VayanaAppRoot() {
         LaunchedEffect(openBookRequest) {
             val pending = openBookRequest ?: return@LaunchedEffect
             val request = settingsViewModel.resolveOpenBookRequest(pending)
-            if (request == null) { settingsViewModel.consumeOpenBookRequest(pending); return@LaunchedEffect }
+            if (request == null) {
+                if (pending.readingWidgetTarget != null) navController.navigateToTopLevel(TopLevelRoute.Library)
+                settingsViewModel.consumeOpenBookRequest(pending)
+                return@LaunchedEffect
+            }
             if (request.offline) {
                 navController.navigate(com.vayana.app.navigation.BookDetailRoute(request.bookId)) { launchSingleTop = true }
                 settingsViewModel.consumeOpenBookRequest(pending)

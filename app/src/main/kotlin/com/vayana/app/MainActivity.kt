@@ -19,6 +19,7 @@ import com.vayana.app.widget.AppShortcuts
 import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.OpenBookRequest
 import com.vayana.app.widget.OpenBookRequests
+import com.vayana.app.widget.ReadingWidgetBookTarget
 import com.vayana.app.widget.ShortcutDestination
 import com.vayana.app.widget.ShortcutRequests
 import com.vayana.core.common.AppLanguage
@@ -116,6 +117,7 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch { physicalReadingTimer.stop() }
             return
         }
+        if (intent.action == Intent.ACTION_VIEW && handleReadingWidgetLink(intent.dataString)) return
         val passage = intent.data?.toString()?.let { com.vayana.core.common.parsePassageLink(it) }
         if (intent.action == Intent.ACTION_VIEW && passage != null) {
             openBookRequests.offer(OpenBookRequest(bookSyncId = passage.bookSyncId, annotationSyncId = passage.annotationSyncId))
@@ -133,6 +135,19 @@ class MainActivity : ComponentActivity() {
             AppShortcuts.ActionStatistics -> shortcutRequests.offer(ShortcutDestination.STATISTICS)
             else -> incomingBookFiles.offer(intent.incomingBookUris())
         }
+    }
+
+    private fun handleReadingWidgetLink(link: String?): Boolean {
+        when (link) {
+            "vayana://reading-widget/current" ->
+                openBookRequests.offer(OpenBookRequest(readingWidgetTarget = ReadingWidgetBookTarget.CURRENT))
+            "vayana://reading-widget/next" ->
+                openBookRequests.offer(OpenBookRequest(readingWidgetTarget = ReadingWidgetBookTarget.NEXT))
+            "vayana://reading-widget/statistics" -> shortcutRequests.offer(ShortcutDestination.STATISTICS)
+            "vayana://reading-widget/library" -> shortcutRequests.offer(ShortcutDestination.LIBRARY)
+            else -> return false
+        }
+        return true
     }
 }
 

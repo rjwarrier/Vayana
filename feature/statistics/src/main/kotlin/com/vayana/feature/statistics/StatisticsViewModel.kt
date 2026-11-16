@@ -569,7 +569,7 @@ private fun vocabularyGrowth(
 }
 
 /** The first day of the week containing this date, for weeks that begin on [firstDayOfWeek]. */
-internal fun LocalDate.startOfWeek(firstDayOfWeek: DayOfWeek): LocalDate =
+fun LocalDate.startOfWeek(firstDayOfWeek: DayOfWeek): LocalDate =
     minusDays(((dayOfWeek.value - firstDayOfWeek.value + 7) % 7).toLong())
 
 private const val TopLookedUpWordsLimit = 8

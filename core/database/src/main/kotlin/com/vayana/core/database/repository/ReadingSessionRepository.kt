@@ -34,6 +34,9 @@ interface ReadingSessionRepository {
     /** Sessions (this device's and synced ones) started at or after [since], epoch millis. */
     fun observeSince(since: Long): Flow<List<ReadingSession>>
 
+    /** Includes sessions that began before the window and continued into it. */
+    fun observeOverlappingSince(since: Long): Flow<List<ReadingSession>>
+
     /** Aggregate without loading or mapping the session rows. Same start-time boundary as [observeSince]. */
     fun observeSecondsSince(since: Long): Flow<Long>
 
