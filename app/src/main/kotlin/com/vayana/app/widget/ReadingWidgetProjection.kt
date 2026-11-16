@@ -19,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.io.FileNotFoundException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -32,14 +33,17 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 internal data class ReadingWidgetResult(
     val status: String,
     val json: String? = null,
     val day: ReadingWidgetDay? = null,
     val generatedAt: Instant? = null,
+    val cover: ReadingWidgetCover? = null,
 ) {
     companion object {
         val Unavailable = ReadingWidgetResult("unavailable")
@@ -65,6 +69,7 @@ class ReadingWidgetProjection @Inject constructor(
     private val books: BookRepository,
     private val sessions: ReadingSessionRepository,
     private val chapterTimes: ChapterTimeEstimates,
+    private val covers: ReadingWidgetCovers,
 ) {
     @Volatile private var latest = ReadingWidgetResult.Unavailable
     private val changes = Channel<Unit>(Channel.CONFLATED)
@@ -84,11 +89,31 @@ class ReadingWidgetProjection @Inject constructor(
         } else ReadingWidgetResult.Unavailable
     }
 
+    /** Recheck consent and the selected book against the repositories before serving a cached image. */
+    internal suspend fun cover(key: String): ReadingWidgetCover = withTimeout(1_500) {
+        if (!settings.snapshot.first().batteryWidgetSharingEnabled) throw FileNotFoundException("Sharing is disabled")
+        val published = current().takeIf { it.status == "ok" }?.cover
+            ?.takeIf { it.key == key } ?: throw FileNotFoundException("Cover is unavailable")
+        val digital = books.observeContinueReading().first()
+        val selected = readingWidgetCurrentBook(books.observeAll().first(), digital)
+        val actual = covers.prepare(selected)
+        if (actual?.key != published.key) {
+            throw FileNotFoundException("Cover was removed or replaced")
+        }
+        if (!settings.snapshot.first().batteryWidgetSharingEnabled) throw FileNotFoundException("Sharing is disabled")
+        actual
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start() {
         scope.launch(dispatchers.io) {
             settings.snapshot.map { it.batteryWidgetSharingEnabled }.distinctUntilChanged()
-                .flatMapLatest { enabled -> if (enabled) snapshots() else flowOf(Disabled) }
+                .flatMapLatest { enabled ->
+                    if (enabled) snapshots() else {
+                        covers.clear()
+                        flowOf(Disabled)
+                    }
+                }
                 .retryWhen { error, _ -> retry(error) }
                 .collect(::publish)
         }
@@ -120,19 +145,28 @@ class ReadingWidgetProjection @Inject constructor(
                 estimates[book.id]?.takeIf { it.locator == book.lastLocator && it.progression == book.readingPercent }?.minutes
             }
             Triple(all, current, minutes)
-        }
+        }.flatMapLatest { (all, current, minutes) ->
+            flow {
+                while (true) {
+                    emit(Catalog(all, current, minutes, covers.prepare(current)))
+                    // Also detect an image replaced in place without a database update.
+                    delay(30_000)
+                }
+            }
+        }.distinctUntilChanged()
         refreshes.map { it.first }.distinctUntilChanged().flatMapLatest { day ->
             val start = day.date.minusDays(ReadingWidgetHistoryDays - 1).atStartOfDay(day.zone).toInstant()
             combine(
                 sessions.observeOverlappingSince(start.toEpochMilli()), catalog, options, refreshes.map { it.second },
-            ) { history, (all, current, minutes), (weekStart, goal, finishedThreshold), _ ->
+            ) { history, catalog, (weekStart, goal, finishedThreshold), _ ->
                 val now = Instant.now()
                 if (ReadingWidgetDay.at(now) != day) return@combine ReadingWidgetResult.Unavailable
                 val stats = readingWidgetTime(history, day.date, day.zone, weekStart, installed.atZone(day.zone).toLocalDate())
                 val json = readingWidgetJson(
-                    now, day.zone, stats, all, current, minutes, orderedReadNext(all).firstOrNull(), goal, finishedThreshold,
+                    now, day.zone, stats, catalog.all, catalog.current, catalog.minutes,
+                    orderedReadNext(catalog.all).firstOrNull(), goal, finishedThreshold, catalog.cover,
                 )
-                ReadingWidgetResult("ok", json, day, now)
+                ReadingWidgetResult("ok", json, day, now, catalog.cover)
             }
         }.collect { emit(it) }
     }.retryWhen { error, _ -> retry(error) }
@@ -154,6 +188,8 @@ class ReadingWidgetProjection @Inject constructor(
     private companion object {
         val Disabled = ReadingWidgetResult("disabled")
     }
+
+    private data class Catalog(val all: List<Book>, val current: Book?, val minutes: Int?, val cover: ReadingWidgetCover?)
 }
 
 /** The existing Continue Reading query selects digital books. Offline titles have no local reader file. */

@@ -81,6 +81,7 @@ internal fun readingWidgetJson(
     next: Book?,
     goal: Int,
     finishedThreshold: Float,
+    cover: ReadingWidgetCover? = null,
 ): String {
     val today = generatedAt.atZone(zone).toLocalDate()
     val finishedThisYear = books.count { book ->
@@ -102,6 +103,8 @@ internal fun readingWidgetJson(
             .put("percent", current.readingPercent.takeIf { it.isFinite() }?.let { (it.coerceIn(0f, 1f) * 100).roundToInt() }
                 ?: JSONObject.NULL)
             .put("chapterMinutes", chapterMinutes ?: JSONObject.NULL)
+            .put("coverUri", cover?.uri ?: JSONObject.NULL)
+            .put("coverVersion", cover?.version ?: JSONObject.NULL)
     }
     return JSONObject()
         .put("version", 1)

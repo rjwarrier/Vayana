@@ -11,7 +11,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.ParcelFileDescriptor
 import com.vayana.app.VayanaApp
+import java.io.FileNotFoundException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.TimeoutCancellationException
 
 class ReadingWidgetProvider : ContentProvider() {
     override fun onCreate() = true
@@ -30,7 +35,7 @@ class ReadingWidgetProvider : ContentProvider() {
         uri: Uri, projection: Array<out String>?, queryArgs: Bundle?, cancellationSignal: CancellationSignal?,
     ): Cursor = snapshot(uri, cancellationSignal)
 
-    private fun snapshot(uri: Uri, cancellationSignal: CancellationSignal?): Cursor {
+    private fun authorizedApp(): VayanaApp {
         val app = context?.applicationContext as? VayanaApp ?: throw SecurityException("Provider context unavailable")
         if (callingPackage != BatteryWidgetPackage || Build.VERSION.SDK_INT < Build.VERSION_CODES.P ||
             !app.packageManager.hasSigningCertificate(
@@ -39,6 +44,11 @@ class ReadingWidgetProvider : ContentProvider() {
         ) {
             throw SecurityException("Caller is not the approved BatteryWidget app")
         }
+        return app
+    }
+
+    private fun snapshot(uri: Uri, cancellationSignal: CancellationSignal?): Cursor {
+        val app = authorizedApp()
         require(uri.toString() == SnapshotUri) { "Unknown reading widget URI" }
         cancellationSignal?.throwIfCanceled()
         val result = app.readingWidgetSnapshot()
@@ -48,7 +58,46 @@ class ReadingWidgetProvider : ContentProvider() {
         }
     }
 
-    override fun getType(uri: Uri): String? = unsupported()
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor = openFile(uri, mode, null)
+
+    override fun openFile(uri: Uri, mode: String, signal: CancellationSignal?): ParcelFileDescriptor {
+        val app = authorizedApp()
+        if (mode != "r") throw FileNotFoundException("Covers are read-only")
+        val key = coverKey(uri)
+        signal?.throwIfCanceled()
+        val cover = try {
+            runBlocking(Dispatchers.IO) { app.readingWidgetCover(key) }
+        } catch (_: TimeoutCancellationException) {
+            throw FileNotFoundException("Cover is loading")
+        }
+        signal?.throwIfCanceled()
+        return openPipeHelper(uri, "image/jpeg", null, cover.bytes) { output, _, _, _, bytes ->
+            try {
+                ParcelFileDescriptor.AutoCloseOutputStream(output).use { stream ->
+                    signal?.throwIfCanceled()
+                    stream.write(bytes)
+                }
+            } catch (_: java.io.IOException) {
+                // The client can close a read early or cancel it.
+            } catch (_: android.os.OperationCanceledException) {
+                // AutoCloseOutputStream closes the pipe when a read is cancelled.
+            }
+        }
+    }
+
+    private fun coverKey(uri: Uri): String {
+        val key = uri.lastPathSegment.orEmpty()
+        if (!key.matches(Regex("[a-f0-9]{64}")) ||
+            uri.toString() != "content://com.vayana.app.readingwidget/v1/cover/$key"
+        ) throw FileNotFoundException("Unknown cover URI")
+        return key
+    }
+
+    override fun getType(uri: Uri): String {
+        authorizedApp()
+        coverKey(uri)
+        return "image/jpeg"
+    }
     override fun getTypeAnonymous(uri: Uri): String? = unsupported()
     override fun insert(uri: Uri, values: ContentValues?): Uri? = unsupported()
     override fun bulkInsert(uri: Uri, values: Array<out ContentValues>): Int = unsupported()
@@ -61,7 +110,7 @@ class ReadingWidgetProvider : ContentProvider() {
     override fun uncanonicalize(uri: Uri): Uri? = unsupported()
     override fun refresh(uri: Uri, extras: Bundle?, cancellationSignal: CancellationSignal?): Boolean = unsupported()
 
-    private fun unsupported(): Nothing = throw UnsupportedOperationException("Only the reading snapshot query is supported")
+    private fun unsupported(): Nothing = throw UnsupportedOperationException("Only reading snapshot and cover reads are supported")
 }
 
 internal const val BatteryWidgetPackage = "com.rj.batterywidget"

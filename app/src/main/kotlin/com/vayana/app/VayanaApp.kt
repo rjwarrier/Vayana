@@ -13,6 +13,8 @@ import com.vayana.app.widget.ContinueReadingWidgetUpdater
 import com.vayana.app.widget.ReadingTimeWidgetUpdater
 import com.vayana.app.widget.ReadingWidgetProjection
 import com.vayana.app.widget.ReadingWidgetResult
+import com.vayana.app.widget.ReadingWidgetCover
+import java.io.FileNotFoundException
 import com.vayana.feature.reminders.ReminderScheduler
 import com.vayana.feature.library.PhysicalReadingTimerNotification
 import dagger.hilt.android.HiltAndroidApp
@@ -45,6 +47,10 @@ class VayanaApp : Application() {
 
     internal fun readingWidgetSnapshot(): ReadingWidgetResult =
         if (::readingWidgetProjection.isInitialized) readingWidgetProjection.current() else ReadingWidgetResult.Unavailable
+
+    internal suspend fun readingWidgetCover(key: String): ReadingWidgetCover =
+        if (::readingWidgetProjection.isInitialized) readingWidgetProjection.cover(key)
+        else throw FileNotFoundException("Reading data is loading")
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppLanguage.wrap(base))
