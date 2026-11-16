@@ -98,6 +98,8 @@ fun drawReadingTimeChart(
     /** Edge to edge: no frame, no labels, the plot clipped to [fillCornerPx] (the widget's own corners). */
     fill: Boolean = false,
     fillCornerPx: Float = 0f,
+    /** The average line is always dashed, not only on E-Ink where colour alone can't tell it from the week line. */
+    averageDashed: Boolean = false,
 ): Bitmap {
     val bitmap = createBitmap(widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1))
     val canvas = Canvas(bitmap)
@@ -221,7 +223,7 @@ fun drawReadingTimeChart(
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = AverageStrokeDp * density
         paint.color = colors.average
-        if (colors.eInk) paint.pathEffect = DashPathEffect(floatArrayOf(DashDp * density, DashDp * density), 0f)
+        if (colors.eInk || averageDashed) paint.pathEffect = DashPathEffect(floatArrayOf(DashDp * density, DashDp * density), 0f)
         canvas.drawLine(left, y(week.averageMinutes), right, y(week.averageMinutes), paint)
         paint.pathEffect = null
     }

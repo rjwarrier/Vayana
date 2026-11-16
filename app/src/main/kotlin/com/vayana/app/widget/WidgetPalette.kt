@@ -41,6 +41,8 @@ internal data class WidgetPalette(
     val tertiary: Int,
     val outline: Int,
     val outlineVariant: Int,
+    val errorContainer: Int,
+    val onErrorContainer: Int,
     val eInk: Boolean,
 )
 
@@ -75,6 +77,8 @@ private fun ColorScheme.toWidgetPalette(eInk: Boolean) = WidgetPalette(
     tertiary = tertiary.toArgb(),
     outline = outline.toArgb(),
     outlineVariant = outlineVariant.toArgb(),
+    errorContainer = errorContainer.toArgb(),
+    onErrorContainer = onErrorContainer.toArgb(),
     eInk = eInk,
 )
 

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Overview home-screen widget: the book being read, today's reading / streak / finished-books stats, and the last
-    week as a chart - the things Vayana already shows elsewhere, together on one card. Same shared corner shapes and
-    theme colours as the other widgets, styled on the same configure screen. RemoteViews-safe views only.
+    Overview home-screen widget: today's reading, streak, the book being read as a segmented meter, the yearly book
+    goal as a ring, and the library's counts - one tree, redrawn into four shapes by size (strip / compact / chart /
+    dashboard; see OverviewLayout). Everything a tier doesn't use stays GONE. RemoteViews-safe views only (no plain
+    View - see OverviewWidget's history for why).
     The sample texts are what the widget picker's preview shows; the app replaces them when it draws the widget.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -37,27 +38,474 @@
         android:paddingRight="16dp"
         android:paddingBottom="16dp">
 
-        <!-- The book being read: a small cover, title and author, and its percent as a pill. Tapping it opens the book. -->
+        <!-- Today's minutes, and up to four small stat chips (streak / week / year / pace, whichever the tier wants). -->
         <LinearLayout
-            android:id="@+id/overview_book"
+            android:id="@+id/overview_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
+            android:baselineAligned="false"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <!-- The widget's one hero numeral, drawn as dots rather than set in a font (DotMatrixGlyphs). -->
             <ImageView
-                android:id="@+id/overview_cover"
-                android:layout_width="40dp"
-                android:layout_height="60dp"
-                android:background="@drawable/widget_cover_background"
-                android:clipToOutline="true"
-                android:contentDescription="@null"
-                android:padding="10dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_widget_book" />
+                android:id="@+id/overview_today_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/widget_reading_preview_today" />
+
+            <!-- A flexible spacer, not a plain View: RemoteViews' inflater only allows a fixed set of widget classes. -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:orientation="horizontal" />
 
             <LinearLayout
+                android:id="@+id/overview_pills"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:baselineAligned="false"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/overview_pill1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/widget_chip"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:id="@+id/overview_pill1_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_preview_streak"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/overview_pill1_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/statistics_streak_title"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/overview_pill2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/widget_chip"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:id="@+id/overview_pill2_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_reading_preview_average"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/overview_pill2_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_week_label"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/overview_pill3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/widget_chip"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:id="@+id/overview_pill3_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_preview_year"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/overview_pill3_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_year_label"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/overview_pill4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/widget_chip"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:id="@+id/overview_pill4_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_preview_pace"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/overview_pill4_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_pace_label"
+                        android:textColor="@color/widget_on_primary_container"
+                        android:textSize="9sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Chart tier: the 7-day line/curve/bars, as the reading-time widget draws it. -->
+        <ImageView
+            android:id="@+id/overview_chart"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/widget_overview_title"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_reading_preview_chart"
+            android:visibility="gone" />
+
+        <!-- Dashboard tier: the book being read, as a segmented meter - or, with none open, a Read Next suggestion. -->
+        <LinearLayout
+            android:id="@+id/overview_book_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/overview_book_open"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/overview_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_title"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/overview_percent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="monospace"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_progress"
+                        android:textColor="@color/widget_tertiary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/overview_time_left"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:maxLines="1"
+                        android:text="@string/widget_overview_preview_time_left"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/overview_meter"
+                    android:layout_width="match_parent"
+                    android:layout_height="10dp"
+                    android:layout_marginTop="6dp"
+                    android:contentDescription="@null"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/widget_progress" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/overview_book_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:baselineAligned="false"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/overview_book_empty_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/widget_empty"
+                    android:textColor="@color/widget_on_surface_variant"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/overview_read_next"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/widget_chip"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="4dp"
+                    android:text="@string/widget_overview_read_next"
+                    android:textColor="@color/widget_on_primary_container"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Dashboard tier: the yearly book-goal ring, and the library's counts. -->
+        <LinearLayout
+            android:id="@+id/overview_ring_row"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/overview_ring"
+                android:layout_width="64dp"
+                android:layout_height="64dp">
+
+                <ImageView
+                    android:id="@+id/overview_ring_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@null"
+                    android:src="@drawable/widget_reading_preview_chart" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:id="@+id/overview_ring_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/overview_ring_of"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="@string/widget_overview_preview_ring_of"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="9sp" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <LinearLayout
+                android:id="@+id/overview_library"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false">
+
+                    <TextView
+                        android:id="@+id/overview_lib_books_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/widget_overview_books_label"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/overview_lib_books_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:text="214"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:baselineAligned="false">
+
+                    <TextView
+                        android:id="@+id/overview_lib_reading_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/widget_overview_reading_label"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/overview_lib_reading_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:text="3"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:baselineAligned="false">
+
+                    <TextView
+                        android:id="@+id/overview_lib_unread_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/widget_overview_unread_label"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/overview_lib_unread_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:text="119"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Compact tier: a small ring (always the yearly goal) beside the book's status, replacing the rows above. -->
+        <LinearLayout
+            android:id="@+id/overview_compact_row"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/overview_compact_ring"
+                android:layout_width="56dp"
+                android:layout_height="56dp">
+
+                <ImageView
+                    android:id="@+id/overview_compact_ring_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@null"
+                    android:src="@drawable/widget_reading_preview_chart" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:id="@+id/overview_compact_ring_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/overview_compact_ring_of"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="@string/widget_overview_preview_ring_of"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="8sp" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <LinearLayout
+                android:id="@+id/overview_compact_status"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
@@ -65,7 +513,7 @@
                 android:orientation="vertical">
 
                 <TextView
-                    android:id="@+id/overview_title"
+                    android:id="@+id/overview_compact_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
@@ -73,191 +521,45 @@
                     android:maxLines="1"
                     android:text="@string/widget_preview_title"
                     android:textColor="@color/widget_on_surface"
-                    android:textSize="15sp" />
+                    android:textSize="12sp" />
 
                 <TextView
-                    android:id="@+id/overview_author"
+                    android:id="@+id/overview_compact_percent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:maxLines="1"
+                    android:text="@string/widget_preview_progress"
+                    android:textColor="@color/widget_on_surface_variant"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/overview_compact_empty_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxLines="2"
+                    android:text="@string/widget_empty"
+                    android:textColor="@color/widget_on_surface_variant"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/overview_compact_read_next"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/widget_chip"
                     android:ellipsize="end"
-                    android:maxLines="1"
-                    android:text="@string/widget_preview_author"
-                    android:textColor="@color/widget_on_surface_variant"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/overview_percent"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/widget_chip"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="3dp"
-                android:text="@string/widget_preview_progress"
-                android:textColor="@color/widget_on_primary_container"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <!-- No book being read yet: shown instead of overview_book. -->
-        <LinearLayout
-            android:id="@+id/overview_empty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/overview_empty_icon"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:background="@drawable/widget_icon_background"
-                android:contentDescription="@null"
-                android:padding="9dp"
-                android:src="@drawable/ic_widget_book" />
-
-            <TextView
-                android:id="@+id/overview_empty_text"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:maxLines="2"
-                android:text="@string/widget_empty"
-                android:textColor="@color/widget_on_surface_variant"
-                android:textSize="13sp" />
-        </LinearLayout>
-
-        <!-- Today's minutes, the current streak and books finished, divided into three equal columns. -->
-        <LinearLayout
-            android:id="@+id/overview_stats"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:baselineAligned="false"
-            android:orientation="horizontal">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_horizontal"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/overview_today_value"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="@string/widget_reading_preview_today"
-                    android:textColor="@color/widget_on_surface"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/overview_today_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:maxLines="1"
-                    android:text="@string/widget_reading_today"
-                    android:textColor="@color/widget_on_surface_variant"
-                    android:textSize="11sp" />
-            </LinearLayout>
-
-            <View
-                android:id="@+id/overview_divider_1"
-                android:layout_width="1dp"
-                android:layout_height="28dp"
-                android:layout_gravity="center_vertical"
-                android:alpha="0.4"
-                android:background="@color/widget_on_surface_variant"
-                android:contentDescription="@null" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_horizontal"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/overview_streak_value"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/widget_overview_preview_streak"
-                    android:textColor="@color/widget_on_surface"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/overview_streak_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:maxLines="1"
-                    android:text="@string/statistics_streak_title"
-                    android:textColor="@color/widget_on_surface_variant"
-                    android:textSize="11sp" />
-            </LinearLayout>
-
-            <View
-                android:id="@+id/overview_divider_2"
-                android:layout_width="1dp"
-                android:layout_height="28dp"
-                android:layout_gravity="center_vertical"
-                android:alpha="0.4"
-                android:background="@color/widget_on_surface_variant"
-                android:contentDescription="@null" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_horizontal"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/overview_finished_value"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/widget_overview_preview_finished"
-                    android:textColor="@color/widget_on_surface"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/overview_finished_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:maxLines="1"
-                    android:text="@string/widget_overview_finished_label"
-                    android:textColor="@color/widget_on_surface_variant"
-                    android:textSize="11sp" />
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="3dp"
+                    android:text="@string/widget_overview_read_next"
+                    android:textColor="@color/widget_on_primary_container"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
-
-        <ImageView
-            android:id="@+id/overview_chart"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:contentDescription="@string/widget_overview_title"
-            android:scaleType="fitXY"
-            android:src="@drawable/widget_reading_preview_chart" />
     </LinearLayout>
 </FrameLayout>

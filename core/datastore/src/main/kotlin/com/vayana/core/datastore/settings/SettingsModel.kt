@@ -157,6 +157,9 @@ data class SettingsSnapshot(
     val widgetChartHeader: Boolean = true,
     /** Without a header, the reading-time widget's graph may fill the widget edge to edge. */
     val widgetChartFill: Boolean = false,
+    /** The overview widget's streak chip turns to its "at risk" state from this hour, local time, on a day with no
+     * reading yet and a streak that would otherwise break. */
+    val widgetStreakAtRiskHour: Int = 18,
     val yearlyBooksGoal: Int = 12,
     val defaultCoverSource: DefaultCoverSource = DefaultCoverSource.YOURS,
     /** Mirrors Home Library's catalog into Offline books while it is installed on this phone. */
@@ -824,6 +827,15 @@ object SettingsRegistry {
         subtitleRes = R.string.widget_chart_axis_labels_subtitle,
         group = SettingsGroup.APPEARANCE,
     )
+    val WidgetStreakAtRiskHour: IntSetting = IntSetting(
+        key = "widgets.streak_at_risk_hour",
+        defaultValue = 18,
+        titleRes = R.string.widget_streak_at_risk_hour_title,
+        subtitleRes = R.string.widget_streak_at_risk_hour_subtitle,
+        group = SettingsGroup.APPEARANCE,
+        range = 12..23,
+        step = 1,
+    )
     val BorrowReminders: BooleanSetting = BooleanSetting(
         key = "reminders.borrowed_enabled",
         defaultValue = true,
@@ -1019,6 +1031,7 @@ object SettingsRegistry {
         WidgetChartDays,
         WidgetChartHeader,
         WidgetChartFill,
+        WidgetStreakAtRiskHour,
         ReaderPaceActualSeconds,
         ReaderPaceEstimatedSeconds,
     )
